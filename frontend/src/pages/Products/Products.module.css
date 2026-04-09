@@ -1,0 +1,87 @@
+.root {}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.btn {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background var(--transition);
+}
+
+.btn:hover {
+  background: var(--accent-hover);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.card:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.cardIcon {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.cardLabel {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cardDesc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.cardBtn {
+  margin-top: 12px;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  align-self: flex-start;
+  transition: background var(--transition);
+}
+
+.cardBtn:hover {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
