@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
 import s from './Chat.module.css';
+import { aiApi, ConversationMessage } from '../../api/ai';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ export default function Chat() {
   const [active, setActive] = useState(false);
   const [model, setModel] = useState<Model>('chatgpt');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [history, setHistory] = useState<ConversationMessage[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [input, setInput] = useState('');
@@ -71,11 +73,12 @@ export default function Chat() {
   function startChat() {
     setActive(true);
     setMessages([{ id: uid(), role: 'ai', text: INITIAL_AI_MSG }]);
+    setHistory([{ role: 'assistant', content: INITIAL_AI_MSG }]);
     setCurrentStep(0);
     setUserMsgCount(0);
   }
 
-  function sendMessage(text: string) {
+  async function sendMessage(text: string) {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
 
@@ -85,11 +88,28 @@ export default function Chat() {
     setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: getMockReply(newCount) }]);
+    const updatedHistory: ConversationMessage[] = [
+      ...history,
+      { role: 'user', content: trimmed },
+    ];
+
+    try {
+      const res = await aiApi.chat({
+        message: trimmed,
+        model,
+        conversationHistory: history,
+      });
+
+      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: res.content }]);
+      setHistory([...updatedHistory, { role: 'assistant', content: res.content }]);
+    } catch {
+      const fallback = getMockReply(newCount);
+      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: fallback }]);
+      setHistory([...updatedHistory, { role: 'assistant', content: fallback }]);
+    } finally {
       setIsTyping(false);
       setCurrentStep((prev) => Math.min(prev + 1, JTBD_STEPS.length - 1));
-    }, 1500);
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -106,7 +126,7 @@ export default function Chat() {
   }
 
   function handleNextStep() {
-    sendMessage('Переходим к следующему шагу');
+    void sendMessage('Переходим к следующему шагу');
   }
 
   function handleRewrite(msgId: string, count: number) {

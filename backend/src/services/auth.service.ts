@@ -1,9 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
-
-const prisma = new PrismaClient();
 
 export interface TokenPair {
   accessToken: string;
