@@ -79,12 +79,16 @@
 
 ### Готово ✅
 - Структура проекта (Frontend + Backend)
-- Авторизация: Login, Register, PrivateRoute, mock dev-режим
-- Чат-упаковка по JTBD: UI + mock-ответы, 6 шагов, выбор модели
-- Схема БД: Prisma (User, Project, Message, Product, TextMaterial, Tariff)
-- Git: первый коммит 13be0b1
+- Авторизация: Login, Register, PrivateRoute, mock dev-режим (VITE_DEV_MODE=true)
+- Чат-упаковка по JTBD: UI + реальный AI endpoint, 6 шагов, выбор модели ChatGPT/Claude
+- AI endpoint: POST /api/v1/ai/chat — подключён OpenAI и Anthropic SDK, mock-fallback если нет ключей
+- Prisma 7: конфиг через prisma.config.ts + @prisma/adapter-pg
+- Frontend порт: 5174, Backend: 3001
+- Git: 13be0b1 (init), 41c9862 (AI + Prisma 7)
 
 ### Следующий шаг 🔜
+- Запустить Docker + `prisma migrate dev` (БД не инициализирована)
 - Экран "Продукты КПТ"
 - Экран "Целевая аудитория"
-- Подключение реального ИИ (нужны API-ключи OpenAI + Anthropic)
+- Пополнить баланс OpenAI / Anthropic для реального AI в чате
+- Sidebar: подтянуть реального пользователя из auth store
