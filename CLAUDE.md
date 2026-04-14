@@ -80,15 +80,16 @@
 ### Готово ✅
 - Структура проекта (Frontend + Backend)
 - Авторизация: Login, Register, PrivateRoute, mock dev-режим (VITE_DEV_MODE=true)
-- Чат-упаковка по JTBD: UI + реальный AI endpoint, 6 шагов, выбор модели ChatGPT/Claude
-- AI endpoint: POST /api/v1/ai/chat — подключён OpenAI и Anthropic SDK, mock-fallback если нет ключей
-- Prisma 7: конфиг через prisma.config.ts + @prisma/adapter-pg
-- Frontend порт: 5174, Backend: 3001
-- Git: 13be0b1 (init), 41c9862 (AI + Prisma 7)
+- Навигация: 6 этапов упаковки (/strategy, /product-main, /product-mini, /lead-magnet, /reels, /posts)
+- Логика блокировки: этапы 2-6 заблокированы (🔒) пока не завершена стратегия
+- /strategy — полный JTBD-чат с ИИ, кнопка "Завершить стратегию" разблокирует остальные этапы
+- progress.store.ts — состояние прогресса в localStorage (zustand persist)
+- AI endpoint: POST /api/v1/ai/chat — OpenAI + Anthropic SDK, mock-fallback
+- Prisma 7: prisma.config.ts + @prisma/adapter-pg
+- Frontend: 5174, Backend: 3001
+- Git: 13be0b1 → 41c9862 → b3a4cce → b0077a7
 
 ### Следующий шаг 🔜
-- Запустить Docker + `prisma migrate dev` (БД не инициализирована)
-- Экран "Продукты КПТ"
-- Экран "Целевая аудитория"
-- Пополнить баланс OpenAI / Anthropic для реального AI в чате
-- Sidebar: подтянуть реального пользователя из auth store
+- Запустить Docker + `prisma migrate dev` (БД не инициализирована, данные не сохраняются)
+- Наполнить экраны /product-main, /product-mini, /lead-magnet, /reels, /posts реальным функционалом
+- Пополнить баланс OpenAI / Anthropic для реального AI
