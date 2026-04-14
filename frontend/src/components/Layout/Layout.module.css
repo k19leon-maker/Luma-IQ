@@ -106,6 +106,26 @@
   opacity: 1;
 }
 
+.navLinkLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.lockIcon {
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
 .sidebarFooter {
   padding: 12px 10px;
   border-top: 1px solid var(--border);
