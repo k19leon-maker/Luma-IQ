@@ -1,7 +1,9 @@
 import { Response } from 'express';
 import { z } from 'zod';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
+import { getMockResponse } from '../config/jtbd-mock';
 import { chat } from '../services/ai.service';
+import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 // Публичное представление шагов — без buildPrompt
@@ -36,6 +38,13 @@ export const jtbdController = {
     const step = JTBD_FRAMEWORK.find((s) => s.id === stepId);
     if (!step) {
       res.status(404).json({ error: `Шаг ${stepId} не найден` });
+      return;
+    }
+
+    // Mock mode: no AI keys configured
+    if (env.isMockAI) {
+      const content = getMockResponse(stepId, answers as JTBDAnswers);
+      res.json({ stepId, key: step.key, content, mock: true });
       return;
     }
 
