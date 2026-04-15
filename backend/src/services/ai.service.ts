@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { SYSTEM_PROMPT } from '../config/system-prompt';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -130,9 +131,11 @@ async function callOpenAI(req: AIRequest): Promise<AIResponse> {
   const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
-  const messages = req.systemPrompt
-    ? [{ role: 'system' as const, content: req.systemPrompt }, ...req.messages]
-    : req.messages;
+  const systemContent = req.systemPrompt ?? SYSTEM_PROMPT;
+  const messages = [
+    { role: 'system' as const, content: systemContent },
+    ...req.messages.filter((m) => m.role !== 'system'),
+  ];
 
   const completion = await client.chat.completions.create({
     model: env.OPENAI_MODEL,
@@ -155,7 +158,7 @@ async function callAnthropic(req: AIRequest): Promise<AIResponse> {
   const response = await client.messages.create({
     model: env.ANTHROPIC_MODEL,
     max_tokens: req.maxTokens ?? 1024,
-    system: req.systemPrompt,
+    system: req.systemPrompt ?? SYSTEM_PROMPT,
     messages: req.messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
