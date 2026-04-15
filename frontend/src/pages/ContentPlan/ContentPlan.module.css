@@ -1,0 +1,165 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.addBtn {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+
+.addBtn:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Kanban board ──────────────────────────────────────────────── */
+.board {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.column {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dayName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.cardCount {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 1px 7px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.cardList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ── Card ──────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--radius-md);
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  transition: opacity var(--transition);
+  border: 1px solid transparent;
+}
+
+.card:hover {
+  opacity: 0.85;
+}
+
+.card_post {
+  background: rgba(124, 108, 252, 0.1);
+  border-color: rgba(124, 108, 252, 0.25);
+}
+
+.card_reels {
+  background: rgba(76, 175, 130, 0.1);
+  border-color: rgba(76, 175, 130, 0.25);
+}
+
+.cardType {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.card_post .cardType   { color: #7c6cfc; }
+.card_reels .cardType  { color: #4caf82; }
+
+.cardTitle {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ── Empty slot ────────────────────────────────────────────────── */
+.emptySlot {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 12px 0;
+  opacity: 0.5;
+}
+
+/* ── Add card button ───────────────────────────────────────────── */
+.addCardBtn {
+  padding: 7px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  flex-shrink: 0;
+}
+
+.addCardBtn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}

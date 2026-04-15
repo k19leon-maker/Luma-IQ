@@ -56,7 +56,7 @@
   scrollbar-color: var(--border) transparent;
 }
 
-/* ── Section ───────────────────────────────────────────────────── */
+/* ── Collapsible section ───────────────────────────────────────── */
 .navSection {
   margin-bottom: 2px;
 }
@@ -66,7 +66,7 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 7px 10px;
+  padding: 6px 10px;
   background: none;
   border: none;
   cursor: pointer;
@@ -85,16 +85,16 @@
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--text-muted);
-  text-align: left;
   flex: 1;
+  text-align: left;
 }
 
 .arrow {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  transition: transform 0.2s ease;
   display: inline-block;
   transform: rotate(-90deg);
+  transition: transform 0.2s ease;
   line-height: 1;
 }
 
@@ -187,11 +187,7 @@
   font-weight: 500;
   text-decoration: none;
   transition: background var(--transition), color var(--transition);
-  cursor: pointer;
-  border: none;
-  background: none;
   width: 100%;
-  text-align: left;
 }
 
 .navLink:hover {
@@ -204,11 +200,20 @@
   color: var(--accent);
 }
 
+/* standalone links (no section indent) */
+.standaloneLink {
+  margin-top: 1px;
+}
+
 .navIcon {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.75;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .navLink.active .navIcon {
@@ -221,21 +226,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Visual hint for stages that recommend strategy first — still clickable */
-.hintLocked {
-  opacity: 0.55;
-}
-
-.hintLocked:hover {
-  opacity: 1;
-}
-
-.lockIcon {
-  font-size: 11px;
-  flex-shrink: 0;
-  opacity: 0.6;
 }
 
 /* ── Sidebar footer ────────────────────────────────────────────── */
@@ -332,10 +322,6 @@
 
 /* ── Strategy banner ───────────────────────────────────────────── */
 .strategyBanner {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
   font-size: 13px;
   color: var(--text-secondary);
   background: rgba(124, 108, 252, 0.07);
@@ -366,10 +352,10 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.15s ease;
+  animation: fadeInOverlay 0.15s ease;
 }
 
-@keyframes fadeIn {
+@keyframes fadeInOverlay {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
@@ -435,12 +421,11 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition);
+  transition: background var(--transition);
 }
 
 .modalCancel:hover {
   background: var(--bg-hover);
-  border-color: var(--border);
 }
 
 .modalCreate {

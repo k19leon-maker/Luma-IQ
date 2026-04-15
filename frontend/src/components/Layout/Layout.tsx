@@ -1,21 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useProgressStore } from '../../store/progress.store';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Layout.module.css';
 
-interface StageItem {
-  path: string;
-  label: string;
-  icon: string;
-  requiresStrategy?: boolean;
-}
+/* ── Types ─────────────────────────────────────────────────────── */
 
 interface Project {
   id: string;
   name: string;
   color: string;
 }
+
+interface NavItem {
+  path: string;
+  label: string;
+  icon: string;
+  needsStrategy?: boolean;
+}
+
+/* ── Static data ───────────────────────────────────────────────── */
 
 const INITIAL_PROJECTS: Project[] = [
   { id: 'p1', name: 'Ссоры в паре',         color: '#7c6cfc' },
@@ -25,50 +28,91 @@ const INITIAL_PROJECTS: Project[] = [
 
 const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
 
-const stages: StageItem[] = [
-  { path: '/strategy',     label: 'Стратегия',        icon: '🎯' },
-  { path: '/product-main', label: 'Основной продукт',  icon: '🚀', requiresStrategy: true },
-  { path: '/product-mini', label: 'Короткий продукт',  icon: '⚡', requiresStrategy: true },
-  { path: '/lead-magnet',  label: 'Лид-магнит',        icon: '📄', requiresStrategy: true },
-  { path: '/reels',        label: 'Рилсы',             icon: '🎬', requiresStrategy: true },
-  { path: '/posts',        label: 'Посты',             icon: '📱', requiresStrategy: true },
+const packagingNav: NavItem[] = [
+  { path: '/strategy',     label: 'Стратегия',       icon: '🎯' },
+  { path: '/product-main', label: 'Основной продукт', icon: '🚀', needsStrategy: true },
+  { path: '/product-mini', label: 'Мини-продукт',     icon: '⚡', needsStrategy: true },
+  { path: '/product-free', label: 'Бесплатный продукт', icon: '🎁', needsStrategy: true },
 ];
 
-const bottomNav = [
-  { path: '/history',  label: 'История',   icon: '🕐' },
-  { path: '/settings', label: 'Настройки', icon: '⚙️' },
+const contentNav: NavItem[] = [
+  { path: '/posts',           label: 'Посты',               icon: '📱', needsStrategy: true },
+  { path: '/reels',           label: 'Рилсы',               icon: '🎬', needsStrategy: true },
+  { path: '/articles',        label: 'Статьи',              icon: '📝', needsStrategy: true },
+  { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥', needsStrategy: true },
+  { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖', needsStrategy: true },
+];
+
+const filesNav: NavItem[] = [
+  { path: '/files/materials', label: 'Материалы',  icon: '📁' },
+  { path: '/files/products',  label: 'Продукты',   icon: '📦' },
 ];
 
 const pageTitles: Record<string, string> = {
-  '/strategy':     'Стратегия',
-  '/product-main': 'Основной продукт',
-  '/product-mini': 'Короткий продукт',
-  '/lead-magnet':  'Лид-магнит',
-  '/reels':        'Рилсы',
-  '/posts':        'Посты',
-  '/history':      'История',
-  '/settings':     'Настройки',
+  '/strategy':        'Стратегия',
+  '/product-main':    'Основной продукт',
+  '/product-mini':    'Мини-продукт',
+  '/product-free':    'Бесплатный продукт',
+  '/posts':           'Посты',
+  '/reels':           'Рилсы',
+  '/articles':        'Статьи',
+  '/video-scripts':   'Сценарии видео',
+  '/chatbot-chains':  'Цепочка текстов',
+  '/content-plan':    'Контент-план',
+  '/files/materials': 'Материалы',
+  '/files/products':  'Продукты',
+  '/history':         'История',
+  '/settings':        'Настройки',
 };
 
-interface LayoutProps {
+// Pages that recommend completing strategy first
+const STRATEGY_DEPENDENT = new Set([
+  '/product-main', '/product-mini', '/product-free',
+  '/posts', '/reels', '/articles', '/video-scripts', '/chatbot-chains',
+]);
+
+/* ── Collapsible section component ────────────────────────────── */
+
+function Section({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
   children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={s.navSection}>
+      <button className={s.sectionHeader} onClick={() => setOpen((v) => !v)}>
+        <span className={s.sectionTitle}>{title}</span>
+        <span className={`${s.arrow}${open ? ' ' + s.arrowOpen : ''}`}>▾</span>
+      </button>
+      {open && <div className={s.sectionBody}>{children}</div>}
+    </div>
+  );
 }
+
+/* ── Layout ────────────────────────────────────────────────────── */
+
+interface LayoutProps { children: React.ReactNode; }
 
 export default function Layout({ children }: LayoutProps) {
   const location  = useLocation();
   const navigate  = useNavigate();
-  const title     = pageTitles[location.pathname] ?? 'PSY Boost';
+  const user      = useAuthStore((st) => st.user);
 
-  const strategyCompleted = useProgressStore((st) => st.strategyCompleted);
-  const user              = useAuthStore((st) => st.user);
+  const title = pageTitles[location.pathname] ?? 'PSY Boost';
+  const showBanner = STRATEGY_DEPENDENT.has(location.pathname);
 
-  const [projectsOpen,   setProjectsOpen]   = useState(true);
-  const [stagesOpen,     setStagesOpen]     = useState(true);
-  const [projects,       setProjects]       = useState<Project[]>(INITIAL_PROJECTS);
+  /* Projects state */
+  const [projects,        setProjects]        = useState<Project[]>(INITIAL_PROJECTS);
   const [activeProjectId, setActiveProjectId] = useState('p1');
 
-  const [showModal,       setShowModal]       = useState(false);
-  const [newProjectName,  setNewProjectName]  = useState('');
+  /* New project modal */
+  const [showModal,      setShowModal]      = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,12 +134,10 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/strategy');
   };
 
+  /* User avatar */
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'П';
-
-  const currentStage = stages.find((st) => st.path === location.pathname);
-  const showBanner   = !!(currentStage?.requiresStrategy && !strategyCompleted);
 
   return (
     <div className={s.root}>
@@ -108,70 +150,26 @@ export default function Layout({ children }: LayoutProps) {
 
         <nav className={s.nav}>
 
-          {/* ── Проекты ── */}
-          <div className={s.navSection}>
-            <button
-              className={s.sectionHeader}
-              onClick={() => setProjectsOpen((v) => !v)}
-            >
-              <span className={s.sectionTitle}>Проекты</span>
-              <span className={`${s.arrow}${projectsOpen ? ' ' + s.arrowOpen : ''}`}>▾</span>
+          {/* Проекты */}
+          <Section title="Проекты">
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                className={`${s.projectItem}${p.id === activeProjectId ? ' ' + s.projectActive : ''}`}
+                onClick={() => setActiveProjectId(p.id)}
+              >
+                <span className={s.projectDot} style={{ background: p.color }} />
+                <span className={s.projectName}>{p.name}</span>
+              </button>
+            ))}
+            <button className={s.newProjectBtn} onClick={() => setShowModal(true)}>
+              + Новый проект
             </button>
+          </Section>
 
-            {projectsOpen && (
-              <div className={s.sectionBody}>
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    className={`${s.projectItem}${p.id === activeProjectId ? ' ' + s.projectActive : ''}`}
-                    onClick={() => setActiveProjectId(p.id)}
-                  >
-                    <span className={s.projectDot} style={{ background: p.color }} />
-                    <span className={s.projectName}>{p.name}</span>
-                  </button>
-                ))}
-                <button className={s.newProjectBtn} onClick={() => setShowModal(true)}>
-                  + Новый проект
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ── Этапы упаковки ── */}
-          <div className={s.navSection}>
-            <button
-              className={s.sectionHeader}
-              onClick={() => setStagesOpen((v) => !v)}
-            >
-              <span className={s.sectionTitle}>Этапы упаковки</span>
-              <span className={`${s.arrow}${stagesOpen ? ' ' + s.arrowOpen : ''}`}>▾</span>
-            </button>
-
-            {stagesOpen && (
-              <div className={s.sectionBody}>
-                {stages.map((item) => {
-                  const isHint = !!(item.requiresStrategy && !strategyCompleted);
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={({ isActive }) =>
-                        `${s.navLink}${isActive ? ' ' + s.active : ''}${isHint ? ' ' + s.hintLocked : ''}`
-                      }
-                    >
-                      <span className={s.navIcon}>{item.icon}</span>
-                      <span className={s.navLinkLabel}>{item.label}</span>
-                      {isHint && <span className={s.lockIcon}>🔒</span>}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Прочее ── */}
-          <div className={s.navSection}>
-            {bottomNav.map((item) => (
+          {/* Упаковка */}
+          <Section title="Упаковка">
+            {packagingNav.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -183,6 +181,73 @@ export default function Layout({ children }: LayoutProps) {
                 <span className={s.navLinkLabel}>{item.label}</span>
               </NavLink>
             ))}
+          </Section>
+
+          {/* Контент */}
+          <Section title="Контент">
+            {contentNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${s.navLink}${isActive ? ' ' + s.active : ''}`
+                }
+              >
+                <span className={s.navIcon}>{item.icon}</span>
+                <span className={s.navLinkLabel}>{item.label}</span>
+              </NavLink>
+            ))}
+          </Section>
+
+          {/* Контент-план — отдельный пункт */}
+          <div className={s.navSection}>
+            <NavLink
+              to="/content-plan"
+              className={({ isActive }) =>
+                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>📅</span>
+              <span className={s.navLinkLabel}>Контент-план</span>
+            </NavLink>
+          </div>
+
+          {/* Мои файлы */}
+          <Section title="Мои файлы">
+            {filesNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${s.navLink}${isActive ? ' ' + s.active : ''}`
+                }
+              >
+                <span className={s.navIcon}>{item.icon}</span>
+                <span className={s.navLinkLabel}>{item.label}</span>
+              </NavLink>
+            ))}
+          </Section>
+
+          {/* Одиночные пункты */}
+          <div className={s.navSection}>
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>⚙️</span>
+              <span className={s.navLinkLabel}>Настройки</span>
+            </NavLink>
+            <NavLink
+              to="/history"
+              className={({ isActive }) =>
+                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>🕐</span>
+              <span className={s.navLinkLabel}>История</span>
+            </NavLink>
           </div>
 
         </nav>
@@ -207,9 +272,8 @@ export default function Layout({ children }: LayoutProps) {
         <main className={s.content}>
           {showBanner && (
             <div className={s.strategyBanner}>
-              💡 Рекомендуем сначала пройти{' '}
-              <NavLink to="/strategy" className={s.bannerLink}>Стратегию</NavLink>
-              {' '}— это поможет ИИ точнее сгенерировать материалы под вашу аудиторию
+              💡 Для лучшего результата рекомендуем начать со{' '}
+              <NavLink to="/strategy" className={s.bannerLink}>Стратегии</NavLink>
             </div>
           )}
           {children}
