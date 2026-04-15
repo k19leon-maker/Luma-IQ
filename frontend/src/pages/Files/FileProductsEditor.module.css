@@ -1,0 +1,132 @@
+/* Editor panel inside SplitEditor for FileProducts */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Header ────────────────────────────────────────────────────── */
+.editorHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+
+.editorIcon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.editorTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.editorMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Body / textarea ───────────────────────────────────────────── */
+.editorBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 24px 0;
+}
+
+.textarea {
+  flex: 1;
+  resize: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color var(--transition);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.textarea:focus {
+  border-color: var(--accent);
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+.editorFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: var(--bg-surface);
+}
+
+.charCount {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.footerActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background var(--transition), color var(--transition),
+              border-color var(--transition), opacity var(--transition);
+  white-space: nowrap;
+}
+
+.btnSecondary {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.btnSecondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btnPrimary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.btnPrimary:hover {
+  background: var(--accent-hover);
+}
+
+.btnSuccess {
+  border-color: var(--success) !important;
+  color: var(--success) !important;
+  background: rgba(76, 175, 130, 0.08) !important;
+}

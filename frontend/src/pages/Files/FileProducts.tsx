@@ -1,66 +1,212 @@
-import { useState } from 'react';
-import s from './Files.module.css';
+import { useState, useCallback } from 'react';
+import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
+import s from './FileProductsEditor.module.css';
 
-interface ProductItem {
-  id: string;
-  icon: string;
-  name: string;
-  type: string;
-  preview: string;
+/* ── Data ──────────────────────────────────────────────────────── */
+
+interface Product extends SplitItem {
+  fullText: string;
 }
 
-const PRODUCTS: ProductItem[] = [
+const PRODUCTS: Product[] = [
   {
     id: 'pr1',
     icon: '🚀',
-    name: 'Основной продукт',
-    type: 'Флагманская программа',
-    preview: '«8 недель к близости» — групповая программа для пар, которые хотят восстановить доверие и научиться говорить друг с другом без скандалов.',
+    title: 'Основной продукт',
+    meta: 'Флагманская программа',
+    preview: '«8 недель к близости» — групповая программа для пар, которые хотят восстановить доверие...',
+    fullText: `«8 недель к близости» — групповая программа для пар
+
+Для кого эта программа?
+Для пар, которые чувствуют что отдалились друг от друга. Для тех, у кого одни и те же ссоры повторяются годами. Для тех, кто хочет сохранить отношения, но не знает как начать меняться. Для пар, где один партнёр закрылся, а другой не понимает почему.
+
+Что вы получите за 8 недель?
+— Поймёте корни ваших конфликтов: почему одни и те же темы снова и снова превращаются в скандал
+— Научитесь говорить о своих потребностях так, чтобы партнёр слышал, а не защищался
+— Восстановите физическую и эмоциональную близость, которая была потеряна
+— Получите конкретные инструменты для ежедневного общения без напряжения
+— Примете совместное решение: куда двигаться дальше — и сделаете это осознанно
+
+Формат программы
+8 групповых онлайн-сессий по 90 минут — раз в неделю.
+Домашние практики для пары между сессиями.
+Закрытый чат для поддержки и вопросов.
+Доступ к записям всех сессий на 3 месяца.
+
+Кто ведёт?
+Семейный психолог с опытом работы с парами 7+ лет. Работаю по методам EFT (эмоционально-фокусированная терапия) и Готтмана. Провела более 200 парных консультаций.
+
+Результат, который вы получите
+«Я снова доверяю партнёру и себе — мы научились говорить честно, без скандалов, и я просыпаюсь утром без страха что сегодня опять будет война. Мы не идеальная пара — но мы настоящие, и мне этого достаточно.»
+
+Стоимость: 24 900 ₽ за пару
+Старт ближайшего потока: уточняйте у автора
+Количество мест: не более 6 пар в группе`,
   },
   {
     id: 'pr2',
     icon: '⚡',
-    name: 'Мини-продукт',
-    type: 'Интенсив',
-    preview: '«Первый шаг» — 3-часовой онлайн-интенсив для пар в кризисе. Конкретные инструменты для снижения напряжения уже в первую неделю.',
+    title: 'Мини-продукт',
+    meta: 'Интенсив',
+    preview: '«Первый шаг» — 3-часовой онлайн-интенсив для пар в кризисе. Конкретные инструменты...',
+    fullText: `«Первый шаг» — интенсив для пар в кризисе
+
+Для кого?
+Для пар, которые понимают что что-то идёт не так, но ещё не готовы к длительной терапии. Для тех, кто хочет попробовать — безопасно, без обязательств, с конкретным результатом уже в день прохождения.
+
+Что будет на интенсиве?
+За 3 часа мы пройдём три блока:
+
+Блок 1 — Диагностика (60 мин)
+Вы поймёте, в каком цикле конфликта застряли. Я покажу вам карту вашей пары: где возникает напряжение, что его усиливает и почему разговоры превращаются в ссоры.
+
+Блок 2 — Инструменты (90 мин)
+Три конкретные техники, которые можно применить уже сегодня:
+— Техника «стоп-пауза»: как выйти из скандала не обидев партнёра
+— Метод «я-сообщений» без обвинений
+— Практика «два стула»: услышать себя и друг друга за 15 минут
+
+Блок 3 — План (30 мин)
+Составите персональный план первых шагов на ближайшие 2 недели.
+
+Формат: онлайн, живой эфир, пара участвует вместе.
+Запись остаётся у вас навсегда.
+
+Стоимость: 3 900 ₽ за пару
+Длительность: 3 часа
+Ближайшая дата: уточняйте`,
+  },
+  {
+    id: 'pr3',
+    icon: '🎁',
+    title: 'Бесплатный продукт',
+    meta: 'Гайд',
+    preview: '«5 фраз которые разрушают доверие» — практический гайд с разбором типичных ошибок в общении...',
+    fullText: `Гайд: «5 фраз, которые разрушают доверие в паре»
+
+Мы часто ранят не намеренно. Просто говорим то, что привыкли говорить — и не замечаем, как партнёр с каждым разом закрывается чуть больше.
+
+Этот гайд — о пяти фразах, которые я слышу чаще всего на сессиях с парами. Каждая из них кажется безобидной. Но регулярное их использование разрушает доверие медленно и незаметно.
+
+Фраза 1: «Ты всегда так делаешь»
+Слово «всегда» — это обобщение, которое закрывает диалог. Партнёр слышит не конкретную проблему, а приговор. Он начинает защищаться, а не слышать вас.
+Замена: «Когда ты делаешь X, я чувствую Y»
+
+Фраза 2: «Успокойся, это не повод так реагировать»
+Обесценивание эмоций — одна из главных причин эмоционального отдаления. Когда мы говорим это, партнёр чувствует себя «ненормальным» за то, что чувствует.
+Замена: «Я вижу, что тебе сейчас тяжело. Расскажи мне.»
+
+Фраза 3: «Ладно, делай как хочешь»
+Это не согласие. Это скрытое наказание молчанием. Партнёр чувствует холод и отстранённость, но не понимает почему.
+Замена: Честно назвать своё состояние: «Я расстроен(а), мне нужно время.»
+
+Фраза 4: «Твои друзья/родители тебя подначивают»
+Атака на близких партнёра — прямой удар по его личности. Это вынуждает выбирать между вами.
+Замена: Говорить о своих чувствах без упоминания третьих лиц.
+
+Фраза 5: «Я так и знал(а)»
+Позиция «я был(а) прав(а)» важнее, чем отношения? Эта фраза разрушает ощущение команды.
+Замена: Сфокусироваться на решении, а не на том кто ошибся.
+
+Что делать дальше?
+Если вы узнали себя в этих фразах — это нормально. Мы все так говорим. Важно не то что было, а то что будет.
+
+Если хотите разобраться глубже — приходите на интенсив «Первый шаг» для пар.`,
   },
 ];
 
-export default function FileProducts() {
-  const [copied, setCopied] = useState<string | null>(null);
+/* ── Editor panel ──────────────────────────────────────────────── */
 
-  const handleCopy = (id: string, text: string) => {
+function ProductEditor({ item }: { item: Product }) {
+  const [text,    setText]    = useState(item.fullText);
+  const [copied,  setCopied]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+
+  // Reset local state when a different item is selected
+  const resetKey = item.id;
+
+  const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
-      setCopied(id);
-      setTimeout(() => setCopied(null), 2000);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     });
-  };
+  }, [text]);
+
+  const handleSave = useCallback(() => {
+    // In production: POST to API. For now, just give feedback.
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, []);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${item.title}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [text, item.title]);
 
   return (
-    <div className={s.root}>
-      <div className={s.header}>
-        <h2 className={s.title}>Продукты</h2>
-        <p className={s.desc}>Скопируйте описание продукта для публикации</p>
+    <div key={resetKey} className={s.editor}>
+      <div className={s.editorHeader}>
+        <span className={s.editorIcon}>{item.icon}</span>
+        <div>
+          <div className={s.editorTitle}>{item.title}</div>
+          <div className={s.editorMeta}>{item.meta}</div>
+        </div>
       </div>
 
-      <div className={s.list}>
-        {PRODUCTS.map((p) => (
-          <div key={p.id} className={s.card}>
-            <span className={s.fileIcon}>{p.icon}</span>
-            <div className={s.fileInfo}>
-              <div className={s.fileName}>{p.name}</div>
-              <div className={s.fileMeta}>{p.type}</div>
-              <div className={s.preview}>{p.preview}</div>
-            </div>
-            <button
-              className={`${s.actionBtn}${copied === p.id ? ' ' + s.actionBtnCopied : ''}`}
-              onClick={() => handleCopy(p.id, p.preview)}
-            >
-              {copied === p.id ? '✓ Скопировано' : 'Скопировать текст'}
-            </button>
-          </div>
-        ))}
+      <div className={s.editorBody}>
+        <textarea
+          className={s.textarea}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          spellCheck={false}
+        />
+      </div>
+
+      <div className={s.editorFooter}>
+        <span className={s.charCount}>{text.length} символов</span>
+        <div className={s.footerActions}>
+          <button
+            className={`${s.btn} ${s.btnSecondary}${copied ? ' ' + s.btnSuccess : ''}`}
+            onClick={handleCopy}
+          >
+            {copied ? '✓ Скопировано' : 'Скопировать текст'}
+          </button>
+          <button
+            className={`${s.btn} ${s.btnSecondary}${saved ? ' ' + s.btnSuccess : ''}`}
+            onClick={handleSave}
+          >
+            {saved ? '✓ Сохранено' : 'Сохранить изменения'}
+          </button>
+          <button className={`${s.btn} ${s.btnPrimary}`} onClick={handleDownload}>
+            Скачать .docx
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ── Page ──────────────────────────────────────────────────────── */
+
+export default function FileProducts() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  return (
+    <SplitEditor
+      items={PRODUCTS}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      listTitle="Продукты"
+      renderEditor={(item) =>
+        item ? (
+          <ProductEditor item={item as Product} />
+        ) : null
+      }
+    />
   );
 }
