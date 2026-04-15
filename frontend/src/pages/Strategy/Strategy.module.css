@@ -18,16 +18,14 @@
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .loadingText {
   font-size: 14px;
   color: var(--text-muted);
 }
 
-/* ── Welcome / Completed screen ───────────────────────────────────────────── */
+/* ── Welcome / Completed ──────────────────────────────────────────────────── */
 
 .welcome {
   display: flex;
@@ -45,10 +43,7 @@
   gap: 20px;
 }
 
-.welcomeIcon {
-  font-size: 48px;
-  line-height: 1;
-}
+.welcomeIcon  { font-size: 48px; line-height: 1; }
 
 .welcomeTitle {
   font-size: 24px;
@@ -109,10 +104,7 @@
   transition: background var(--transition);
   align-self: flex-start;
 }
-
-.startBtn:hover {
-  background: var(--accent-hover);
-}
+.startBtn:hover { background: var(--accent-hover); }
 
 .completedActions {
   display: flex;
@@ -132,11 +124,7 @@
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition);
 }
-
-.secondaryBtn:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-}
+.secondaryBtn:hover { background: var(--bg-hover); border-color: var(--accent); }
 
 .resetBtn {
   background: none;
@@ -148,12 +136,9 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.resetBtn:hover { color: var(--text-secondary); }
 
-.resetBtn:hover {
-  color: var(--text-secondary);
-}
-
-/* ── Model selector (shared) ──────────────────────────────────────────────── */
+/* ── Model selector ───────────────────────────────────────────────────────── */
 
 .modelRow {
   display: flex;
@@ -171,43 +156,44 @@
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
+.modelChip:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.modelChip.modelActive  { background: var(--accent); border-color: var(--accent); color: var(--text-on-accent); }
+.modelChip:disabled     { opacity: 0.5; cursor: not-allowed; }
 
-.modelChip:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--text-primary);
+/* ══════════════════════════════════════════════════════════════════════════════
+   THREE-COLUMN LAYOUT
+   Stretches to fill the full height by using negative margin to undo Layout.content padding.
+══════════════════════════════════════════════════════════════════════════════ */
+
+.threeCol {
+  display: flex;
+  margin: -24px;
+  height: calc(100vh - var(--topbar-height));
+  overflow: hidden;
 }
 
-.modelChip.modelActive {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent);
-}
+/* ── Chat column ──────────────────────────────────────────────────────────── */
 
-.modelChip:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ── Active page layout ───────────────────────────────────────────────────── */
-
-.page {
+.chatCol {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--topbar-height) - 48px);
-  min-height: 0;
-  gap: 0;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
 }
 
-/* ── Top bar: progress + model ────────────────────────────────────────────── */
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
 
 .topBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 14px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--bg-surface);
 }
 
 .progressInfo {
@@ -219,15 +205,18 @@
 }
 
 .stepLabel {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
 .progressTrack {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: var(--bg-elevated);
   border-radius: 2px;
   overflow: hidden;
@@ -240,51 +229,15 @@
   transition: width 0.4s ease;
 }
 
-/* ── Step header ──────────────────────────────────────────────────────────── */
+/* ── Chat body ────────────────────────────────────────────────────────────── */
 
-.stepHeader {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px 0 14px;
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.stepNum {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-muted);
-  border-radius: var(--radius-sm);
-  padding: 3px 8px;
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.stepTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.3;
-}
-
-.stepDesc {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-/* ── Body: scrollable content ─────────────────────────────────────────────── */
-
-.body {
+.chatBody {
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
-  padding: 20px 0 8px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -293,7 +246,7 @@
 
 .aiMessage {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
   animation: fadeIn 0.2s ease;
 }
@@ -321,12 +274,48 @@
   border: 1px solid var(--border);
   border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
   padding: 12px 16px;
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.7;
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
-  max-width: min(680px, calc(100% - 44px));
+  max-width: min(640px, calc(100% - 44px));
+}
+
+/* ── User message ─────────────────────────────────────────────────────────── */
+
+.userMessage {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease;
+}
+
+.userBubble {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-radius: var(--radius-lg) 4px var(--radius-lg) var(--radius-lg);
+  padding: 11px 15px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+  max-width: min(580px, calc(100% - 44px));
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-muted);
+  border: 1px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 /* ── Typing indicator ─────────────────────────────────────────────────────── */
@@ -348,13 +337,12 @@
   background: var(--text-muted);
   animation: bounce 1.2s ease-in-out infinite;
 }
-
 .dot:nth-child(2) { animation-delay: 0.2s; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30%           { transform: translateY(-5px); opacity: 1; }
+  0%, 60%, 100% { transform: translateY(0);    opacity: 0.4; }
+  30%            { transform: translateY(-5px); opacity: 1; }
 }
 
 .typingLabel {
@@ -363,52 +351,15 @@
   margin-left: 4px;
 }
 
-/* ── Auto step label ──────────────────────────────────────────────────────── */
+/* ── Auto label ───────────────────────────────────────────────────────────── */
 
 .autoLabel {
   font-size: 13px;
   color: var(--text-muted);
-  padding: 8px 0;
-  animation: fadeIn 0.2s ease;
+  padding: 6px 0;
 }
 
-/* ── Response block ───────────────────────────────────────────────────────── */
-
-.responseBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.responseActions {
-  display: flex;
-  gap: 6px;
-  padding-left: 44px;
-}
-
-.actionBtn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-
-.actionBtn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-muted);
-}
-
-.actionBtn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* ── Error box ────────────────────────────────────────────────────────────── */
+/* ── Error ────────────────────────────────────────────────────────────────── */
 
 .errorBox {
   background: rgba(242, 92, 92, 0.08);
@@ -438,9 +389,10 @@
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding-top: 12px;
+  padding: 12px 20px 16px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--bg-surface);
 }
 
 .textarea {
@@ -460,20 +412,9 @@
   overflow-y: auto;
   transition: border-color var(--transition);
 }
-
-.textarea:focus {
-  border-color: var(--accent);
-}
-
-.textarea::placeholder {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.textarea:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+.textarea:focus       { border-color: var(--accent); }
+.textarea::placeholder { color: var(--text-muted); font-size: 13px; }
+.textarea:disabled    { opacity: 0.5; cursor: not-allowed; }
 
 .sendBtn {
   height: 42px;
@@ -489,37 +430,11 @@
   white-space: nowrap;
   transition: background var(--transition), opacity var(--transition);
 }
-
-.sendBtn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.sendBtn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.nextBtn {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-}
-
-.nextBtn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-}
-
-/* ── Next button (auto steps) ─────────────────────────────────────────────── */
-
-.nextArea {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-}
+.sendBtn:hover:not(:disabled) { background: var(--accent-hover); }
+.sendBtn:disabled              { opacity: 0.35; cursor: not-allowed; }
 
 .nextBtnLarge {
-  height: 44px;
+  height: 42px;
   padding: 0 28px;
   border-radius: var(--radius-md);
   background: var(--accent);
@@ -530,7 +445,113 @@
   cursor: pointer;
   transition: background var(--transition);
 }
+.nextBtnLarge:hover { background: var(--accent-hover); }
 
-.nextBtnLarge:hover {
-  background: var(--accent-hover);
+/* ══════════════════════════════════════════════════════════════════════════════
+   PROMPT PANEL (right column)
+══════════════════════════════════════════════════════════════════════════════ */
+
+.promptCol {
+  width: 340px;
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: #0d0d14;
+  border-left: 2px solid var(--accent);
+  overflow: hidden;
+}
+
+.promptHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(124, 108, 252, 0.2);
+  flex-shrink: 0;
+}
+
+.promptIcon {
+  font-size: 14px;
+}
+
+.promptTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c6cfc;
+  letter-spacing: 0.2px;
+}
+
+.promptBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 108, 252, 0.3) transparent;
+}
+
+.promptPre {
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #a0a0b8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.promptTextarea {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #c8c8e0;
+  caret-color: #7c6cfc;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 108, 252, 0.3) transparent;
+}
+
+.promptFooter {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(124, 108, 252, 0.2);
+  flex-shrink: 0;
+}
+
+.promptBtn {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(124, 108, 252, 0.35);
+  background: rgba(124, 108, 252, 0.08);
+  color: #a0a0b8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+.promptBtn:hover:not(:disabled) {
+  background: rgba(124, 108, 252, 0.18);
+  color: #c8c8e0;
+  border-color: rgba(124, 108, 252, 0.6);
+}
+.promptBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.promptBtnRun {
+  background: rgba(124, 108, 252, 0.2);
+  color: #7c6cfc;
+  border-color: rgba(124, 108, 252, 0.5);
+  font-weight: 600;
+}
+.promptBtnRun:hover:not(:disabled) {
+  background: rgba(124, 108, 252, 0.32);
+  color: #a08cff;
+  border-color: #7c6cfc;
 }
