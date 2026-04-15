@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { authApi, AuthUser } from '../api/auth.api';
 
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
-const DEV_TOKEN = '__dev__';
+const DEV_TOKEN = 'dev-token';
 
 const DEV_USER: AuthUser = {
   id: 'dev-user-001',

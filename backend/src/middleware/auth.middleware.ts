@@ -15,6 +15,14 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 
   const token = header.slice(7);
+
+  // Dev bypass: allow static token in development mode
+  if (token === 'dev-token' && env.NODE_ENV === 'development') {
+    req.userId = 'dev-user-001';
+    next();
+    return;
+  }
+
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as { sub: string };
     req.userId = payload.sub;

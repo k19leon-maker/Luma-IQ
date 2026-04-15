@@ -6,6 +6,7 @@ import passport from 'passport';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth.routes';
 import aiRouter from './routes/ai.routes';
+import jtbdRouter from './routes/jtbd.routes';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.get('/api/v1/health', (_req, res) => {
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/jtbd', jtbdRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend запущен на http://localhost:${PORT}`);

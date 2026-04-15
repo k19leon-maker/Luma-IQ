@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 
@@ -17,15 +17,13 @@ export interface AuthUser {
 }
 
 function signAccess(userId: string): string {
-  return jwt.sign({ sub: userId }, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as string,
-  });
+  const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'] };
+  return jwt.sign({ sub: userId }, env.JWT_SECRET, options);
 }
 
 function signRefresh(userId: string): string {
-  return jwt.sign({ sub: userId }, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES_IN as string,
-  });
+  const options: SignOptions = { expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] };
+  return jwt.sign({ sub: userId }, env.JWT_REFRESH_SECRET, options);
 }
 
 function toAuthUser(user: { id: string; email: string; name: string | null; avatarUrl: string | null; role: string }): AuthUser {

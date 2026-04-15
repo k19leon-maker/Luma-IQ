@@ -1,310 +1,485 @@
-import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import s from './Strategy.module.css';
-import { aiApi, ConversationMessage } from '../../api/ai';
+import { jtbdApi, JTBDStep } from '../../api/jtbd.api';
+import { JTBD_STEPS_FALLBACK } from '../../config/jtbd-steps';
 import { useProgressStore } from '../../store/progress.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Model = 'chatgpt' | 'claude';
+type Phase = 'input' | 'loading' | 'done';
 
-interface Message {
-  id: string;
-  role: 'user' | 'ai';
-  text: string;
+// Какой ключ в answers хранит пользовательский ввод для каждого шага
+const USER_INPUT_KEY: Record<number, string> = {
+  1: 'niche',
+  3: 'chosenSegment',
+  5: 'chosenSubsegment',
+  7: 'chosenRequest',
+};
+
+const STORAGE_ANSWERS = 'strategy_answers';
+const STORAGE_STEP    = 'strategy_step';
+
+function loadAnswers(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(STORAGE_ANSWERS) ?? '{}'); }
+  catch { return {}; }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const JTBD_STEPS = [
-  '1. Сегмент ЦА',
-  '2. Боли',
-  '3. JTBD-работы',
-  '4. УТП',
-  '5. Оффер',
-  '6. Контент',
-];
-
-const INITIAL_AI_MSG =
-  'Привет! Я помогу упаковать ваши услуги по JTBD-фреймворку.\n' +
-  'Для начала — опишите вашего идеального клиента: кто он, какая у него ситуация, что его беспокоит прямо сейчас?';
-
-function getMockReply(userMsgCount: number): string {
-  if (userMsgCount === 1) {
-    return 'Отлично! Теперь углубимся в боли вашего клиента. Что он уже пробовал решить эту проблему? Почему не помогло?';
-  }
-  if (userMsgCount === 2) {
-    return 'Хорошо. Формирую JTBD-формулу на основе ваших данных:\n«Когда я [ситуация] → я хочу найти специалиста → который поможет [результат] без [страх]»';
-  }
-  return 'Понял, продолжаем. Расскажите подробнее — это поможет точнее упаковать ваши услуги.';
-}
-
-function uid() {
-  return Math.random().toString(36).slice(2);
+function saveAnswers(answers: Record<string, string>) {
+  localStorage.setItem(STORAGE_ANSWERS, JSON.stringify(answers));
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Strategy() {
   const navigate = useNavigate();
-  const completeStrategy = useProgressStore((s) => s.completeStrategy);
-  const strategyCompleted = useProgressStore((s) => s.strategyCompleted);
-  const [active, setActive] = useState(false);
+  const completeStrategy = useProgressStore((st) => st.completeStrategy);
+  const strategyCompleted = useProgressStore((st) => st.strategyCompleted);
+
+  const [steps, setSteps] = useState<JTBDStep[]>([]);
+  const [stepsLoading, setStepsLoading] = useState(true);
+  const [stepsError, setStepsError] = useState('');
+  const [usingFallback, setUsingFallback] = useState(false);
+
+  const [started, setStarted] = useState(false);
+  const [completed, setCompleted] = useState(false);
+
+  const [stepIndex, setStepIndex] = useState(0);
+  const [phase, setPhase] = useState<Phase>('input');
+  const [aiResponse, setAiResponse] = useState('');
+  const [userInput, setUserInput] = useState('');
+  const [answers, setAnswers] = useState<Record<string, string>>(loadAnswers);
   const [model, setModel] = useState<Model>('chatgpt');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<ConversationMessage[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const [input, setInput] = useState('');
-  const [userMsgCount, setUserMsgCount] = useState(0);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const responseRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom on new content
+  const currentStep = steps[stepIndex] ?? null;
+  const isAutoStep  = currentStep ? currentStep.userQuestion === null : false;
+
+  // ── Load steps on mount ─────────────────────────────────────────────────────
+  function applySteps(data: JTBDStep[]) {
+    setSteps(data);
+    const savedStep = parseInt(localStorage.getItem(STORAGE_STEP) ?? '0', 10);
+    const savedAnswers = loadAnswers();
+    if (Object.keys(savedAnswers).length > 0 && savedStep > 0) {
+      setAnswers(savedAnswers);
+      setStepIndex(Math.min(savedStep, data.length - 1));
+      setStarted(true);
+      if (savedStep >= data.length) setCompleted(true);
+    }
+  }
+
+  function loadSteps() {
+    setStepsLoading(true);
+    setStepsError('');
+    jtbdApi.getSteps()
+      .then((data) => {
+        setUsingFallback(false);
+        applySteps(data);
+      })
+      .catch(() => {
+        // Бэкенд недоступен — используем fallback
+        setUsingFallback(true);
+        applySteps(JTBD_STEPS_FALLBACK);
+      })
+      .finally(() => setStepsLoading(false));
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    loadSteps();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-resize textarea
+  // ── Auto-run generation for automatic steps ─────────────────────────────────
+  useEffect(() => {
+    if (!started || !currentStep || !isAutoStep || phase !== 'input') return;
+    void runGenerate(answers);
+  }, [stepIndex, started]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-resize textarea ────────────────────────────────────────────────────
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
-  }, [input]);
+  }, [userInput]);
 
-  function startChat() {
-    setActive(true);
-    setMessages([{ id: uid(), role: 'ai', text: INITIAL_AI_MSG }]);
-    setHistory([{ role: 'assistant', content: INITIAL_AI_MSG }]);
-    setCurrentStep(0);
-    setUserMsgCount(0);
+  // ── Scroll response into view ───────────────────────────────────────────────
+  useEffect(() => {
+    if (phase === 'done') {
+      responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [phase, aiResponse]);
+
+  // ─── Core: call generate API ────────────────────────────────────────────────
+  async function runGenerate(currentAnswers: Record<string, string>) {
+    if (!currentStep) return;
+    setPhase('loading');
+    setError('');
+    try {
+      const res = await jtbdApi.generate({
+        stepId: currentStep.id,
+        answers: currentAnswers,
+        model,
+      });
+      const updated = { ...currentAnswers, [currentStep.key]: res.content };
+      setAnswers(updated);
+      saveAnswers(updated);
+      setAiResponse(res.content);
+      setPhase('done');
+    } catch {
+      setError('Ошибка при генерации. Попробуйте ещё раз.');
+      setPhase('input');
+    }
   }
 
-  async function sendMessage(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || isTyping) return;
+  // ─── Submit user input ──────────────────────────────────────────────────────
+  function handleSubmit() {
+    const trimmed = userInput.trim();
+    if (!trimmed || !currentStep) return;
 
-    const newCount = userMsgCount + 1;
-    setMessages((prev) => [...prev, { id: uid(), role: 'user', text: trimmed }]);
-    setUserMsgCount(newCount);
-    setInput('');
-    setIsTyping(true);
-
-    const updatedHistory: ConversationMessage[] = [
-      ...history,
-      { role: 'user', content: trimmed },
-    ];
-
-    try {
-      const res = await aiApi.chat({
-        message: trimmed,
-        model,
-        conversationHistory: history,
-      });
-
-      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: res.content }]);
-      setHistory([...updatedHistory, { role: 'assistant', content: res.content }]);
-    } catch {
-      const fallback = getMockReply(newCount);
-      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: fallback }]);
-      setHistory([...updatedHistory, { role: 'assistant', content: fallback }]);
-    } finally {
-      setIsTyping(false);
-      setCurrentStep((prev) => Math.min(prev + 1, JTBD_STEPS.length - 1));
-    }
+    const inputKey = USER_INPUT_KEY[currentStep.id] ?? currentStep.key + '_input';
+    const updated = { ...answers, [inputKey]: trimmed };
+    setAnswers(updated);
+    saveAnswers(updated);
+    setUserInput('');
+    void runGenerate(updated);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(input);
+      handleSubmit();
     }
   }
 
-  function handleCopy(text: string, id: string) {
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopied(id);
-    setTimeout(() => setCopied(null), 1500);
+  // ─── Advance to next step ───────────────────────────────────────────────────
+  function handleNext() {
+    const nextIndex = stepIndex + 1;
+    if (nextIndex >= steps.length) {
+      // Strategy complete
+      completeStrategy();
+      setCompleted(true);
+      localStorage.setItem(STORAGE_STEP, String(steps.length));
+      return;
+    }
+    localStorage.setItem(STORAGE_STEP, String(nextIndex));
+    setStepIndex(nextIndex);
+    setAiResponse('');
+    setUserInput('');
+    setPhase('input');
+    setError('');
   }
 
-  function handleNextStep() {
-    void sendMessage('Переходим к следующему шагу');
+  // ─── Retry generation ───────────────────────────────────────────────────────
+  function handleRetry() {
+    setPhase('input');
+    if (isAutoStep) void runGenerate(answers);
   }
 
-  function handleRewrite(msgId: string, count: number) {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId ? { ...m, id: uid(), text: getMockReply(count) } : m
-      )
+  // ─── Copy response ──────────────────────────────────────────────────────────
+  function handleCopy() {
+    navigator.clipboard.writeText(aiResponse).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  // ─── Reset ──────────────────────────────────────────────────────────────────
+  function handleReset() {
+    localStorage.removeItem(STORAGE_ANSWERS);
+    localStorage.removeItem(STORAGE_STEP);
+    setAnswers({});
+    setStepIndex(0);
+    setAiResponse('');
+    setUserInput('');
+    setPhase('input');
+    setCompleted(false);
+    setStarted(false);
+  }
+
+  // ─── Download strategy ──────────────────────────────────────────────────────
+  function handleDownload() {
+    const lines: string[] = ['# Стратегия упаковки\n'];
+    steps.forEach((step) => {
+      const response = answers[step.key];
+      if (response) {
+        lines.push(`## ${step.id}. ${step.title}`);
+        lines.push(response);
+        lines.push('');
+      }
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'strategy.md';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // Render: loading steps
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  if (stepsLoading) {
+    return (
+      <div className={s.center}>
+        <div className={s.spinner} />
+        <span className={s.loadingText}>Загружаем фреймворк...</span>
+      </div>
     );
   }
 
-  // ── Placeholder ─────────────────────────────────────────────────────────────
-
-  if (!active) {
+  if (stepsError) {
     return (
-      <div className={s.root}>
-        <div className={s.placeholder}>
-          <div className={s.icon}>🎯</div>
-          <h2 className={s.title}>Стратегия упаковки</h2>
-          <p className={s.desc}>
-            ИИ-ассистент проведёт вас по 6 шагам JTBD-фреймворка и поможет
-            сформулировать позиционирование, боли клиента и уникальное предложение.
-          </p>
-          {strategyCompleted ? (
-            <div className={s.completedBadge}>✅ Стратегия завершена — остальные этапы разблокированы</div>
-          ) : (
-            <button className={s.btn} onClick={startChat}>
-              Начать стратегию
-            </button>
-          )}
+      <div className={s.center}>
+        <div className={s.errorBox}>
+          {stepsError}
+          <button className={s.retryLink} onClick={loadSteps}>Попробовать снова</button>
         </div>
       </div>
     );
   }
 
-  // ── Active chat ──────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+  // Render: welcome screen
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  if (!started) {
+    return (
+      <div className={s.welcome}>
+        <div className={s.welcomeCard}>
+          <div className={s.welcomeIcon}>🎯</div>
+          <h2 className={s.welcomeTitle}>Стратегия упаковки</h2>
+          <p className={s.welcomeDesc}>
+            ИИ-ассистент проведёт вас через 12 шагов JTBD-фреймворка.
+            Вы получите глубокое понимание своей аудитории, её болей
+            и готовую основу для всех маркетинговых материалов.
+          </p>
+          <div className={s.welcomeMeta}>
+            <span className={s.metaChip}>12 шагов</span>
+            <span className={s.metaChip}>≈ 20 минут</span>
+            <span className={s.metaChip}>Сохраняется автоматически</span>
+          </div>
+
+          {usingFallback && (
+            <div className={s.warnBanner}>
+              ⚠️ Бэкенд недоступен — работаем в офлайн-режиме (ответы будут mock).
+            </div>
+          )}
+
+          {strategyCompleted && (
+            <div className={s.completedBanner}>
+              ✅ Стратегия уже завершена. Вы можете пройти её заново.
+            </div>
+          )}
+
+          {/* Model selector */}
+          <div className={s.modelRow}>
+            {(['chatgpt', 'claude'] as Model[]).map((m) => (
+              <button
+                key={m}
+                className={`${s.modelChip} ${model === m ? s.modelActive : ''}`}
+                onClick={() => setModel(m)}
+              >
+                {m === 'chatgpt' ? 'ChatGPT' : 'Claude'}
+              </button>
+            ))}
+          </div>
+
+          <button className={s.startBtn} onClick={() => setStarted(true)}>
+            Начать стратегию →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // Render: completed screen
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  if (completed) {
+    return (
+      <div className={s.welcome}>
+        <div className={s.welcomeCard}>
+          <div className={s.welcomeIcon}>🎉</div>
+          <h2 className={s.welcomeTitle}>Стратегия готова!</h2>
+          <p className={s.welcomeDesc}>
+            Вы прошли все 12 шагов JTBD-фреймворка. Теперь вы чётко понимаете
+            свою аудиторию и готовы создавать продукты и контент.
+          </p>
+          <div className={s.completedActions}>
+            <button className={s.startBtn} onClick={handleDownload}>
+              Скачать стратегию
+            </button>
+            <button className={s.secondaryBtn} onClick={() => navigate('/product-main')}>
+              Перейти к продукту →
+            </button>
+            <button className={s.resetBtn} onClick={handleReset}>
+              Пройти заново
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // Render: active step
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const progress = ((stepIndex) / steps.length) * 100;
 
   return (
-    <div className={s.chat}>
+    <div className={s.page}>
 
-      {/* ── Header: model chips + settings ── */}
-      <div className={s.header}>
+      {/* ── Top bar: progress + model ── */}
+      <div className={s.topBar}>
+        <div className={s.progressInfo}>
+          <span className={s.stepLabel}>Шаг {stepIndex + 1} из {steps.length}</span>
+          <div className={s.progressTrack}>
+            <div className={s.progressFill} style={{ width: `${progress}%` }} />
+          </div>
+        </div>
         <div className={s.modelRow}>
           {(['chatgpt', 'claude'] as Model[]).map((m) => (
             <button
               key={m}
               className={`${s.modelChip} ${model === m ? s.modelActive : ''}`}
               onClick={() => setModel(m)}
+              disabled={phase === 'loading'}
             >
               {m === 'chatgpt' ? 'ChatGPT' : 'Claude'}
             </button>
           ))}
         </div>
-        <div className={s.settingsRow}>
-          <span className={s.settingChip}>Тон: Нейтральный</span>
-          <span className={s.settingChip}>Длина: Средняя</span>
-          {!strategyCompleted && messages.length >= 3 && (
-            <button
-              className={s.completeBtn}
-              onClick={() => {
-                completeStrategy();
-                navigate('/product-main');
-              }}
-            >
-              Завершить стратегию →
-            </button>
-          )}
+      </div>
+
+      {/* ── Step header ── */}
+      <div className={s.stepHeader}>
+        <div className={s.stepNum}>#{stepIndex + 1}</div>
+        <div>
+          <div className={s.stepTitle}>{currentStep?.title}</div>
+          <div className={s.stepDesc}>{currentStep?.description}</div>
         </div>
       </div>
 
-      {/* ── JTBD step chips ── */}
-      <div className={s.steps}>
-        {JTBD_STEPS.map((step, i) => (
-          <div
-            key={step}
-            className={[
-              s.stepChip,
-              i === currentStep ? s.stepActive : '',
-              i < currentStep ? s.stepDone : '',
-            ].join(' ')}
-          >
-            {step}
-          </div>
-        ))}
-      </div>
+      {/* ── Body ── */}
+      <div className={s.body}>
 
-      {/* ── Messages ── */}
-      <div className={s.messages}>
-        {messages.map((msg, msgIdx) => {
-          // How many user messages were sent up to this AI message
-          const aiIndex = messages
-            .slice(0, msgIdx + 1)
-            .filter((m) => m.role === 'user').length;
-
-          return (
-            <div
-              key={msg.id}
-              className={`${s.msgRow} ${msg.role === 'user' ? s.msgUser : s.msgAi}`}
-            >
-              {msg.role === 'ai' && <div className={s.aiAvatar}>🧠</div>}
-
-              <div className={s.msgContent}>
-                <div className={s.msgBubble}>{msg.text}</div>
-
-                {msg.role === 'ai' && (
-                  <div className={s.msgActions}>
-                    <button
-                      className={s.actionBtn}
-                      onClick={handleNextStep}
-                      disabled={isTyping}
-                    >
-                      Следующий шаг →
-                    </button>
-                    <button
-                      className={s.actionBtn}
-                      onClick={() => handleCopy(msg.text, msg.id)}
-                    >
-                      {copied === msg.id ? 'Скопировано ✓' : 'Копировать'}
-                    </button>
-                    <button
-                      className={s.actionBtn}
-                      onClick={() => handleRewrite(msg.id, aiIndex)}
-                      disabled={isTyping}
-                    >
-                      Переписать
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Typing indicator */}
-        {isTyping && (
-          <div className={`${s.msgRow} ${s.msgAi}`}>
+        {/* Question (for steps with userQuestion) */}
+        {currentStep?.userQuestion && phase === 'input' && (
+          <div className={s.aiMessage}>
             <div className={s.aiAvatar}>🧠</div>
-            <div className={s.msgContent}>
-              <div className={s.typingBubble}>
-                <span className={s.dot} />
-                <span className={s.dot} />
-                <span className={s.dot} />
-                <span className={s.typingLabel}>Печатает...</span>
-              </div>
+            <div className={s.aiBubble}>
+              {stepIndex === 0
+                ? 'Привет! Я помогу упаковать ваши услуги.\nДля начала — в какой нише вы работаете?\nНапример: тревога, отношения, подростки, выгорание...'
+                : currentStep.userQuestion}
             </div>
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+        {/* Auto step: waiting label */}
+        {isAutoStep && phase === 'input' && (
+          <div className={s.autoLabel}>
+            ⚡ Автоматический шаг — генерирую на основе ваших ответов...
+          </div>
+        )}
+
+        {/* Loading */}
+        {phase === 'loading' && (
+          <div className={s.aiMessage}>
+            <div className={s.aiAvatar}>🧠</div>
+            <div className={s.typingBubble}>
+              <span className={s.dot} />
+              <span className={s.dot} />
+              <span className={s.dot} />
+              <span className={s.typingLabel}>Генерирую...</span>
+            </div>
+          </div>
+        )}
+
+        {/* AI Response */}
+        {phase === 'done' && aiResponse && (
+          <div className={s.responseBlock} ref={responseRef}>
+            <div className={s.aiMessage}>
+              <div className={s.aiAvatar}>🧠</div>
+              <div className={s.aiBubble}>{aiResponse}</div>
+            </div>
+            <div className={s.responseActions}>
+              <button className={s.actionBtn} onClick={handleCopy}>
+                {copied ? '✓ Скопировано' : 'Копировать'}
+              </button>
+              <button className={s.actionBtn} onClick={handleRetry}>
+                Сгенерировать заново
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className={s.errorBox}>
+            {error}
+            <button className={s.retryLink} onClick={handleRetry}>Попробовать снова</button>
+          </div>
+        )}
       </div>
 
-      {/* ── Input ── */}
-      <div className={s.inputArea}>
-        <textarea
-          ref={textareaRef}
-          className={s.textarea}
-          placeholder="Введите сообщение… (Enter — отправить, Shift+Enter — новая строка)"
-          value={input}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={1}
-          disabled={isTyping}
-        />
-        <button
-          className={s.sendBtn}
-          onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isTyping}
-          aria-label="Отправить"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M16 9L2 2l3 7-3 7 14-7z" fill="currentColor" />
-          </svg>
-        </button>
-      </div>
+      {/* ── Input area (for steps with userQuestion) ── */}
+      {currentStep?.userQuestion && phase !== 'loading' && (
+        <div className={s.inputArea}>
+          <textarea
+            ref={textareaRef}
+            className={s.textarea}
+            placeholder={
+              phase === 'done'
+                ? 'Введите ваш выбор или уточнение...'
+                : (stepIndex === 0 ? 'Например: тревожные расстройства, выгорание...' : 'Ваш ответ...')
+            }
+            value={userInput}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setUserInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
+          {phase === 'input' ? (
+            <button
+              className={s.sendBtn}
+              onClick={handleSubmit}
+              disabled={!userInput.trim()}
+            >
+              {stepIndex === 0 ? 'Начать упаковку' : 'Отправить'}
+            </button>
+          ) : (
+            <button
+              className={`${s.sendBtn} ${s.nextBtn}`}
+              onClick={() => {
+                // Submit additional input then advance, or just advance
+                if (userInput.trim()) {
+                  handleSubmit();
+                } else {
+                  handleNext();
+                }
+              }}
+            >
+              Далее →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Next button (for auto steps after response) ── */}
+      {isAutoStep && phase === 'done' && (
+        <div className={s.nextArea}>
+          <button className={s.nextBtnLarge} onClick={handleNext}>
+            {stepIndex + 1 >= steps.length ? 'Завершить стратегию 🎉' : 'Далее →'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

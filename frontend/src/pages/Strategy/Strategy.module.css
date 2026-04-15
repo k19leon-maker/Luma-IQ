@@ -1,73 +1,159 @@
-/* ── Placeholder ──────────────────────────────────────────────────────────── */
+/* ── Utility ──────────────────────────────────────────────────────────────── */
 
-.root {
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 16px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ── Welcome / Completed screen ───────────────────────────────────────────── */
+
+.welcome {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 60vh;
+  padding: 24px 0;
 }
 
-.placeholder {
-  text-align: center;
-  max-width: 400px;
+.welcomeCard {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.icon {
+.welcomeIcon {
   font-size: 48px;
-  margin-bottom: 16px;
+  line-height: 1;
 }
 
-.title {
-  font-size: 22px;
-  font-weight: 600;
+.welcomeTitle {
+  font-size: 24px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 10px;
+  margin: 0;
 }
 
-.desc {
-  font-size: 14px;
+.welcomeDesc {
+  font-size: 15px;
   color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 24px;
+  line-height: 1.65;
+  margin: 0;
 }
 
-.btn {
+.welcomeMeta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metaChip {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+
+.warnBanner {
+  font-size: 13px;
+  color: var(--warning);
+  background: rgba(240, 160, 48, 0.08);
+  border: 1px solid rgba(240, 160, 48, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.completedBanner {
+  font-size: 13px;
+  color: var(--success);
+  background: rgba(76, 175, 130, 0.08);
+  border: 1px solid rgba(76, 175, 130, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.startBtn {
   background: var(--accent);
   color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-md);
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
   transition: background var(--transition);
+  align-self: flex-start;
 }
 
-.btn:hover {
+.startBtn:hover {
   background: var(--accent-hover);
 }
 
-/* ── Chat layout ──────────────────────────────────────────────────────────── */
-
-.chat {
+.completedActions {
   display: flex;
   flex-direction: column;
-  /* Fill content area: viewport - topbar - padding (24px × 2) */
-  height: calc(100vh - var(--topbar-height) - 48px);
-  min-height: 0;
+  gap: 10px;
+  align-items: flex-start;
 }
 
-/* ── Header ──────────────────────────────────────────────────────────────── */
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+.secondaryBtn {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
 }
+
+.secondaryBtn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.resetBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.resetBtn:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Model selector (shared) ──────────────────────────────────────────────── */
 
 .modelRow {
   display: flex;
@@ -86,7 +172,7 @@
   transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
-.modelChip:hover {
+.modelChip:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--text-primary);
 }
@@ -97,102 +183,124 @@
   color: var(--text-on-accent);
 }
 
-.settingsRow {
+.modelChip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Active page layout ───────────────────────────────────────────────────── */
+
+.page {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  height: calc(100vh - var(--topbar-height) - 48px);
+  min-height: 0;
+  gap: 0;
 }
 
-.settingChip {
-  padding: 5px 12px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: default;
-  user-select: none;
-}
+/* ── Top bar: progress + model ────────────────────────────────────────────── */
 
-/* ── JTBD Steps ───────────────────────────────────────────────────────────── */
-
-.steps {
+.topBar {
   display: flex;
-  gap: 6px;
-  padding: 10px 0;
-  overflow-x: auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  scrollbar-width: none;
 }
 
-.steps::-webkit-scrollbar {
-  display: none;
+.progressInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
-.stepChip {
-  white-space: nowrap;
-  padding: 4px 12px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  flex-shrink: 0;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-
-.stepActive {
-  border-color: var(--accent);
-  background: var(--accent-muted);
-  color: var(--accent);
+.stepLabel {
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
-.stepDone {
-  border-color: rgba(76, 175, 130, 0.4);
-  color: var(--success);
-  opacity: 0.65;
+.progressTrack {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-/* ── Messages ─────────────────────────────────────────────────────────────── */
+.progressFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
 
-.messages {
+/* ── Step header ──────────────────────────────────────────────────────────── */
+
+.stepHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.stepNum {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-muted);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.stepTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.stepDesc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Body: scrollable content ─────────────────────────────────────────────── */
+
+.body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 0 4px;
+  padding: 20px 0 8px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-.messages::-webkit-scrollbar {
-  width: 4px;
-}
+/* ── AI message ───────────────────────────────────────────────────────────── */
 
-.messages::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messages::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
-}
-
-.msgRow {
+.aiMessage {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  animation: msgIn 0.18s ease;
+  animation: fadeIn 0.2s ease;
 }
 
-@keyframes msgIn {
+@keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-.msgUser {
-  flex-direction: row-reverse;
 }
 
 .aiAvatar {
@@ -206,54 +314,83 @@
   justify-content: center;
   font-size: 15px;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
-.msgContent {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: min(600px, calc(100% - 44px));
-}
-
-.msgUser .msgContent {
-  align-items: flex-end;
-}
-
-.msgBubble {
-  padding: 12px 16px;
-  font-size: 14px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.msgAi .msgBubble {
+.aiBubble {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: min(680px, calc(100% - 44px));
 }
 
-.msgUser .msgBubble {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);
+/* ── Typing indicator ─────────────────────────────────────────────────────── */
+
+.typingBubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
 }
 
-/* ── Message action buttons ───────────────────────────────────────────────── */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: bounce 1.2s ease-in-out infinite;
+}
 
-.msgActions {
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+
+.typingLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* ── Auto step label ──────────────────────────────────────────────────────── */
+
+.autoLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 0;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ── Response block ───────────────────────────────────────────────────────── */
+
+.responseBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.responseActions {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  padding-left: 44px;
 }
 
 .actionBtn {
   background: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 3px 10px;
+  padding: 4px 12px;
   font-size: 12px;
   color: var(--text-muted);
   cursor: pointer;
@@ -271,39 +408,28 @@
   cursor: not-allowed;
 }
 
-/* ── Typing indicator ─────────────────────────────────────────────────────── */
+/* ── Error box ────────────────────────────────────────────────────────────── */
 
-.typingBubble {
+.errorBox {
+  background: rgba(242, 92, 92, 0.08);
+  border: 1px solid rgba(242, 92, 92, 0.3);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--error);
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 12px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
-  width: fit-content;
+  gap: 12px;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  animation: dotBounce 1.2s ease-in-out infinite;
-}
-
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes dotBounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30%           { transform: translateY(-5px); opacity: 1; }
-}
-
-.typingLabel {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-left: 4px;
+.retryLink {
+  background: none;
+  border: none;
+  color: var(--error);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
 }
 
 /* ── Input area ───────────────────────────────────────────────────────────── */
@@ -333,8 +459,6 @@
   max-height: 160px;
   overflow-y: auto;
   transition: border-color var(--transition);
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
 }
 
 .textarea:focus {
@@ -352,17 +476,17 @@
 }
 
 .sendBtn {
-  width: 42px;
   height: 42px;
+  padding: 0 18px;
   border-radius: var(--radius-md);
   background: var(--accent);
   border: none;
   color: var(--text-on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
+  white-space: nowrap;
   transition: background var(--transition), opacity var(--transition);
 }
 
@@ -375,29 +499,38 @@
   cursor: not-allowed;
 }
 
-/* ── Strategy-specific ───────────────────────────────────────────────────── */
-
-.completedBadge {
-  font-size: 14px;
-  color: var(--success);
-  padding: 10px 16px;
-  border: 1px solid rgba(76, 175, 130, 0.3);
-  border-radius: var(--radius-md);
-  background: rgba(76, 175, 130, 0.08);
+.nextBtn {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
 }
 
-.completeBtn {
-  padding: 5px 14px;
-  border-radius: 20px;
-  border: 1px solid var(--success);
-  background: rgba(76, 175, 130, 0.1);
-  color: var(--success);
-  font-size: 12px;
+.nextBtn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+/* ── Next button (auto steps) ─────────────────────────────────────────────── */
+
+.nextArea {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.nextBtnLarge {
+  height: 44px;
+  padding: 0 28px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  border: none;
+  color: var(--text-on-accent);
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: background var(--transition);
 }
 
-.completeBtn:hover {
-  background: rgba(76, 175, 130, 0.2);
+.nextBtnLarge:hover {
+  background: var(--accent-hover);
 }

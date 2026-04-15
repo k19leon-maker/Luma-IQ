@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+const DEV_TOKEN = 'dev-token';
+
 export const apiClient = axios.create({
   baseURL: '/api/v1',
   withCredentials: true,
@@ -14,7 +16,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh on 401
+// Auto-refresh on 401 (skip for dev sessions)
 let isRefreshing = false;
 let waitQueue: Array<(token: string) => void> = [];
 
@@ -27,7 +29,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const accessToken  = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
+
+    // Dev mode: never redirect to login, just reject
+    if (accessToken === DEV_TOKEN || refreshToken === DEV_TOKEN) {
+      return Promise.reject(error);
+    }
+
     if (!refreshToken) {
       localStorage.removeItem('accessToken');
       window.location.href = '/login';
@@ -48,14 +57,14 @@ apiClient.interceptors.response.use(
 
     try {
       const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
-      const { accessToken, refreshToken: newRefresh } = data.tokens;
-      localStorage.setItem('accessToken', accessToken);
+      const { accessToken: newAccess, refreshToken: newRefresh } = data.tokens;
+      localStorage.setItem('accessToken', newAccess);
       localStorage.setItem('refreshToken', newRefresh);
 
-      waitQueue.forEach((cb) => cb(accessToken));
+      waitQueue.forEach((cb) => cb(newAccess));
       waitQueue = [];
 
-      original.headers.Authorization = `Bearer ${accessToken}`;
+      original.headers.Authorization = `Bearer ${newAccess}`;
       return apiClient(original);
     } catch {
       localStorage.removeItem('accessToken');
