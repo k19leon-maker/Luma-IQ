@@ -1,7 +1,10 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
+// Backend is commonly started from /backend, but supporting a root fallback
+// keeps CLI tools and alternative run flows predictable.
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env'), override: false });
 
 function get(key: string, defaultValue?: string): string {
   const value = process.env[key];
@@ -20,7 +23,7 @@ export const env = {
   // App
   NODE_ENV: get('NODE_ENV', 'development'),
   PORT: parseInt(get('PORT', '3001'), 10),
-  FRONTEND_URL: get('FRONTEND_URL', 'http://localhost:5173'),
+  FRONTEND_URL: get('FRONTEND_URL', 'http://localhost:5174'),
 
   // Database
   DATABASE_URL: get('DATABASE_URL', ''),

@@ -65,10 +65,10 @@ const pageTitles: Record<string, string> = {
   '/settings':        'Настройки',
 };
 
-// Pages that recommend completing strategy first
-const STRATEGY_DEPENDENT = new Set([
+// Pages that show the "complete strategy first" banner.
+// Content pages (/posts и т.д.) используют full-bleed layout — banner там не нужен.
+const SHOW_STRATEGY_BANNER = new Set([
   '/product-main', '/product-mini', '/product-free',
-  '/posts', '/reels', '/articles', '/video-scripts', '/chatbot-chains',
 ]);
 
 /* ── Collapsible section component ────────────────────────────── */
@@ -104,7 +104,7 @@ export default function Layout({ children }: LayoutProps) {
   const user      = useAuthStore((st) => st.user);
 
   const title = pageTitles[location.pathname] ?? 'PSY Boost';
-  const showBanner = STRATEGY_DEPENDENT.has(location.pathname);
+  const showBanner = SHOW_STRATEGY_BANNER.has(location.pathname);
 
   /* Projects state */
   const [projects,        setProjects]        = useState<Project[]>(INITIAL_PROJECTS);

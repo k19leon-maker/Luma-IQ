@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
 import { getMockResponse } from '../config/jtbd-mock';
 import { chat } from '../services/ai.service';
+import { jtbdSessionService } from '../services/jtbd-session.service';
 import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -16,9 +17,12 @@ const PUBLIC_STEPS = JTBD_FRAMEWORK.map(({ id, key, title, description, userQues
 }));
 
 const generateSchema = z.object({
-  stepId: z.number().int().min(1).max(12),
-  answers: z.record(z.string()),
-  model: z.enum(['chatgpt', 'claude']).default('chatgpt'),
+  stepId:    z.number().int().min(1).max(12),
+  answers:   z.record(z.string()),
+  model:     z.enum(['chatgpt', 'claude']).default('chatgpt'),
+  // Опционально — для сохранения прогресса в БД
+  projectId: z.string().uuid().optional(),
+  sessionId: z.string().uuid().optional(),
 });
 
 export const jtbdController = {
@@ -33,7 +37,8 @@ export const jtbdController = {
       return;
     }
 
-    const { stepId, answers, model } = parsed.data;
+    const { stepId, answers, model, projectId } = parsed.data;
+    let { sessionId } = parsed.data;
 
     const step = JTBD_FRAMEWORK.find((s) => s.id === stepId);
     if (!step) {
@@ -41,34 +46,64 @@ export const jtbdController = {
       return;
     }
 
-    // Mock mode: no AI keys configured
+    // ── Получаем/создаём сессию до генерации, чтобы вернуть sessionId ──────────
+
+    if (projectId && !sessionId) {
+      try {
+        const session = await jtbdSessionService.getOrCreate(projectId);
+        sessionId = session.id;
+      } catch (dbErr) {
+        console.warn('[JTBD] Session getOrCreate failed (DB unavailable?):', (dbErr as Error).message);
+      }
+    }
+
+    // ── AI generation ─────────────────────────────────────────────────────────
+
+    let content: string;
+    let isMock: boolean;
+
     if (env.isMockAI) {
-      const content = getMockResponse(stepId, answers as JTBDAnswers);
-      res.json({ stepId, key: step.key, content, mock: true });
-      return;
+      content = getMockResponse(stepId, answers as JTBDAnswers);
+      isMock  = true;
+    } else {
+      const prompt   = step.buildPrompt(answers as JTBDAnswers).trim();
+      const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
+
+      try {
+        const result = await chat({
+          provider,
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 2048,
+          temperature: 0.7,
+        });
+        content = result.content;
+        isMock  = result.mock;
+      } catch (err) {
+        console.error('[JTBD] AI error:', err);
+        const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';
+        res.status(500).json({ error: msg });
+        return;
+      }
     }
 
-    const prompt = step.buildPrompt(answers as JTBDAnswers).trim();
-    const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
+    // ── Сохраняем ответы в БД (fire-and-forget, не блокирует ответ) ───────────
 
-    try {
-      const result = await chat({
-        provider,
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 2048,
-        temperature: 0.7,
-      });
-
-      res.json({
-        stepId,
-        key: step.key,
-        content: result.content,
-        mock: result.mock,
-      });
-    } catch (err) {
-      console.error('[JTBD] Error:', err);
-      const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';
-      res.status(500).json({ error: msg });
+    if (sessionId) {
+      const capturedSessionId = sessionId;
+      const updatedAnswers = { ...answers, [step.key]: content };
+      void jtbdSessionService
+        .saveStep(capturedSessionId, stepId, updatedAnswers)
+        .catch((dbErr: Error) =>
+          console.warn('[JTBD] DB save failed (DB unavailable?):', dbErr.message),
+        );
     }
+
+    res.json({
+      stepId,
+      key:       step.key,
+      content,
+      mock:      isMock,
+      sessionId,          // возвращаем для повторного использования
+    });
   },
 };

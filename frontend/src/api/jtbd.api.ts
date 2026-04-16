@@ -12,6 +12,8 @@ export interface GenerateRequest {
   stepId: number;
   answers: Record<string, string>;
   model: 'chatgpt' | 'claude';
+  projectId?: string;
+  sessionId?: string;
 }
 
 export interface GenerateResponse {
@@ -19,6 +21,7 @@ export interface GenerateResponse {
   key: string;
   content: string;
   mock: boolean;
+  sessionId?: string;
 }
 
 export const jtbdApi = {

@@ -35,6 +35,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      FRONTEND_URL: http://localhost:5173
       DATABASE_URL: postgresql://${POSTGRES_USER:-psy_boost}:${POSTGRES_PASSWORD:-psy_boost_secret}@postgres:5432/${POSTGRES_DB:-psy_boost}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}

@@ -13,7 +13,7 @@ SaaS-платформа для маркетинговой упаковки пс�
 ### Запуск через Docker
 
 ```bash
-# Скопировать переменные окружения
+# Скопировать переменные окружения для docker-compose
 cp .env.example .env
 
 # Запустить все сервисы
@@ -28,6 +28,7 @@ docker-compose up -d
 ```bash
 # Backend
 cd backend
+cp .env.example .env
 npm install
 npm run dev
 
@@ -36,6 +37,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+Локально frontend dev-сервер запускается на `http://localhost:5174`, а backend на `http://localhost:3001`.
 
 ## Структура проекта
 

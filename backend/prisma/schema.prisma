@@ -20,6 +20,7 @@ model User {
 
   refreshTokens RefreshToken[]
   sessions      Session[]
+  projects      Project[]
 
   @@map("users")
 }
@@ -49,7 +50,148 @@ model Session {
   @@map("sessions")
 }
 
+model Project {
+  id                  String          @id @default(uuid())
+  userId              String
+  name                String
+  niche               String?
+  description         String?
+  status              ProjectStatus   @default(DRAFT)
+  strategySummary     String?
+  strategyData        Json?
+  strategyCompletedAt DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jtbdSessions        JTBDSession[]
+  audienceAvatars     AudienceAvatar[]
+  products            Product[]
+  generatedTexts      GeneratedText[]
+
+  @@index([userId, createdAt])
+  @@map("projects")
+}
+
+model JTBDSession {
+  id             String            @id @default(uuid())
+  projectId      String
+  title          String?
+  status         JTBDSessionStatus @default(DRAFT)
+  currentStep    Int               @default(1)
+  answers        Json?
+  summary        String?
+  finalJob       String?
+  completedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  products       Product[]
+  generatedTexts GeneratedText[]
+
+  @@index([projectId, createdAt])
+  @@map("jtbd_sessions")
+}
+
+model AudienceAvatar {
+  id              String    @id @default(uuid())
+  projectId       String
+  name            String
+  segment         String?
+  subsegment      String?
+  profileSummary  String?
+  pains           Json?
+  desires         Json?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  products        Product[]
+  generatedTexts  GeneratedText[]
+
+  @@index([projectId, createdAt])
+  @@map("audience_avatars")
+}
+
+model Product {
+  id                String       @id @default(uuid())
+  projectId         String
+  jtbdSessionId     String?
+  audienceAvatarId  String?
+  type              ProductType
+  title             String
+  format            String?
+  shortDescription  String?
+  transformation    String?
+  offer             String?
+  priceText         String?
+  isAiGenerated     Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jtbdSession       JTBDSession? @relation(fields: [jtbdSessionId], references: [id], onDelete: SetNull)
+  audienceAvatar    AudienceAvatar? @relation(fields: [audienceAvatarId], references: [id], onDelete: SetNull)
+  generatedTexts    GeneratedText[]
+
+  @@index([projectId, type])
+  @@map("products")
+}
+
+model GeneratedText {
+  id                String           @id @default(uuid())
+  projectId         String
+  productId         String?
+  jtbdSessionId     String?
+  audienceAvatarId  String?
+  type              GeneratedTextType
+  title             String?
+  prompt            String?
+  content           String
+  provider          String?
+  isMock            Boolean          @default(false)
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  jtbdSession       JTBDSession?     @relation(fields: [jtbdSessionId], references: [id], onDelete: SetNull)
+  audienceAvatar    AudienceAvatar?  @relation(fields: [audienceAvatarId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, type, createdAt])
+  @@map("generated_texts")
+}
+
 enum Role {
   USER
   ADMIN
+}
+
+enum ProjectStatus {
+  DRAFT
+  STRATEGY_COMPLETED
+  ARCHIVED
+}
+
+enum JTBDSessionStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum ProductType {
+  FREE
+  MINI
+  MAIN
+}
+
+enum GeneratedTextType {
+  POST
+  REEL
+  ARTICLE
+  VIDEO_SCRIPT
+  CHATBOT_CHAIN
+  OTHER
 }

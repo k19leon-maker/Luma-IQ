@@ -8,6 +8,8 @@ import { jtbdApi, JTBDStep } from '../../api/jtbd.api';
 import { JTBD_STEPS_FALLBACK } from '../../config/jtbd-steps';
 import { PROMPT_BUILDERS } from '../../config/jtbd-prompts';
 import { useProgressStore } from '../../store/progress.store';
+import { projectsApi } from '../../api/projects.api';
+import { useProjectsStore } from '../../store/projects.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +48,11 @@ export default function Strategy() {
   const navigate          = useNavigate();
   const completeStrategy  = useProgressStore((st) => st.completeStrategy);
   const strategyCompleted = useProgressStore((st) => st.strategyCompleted);
+  const { currentProject, setCurrentProject, clearCurrentProject } = useProjectsStore();
+
+  // DB IDs (optional — если БД недоступна, работаем через localStorage)
+  const [dbProjectId, setDbProjectId] = useState<string | null>(currentProject?.id ?? null);
+  const [dbSessionId, setDbSessionId] = useState<string | null>(null);
 
   // Steps
   const [steps, setSteps]               = useState<JTBDStep[]>([]);
@@ -218,6 +225,16 @@ export default function Strategy() {
       const text = 'Привет! Я помогу упаковать ваши услуги.\nДля начала — в какой нише вы работаете?\nНапример: тревога, отношения, подростки, выгорание...';
       setMessages([{ role: 'ai', text, stepId: steps[0].id }]);
     }
+
+    // Создаём проект в БД (fire-and-forget — UI не ждёт)
+    if (!dbProjectId) {
+      projectsApi.create({ name: 'Моя стратегия' })
+        .then((project) => {
+          setDbProjectId(project.id);
+          setCurrentProject(project);
+        })
+        .catch(() => { /* БД недоступна — продолжаем без персистенции */ });
+    }
   }
 
   // ── Core: generate ──────────────────────────────────────────────────────────
@@ -230,10 +247,15 @@ export default function Strategy() {
     setMessages((prev) => [...prev, { role: 'ai', text: '__typing__', stepId: currentStep.id }]);
     try {
       const res = await jtbdApi.generate({
-        stepId: currentStep.id,
-        answers: currentAnswers,
+        stepId:    currentStep.id,
+        answers:   currentAnswers,
         model,
+        projectId: dbProjectId ?? undefined,
+        sessionId: dbSessionId ?? undefined,
       });
+      // Сохраняем sessionId для следующего вызова
+      if (res.sessionId && !dbSessionId) setDbSessionId(res.sessionId);
+
       const updated = { ...currentAnswers, [currentStep.key]: res.content };
       setAnswers(updated);
       saveAnswers(updated);
@@ -313,6 +335,17 @@ export default function Strategy() {
       completeStrategy();
       setCompleted(true);
       localStorage.setItem(STORAGE_STEP, String(steps.length));
+
+      // Сохраняем завершение стратегии в БД (fire-and-forget)
+      if (dbProjectId) {
+        const summary = answers[steps[steps.length - 1]?.key ?? ''] ?? '';
+        projectsApi.completeStrategy(dbProjectId, {
+          summary,
+          strategyData: answers as Record<string, unknown>,
+        })
+          .then((project) => setCurrentProject(project))
+          .catch(() => { /* БД недоступна */ });
+      }
       return;
     }
     localStorage.setItem(STORAGE_STEP, String(nextIndex));
@@ -358,6 +391,10 @@ export default function Strategy() {
     setPromptDisplay('');
     setPromptStatus('ready');
     setPromptEditing(false);
+    // Сбрасываем DB-состояние — при следующем старте создастся новый проект
+    setDbProjectId(null);
+    setDbSessionId(null);
+    clearCurrentProject();
   }
 
   // ── Download ────────────────────────────────────────────────────────────────
