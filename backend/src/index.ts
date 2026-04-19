@@ -1,17 +1,15 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from 'passport';
-import dotenv from 'dotenv';
 import authRouter from './routes/auth.routes';
 import aiRouter from './routes/ai.routes';
 import jtbdRouter from './routes/jtbd.routes';
 import projectRouter from './routes/project.routes';
 import { projectService } from './services/project.service';
 import { env } from './config/env';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
