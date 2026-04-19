@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
+import { useProjectsStore } from '../../store/projects.store';
 import s from './Layout.module.css';
 
 /* ── Types ─────────────────────────────────────────────────────── */
-
-interface Project {
-  id: string;
-  name: string;
-  color: string;
-}
 
 interface NavItem {
   path: string;
@@ -17,16 +12,6 @@ interface NavItem {
   icon: string;
   needsStrategy?: boolean;
 }
-
-/* ── Static data ───────────────────────────────────────────────── */
-
-const INITIAL_PROJECTS: Project[] = [
-  { id: 'p1', name: 'Ссоры в паре',         color: '#7c6cfc' },
-  { id: 'p2', name: 'Тревога у подростков', color: '#4caf82' },
-  { id: 'p3', name: 'Выгорание мам',        color: '#f0a030' },
-];
-
-const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
 
 const packagingNav: NavItem[] = [
   { path: '/strategy',     label: 'Стратегия',       icon: '🎯' },
@@ -106,9 +91,11 @@ export default function Layout({ children }: LayoutProps) {
   const title = pageTitles[location.pathname] ?? 'PSY Boost';
   const showBanner = SHOW_STRATEGY_BANNER.has(location.pathname);
 
-  /* Projects state */
-  const [projects,        setProjects]        = useState<Project[]>(INITIAL_PROJECTS);
-  const [activeProjectId, setActiveProjectId] = useState('p1');
+  /* Projects from store */
+  const projects        = useProjectsStore((s) => s.projects);
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const addProject      = useProjectsStore((s) => s.addProject);
+  const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
 
   /* New project modal */
   const [showModal,      setShowModal]      = useState(false);
@@ -125,10 +112,7 @@ export default function Layout({ children }: LayoutProps) {
   const handleCreateProject = () => {
     const name = newProjectName.trim();
     if (!name) return;
-    const id    = `p-${Date.now()}`;
-    const color = PROJECT_COLORS[projects.length % PROJECT_COLORS.length];
-    setProjects((prev) => [...prev, { id, name, color }]);
-    setActiveProjectId(id);
+    addProject(name);
     setNewProjectName('');
     setShowModal(false);
     navigate('/strategy');
@@ -166,6 +150,7 @@ export default function Layout({ children }: LayoutProps) {
               + Новый проект
             </button>
           </Section>
+
 
           {/* Упаковка */}
           <Section title="Упаковка">

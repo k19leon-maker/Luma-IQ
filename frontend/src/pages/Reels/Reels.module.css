@@ -1,46 +1,702 @@
-.root {
+/* ── Page wrapper ──────────────────────────────────────────────────────────── */
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* ── Stepper ───────────────────────────────────────────────────────────────── */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
 }
 
-.placeholder {
-  text-align: center;
-  max-width: 420px;
+.stepDotActive {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
 
-.icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+.stepDotDone {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
 }
 
-.title {
-  font-size: 22px;
-  font-weight: 600;
+.stepLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stepLabelActive {
   color: var(--text-primary);
-  margin-bottom: 10px;
+  font-weight: 600;
 }
 
-.desc {
+.stepLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 10px;
+}
+
+/* ── Section ───────────────────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.sectionSub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0 0 20px;
+}
+
+/* ── Banner ────────────────────────────────────────────────────────────────── */
+
+.banner {
+  display: flex;
+  gap: 12px;
+  padding: 16px 18px;
+  background: rgba(124, 108, 252, 0.07);
+  border: 1px solid rgba(124, 108, 252, 0.22);
+  border-radius: var(--radius-md);
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 24px;
 }
 
-.btn {
+.bannerLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* ── Strategy badges ───────────────────────────────────────────────────────── */
+
+.strategyInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.strategyInfoLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(124, 108, 252, 0.25);
+}
+
+/* ── Primary action button ─────────────────────────────────────────────────── */
+
+.primaryBtn {
+  padding: 12px 28px;
   background: var(--accent);
   color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-md);
-  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primaryBtn:hover:not(:disabled) { background: var(--accent-hover); }
+.primaryBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.secondaryBtn {
+  padding: 10px 20px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), color var(--transition);
 }
 
-.btn:hover {
+.secondaryBtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.btnRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Spinner ───────────────────────────────────────────────────────────────── */
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Hooks output area ─────────────────────────────────────────────────────── */
+
+.hooksOutput {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  min-height: 80px;
+}
+
+.hooksOutputLine {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.hooksCategoryHeader {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 16px 0 4px;
+}
+
+.hooksCategoryHeader:first-child { margin-top: 0; }
+
+.hooksEmpty {
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 8px 0;
+}
+
+/* ── Hooks rating table ────────────────────────────────────────────────────── */
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 24px;
+}
+
+.hooksTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.hooksTable th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.hooksTable th:first-child { width: 36px; text-align: center; }
+.hooksTable th:nth-child(2) { width: 28px; color: var(--text-muted); }
+
+.hooksTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text-secondary);
+}
+
+.hooksTable tr:last-child td { border-bottom: none; }
+
+.hooksTable tr:hover td { background: var(--bg-hover); }
+
+.hookRowSelected td { background: var(--accent-muted) !important; }
+.hookRowSelected td { color: var(--text-primary); }
+
+.hookCheckbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.hookNum {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.hookText {
+  max-width: 420px;
+  line-height: 1.45;
+}
+
+.hookCatBadge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.scoreCell {
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.scoreHigh { color: #4caf82; }
+.scoreMid  { color: #f0a030; }
+
+.totalCell {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.selectCounter {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.selectCounterActive { color: var(--accent); font-weight: 600; }
+
+/* ── Step 2 ─────────────────────────────────────────────────────────────────── */
+
+.selectedHooks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.selectedHookChip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--accent-muted);
+  border: 1px solid rgba(124, 108, 252, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.hookNum2 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(124, 108, 252, 0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Hint card */
+
+.facturaCard {
+  background: #1a1a24;
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.facturaHintTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.facturaHintsList {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.facturaHintsList li {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Mode switcher */
+
+.modeSwitch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.modeSwitchChip {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.modeSwitchChip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.modeSwitchChipActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.modeSwitchChipActive:hover {
   background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+/* Textarea */
+
+.facturaTextareaWrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.facturaTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 200px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 36px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  font-family: var(--font);
+  outline: none;
+  resize: vertical;
+  transition: border-color var(--transition);
+}
+
+.facturaTextarea:focus { border-color: var(--accent); }
+.facturaTextarea::placeholder { color: var(--text-muted); }
+
+.wordCount {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Interim speech preview */
+
+.interimPreview {
+  margin-top: 6px;
+  padding: 8px 14px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* Voice area */
+
+.voiceArea {
+  margin-bottom: 4px;
+}
+
+.voiceBtnWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.voiceBtn {
+  padding: 10px 22px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+  position: relative;
+  z-index: 1;
+}
+
+.voiceBtn:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+.voiceBtnRecording {
+  background: rgba(224, 50, 50, 0.12);
+  border-color: #e03232;
+  color: #e03232;
+}
+
+.voiceBtnRecording:hover {
+  background: rgba(224, 50, 50, 0.2);
+  border-color: #e03232;
+}
+
+/* Pulse ring around voice button */
+
+.pulseRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(224, 50, 50, 0.5);
+  animation: pulse 1.2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.15); }
+}
+
+.voiceUnsupported {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* ── Step 3: SplitEditor wrapper + editor content ─────────────────────────── */
+
+/* The SplitEditor fills the viewport, we just need the content inside */
+
+.scriptEditorWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scriptHeader {
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.scriptTitleInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font);
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.scriptTitleInput::placeholder { color: var(--text-muted); }
+
+.scriptTemplateBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(124, 108, 252, 0.2);
+}
+
+.scriptBody {
+  flex: 1;
+  padding: 16px 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scriptTextarea {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  font-family: var(--font);
+  resize: none;
+  min-height: 0;
+}
+
+.scriptTextarea::placeholder { color: var(--text-muted); }
+
+.scriptFooter {
+  padding: 10px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.charCount {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.scriptActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actionBtn {
+  padding: 7px 13px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+
+.actionBtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.actionBtnPrimary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+
+.actionBtnPrimary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* ── New session bar (step 3 top) ──────────────────────────────────────────── */
+
+.step3TopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.step3TopBarActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Empty SplitEditor state ───────────────────────────────────────────────── */
+
+.emptyScriptState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.emptyIcon { font-size: 36px; opacity: 0.4; }
+
+/* ── Step 3 full-height wrapper ────────────────────────────────────────────── */
+
+.step3Root {
+  display: flex;
+  flex-direction: column;
+  margin: -24px;
+  height: calc(100vh - var(--topbar-height));
+  overflow: hidden;
 }

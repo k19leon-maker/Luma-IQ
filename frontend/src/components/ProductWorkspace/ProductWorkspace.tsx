@@ -1,0 +1,288 @@
+import { useState, useRef, useEffect } from 'react';
+import { NavLink } from 'react-router-dom';
+import s from './ProductWorkspace.module.css';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface StrategyData {
+  chosenSegment?:    string;
+  chosenSubsegment?: string;
+  wants?:            string;
+  corePains?:        string;
+  deepDesires?:      string;
+  finalResult?:      string;
+  triedSolutions?:   string;
+}
+
+export interface ProductItem {
+  id:      string;
+  title:   string;
+  preview: string;
+  date:    string;
+  status:  'draft' | 'ready';
+  content: string;
+  type:    string;
+}
+
+export interface ProductFormProps {
+  onGenerate: (title: string, content: string) => void;
+  loading:    boolean;
+  strategy:   StrategyData | null;
+}
+
+interface Props {
+  sectionTitle: string;
+  productIcon:  string;
+  emptyHint:    string;
+  FormComponent: React.ComponentType<ProductFormProps>;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function makePreview(content: string): string {
+  return content.replace(/\n+/g, ' ').trim().slice(0, 110);
+}
+
+function loadStrategy(): StrategyData | null {
+  try {
+    const raw = localStorage.getItem('strategy_answers');
+    if (!raw) return null;
+    const d = JSON.parse(raw) as StrategyData;
+    if (!d.chosenSegment && !d.corePains) return null;
+    return d;
+  } catch { return null; }
+}
+
+function firstLine(text: string | undefined, fallback = ''): string {
+  if (!text) return fallback;
+  return text.split('\n')[0]?.replace(/^\d+\.\s*/, '').slice(0, 80) ?? fallback;
+}
+
+// ─── Strategy context block ───────────────────────────────────────────────────
+
+export function StrategyContext({ strategy }: { strategy: StrategyData | null }) {
+  if (!strategy) {
+    return (
+      <div className={s.strategyBanner}>
+        💡 Для лучшего результата сначала пройдите{' '}
+        <NavLink to="/strategy" className={s.strategyBannerLink}>Стратегию</NavLink>
+        {' '}— ИИ использует данные о вашей аудитории.
+      </div>
+    );
+  }
+  return (
+    <div className={s.strategyContext}>
+      <span className={s.strategyContextLabel}>Из стратегии:</span>
+      {strategy.chosenSegment && (
+        <span className={s.strategyBadge}>{firstLine(strategy.chosenSegment)}</span>
+      )}
+      {strategy.chosenSubsegment && (
+        <span className={s.strategyBadge}>{firstLine(strategy.chosenSubsegment)}</span>
+      )}
+      {strategy.finalResult && (
+        <span className={s.strategyBadge}>{firstLine(strategy.finalResult, '').slice(0, 50)}</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function ProductWorkspace({
+  sectionTitle,
+  productIcon,
+  emptyHint,
+  FormComponent,
+}: Props) {
+  const strategy = loadStrategy();
+
+  const [items,    setItems]    = useState<ProductItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [mode,     setMode]     = useState<'generate' | 'editor'>('generate');
+  const [loading,  setLoading]  = useState(false);
+
+  const [editTitle,   setEditTitle]   = useState('');
+  const [editContent, setEditContent] = useState('');
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activeItem  = items.find((m) => m.id === activeId) ?? null;
+
+  useEffect(() => {
+    if (activeItem && mode === 'editor') {
+      setEditTitle(activeItem.title);
+      setEditContent(activeItem.content);
+    }
+  }, [activeId]); // eslint-disable-line
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  function handleCreateNew() {
+    setActiveId(null);
+    setMode('generate');
+    setEditTitle('');
+    setEditContent('');
+  }
+
+  function handleCardClick(item: ProductItem) {
+    setActiveId(item.id);
+    setEditTitle(item.title);
+    setEditContent(item.content);
+    setMode('editor');
+  }
+
+  function handleGenerate(title: string, content: string) {
+    setLoading(true);
+    setTimeout(() => {
+      const id  = `prod-${Date.now()}`;
+      const now = formatDate(new Date());
+      const newItem: ProductItem = {
+        id, title, content,
+        preview: makePreview(content),
+        date:    now,
+        status:  'draft',
+        type:    title,
+      };
+      setItems((prev) => [newItem, ...prev]);
+      setActiveId(id);
+      setEditTitle(title);
+      setEditContent(content);
+      setMode('editor');
+      setLoading(false);
+    }, 1800);
+  }
+
+  function handleSave() {
+    setItems((prev) =>
+      prev.map((m) =>
+        m.id === activeId
+          ? { ...m, title: editTitle, content: editContent, preview: makePreview(editContent), status: 'ready' }
+          : m,
+      ),
+    );
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(`${editTitle}\n\n${editContent}`).catch(() => undefined);
+  }
+
+  function handleDownload() {
+    const text = `${editTitle}\n\n${editContent}`;
+    const blob  = new Blob([text], { type: 'application/octet-stream' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href      = url;
+    a.download  = `${editTitle.slice(0, 40).replace(/[^а-яёa-z0-9\s]/gi, '').trim() || 'product'}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div className={s.root}>
+
+      {/* ── Column: list ─────────────────────────────────────────────────────── */}
+      <div className={s.listCol}>
+        <div className={s.listHeader}>
+          <span className={s.listTitle}>
+            {productIcon} {sectionTitle}
+          </span>
+          <button className={s.createBtn} onClick={handleCreateNew} disabled={loading}>
+            + Создать
+          </button>
+        </div>
+
+        <div className={s.listBody}>
+          {items.length === 0 ? (
+            <div className={s.emptyList}>{emptyHint}</div>
+          ) : (
+            items.map((item) => (
+              <button
+                key={item.id}
+                className={`${s.card}${item.id === activeId && mode === 'editor' ? ' ' + s.cardActive : ''}`}
+                onClick={() => handleCardClick(item)}
+              >
+                <div className={s.cardTitle}>{item.title}</div>
+                <div className={s.cardPreview}>{item.preview}</div>
+                <div className={s.cardMeta}>
+                  <span className={s.cardDate}>{item.date}</span>
+                  <span className={`${s.badge} ${item.status === 'ready' ? s.badgeReady : s.badgeDraft}`}>
+                    {item.status === 'ready' ? 'Готов' : 'Черновик'}
+                  </span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ── Column: workspace ────────────────────────────────────────────────── */}
+      <div className={s.workspaceCol}>
+
+        {/* Generate form */}
+        {mode === 'generate' && (
+          <div className={s.generatePane}>
+            <StrategyContext strategy={strategy} />
+            <FormComponent onGenerate={handleGenerate} loading={loading} strategy={strategy} />
+          </div>
+        )}
+
+        {/* Editor */}
+        {mode === 'editor' && activeItem && (
+          <div className={s.editorPane}>
+            <div className={s.editorHeader}>
+              <input
+                className={s.editorTitleInput}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Название продукта"
+              />
+            </div>
+
+            <div className={s.editorBody}>
+              <textarea
+                ref={textareaRef}
+                className={s.editorTextarea}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Структура продукта..."
+              />
+            </div>
+
+            <div className={s.editorFooter}>
+              <span className={s.charCount}>{editContent.length} символов</span>
+              <div className={s.editorActions}>
+                <button className={s.actionBtn} onClick={handleCopy}>📋 Копировать</button>
+                <button className={s.actionBtn} onClick={handleDownload}>⬇️ Скачать</button>
+                <button className={`${s.actionBtn} ${s.actionBtnPrimary}`} onClick={handleSave}>
+                  💾 Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state when no item selected */}
+        {mode === 'editor' && !activeItem && (
+          <div className={s.emptyWorkspace}>
+            <div className={s.emptyIcon}>{productIcon}</div>
+            <div>Выберите продукт из списка или создайте новый</div>
+          </div>
+        )}
+
+        {/* Loading overlay */}
+        {loading && mode === 'generate' && (
+          <div className={s.loadingPane}>
+            <div className={s.loadingSpinner} />
+            <div className={s.loadingText}>Генерирую структуру продукта…</div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
