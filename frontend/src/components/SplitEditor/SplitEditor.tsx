@@ -16,6 +16,8 @@ interface SplitEditorProps<T extends SplitItem> {
   /** Renders the right panel. Receives the active item or null if nothing selected. */
   renderEditor: (item: T | null) => ReactNode;
   listTitle?: string;
+  /** Optional action element rendered on the right side of the list header. */
+  listHeaderAction?: ReactNode;
 }
 
 export function SplitEditor<T extends SplitItem>({
@@ -24,6 +26,7 @@ export function SplitEditor<T extends SplitItem>({
   onSelect,
   renderEditor,
   listTitle,
+  listHeaderAction,
 }: SplitEditorProps<T>) {
   const selected = items.find((i) => i.id === selectedId) ?? null;
 
@@ -31,7 +34,12 @@ export function SplitEditor<T extends SplitItem>({
     <div className={s.root}>
       {/* ── List panel ─────────────────────────────────────────── */}
       <div className={s.listPanel}>
-        {listTitle && <div className={s.listHeader}>{listTitle}</div>}
+        {(listTitle || listHeaderAction) && (
+          <div className={`${s.listHeader} ${listHeaderAction ? s.listHeaderFlex : ''}`}>
+            <span>{listTitle}</span>
+            {listHeaderAction}
+          </div>
+        )}
         <div className={s.listScroll}>
           {items.map((item) => {
             const isActive = item.id === selectedId;
