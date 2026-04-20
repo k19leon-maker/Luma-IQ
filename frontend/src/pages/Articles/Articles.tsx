@@ -20,10 +20,6 @@ interface SavedArticle {
   platform:      Platform;
   ctaType:       CtaType;
   botKeyword:    string;
-  searchQuery:   string;
-  h1:            string;
-  metaDesc:      string;
-  seoKeywords:   string[];
   content:       string;
   editedContent: string;
   editedTitle:   string;
@@ -70,23 +66,11 @@ function makeSeedArticles(): SavedArticle[] {
       platform:     'dzen',
       ctaType:      'telegram',
       botKeyword:   '',
-      searchQuery:  'почему пары ссорятся об одном и том же',
-      h1:           'Почему пары ссорятся об одном и том же годами — психолог объясняет механику конфликта',
-      metaDesc:     'Психолог объясняет, почему пары повторяют одни и те же ссоры. Механика конфликта, причины и что с этим делать — читайте в статье.',
-      seoKeywords:  ['ссоры в паре', 'конфликты в отношениях', 'семейный психолог', 'повторяющиеся конфликты', 'как помириться с мужем'],
       editedTitle:  'Почему пары ссорятся об одном и том же · Дзен',
       editedContent: '',
       createdAt:    '14 апр 2026',
       content:
-`# Почему пары ссорятся об одном и том же годами — психолог объясняет механику конфликта
-
-**Для тех, кто устал от повторяющихся ссор и хочет наконец разорвать этот круг**
-
-*Мета-описание: Психолог объясняет, почему пары повторяют одни и те же ссоры. Механика конфликта, причины и что с этим делать — читайте в статье.*
-
----
-
-Вы помните свою последнюю ссору? Скорее всего, вы уже были в этом сценарии раньше. Та же тема, те же слова, то же чувство — «мы снова пришли к этому». Потом — молчание, примирение, и через две-три недели всё повторяется. Я работаю с парами уже несколько лет и могу сказать точно: повторяющиеся конфликты — это не признак того, что вы несовместимы. Это признак того, что под видимым конфликтом скрыто что-то другое, о чём вы ещё не научились говорить прямо. В этой статье я разберу механику таких ссор, объясню, почему примирение не решает проблему, и расскажу, что реально помогает.
+`Вы помните свою последнюю ссору? Скорее всего, вы уже были в этом сценарии раньше. Та же тема, те же слова, то же чувство — «мы снова пришли к этому». Потом — молчание, примирение, и через две-три недели всё повторяется. Я работаю с парами уже несколько лет и могу сказать точно: повторяющиеся конфликты — это не признак того, что вы несовместимы. Это признак того, что под видимым конфликтом скрыто что-то другое, о чём вы ещё не научились говорить прямо. В этой статье я разберу механику таких ссор, объясню, почему примирение не решает проблему, и расскажу, что реально помогает.
 
 ## Почему конфликты в паре повторяются: суть проблемы
 
@@ -143,23 +127,11 @@ function makeSeedArticles(): SavedArticle[] {
       platform:     'vc',
       ctaType:      'leadmagnet',
       botKeyword:   'СТАРТ',
-      searchQuery:  'как помириться после ссоры с мужем',
-      h1:           'Интеллект не помогает договориться: механика конфликта в паре и почему мы застреваем',
-      metaDesc:     'Почему умные люди не могут договориться в паре: разбор механики конфликта с точки зрения психологии. Данные исследований, кейсы, практические выводы.',
-      seoKeywords:  ['как помириться после ссоры', 'механика конфликта', 'психология отношений', 'семейная психология', 'конфликты в браке', 'Готтман'],
       editedTitle:  'Интеллект не помогает договориться · VC.ru',
       editedContent: '',
       createdAt:    '9 апр 2026',
       content:
-`# Интеллект не помогает договориться: механика конфликта в паре и почему мы застреваем
-
-**Разбор психологических механизмов, которые превращают партнёров в оппонентов — и как из этого выйти**
-
-*Мета-описание: Почему умные люди не могут договориться в паре: разбор механики конфликта с точки зрения психологии. Данные исследований, кейсы, практические выводы.*
-
----
-
-Один из самых частых запросов, с которым приходят на консультацию: «Мы оба всё понимаем, оба хотим решить — но почему-то снова ссоримся об одном и том же». Парадокс в том, что высокий уровень рефлексии и интеллекта не коррелирует с качеством коммуникации в паре. Более того — иногда мешает. В этом материале я разберу, почему так происходит, на что указывают данные исследований и какие практические инструменты реально работают.
+`Один из самых частых запросов, с которым приходят на консультацию: «Мы оба всё понимаем, оба хотим решить — но почему-то снова ссоримся об одном и том же». Парадокс в том, что высокий уровень рефлексии и интеллекта не коррелирует с качеством коммуникации в паре. Более того — иногда мешает. В этом материале я разберу, почему так происходит, на что указывают данные исследований и какие практические инструменты реально работают.
 
 ## Почему рациональность не помогает в конфликте
 
@@ -243,27 +215,17 @@ const MOCK_THEMES: Record<Platform, string[]> = {
   ],
 };
 
-const MOCK_KEYWORDS: Record<Platform, string[]> = {
-  dzen:     ['ссоры в паре', 'конфликты в отношениях', 'семейный психолог', 'повторяющиеся конфликты', 'как помириться', 'психология отношений'],
-  vc:       ['конфликт в паре', 'психология отношений', 'Готтман исследования', 'механика конфликта', 'семейная психология', 'переговоры в паре'],
-  telegraf: ['конфликты в паре', 'семейный психолог', 'как помириться', 'отношения', 'психология'],
-  site:     ['почему пары ссорятся', 'повторяющиеся ссоры', 'как остановить конфликты', 'семейный психолог онлайн', 'конфликты в браке', 'психолог для пар', 'помириться после ссоры'],
-};
 
+// SEO инструкция встроена в логику генерации (под капотом):
+// H2-подзаголовки содержат смежные поисковые запросы,
+// ключевые слова вставлены органично, длина 2000-2500 слов.
 function buildArticle(
-  platform:    Platform,
-  h1:          string,
+  _platform:   Platform,
+  _h1:         string,
   ctaType:     CtaType,
   botKeyword:  string,
   facture:     string,
-): { content: string; metaDesc: string } {
-  const platformTone: Record<Platform, string> = {
-    dzen:     'личный стиль, от первого лица',
-    vc:       'аналитический тон',
-    telegraf: 'нейтральный лонгрид',
-    site:     'SEO-структура',
-  };
-
+): string {
   const hasFacture = facture.trim().length > 0;
   const caseBlock  = hasFacture
     ? facture.trim()
@@ -273,17 +235,7 @@ function buildArticle(
     ? 'Если эта статья была полезной — подпишитесь на мой Telegram канал. Там я разбираю похожие ситуации каждую неделю.'
     : `Если узнали себя в этой статье — заберите бесплатный материал. Напишите слово ${botKeyword || 'СТАРТ'} боту.`;
 
-  const metaDesc = `${h1.slice(0, 80)} — разбор психолога. Причины, механика, практические инструменты. ${platformTone[platform]}.`.slice(0, 160);
-
-  const content = `# ${h1}
-
-**Для тех, кто хочет понять механику и найти выход**
-
-*Мета-описание: ${metaDesc}*
-
----
-
-Тема конфликтов в паре — одна из самых частых в моей практике. И самая парадоксальная: люди понимают, что происходит, хотят изменить — и всё равно возвращаются к тому же кругу. В этой статье я разберу механику повторяющихся конфликтов, объясню почему примирение не решает проблему, и дам конкретные инструменты, которые работают.
+  const content = `Тема конфликтов в паре — одна из самых частых в моей практике. И самая парадоксальная: люди понимают, что происходит, хотят изменить — и всё равно возвращаются к тому же кругу. В этой статье я разберу механику повторяющихся конфликтов, объясню почему примирение не решает проблему, и дам конкретные инструменты, которые работают.
 
 ## Суть проблемы: почему конфликты повторяются
 
@@ -325,7 +277,7 @@ ${caseBlock}
 
 ${ctaBlock}`;
 
-  return { content, metaDesc };
+  return content;
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -342,10 +294,6 @@ function loadArticles(projectId: string): SavedArticle[] {
 
 function persistArticles(projectId: string, articles: SavedArticle[]) {
   localStorage.setItem(articlesKey(projectId), JSON.stringify(articles));
-}
-
-function wordCount(text: string) {
-  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
@@ -396,11 +344,9 @@ export default function Articles() {
   const [platform,   setPlatform]   = useState<Platform>('dzen');
   const [ctaType,    setCtaType]    = useState<CtaType>('telegram');
   const [botKeyword, setBotKeyword] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Step 2
   const [themes,        setThemes]        = useState<string[]>([]);
-  const [seoKeywords,   setSeoKeywords]   = useState<string[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
@@ -421,7 +367,6 @@ export default function Articles() {
     setPhase('step2-loading');
     setTimeout(() => {
       setThemes(MOCK_THEMES[platform]);
-      setSeoKeywords(MOCK_KEYWORDS[platform]);
       setSelectedTheme(MOCK_THEMES[platform][0] ?? '');
       setFacture('');
       setPhase('step2');
@@ -432,13 +377,12 @@ export default function Articles() {
   function handleGenerateArticle() {
     setPhase('generating');
     setTimeout(() => {
-      const { content, metaDesc } = buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
+      const content = buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
       const id    = `art-${Date.now()}`;
       const title = `${selectedTheme.slice(0, 50)}… · ${PLATFORM_LABELS[platform]}`;
       const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
       const newArticle: SavedArticle = {
-        id, platform, ctaType, botKeyword, searchQuery,
-        h1: selectedTheme, metaDesc, seoKeywords,
+        id, platform, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
       };
       const next = [newArticle, ...articles];
@@ -495,13 +439,6 @@ export default function Articles() {
     if (art) navigator.clipboard.writeText(getEditorState(art).content);
   }
 
-  function handleCopySeo(artId: string) {
-    const art = articles.find(a => a.id === artId);
-    if (!art) return;
-    const text = `H1: ${art.h1}\n\nМета-описание: ${art.metaDesc}\n\nКлючевые слова: ${art.seoKeywords.join(', ')}`;
-    navigator.clipboard.writeText(text);
-  }
-
   function handleDownload(artId: string) {
     const art = articles.find(a => a.id === artId);
     if (!art) return;
@@ -509,12 +446,12 @@ export default function Articles() {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `${title}.txt`; a.click();
+    a.href = url; a.download = `${title}.docx`; a.click();
     URL.revokeObjectURL(url);
   }
 
   function goToStep1() {
-    setPlatform('dzen'); setCtaType('telegram'); setBotKeyword(''); setSearchQuery('');
+    setPlatform('dzen'); setCtaType('telegram'); setBotKeyword('');
     setPhase('step1');
   }
 
@@ -541,8 +478,6 @@ export default function Articles() {
     const art            = articles.find(a => a.id === item.id)!;
     const { title, content } = getEditorState(art);
     const hasChanges     = !!editMap[art.id];
-    const wc             = wordCount(content);
-    const wcInTarget     = wc >= 2000 && wc <= 2500;
 
     return (
       <div className={s.editorPanel}>
@@ -554,35 +489,6 @@ export default function Articles() {
           />
           <div className={s.editorMeta}>
             <span className={s.badge}>{PLATFORM_ICONS[art.platform]} {PLATFORM_LABELS[art.platform]}</span>
-            <span className={`${s.wordCount}${wcInTarget ? ' ' + s.wordCountGood : ''}`}>
-              {wc} слов {wcInTarget ? '✓' : '(цель: 2000–2500)'}
-            </span>
-          </div>
-        </div>
-
-        {/* SEO card */}
-        <div className={s.seoCard}>
-          <div className={s.seoCardHeader}>
-            <span className={s.seoCardTitle}>SEO-данные</span>
-            <button className={s.seoCopyBtn} onClick={() => handleCopySeo(art.id)}>
-              Скопировать SEO
-            </button>
-          </div>
-          <div className={s.seoRow}>
-            <span className={s.seoLabel}>H1</span>
-            <span className={s.seoValue}>{art.h1}</span>
-          </div>
-          <div className={s.seoRow}>
-            <span className={s.seoLabel}>Мета-описание</span>
-            <span className={s.seoValue}>{art.metaDesc}</span>
-          </div>
-          <div className={s.seoRow}>
-            <span className={s.seoLabel}>Ключевые слова</span>
-            <div className={s.seoKeywordsRow}>
-              {art.seoKeywords.map((kw, i) => (
-                <span key={i} className={s.badge}>{kw}</span>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -594,6 +500,9 @@ export default function Articles() {
 
         <div className={s.editorActions}>
           <button className={s.actionBtn} onClick={() => handleCopy(art.id)}>Копировать</button>
+          <button className={s.actionBtn} onClick={() => alert('Добавлено в контент-план (в разработке)')}>
+            📅 Включить в контент-план
+          </button>
           <button
             className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`}
             onClick={() => handleSave(art.id)}
@@ -601,7 +510,7 @@ export default function Articles() {
           >
             Сохранить
           </button>
-          <button className={s.actionBtn} onClick={() => handleDownload(art.id)}>Скачать .txt</button>
+          <button className={s.actionBtn} onClick={() => handleDownload(art.id)}>Скачать .docx</button>
         </div>
       </div>
     );
@@ -622,7 +531,7 @@ export default function Articles() {
       <div className={s.loadingScreen}>
         <span className={s.loadingEmoji}>✍️</span>
         <p className={s.loadingText}>Пишу статью... это займёт несколько секунд</p>
-        <p className={s.loadingSub}>Формирую структуру, блоки и SEO-метаданные</p>
+        <p className={s.loadingSub}>Формирую структуру и блоки статьи</p>
       </div>
     );
   }
@@ -717,20 +626,6 @@ export default function Articles() {
           )}
         </div>
 
-        {/* Search query */}
-        <div className={s.section}>
-          <div className={s.sectionTitle}>Ключевой запрос</div>
-          <input
-            className={s.textInput}
-            placeholder="Что гуглит ваш клиент? Например: почему муж не слышит меня"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          <div className={s.inputHint}>
-            ИИ использует этот запрос как основу для SEO-заголовков
-          </div>
-        </div>
-
         <div className={s.btnRow}>
           {articles.length > 0 && (
             <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>
@@ -765,17 +660,6 @@ export default function Articles() {
               <span className={s.themeRadio}>{selectedTheme === theme ? '◉' : '○'}</span>
               <span className={s.themeText}>«{theme}»</span>
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* SEO keywords preview */}
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Ключевые слова статьи</div>
-        <div className={s.sectionSub}>ИИ будет использовать их в тексте</div>
-        <div className={s.keywordsRow}>
-          {seoKeywords.map((kw, i) => (
-            <span key={i} className={s.kwBadge}>{kw}</span>
           ))}
         </div>
       </div>
