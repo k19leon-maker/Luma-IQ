@@ -1,0 +1,598 @@
+/* ── Full-height root ─────────────────────────────────────────────────────── */
+
+.root {
+  display: flex;
+  margin: -24px;
+  height: calc(100vh - var(--topbar-height));
+  overflow: hidden;
+}
+
+/* ── Step 1 page (wizard) ────────────────────────────────────────────────── */
+
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px 48px;
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ── Stepper ─────────────────────────────────────────────────────────────── */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 12px;
+}
+
+.stepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.stepDotActive {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.stepLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stepLabelActive {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Strategy banner ─────────────────────────────────────────────────────── */
+
+.strategyBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: rgba(124, 108, 252, 0.07);
+  border: 1px solid rgba(124, 108, 252, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: 28px;
+}
+
+.strategyLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(124, 108, 252, 0.25);
+}
+
+.warnBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(240, 160, 48, 0.08);
+  border: 1px solid rgba(240, 160, 48, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.warnLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.sectionSub {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+/* ── Format chips ────────────────────────────────────────────────────────── */
+
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.chipActive {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+/* ── Funnel structure blocks ─────────────────────────────────────────────── */
+
+.funnelBlocks {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.funnelBlock {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.funnelBlock:last-child {
+  border-bottom: none;
+}
+
+.funnelIcon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.funnelBody {
+  flex: 1;
+}
+
+.funnelBlockTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.funnelBlockDesc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Text inputs ─────────────────────────────────────────────────────────── */
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inputLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.textInput {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color var(--transition);
+  box-sizing: border-box;
+}
+
+.textInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.textInput::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btnRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.primaryBtn {
+  padding: 13px 32px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primaryBtn:hover:not(:disabled) { background: var(--accent-hover); }
+.primaryBtn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+/* ── Loading screen ──────────────────────────────────────────────────────── */
+
+.loadingScreen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.loadingSpinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loadingText {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+/* ── Step 2: chain editor layout ─────────────────────────────────────────── */
+
+.editorRoot {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Left panel: message list ────────────────────────────────────────────── */
+
+.leftPanel {
+  width: 280px;
+  min-width: 280px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.leftTop {
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leftTopTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.leftTopActions {
+  display: flex;
+  gap: 6px;
+}
+
+.topActionBtn {
+  flex: 1;
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+
+.topActionBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.newChainBtn {
+  padding: 6px 10px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+
+.newChainBtn:hover { background: var(--accent-hover); }
+
+.leftScroll {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  padding: 6px 0 12px;
+}
+
+/* ── Group header ────────────────────────────────────────────────────────── */
+
+.groupHeader {
+  padding: 10px 14px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.groupHeader:not(:first-child) {
+  margin-top: 8px;
+}
+
+/* ── Message item ────────────────────────────────────────────────────────── */
+
+.msgItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+}
+
+.msgItem:hover {
+  background: var(--bg-hover);
+}
+
+.msgItemActive {
+  background: var(--accent-muted);
+}
+
+.msgNum {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  flex-shrink: 0;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.msgItemActive .msgNum {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+
+.msgRole {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msgItemActive .msgRole {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Right panel: message editor ─────────────────────────────────────────── */
+
+.rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-base);
+  min-width: 0;
+}
+
+.editorHeader {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.editorTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.editorDelay {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.editorBody {
+  flex: 1;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.editorTextarea {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  font-family: inherit;
+  resize: none;
+  min-height: 0;
+}
+
+.editorTextarea::placeholder { color: var(--text-muted); }
+
+.lineCounter {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lineCountGood  { color: #4caf82; font-weight: 600; }
+.lineCountWarn  { color: #f0a030; font-weight: 600; }
+
+.editorFooter {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.actionBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.actionBtnPrimary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+
+.actionBtnPrimary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+/* ── Empty right panel ───────────────────────────────────────────────────── */
+
+.emptyRight {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.emptyIcon { font-size: 36px; opacity: 0.35; }

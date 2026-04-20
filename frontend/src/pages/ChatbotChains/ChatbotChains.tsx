@@ -1,239 +1,744 @@
-import { useState } from 'react';
-import ContentWorkspace, { ContentMaterial, FormProps } from '../../components/ContentWorkspace/ContentWorkspace';
-import s from '../../components/ContentWorkspace/ContentWorkspace.module.css';
+import { useState, useCallback } from 'react';
+import { NavLink } from 'react-router-dom';
+import { useProjectsStore } from '../../store/projects.store';
+import s from './ChatbotChains.module.css';
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const SEED: ContentMaterial[] = [
-  {
-    id: 'chain-1',
-    title: 'Прогрев для пар в кризисе',
-    preview: 'Сообщение 1/5: Привет! Вы здесь, значит, чувствуете, что в ваших отношениях что-то не так...',
-    date: '15 апр 2026',
-    status: 'ready',
-    content: `ЦЕПОЧКА ПРОГРЕВА: Для пар в кризисе
-Тип: Прогрев | Сообщений: 5
+type Format = 'article' | 'video';
+type Phase  = 'step1' | 'generating' | 'step2';
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 1 / 5 — Приветствие
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Привет! Вы здесь, значит, чувствуете, что в ваших отношениях что-то не так. Или просто хотите, чтобы стало лучше.
-
-Меня зовут [Имя]. Я психолог, специализируюсь на работе с парами. За несколько лет практики я помогла десяткам пар пройти через кризис — и выйти из него сильнее.
-
-Следующие несколько дней я буду делиться с вами инструментами, которые реально работают.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 2 / 5 — Инсайт
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Знаете ли вы, что большинство конфликтов в паре — это не про то, о чём они формально?
-
-Когда партнёр злится из-за немытой посуды, он на самом деле говорит: «Мне важно, чтобы ты замечал мои усилия».
-
-Ключ к разрешению конфликта — научиться слышать потребность за словами.
-
-Сегодня попробуйте одно упражнение: в следующей ссоре спросите себя — «Что мне сейчас на самом деле нужно?»
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 3 / 5 — Польза
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Три фразы, которые разрушают доверие:
-
-❌ «Ты всегда / ты никогда»
-❌ «Успокойся»
-❌ «Я же говорил(а)»
-
-И три фразы, которые строят близость:
-
-✅ «Я вижу, тебе сейчас тяжело»
-✅ «Расскажи мне больше»
-✅ «Я здесь»
-
-Сохраните это сообщение — оно пригодится.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 4 / 5 — Кейс
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-История моей клиентки (с разрешения):
-
-Наташа и Андрей ссорились каждую неделю об одном и том же. 7 лет. Она думала, что проблема в нём. Он — что в ней.
-
-После трёх сессий выяснилось: оба хотели одного — быть услышанными. Просто никто не умел об этом сказать.
-
-Сейчас они вместе. И ссорятся значительно реже.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 5 / 5 — Призыв
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Если вы прочитали все эти сообщения — значит, вы серьёзно относитесь к своим отношениям. Это уже много.
-
-Я провожу консультации для пар онлайн. Первая встреча — знакомство без обязательств.
-
-👉 Напишите мне «ХОЧУ ПОПРОБОВАТЬ» — и я расскажу, как это работает.`,
-  },
-  {
-    id: 'chain-2',
-    title: 'Продающая цепочка: 5 сообщений',
-    preview: 'Сообщение 1/5: Вы когда-нибудь думали: «Мы ссоримся слишком часто»? Именно для таких пар я создала свою программу...',
-    date: '7 апр 2026',
-    status: 'ready',
-    content: `ПРОДАЮЩАЯ ЦЕПОЧКА: Консультации для пар
-Тип: Продажа | Сообщений: 5
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 1 / 5 — Боль
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Вы когда-нибудь думали: «Мы ссоримся слишком часто»?
-
-Или: «Мы разговариваем, но не слышим друг друга»?
-
-Именно для таких пар я создала свою программу работы. Не потому что всё плохо — а потому что всё можно изменить.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 2 / 5 — Агитация
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Исследования показывают: пары, которые обращаются за помощью на ранних стадиях кризиса, имеют в 4 раза больше шансов сохранить отношения.
-
-Проблема в том, что большинство ждут слишком долго. В среднем — 6 лет после появления серьёзных симптомов.
-
-Не стоит ждать, пока станет невыносимо.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 3 / 5 — Решение
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Моя программа «Перезагрузка пары» — это 8 сессий, в которых мы:
-
-✓ Разберём ваши конфликтные паттерны
-✓ Научимся говорить о потребностях без обвинений
-✓ Восстановим близость и доверие
-
-Формат: онлайн, раз в неделю, по 60–80 минут.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 4 / 5 — Социальное доказательство
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-«Мы думали, что уже всё. После первых двух сессий поняли, что просто не умели разговаривать. Это изменило всё.»
-— Мария и Павел, клиенты 2025 года
-
-«Я шла скептически. Ушла с ощущением, что впервые за три года меня услышали.»
-— Наташа, клиент 2026 года
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ 5 / 5 — Оффер
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Специальное предложение этого месяца:
-
-Бесплатная 30-минутная диагностическая сессия.
-
-Вы расскажете о ситуации — я скажу, как именно могу помочь. Без давления и обязательств.
-
-👉 Напишите «ДИАГНОСТИКА» — и я вышлю ссылку на запись.`,
-  },
-];
-
-// ─── Mock generator ───────────────────────────────────────────────────────────
-
-const CHAIN_TYPE_LABELS: Record<string, string> = {
-  warmup: 'Прогрев',
-  sale:   'Продажа',
-  onboard: 'Онбординг',
-};
-
-function getMockChain(type: string, count: number): string {
-  const typeLabel = CHAIN_TYPE_LABELS[type] ?? type;
-  const messages = Array.from({ length: count }, (_, i) => {
-    const n = i + 1;
-    const last = n === count;
-    return `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-СООБЩЕНИЕ ${n} / ${count}${n === 1 ? ' — Приветствие' : last ? ' — Призыв' : ` — Этап ${n}`}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${n === 1
-  ? 'Привет! Рада, что вы здесь. Меня зовут [Имя], я психолог и работаю с темой отношений.\n\nВ этой цепочке я поделюсь инструментами, которые помогут вам улучшить коммуникацию с партнёром.'
-  : last
-  ? 'Если эти сообщения были полезны — напишите мне слово «ХОЧУ» и я расскажу, как мы можем поработать вместе.\n\nСпасибо, что читали!'
-  : `Сообщение ${n}: ключевой инсайт о теме отношений и конфликтов.\n\nВажно помнить: любой конфликт — это возможность лучше понять друг друга. Инструмент этого дня: задайте себе вопрос «Что мне сейчас действительно нужно?»`
-}`;
-  });
-
-  return `ЦЕПОЧКА: ${typeLabel}
-Тип: ${typeLabel} | Сообщений: ${count}
-
-${messages.join('\n\n')}`;
+interface StrategyData {
+  chosenSegment?:    string;
+  chosenSubsegment?: string;
 }
 
-// ─── Form component ───────────────────────────────────────────────────────────
+interface ChainMessage {
+  id:            string;
+  index:         number;
+  part:          1 | 2 | 3;
+  role:          string;
+  dayDelay:      number;
+  content:       string;
+  editedContent: string;
+}
 
-const CHAIN_TYPES = [
-  { key: 'warmup',  label: 'Прогрев' },
-  { key: 'sale',    label: 'Продажа' },
-  { key: 'onboard', label: 'Онбординг' },
+interface StoredChain {
+  format:          Format;
+  botName:         string;
+  meetingSchedule: string;
+  messages:        ChainMessage[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STORAGE_STRATEGY = 'strategy_answers';
+
+const PART_LABELS: Record<1 | 2 | 3, string> = {
+  1: 'ЧАСТЬ 1 — ЛИД-МАГНИТ',
+  2: 'ЧАСТЬ 2 — МИНИ-ПРОДУКТ',
+  3: 'ЧАСТЬ 3 — ВСТРЕЧА',
+};
+
+const MSG_DEFS: Array<{ index: number; part: 1|2|3; role: string; dayDelay: number }> = [
+  { index: 1,  part: 1, role: 'Приветствие',    dayDelay: 0  },
+  { index: 2,  part: 1, role: 'Боль',            dayDelay: 1  },
+  { index: 3,  part: 1, role: 'Инсайт',          dayDelay: 2  },
+  { index: 4,  part: 1, role: 'История клиента', dayDelay: 3  },
+  { index: 5,  part: 1, role: 'Дожим',           dayDelay: 4  },
+  { index: 6,  part: 2, role: 'Переход',         dayDelay: 5  },
+  { index: 7,  part: 2, role: 'Проблема глубже', dayDelay: 6  },
+  { index: 8,  part: 2, role: 'Продукт',         dayDelay: 7  },
+  { index: 9,  part: 2, role: 'Возражение',      dayDelay: 9  },
+  { index: 10, part: 2, role: 'Призыв',          dayDelay: 10 },
+  { index: 11, part: 3, role: 'Анонс',           dayDelay: 12 },
+  { index: 12, part: 3, role: 'Ценность',        dayDelay: 14 },
+  { index: 13, part: 3, role: 'Последний шанс',  dayDelay: 16 },
 ];
 
-const MSG_COUNTS = [
-  { key: 3, label: '3' },
-  { key: 5, label: '5' },
-  { key: 7, label: '7' },
-];
+// ─── Seed chain ───────────────────────────────────────────────────────────────
 
-function ChatbotChainsForm({ onGenerate, loading }: FormProps) {
-  const [chainType, setChainType] = useState('warmup');
-  const [count,     setCount]     = useState(5);
+function makeSeedChain(): StoredChain {
+  const msgs: ChainMessage[] = [
+    {
+      id: 'c1', index: 1, part: 1, role: 'Приветствие', dayDelay: 0,
+      content:
+`Привет! Рада, что вы здесь 👋
 
-  const handleGenerate = () => {
-    const typeLabel = CHAIN_TYPE_LABELS[chainType] ?? chainType;
-    const title = `${typeLabel}: ${count} сообщений`;
-    onGenerate(title, getMockChain(chainType, count));
+Я отправлю вам несколько коротких сообщений — они помогут разобраться, почему одни и те же ссоры повторяются снова и снова.
+
+Сначала — самое важное.
+
+Получите статью «5 причин почему пары ссорятся об одном и том же» — пришлю прямо сейчас.
+
+👇 Нажмите «Получить статью»`,
+      editedContent: '',
+    },
+    {
+      id: 'c2', index: 2, part: 1, role: 'Боль', dayDelay: 1,
+      content:
+`Скажите честно — вы узнаёте эту ситуацию?
+
+Поссорились. Помирились. Прошло две-три недели — и всё сначала. Та же тема, те же слова, то же ощущение: «ну вот опять».
+
+Это не значит, что вы несовместимы. Это значит, что за видимым конфликтом есть кое-что другое.
+
+Именно об этом — статья.
+
+Прочитали? Что отозвалось больше всего?`,
+      editedContent: '',
+    },
+    {
+      id: 'c3', index: 3, part: 1, role: 'Инсайт', dayDelay: 2,
+      content:
+`Один из главных инсайтов из статьи:
+
+Видимая тема конфликта — почти никогда не настоящая тема конфликта.
+
+Когда партнёр злится из-за посуды — за этим стоит: «Мне важно, чтобы ты замечал мои усилия».
+
+Когда уходит в молчание — это: «Я не знаю, как быть услышанным, не разрушив всё».
+
+Оба говорят о разном. Используя одни и те же слова.
+
+Узнаёте?`,
+      editedContent: '',
+    },
+    {
+      id: 'c4', index: 4, part: 1, role: 'История клиента', dayDelay: 3,
+      content:
+`Расскажу про Машу и Игоря (с разрешения).
+
+Вместе 4 года. Ссорились по одному кругу раз в три недели. Маша чувствовала: Игорь не вкладывается. Игорь чувствовал: каждый его шаг оказывается недостаточным.
+
+Я попросила каждого написать: «Что значит для меня быть в хороших отношениях?»
+
+Маша: «Планировать будущее вместе, замечать мелочи».
+Игорь: «Доверие. Свобода быть собой».
+
+Они прочитали это друг другу. Первый раз за 4 года.
+
+Маша: «Я не знала, что тебе важна свобода».
+Игорь: «Я не понимал, что ты ждёшь инициативы».
+
+4 года ссор — один лист бумаги.`,
+      editedContent: '',
+    },
+    {
+      id: 'c5', index: 5, part: 1, role: 'Дожим', dayDelay: 4,
+      content:
+`Последнее сообщение о статье.
+
+Если вы её прочитали — у вас уже есть понимание, почему конфликты повторяются.
+
+Но понимание и изменение — это разные вещи.
+
+Следующий шаг — научиться говорить о потребностях прямо. Без претензий. Без обид.
+
+Именно этому посвящён мой интенсив «Первый шаг» — 3 часа практики.
+
+Расскажу о нём завтра.`,
+      editedContent: '',
+    },
+    {
+      id: 'c6', index: 6, part: 2, role: 'Переход', dayDelay: 5,
+      content:
+`Как и обещала — рассказываю.
+
+Я провожу интенсив «Первый шаг». Это 3 часа живой работы — не лекция. Мы разбираем реальные ситуации, практикуем инструменты, делаем первый шаг из замкнутого круга конфликтов.
+
+Для кого это:
+— Разговоры о проблемах превращаются в новые ссоры
+— Вы понимаете, что идёт не так, но не знаете с чего начать
+— Хотите изменить динамику, но не знаете как
+
+Завтра расскажу подробнее.`,
+      editedContent: '',
+    },
+    {
+      id: 'c7', index: 7, part: 2, role: 'Проблема глубже', dayDelay: 6,
+      content:
+`Вот что я вижу снова и снова.
+
+Люди понимают, что происходит. Читают книги, знают теорию. И всё равно ссорятся.
+
+Потому что понимание — один уровень. Изменение паттерна — другой.
+
+Паттерн живёт в теле, в рефлексах, в автоматических реакциях. Его нельзя «понять» — его нужно практиковать.
+
+Именно поэтому интенсив — это практика. Не слова.
+
+3 часа работы = годы сэкономленного времени на одинаковые ссоры.`,
+      editedContent: '',
+    },
+    {
+      id: 'c8', index: 8, part: 2, role: 'Продукт', dayDelay: 7,
+      content:
+`Интенсив «Первый шаг» — что внутри:
+
+✦ Разбор вашей конкретной ситуации
+✦ Техника «потребность вместо претензии»
+✦ Как начать трудный разговор без эскалации
+✦ Практика «мягкого начала» по Готтману
+✦ Упражнение «карта ожиданий» для пары
+
+Формат: онлайн, 3 часа, живое взаимодействие.
+
+Стоимость: [цена]
+Ближайшая дата: [дата]
+
+Вопросы — пишите сюда.`,
+      editedContent: '',
+    },
+    {
+      id: 'c9', index: 9, part: 2, role: 'Возражение', dayDelay: 9,
+      content:
+`Знаю, что у некоторых сейчас мысль: «Три часа — это много».
+
+Давайте честно.
+
+Средняя пара ссорится об одном и том же 6 лет до того, как обратиться за помощью. Это примерно 300 ссор. Каждая — час напряжения, молчание, примирение, снова.
+
+3 часа практики против 300 часов одинаковых конфликтов.
+
+Это не много. Это мало.`,
+      editedContent: '',
+    },
+    {
+      id: 'c10', index: 10, part: 2, role: 'Призыв', dayDelay: 10,
+      content:
+`Регистрация на интенсив «Первый шаг» открыта.
+
+Мест немного — работаю в небольших группах, чтобы каждый получил внимание.
+
+Если чувствуете, что пора что-то изменить — это сигнал.
+
+👉 [ссылка на оплату или запись]
+
+Если есть вопросы — напишите. Отвечу лично.`,
+      editedContent: '',
+    },
+    {
+      id: 'c11', index: 11, part: 3, role: 'Анонс', dayDelay: 12,
+      content:
+`Хочу пригласить вас на кое-что особенное.
+
+Каждую пятницу в 19:00 МСК я провожу живой разбор «Психология отношений: разбор ситуаций».
+
+Это не вебинар. Живой разговор, где я разбираю реальные вопросы от подписчиков.
+
+Бесплатно. Каждую пятницу.
+
+В эту пятницу: как говорить о конфликте, не разрушая близость.
+
+Хотите прийти?`,
+      editedContent: '',
+    },
+    {
+      id: 'c12', index: 12, part: 3, role: 'Ценность', dayDelay: 14,
+      content:
+`Зачем приходить на разбор, если можно просто читать?
+
+Читая — вы получаете информацию. На разборе — видите как это работает на живых ситуациях. Ваших или похожих.
+
+Плюс: можно задать вопрос анонимно. Я разберу его вживую.
+
+Несколько человек после разборов говорили: «Один вопрос изменил то, как я думаю об этом».
+
+Следующая встреча — в пятницу в 19:00 МСК.
+
+👉 [ссылка на трансляцию]`,
+      editedContent: '',
+    },
+    {
+      id: 'c13', index: 13, part: 3, role: 'Последний шанс', dayDelay: 16,
+      content:
+`Напоминание — сегодня пятница.
+
+В 19:00 МСК начинается разбор «Как говорить о конфликте, не разрушая близость».
+
+Присоединяйтесь — бесплатно, 60 минут.
+
+После эфира отвечаю на вопросы в чате.
+
+👉 [ссылка]
+
+Не сможете прийти — напишите «ЗАПИСЬ», пришлю ссылку после эфира.`,
+      editedContent: '',
+    },
+  ];
+
+  return {
+    format: 'article',
+    botName: '',
+    meetingSchedule: 'каждую пятницу в 19:00 МСК',
+    messages: msgs,
+  };
+}
+
+// ─── Mock chain generator ─────────────────────────────────────────────────────
+
+function buildChain(
+  format: Format,
+  botName: string,
+  meetingSchedule: string,
+  strat: StrategyData | null,
+): ChainMessage[] {
+  const formatLabel = format === 'article' ? 'статью' : 'видео-урок';
+  const seg   = strat?.chosenSegment?.split('\n')[0]?.slice(0, 60) ?? 'клиент';
+  const meet  = meetingSchedule.trim() || 'каждую пятницу в 19:00';
+  const bot   = botName.trim();
+
+  const texts: Record<number, string> = {
+    1: `Привет!${bot ? ` Это бот «${bot}»` : ''} 👋\n\nЗдесь я буду делиться инструментами, которые реально помогают ${seg}.\n\nНачнём с главного — получите ${formatLabel} прямо сейчас.\n\n👇 Нажмите «Получить»`,
+    2: `Вы замечали такое?\n\nЧувствуете, что что-то не так — но не можете точно назвать что. Пробовали разные подходы, но ситуация возвращается.\n\nЭто не ваша вина. Это паттерн.\n\nИменно о нём — ${formatLabel}. Прочитали/посмотрели?`,
+    3: `Ключевой инсайт из ${format === 'article' ? 'статьи' : 'видео'}:\n\nВидимая проблема — почти никогда не настоящая проблема.\n\nЗа ней всегда стоит невысказанная потребность. Пока её не назовёшь прямо — ситуация будет повторяться.\n\nЭто меняет всё.`,
+    4: `История из практики (с разрешения).\n\nКо мне обратился клиент с запросом — ситуация казалась безвыходной. Несколько сессий, одно упражнение — и паттерн начал разрушаться.\n\nКлиент сказал: «Я наконец чувствую себя собой».\n\nЭто работает.`,
+    5: `Последнее сообщение о ${format === 'article' ? 'статье' : 'видео'}.\n\nЕсли вы с ним познакомились — у вас уже есть понимание. Но понимание и изменение — разные вещи.\n\nСледующий шаг — практика.\n\nРасскажу о ней завтра.`,
+    6: `Как и обещала — рассказываю.\n\nЯ провожу интенсив — 3 часа живой работы. Не лекция, а практика: разбираем вашу ситуацию, отрабатываем конкретные инструменты.\n\nДля кого: те, кто понимает что происходит — но не может изменить.\n\nЗавтра расскажу подробнее.`,
+    7: `Вот почему одного понимания недостаточно.\n\nПаттерны живут в теле, в рефлексах. Их нельзя изменить через чтение — только через практику.\n\nИменно поэтому интенсив — это практика в безопасном пространстве.\n\n3 часа = годы сэкономленного времени.`,
+    8: `Интенсив «Первый шаг» — что внутри:\n\n✦ Разбор вашей ситуации\n✦ Ключевые инструменты изменения\n✦ Практика в группе\n✦ Материалы для продолжения\n\nФормат: онлайн, 3 часа.\nСтоимость: [цена]\nДата: [дата]\n\nВопросы — пишите сюда.`,
+    9: `Если у вас мысль «это не для меня» — давайте разберём.\n\n«Слишком дорого» — сколько стоит год одинаковых конфликтов?\n«Нет времени» — 3 часа один раз или бесконечный круг?\n«Не поможет» — понимаю. Первая сессия бесплатная.\n\nКаков ваш главный вопрос?`,
+    10: `Регистрация открыта.\n\nМест немного — работаю в небольших группах.\n\nЕсли чувствуете что пора — это сигнал.\n\n👉 [ссылка на запись]\n\nЕсть вопросы — напишите. Отвечу лично.`,
+    11: `Хочу пригласить вас на кое-что.\n\nКаждую неделю (${meet}) я провожу живой разбор.\n\nЭто не вебинар. Живой разговор, реальные ситуации, реальные ответы.\n\nБесплатно.\n\nВ эту встречу — тема из вашей области.\n\nХотите прийти?`,
+    12: `Зачем приходить, если можно просто читать?\n\nЧитая — вы получаете информацию. На разборе — видите как это применяется к живым ситуациям.\n\nПлюс: можно задать вопрос анонимно.\n\nСледующая встреча — ${meet}.\n\n👉 [ссылка]`,
+    13: `Напоминание — сегодня встреча.\n\n${meet} начинается разбор.\n\nБесплатно. Присоединяйтесь.\n\n👉 [ссылка]\n\nНе сможете — напишите «ЗАПИСЬ», пришлю ссылку после.`,
   };
 
+  return MSG_DEFS.map(def => ({
+    id:            `gen-${def.index}`,
+    index:         def.index,
+    part:          def.part,
+    role:          def.role,
+    dayDelay:      def.dayDelay,
+    content:       texts[def.index] ?? '',
+    editedContent: '',
+  }));
+}
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+function chainKey(projectId: string) { return `chatbot_chain_${projectId}`; }
+
+function loadChain(projectId: string): StoredChain | null {
+  try {
+    const raw = localStorage.getItem(chainKey(projectId));
+    return raw ? (JSON.parse(raw) as StoredChain) : null;
+  } catch { return null; }
+}
+
+function persistChain(projectId: string, chain: StoredChain) {
+  localStorage.setItem(chainKey(projectId), JSON.stringify(chain));
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function lineCount(text: string): number {
+  return text.trim() === '' ? 0 : text.split('\n').length;
+}
+
+function formatDayDelay(d: number): string {
+  if (d === 0) return 'Отправить сразу при подписке';
+  return `Отправить через ${d} ${d === 1 ? 'день' : d < 5 ? 'дня' : 'дней'}`;
+}
+
+function buildFullText(messages: ChainMessage[]): string {
+  const parts = [1, 2, 3] as const;
+  return parts.map(part => {
+    const label = PART_LABELS[part];
+    const partMsgs = messages.filter(m => m.part === part);
+    const body = partMsgs.map(m => {
+      const text = m.editedContent || m.content;
+      return `Сообщение ${m.index} — ${m.role} | День ${m.dayDelay}\n\n${text}`;
+    }).join('\n\n---\n\n');
+    return `=== ${label} ===\n\n${body}`;
+  }).join('\n\n\n');
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function ChatbotChains() {
+  const { activeProjectId } = useProjectsStore();
+
+  const [strat] = useState<StrategyData>(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
+    catch { return {}; }
+  });
+  const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
+
+  const savedChain = loadChain(activeProjectId);
+
+  // Phase
+  const [phase, setPhase] = useState<Phase>(savedChain ? 'step2' : 'step1');
+
+  // Step 1 state
+  const [format,          setFormat]          = useState<Format>('article');
+  const [botName,         setBotName]         = useState('');
+  const [meetingSchedule, setMeetingSchedule] = useState('');
+
+  // Step 2 state
+  const [chain,      setChain]      = useState<StoredChain>(savedChain ?? makeSeedChain());
+  const [activeId,   setActiveId]   = useState<string>(savedChain?.messages[0]?.id ?? 'c1');
+
+  // Unsaved edits per message
+  const [editMap, setEditMap] = useState<Record<string, string>>({});
+
+  // ── Persist ───────────────────────────────────────────────────────────────
+
+  const updateChain = useCallback((next: StoredChain) => {
+    setChain(next);
+    persistChain(activeProjectId, next);
+  }, [activeProjectId]);
+
+  // ── Generate ──────────────────────────────────────────────────────────────
+
+  function handleGenerate() {
+    setPhase('generating');
+    setTimeout(() => {
+      const messages = buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null);
+      const newChain: StoredChain = { format, botName, meetingSchedule, messages };
+      updateChain(newChain);
+      setActiveId(messages[0]?.id ?? '');
+      setEditMap({});
+      setPhase('step2');
+    }, 2000);
+  }
+
+  function handleNewChain() {
+    setFormat('article');
+    setBotName('');
+    setMeetingSchedule('');
+    setPhase('step1');
+  }
+
+  // ── Editor helpers ────────────────────────────────────────────────────────
+
+  function getContent(msg: ChainMessage): string {
+    return editMap[msg.id] ?? (msg.editedContent || msg.content);
+  }
+
+  function setContent(id: string, value: string) {
+    setEditMap(prev => ({ ...prev, [id]: value }));
+  }
+
+  function handleSave(msg: ChainMessage) {
+    const text = editMap[msg.id];
+    if (text === undefined) return;
+    const next: StoredChain = {
+      ...chain,
+      messages: chain.messages.map(m =>
+        m.id === msg.id ? { ...m, editedContent: text } : m,
+      ),
+    };
+    updateChain(next);
+    setEditMap(prev => { const n = { ...prev }; delete n[msg.id]; return n; });
+  }
+
+  function handleCopyOne(msg: ChainMessage) {
+    navigator.clipboard.writeText(getContent(msg)).catch(() => undefined);
+  }
+
+  function handleCopyAll() {
+    navigator.clipboard.writeText(buildFullText(chain.messages)).catch(() => undefined);
+  }
+
+  function handleDownload() {
+    const text = buildFullText(chain.messages);
+    const blob  = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url;
+    a.download = 'telegram-chain-13.docx';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+
+  if (phase === 'generating') {
+    return (
+      <div className={s.root}>
+        <div className={s.loadingScreen}>
+          <div className={s.loadingSpinner} />
+          <p className={s.loadingText}>✉️ Пишу цепочку сообщений...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 2: chain editor ──────────────────────────────────────────────────
+
+  if (phase === 'step2') {
+    const activeMsg = chain.messages.find(m => m.id === activeId) ?? chain.messages[0] ?? null;
+    const parts = ([1, 2, 3] as const);
+
+    return (
+      <div className={s.root}>
+        <div className={s.editorRoot}>
+
+          {/* Left panel */}
+          <div className={s.leftPanel}>
+            <div className={s.leftTop}>
+              <div className={s.leftTopTitle}>13 сообщений</div>
+              <div className={s.leftTopActions}>
+                <button className={s.topActionBtn} onClick={handleCopyAll}>
+                  📋 Копировать все
+                </button>
+                <button className={s.topActionBtn} onClick={handleDownload}>
+                  💾 .docx
+                </button>
+                <button className={s.newChainBtn} onClick={handleNewChain}>
+                  + Новая
+                </button>
+              </div>
+            </div>
+
+            <div className={s.leftScroll}>
+              {parts.map(part => (
+                <div key={part}>
+                  <div className={s.groupHeader}>{PART_LABELS[part]}</div>
+                  {chain.messages
+                    .filter(m => m.part === part)
+                    .map(msg => (
+                      <button
+                        key={msg.id}
+                        className={`${s.msgItem}${msg.id === activeId ? ' ' + s.msgItemActive : ''}`}
+                        onClick={() => setActiveId(msg.id)}
+                      >
+                        <span className={s.msgNum}>{msg.index}</span>
+                        <span className={s.msgRole}>{msg.role}</span>
+                      </button>
+                    ))
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right panel */}
+          <div className={s.rightPanel}>
+            {!activeMsg ? (
+              <div className={s.emptyRight}>
+                <span className={s.emptyIcon}>✉️</span>
+                <span>Выберите сообщение слева</span>
+              </div>
+            ) : (
+              <MessageEditor
+                key={activeMsg.id}
+                msg={activeMsg}
+                content={getContent(activeMsg)}
+                hasUnsaved={editMap[activeMsg.id] !== undefined}
+                onChange={v => setContent(activeMsg.id, v)}
+                onSave={() => handleSave(activeMsg)}
+                onCopy={() => handleCopyOne(activeMsg)}
+              />
+            )}
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 1 ────────────────────────────────────────────────────────────────
+
   return (
-    <>
-      <h2 className={s.formTitle}>Новая цепочка текстов</h2>
+    <div className={s.root}>
+      <div className={s.page}>
 
-      <div className={s.formField}>
-        <span className={s.chipLabel}>Тип цепочки</span>
-        <div className={s.chipGroup}>
-          {CHAIN_TYPES.map(({ key, label }) => (
-            <button
-              key={key}
-              className={`${s.chip}${chainType === key ? ' ' + s.chipActive : ''}`}
-              onClick={() => setChainType(key)}
-            >
-              {label}
-            </button>
-          ))}
+        <div className={s.stepper}>
+          <div className={s.stepItem}>
+            <div className={`${s.stepDot} ${s.stepDotActive}`}>1</div>
+            <span className={`${s.stepLabel} ${s.stepLabelActive}`}>Настройка</span>
+          </div>
+          <div className={s.stepLine} />
+          <div className={s.stepItem}>
+            <div className={s.stepDot}>2</div>
+            <span className={s.stepLabel}>Готовая цепочка</span>
+          </div>
         </div>
-      </div>
 
-      <div className={s.formField}>
-        <span className={s.chipLabel}>Количество сообщений</span>
-        <div className={s.chipGroup}>
-          {MSG_COUNTS.map(({ key, label }) => (
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 24 }}>
+          Настройка цепочки сообщений
+        </h2>
+
+        {/* Strategy badges */}
+        {hasStrategy ? (
+          <div className={s.strategyBanner}>
+            <span className={s.strategyLabel}>Из стратегии:</span>
+            {strat.chosenSegment    && <span className={s.badge}>{strat.chosenSegment.split('\n')[0]?.slice(0, 60)}</span>}
+            {strat.chosenSubsegment && <span className={s.badge}>{strat.chosenSubsegment.split('\n')[0]?.slice(0, 60)}</span>}
+          </div>
+        ) : (
+          <div className={s.warnBanner}>
+            <span>⚠️</span>
+            <span>
+              Сначала пройдите <NavLink to="/strategy" className={s.warnLink}>Стратегию</NavLink> — это улучшит тексты сообщений
+            </span>
+          </div>
+        )}
+
+        {/* Format */}
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Формат лид-магнита</div>
+          <div className={s.chipGroup}>
             <button
-              key={key}
-              className={`${s.chip}${count === key ? ' ' + s.chipActive : ''}`}
-              onClick={() => setCount(key)}
+              className={`${s.chip}${format === 'article' ? ' ' + s.chipActive : ''}`}
+              onClick={() => setFormat('article')}
             >
-              {label}
+              📄 Текстовая статья
             </button>
-          ))}
+            <button
+              className={`${s.chip}${format === 'video' ? ' ' + s.chipActive : ''}`}
+              onClick={() => setFormat('video')}
+            >
+              🎬 Видео-урок
+            </button>
+          </div>
         </div>
-      </div>
 
-      <button className={s.generateBtn} onClick={handleGenerate} disabled={loading}>
-        {loading ? <><span className={s.spinner} /> Генерирую...</> : 'Сгенерировать цепочку →'}
-      </button>
-    </>
+        {/* Funnel structure */}
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Структура воронки</div>
+          <div className={s.sectionSub}>13 сообщений, разбитых на три смысловых блока</div>
+          <div className={s.funnelBlocks}>
+            <div className={s.funnelBlock}>
+              <span className={s.funnelIcon}>📨</span>
+              <div className={s.funnelBody}>
+                <div className={s.funnelBlockTitle}>Сообщения 1–5 — Лид-магнит</div>
+                <div className={s.funnelBlockDesc}>
+                  Продают прочитать {format === 'article' ? 'статью' : 'видео-урок'}: приветствие, боль, инсайт, история клиента, дожим
+                </div>
+              </div>
+            </div>
+            <div className={s.funnelBlock}>
+              <span className={s.funnelIcon}>📨</span>
+              <div className={s.funnelBody}>
+                <div className={s.funnelBlockTitle}>Сообщения 6–10 — Мини-продукт</div>
+                <div className={s.funnelBlockDesc}>
+                  Продают интенсив или диагностику: переход, проблема глубже, продукт, возражение, призыв
+                </div>
+              </div>
+            </div>
+            <div className={s.funnelBlock}>
+              <span className={s.funnelIcon}>📨</span>
+              <div className={s.funnelBody}>
+                <div className={s.funnelBlockTitle}>Сообщения 11–13 — Еженедельная встреча</div>
+                <div className={s.funnelBlockDesc}>
+                  Продают участие в живых разборах: анонс, ценность, последний шанс
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Optional fields */}
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Детали (опционально)</div>
+          <div className={s.inputGroup}>
+            <div>
+              <div className={s.inputLabel}>Название вашего бота или канала</div>
+              <input
+                className={s.textInput}
+                placeholder="Например: @psyholog_bot или Психолог Анна"
+                value={botName}
+                onChange={e => setBotName(e.target.value)}
+              />
+            </div>
+            <div>
+              <div className={s.inputLabel}>Дата еженедельной встречи</div>
+              <input
+                className={s.textInput}
+                placeholder="Например: каждую пятницу в 19:00 МСК"
+                value={meetingSchedule}
+                onChange={e => setMeetingSchedule(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className={s.btnRow}>
+          {savedChain && (
+            <button
+              className={s.primaryBtn}
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
+              onClick={() => setPhase('step2')}
+            >
+              ← К текущей цепочке
+            </button>
+          )}
+          <button className={s.primaryBtn} onClick={handleGenerate}>
+            Сгенерировать все 13 сообщений →
+          </button>
+        </div>
+
+      </div>
+    </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── MessageEditor ────────────────────────────────────────────────────────────
 
-export default function ChatbotChains() {
+interface MessageEditorProps {
+  msg:         ChainMessage;
+  content:     string;
+  hasUnsaved:  boolean;
+  onChange:    (v: string) => void;
+  onSave:      () => void;
+  onCopy:      () => void;
+}
+
+function MessageEditor({ msg, content, hasUnsaved, onChange, onSave, onCopy }: MessageEditorProps) {
+  const lines = lineCount(content);
+  const inTarget = lines >= 3 && lines <= 7;
+  const overLimit = lines > 7;
+
   return (
-    <ContentWorkspace
-      sectionTitle="Цепочка текстов"
-      initialMaterials={SEED}
-      FormComponent={ChatbotChainsForm}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div className={s.editorHeader}>
+        <div className={s.editorTitle}>
+          Сообщение {msg.index} — {msg.role}
+        </div>
+        <div className={s.editorDelay}>{formatDayDelay(msg.dayDelay)}</div>
+      </div>
+
+      <div className={s.editorBody}>
+        <textarea
+          className={s.editorTextarea}
+          value={content}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Текст сообщения..."
+        />
+        <div className={s.lineCounter}>
+          <span
+            className={
+              lines === 0 ? '' :
+              inTarget    ? s.lineCountGood :
+              overLimit   ? s.lineCountWarn : ''
+            }
+          >
+            {lines} строк
+          </span>
+          <span>· цель: 3–7 строк</span>
+        </div>
+      </div>
+
+      <div className={s.editorFooter}>
+        <button className={s.actionBtn} onClick={onCopy}>
+          📋 Копировать
+        </button>
+        <button
+          className={`${s.actionBtn}${hasUnsaved ? ' ' + s.actionBtnPrimary : ''}`}
+          onClick={onSave}
+          disabled={!hasUnsaved}
+        >
+          💾 Сохранить
+        </button>
+      </div>
+    </div>
   );
 }
