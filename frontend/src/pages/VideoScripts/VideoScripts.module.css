@@ -1,0 +1,692 @@
+/* ── Page wrapper ────────────────────────────────────────────────────────────── */
+
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding-bottom: 48px;
+}
+
+/* ── Stepper ─────────────────────────────────────────────────────────────────── */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 10px;
+}
+
+.stepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.stepDotActive {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.stepDotDone {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.stepLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stepLabelActive {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Banners ─────────────────────────────────────────────────────────────────── */
+
+.strategyBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: rgba(124, 108, 252, 0.07);
+  border: 1px solid rgba(124, 108, 252, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: 28px;
+}
+
+.strategyLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(124, 108, 252, 0.25);
+}
+
+.warnBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(240, 160, 48, 0.08);
+  border: 1px solid rgba(240, 160, 48, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.warnLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.sectionSub {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+/* ── Chips ───────────────────────────────────────────────────────────────────── */
+
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.chipActive {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.platformDesc {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+
+/* ── Text inputs ─────────────────────────────────────────────────────────────── */
+
+.textInput {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color var(--transition);
+  box-sizing: border-box;
+}
+
+.textInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.inputHint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.botKeywordRow {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.botKeywordLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ── Theme list ──────────────────────────────────────────────────────────────── */
+
+.themeList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.themeItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.themeItem:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.themeItemActive {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.themeRadio {
+  font-size: 16px;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.themeText {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.themeItemActive .themeText {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* ── SEO keywords ────────────────────────────────────────────────────────────── */
+
+.keywordsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.kwBadge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* ── Facture ─────────────────────────────────────────────────────────────────── */
+
+.factureCard {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.factureHint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.inputModeRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.modeBtn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.modeBtnActive {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.factureTextarea {
+  width: 100%;
+  min-height: 130px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--transition);
+  box-sizing: border-box;
+}
+
+.factureTextarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.factureCounter {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.factureCounterWarn {
+  color: #f0a030;
+}
+
+/* ── Voice ───────────────────────────────────────────────────────────────────── */
+
+.voiceArea {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voiceBtn {
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  align-self: flex-start;
+}
+
+.voiceBtnActive {
+  border-color: #e05c5c;
+  background: rgba(224, 92, 92, 0.08);
+  color: #e05c5c;
+}
+
+.voiceTranscript {
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+
+.btnRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.primaryBtn {
+  padding: 12px 28px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primaryBtn:hover:not(:disabled) { background: var(--accent-hover); }
+.primaryBtn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+.secondaryBtn {
+  padding: 11px 22px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.secondaryBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Loading screen ──────────────────────────────────────────────────────────── */
+
+.loadingScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 16px;
+}
+
+.loadingEmoji {
+  font-size: 32px;
+}
+
+.loadingSpinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loadingText {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.loadingSub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Editor right panel ──────────────────────────────────────────────────────── */
+
+.editorPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editorHeader {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.editorTitleInput {
+  width: 100%;
+  background: none;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: inherit;
+  padding: 0;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.editorTitleInput:focus { outline: none; }
+
+.editorMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wordCount {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.wordCountGood {
+  color: #4caf82;
+  font-weight: 600;
+}
+
+/* ── SEO card ────────────────────────────────────────────────────────────────── */
+
+.seoCard {
+  margin: 12px 20px;
+  padding: 12px 16px;
+  background: rgba(124, 108, 252, 0.05);
+  border: 1px solid rgba(124, 108, 252, 0.18);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seoCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.seoCardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+}
+
+.seoCopyBtn {
+  padding: 3px 10px;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(124, 108, 252, 0.25);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.seoCopyBtn:hover { background: rgba(124, 108, 252, 0.15); }
+
+.seoRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seoLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.seoValue {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.seoKeywordsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ── Editor body ─────────────────────────────────────────────────────────────── */
+
+.editorTextarea {
+  flex: 1;
+  padding: 16px 20px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.75;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.editorActions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.actionBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.actionBtnPrimary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+
+.actionBtnPrimary:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+  border-color: var(--accent-hover);
+}
+
+.actionBtnDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Empty editor ────────────────────────────────────────────────────────────── */
+
+.emptyEditor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.emptyIcon { font-size: 36px; opacity: 0.35; }
+.emptyText { font-size: 14px; color: var(--text-muted); }
+
+/* ── New article button ──────────────────────────────────────────────────────── */
+
+.newArticleBtn {
+  padding: 4px 10px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  transition: background var(--transition);
+}
+
+.newArticleBtn:hover { background: var(--accent-hover); }
