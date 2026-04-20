@@ -887,12 +887,30 @@ interface ScriptEditorProps {
   onDownload:     (title: string, content: string) => void;
 }
 
+function ScriptContentView({ content }: { content: string }) {
+  return (
+    <div className={s.scriptContent}>
+      {content.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className={s.scriptLineSpacer} />;
+        const isCaps = trimmed === trimmed.toUpperCase() && /[А-ЯA-Z]/.test(trimmed);
+        return (
+          <p key={i} className={isCaps ? s.scriptLineCaps : s.scriptLineNormal}>
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function ScriptEditor({
   scriptId, initialTitle, initialContent, templateLabel,
   onSave, onCopy, onDownload,
 }: ScriptEditorProps) {
-  const [title,   setTitle]   = useState(initialTitle);
-  const [content, setContent] = useState(initialContent);
+  const [title,     setTitle]     = useState(initialTitle);
+  const [content,   setContent]   = useState(initialContent);
+  const [isEditing, setIsEditing] = useState(false);
 
   return (
     <div className={s.scriptEditorWrap}>
@@ -907,17 +925,28 @@ function ScriptEditor({
       </div>
 
       <div className={s.scriptBody}>
-        <textarea
-          className={s.scriptTextarea}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Текст сценария…"
-        />
+        {isEditing ? (
+          <textarea
+            className={s.scriptTextarea}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Текст сценария…"
+            autoFocus
+          />
+        ) : (
+          <ScriptContentView content={content} />
+        )}
       </div>
 
       <div className={s.scriptFooter}>
-        <span className={s.charCount}>{content.length} символов</span>
+        <span className={s.charCount}>{content.length} симв.</span>
         <div className={s.scriptActions}>
+          <button
+            className={`${s.actionBtn}${isEditing ? ' ' + s.actionBtnActive : ''}`}
+            onClick={() => setIsEditing((v) => !v)}
+          >
+            {isEditing ? '✓ Готово' : '✏️ Редактировать'}
+          </button>
           <button className={s.actionBtn} onClick={() => onCopy(`${title}\n\n${content}`)}>
             📋 Копировать
           </button>
@@ -929,7 +958,7 @@ function ScriptEditor({
           </button>
           <button
             className={`${s.actionBtn} ${s.actionBtnPrimary}`}
-            onClick={() => onSave(scriptId, title, content)}
+            onClick={() => { onSave(scriptId, title, content); setIsEditing(false); }}
           >
             💾 Сохранить
           </button>

@@ -492,7 +492,7 @@
 }
 
 .editorHeader {
-  padding: 14px 20px 10px;
+  padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -501,12 +501,12 @@
   width: 100%;
   background: none;
   border: none;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   font-family: inherit;
   padding: 0;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   box-sizing: border-box;
 }
 
@@ -602,7 +602,7 @@
 
 .editorTextarea {
   flex: 1;
-  padding: 16px 20px;
+  padding: 16px 24px;
   background: none;
   border: none;
   color: var(--text-primary);
@@ -619,7 +619,7 @@
 .editorActions {
   display: flex;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;

@@ -554,7 +554,7 @@
 }
 
 .scriptHeader {
-  padding: 18px 24px 14px;
+  padding: 20px 24px 0;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -565,12 +565,14 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font);
   padding: 0;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scriptTitleInput::placeholder { color: var(--text-muted); }
@@ -584,11 +586,12 @@
   background: var(--accent-muted);
   color: var(--accent);
   border: 1px solid rgba(124, 108, 252, 0.2);
+  margin-bottom: 20px;
 }
 
 .scriptBody {
   flex: 1;
-  padding: 16px 24px;
+  padding: 20px 24px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -613,7 +616,7 @@
 .scriptTextarea::placeholder { color: var(--text-muted); }
 
 .scriptFooter {
-  padding: 10px 24px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -657,6 +660,12 @@
 
 .actionBtnPrimary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
+.actionBtnActive {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
 /* ── New session bar (step 3 top) ──────────────────────────────────────────── */
 
 .step3TopBar {
@@ -690,6 +699,35 @@
 }
 
 .emptyIcon { font-size: 36px; opacity: 0.4; }
+
+/* ── Script content rendered view ─────────────────────────────────────────── */
+
+.scriptContent {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.scriptLineCaps {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+
+.scriptLineNormal {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  line-height: 1.7;
+}
+
+.scriptLineSpacer {
+  height: 8px;
+}
 
 /* ── Step 3 full-height wrapper ────────────────────────────────────────────── */
 

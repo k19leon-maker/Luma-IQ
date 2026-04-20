@@ -47,7 +47,7 @@
   padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -57,7 +57,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 12px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   background: none;
   border: 1.5px solid transparent;
