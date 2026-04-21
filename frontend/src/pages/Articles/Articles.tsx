@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -324,6 +325,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 
 export default function Articles() {
   const { activeProjectId } = useProjectsStore();
+  const { openAddModal } = useContentPlanStore();
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -500,8 +502,8 @@ export default function Articles() {
 
         <div className={s.editorActions}>
           <button className={s.actionBtn} onClick={() => handleCopy(art.id)}>Копировать</button>
-          <button className={s.actionBtn} onClick={() => alert('Добавлено в контент-план (в разработке)')}>
-            📅 Включить в контент-план
+          <button className={s.actionBtn} onClick={() => { const st = getEditorState(art); openAddModal({ type: 'article', title: st.title, content: st.content, preview: st.content.split('\n').filter(Boolean).slice(0,2).join('\n'), platform: art.platform, projectId: activeProjectId ?? undefined, sourceId: art.id }); }}>
+            📅 В контент-план
           </button>
           <button
             className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './Reels.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -911,6 +912,7 @@ function ScriptEditor({
   const [title,     setTitle]     = useState(initialTitle);
   const [content,   setContent]   = useState(initialContent);
   const [isEditing, setIsEditing] = useState(false);
+  const { openAddModal } = useContentPlanStore();
 
   return (
     <div className={s.scriptEditorWrap}>
@@ -950,7 +952,7 @@ function ScriptEditor({
           <button className={s.actionBtn} onClick={() => onCopy(`${title}\n\n${content}`)}>
             📋 Копировать
           </button>
-          <button className={s.actionBtn} onClick={() => alert('Добавлено в контент-план (в разработке)')}>
+          <button className={s.actionBtn} onClick={() => openAddModal({ type: 'reel', title, content, preview: content.split('\n').filter(Boolean).slice(0,2).join('\n'), platform: 'Instagram', sourceId: scriptId })}>
             📅 В контент-план
           </button>
           <button className={s.actionBtn} onClick={() => onDownload(title, content)}>

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -284,6 +285,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 
 export default function Posts() {
   const { activeProjectId } = useProjectsStore();
+  const { openAddModal } = useContentPlanStore();
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -477,7 +479,7 @@ export default function Posts() {
 
         <div className={s.editorActions}>
           <button className={s.actionBtn} onClick={() => handleCopy(post.id)}>Копировать</button>
-          <button className={s.actionBtn} onClick={() => alert('В контент-план — в разработке')}>В контент-план</button>
+          <button className={s.actionBtn} onClick={() => { const st = getEditorState(post); openAddModal({ type: 'post', title: st.title, content: st.content, preview: st.content.split('\n').filter(Boolean).slice(0,2).join('\n'), platform: post.platform === 'telegram' ? 'Telegram' : 'Instagram', projectId: activeProjectId ?? undefined, sourceId: post.id }); }}>📅 В контент-план</button>
           <button
             className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`}
             onClick={() => handleSave(post.id)}

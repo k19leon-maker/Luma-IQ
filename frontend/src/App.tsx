@@ -25,6 +25,9 @@ import ContentPlan from './pages/ContentPlan/ContentPlan';
 import FileMaterials from './pages/Files/FileMaterials';
 import FileProducts from './pages/Files/FileProducts';
 
+// Projects
+import ProjectPage from './pages/Project/ProjectPage';
+
 // Misc
 import History from './pages/History/History';
 import Settings from './pages/Settings/Settings';
@@ -65,6 +68,9 @@ export default function App() {
                 {/* Files */}
                 <Route path="/files/materials" element={<FileMaterials />} />
                 <Route path="/files/products"  element={<FileProducts />} />
+
+                {/* Projects */}
+                <Route path="/projects/:id" element={<ProjectPage />} />
 
                 {/* Misc */}
                 <Route path="/history"  element={<History />} />

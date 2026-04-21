@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { useProjectsStore } from '../../store/projects.store';
+import AddToPlanModal from '../AddToPlanModal/AddToPlanModal';
 import s from './Layout.module.css';
 
 /* ── Types ─────────────────────────────────────────────────────── */
@@ -88,7 +89,6 @@ export default function Layout({ children }: LayoutProps) {
   const navigate  = useNavigate();
   const user      = useAuthStore((st) => st.user);
 
-  const title = pageTitles[location.pathname] ?? 'PSY Boost';
   const showBanner = SHOW_STRATEGY_BANNER.has(location.pathname);
 
   /* Projects from store */
@@ -96,6 +96,11 @@ export default function Layout({ children }: LayoutProps) {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const addProject      = useProjectsStore((s) => s.addProject);
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
+
+  const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
+  const title = projectMatch
+    ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
+    : (pageTitles[location.pathname] ?? 'PSY Boost');
 
   /* New project modal */
   const [showModal,      setShowModal]      = useState(false);
@@ -112,10 +117,10 @@ export default function Layout({ children }: LayoutProps) {
   const handleCreateProject = () => {
     const name = newProjectName.trim();
     if (!name) return;
-    addProject(name);
+    const proj = addProject(name);
     setNewProjectName('');
     setShowModal(false);
-    navigate('/strategy');
+    navigate(`/projects/${proj.id}`);
   };
 
   /* User avatar */
@@ -140,7 +145,7 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 key={p.id}
                 className={`${s.projectItem}${p.id === activeProjectId ? ' ' + s.projectActive : ''}`}
-                onClick={() => setActiveProjectId(p.id)}
+                onClick={() => { setActiveProjectId(p.id); navigate(`/projects/${p.id}`); }}
               >
                 <span className={s.projectDot} style={{ background: p.color }} />
                 <span className={s.projectName}>{p.name}</span>
@@ -264,6 +269,9 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* ── Add to plan modal ────────────────────────────────────── */}
+      <AddToPlanModal />
 
       {/* ── Модальное окно ───────────────────────────────────────── */}
       {showModal && (

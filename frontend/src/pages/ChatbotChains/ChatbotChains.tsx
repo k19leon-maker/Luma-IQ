@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -359,6 +360,7 @@ function buildFullText(messages: ChainMessage[]): string {
 
 export default function ChatbotChains() {
   const { activeProjectId } = useProjectsStore();
+  const { openAddModal } = useContentPlanStore();
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -486,7 +488,10 @@ export default function ChatbotChains() {
               <div className={s.leftTopTitle}>13 сообщений</div>
               <div className={s.leftTopActions}>
                 <button className={s.topActionBtn} onClick={handleCopyAll}>
-                  📋 Копировать все
+                  📋 Копировать
+                </button>
+                <button className={s.topActionBtn} onClick={() => openAddModal({ type: 'chatbot', title: chain.format === 'article' ? 'Цепочка бота (статья)' : 'Цепочка бота (видео)', platform: 'Telegram', projectId: activeProjectId ?? undefined, content: buildFullText(chain.messages) })}>
+                  📅 В план
                 </button>
                 <button className={s.topActionBtn} onClick={handleDownload}>
                   💾 .docx

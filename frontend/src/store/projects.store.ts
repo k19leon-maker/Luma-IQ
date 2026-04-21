@@ -12,11 +12,14 @@ export interface LocalProject {
 
 const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
 
-const DEFAULT_PROJECT: LocalProject = {
-  id: 'default',
-  name: 'Мой проект',
-  color: '#7c6cfc',
-};
+// Stable IDs so we can reference them from project data
+export const PROJ_SSORY = 'proj-ssory';
+export const PROJ_MAMY  = 'proj-mamy';
+
+const DEFAULT_PROJECTS: LocalProject[] = [
+  { id: PROJ_SSORY, name: 'Ссоры в паре',       color: '#7c6cfc' },
+  { id: PROJ_MAMY,  name: 'Мамы и подростки',   color: '#4caf82' },
+];
 
 function makeId() {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -25,7 +28,6 @@ function makeId() {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 interface ProjectsState {
-  // Local project list (persisted in localStorage)
   projects: LocalProject[];
   activeProjectId: string;
 
@@ -43,9 +45,8 @@ interface ProjectsState {
 export const useProjectsStore = create<ProjectsState>()(
   persist(
     (set, get) => ({
-      // ── Local list ──────────────────────────────────────────────────────────
-      projects: [DEFAULT_PROJECT],
-      activeProjectId: DEFAULT_PROJECT.id,
+      projects: DEFAULT_PROJECTS,
+      activeProjectId: PROJ_SSORY,
 
       addProject: (name) => {
         const { projects } = get();
@@ -58,9 +59,9 @@ export const useProjectsStore = create<ProjectsState>()(
       removeProject: (id) => {
         set((s) => {
           const next = s.projects.filter((p) => p.id !== id);
-          const fallback = next[0] ?? DEFAULT_PROJECT;
+          const fallback = next[0] ?? DEFAULT_PROJECTS[0];
           return {
-            projects: next.length > 0 ? next : [DEFAULT_PROJECT],
+            projects: next.length > 0 ? next : DEFAULT_PROJECTS,
             activeProjectId: s.activeProjectId === id ? fallback.id : s.activeProjectId,
           };
         });
@@ -73,11 +74,25 @@ export const useProjectsStore = create<ProjectsState>()(
           projects: s.projects.map((p) => (p.id === id ? { ...p, name } : p)),
         })),
 
-      // ── DB reference ────────────────────────────────────────────────────────
       currentProject: null,
       setCurrentProject: (project) => set({ currentProject: project }),
       clearCurrentProject: () => set({ currentProject: null }),
     }),
-    { name: 'psy-boost-projects-v2' },
+    {
+      name: 'psy-boost-projects-v2',
+      // migrate: clear old single-project state
+      migrate: (persisted: unknown) => {
+        const s = persisted as Partial<ProjectsState>;
+        // If stored projects is the old single-project default, reset to new defaults
+        if (
+          !s.projects ||
+          (s.projects.length === 1 && s.projects[0]?.id === 'default')
+        ) {
+          return { ...s, projects: DEFAULT_PROJECTS, activeProjectId: PROJ_SSORY };
+        }
+        return s;
+      },
+      version: 2,
+    },
   ),
 );

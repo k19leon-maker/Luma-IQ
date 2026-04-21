@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './ContentWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ function makePreview(content: string): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ContentWorkspace({ sectionTitle, initialMaterials, FormComponent }: Props) {
+  const { openAddModal } = useContentPlanStore();
   const [materials, setMaterials] = useState<ContentMaterial[]>(initialMaterials);
   const [activeId,  setActiveId]  = useState<string | null>(initialMaterials[0]?.id ?? null);
   const [mode,      setMode]      = useState<'generate' | 'editor'>(
@@ -123,7 +125,7 @@ export default function ContentWorkspace({ sectionTitle, initialMaterials, FormC
   }
 
   function handleContentPlan() {
-    alert('Добавлено в контент-план (функция в разработке)');
+    openAddModal({ type: 'custom', title: editTitle });
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────

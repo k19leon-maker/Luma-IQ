@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useContentPlanStore } from '../../store/contentPlan.store';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -374,6 +375,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 
 export default function VideoScripts() {
   const { activeProjectId } = useProjectsStore();
+  const { openAddModal } = useContentPlanStore();
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -550,8 +552,8 @@ export default function VideoScripts() {
 
         <div className={s.editorActions}>
           <button className={s.actionBtn} onClick={() => handleCopy(sc.id)}>Копировать</button>
-          <button className={s.actionBtn} onClick={() => alert('Добавлено в контент-план (в разработке)')}>
-            📅 Включить в контент-план
+          <button className={s.actionBtn} onClick={() => { const st = getEditorState(sc); openAddModal({ type: 'video_script', title: st.title, content: st.content, preview: st.content.split('\n').filter(Boolean).slice(0,2).join('\n'), platform: 'YouTube', projectId: activeProjectId ?? undefined, sourceId: sc.id }); }}>
+            📅 В контент-план
           </button>
           <button
             className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`}
