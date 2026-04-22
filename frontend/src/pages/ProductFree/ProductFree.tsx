@@ -227,6 +227,7 @@ export default function ProductFree() {
       productIcon="🎁"
       emptyHint={'Лид-магниты появятся здесь.\nНажмите «+ Создать»'}
       storageKey={`products_free_${activeProjectId}`}
+      productType="FREE"
       FormComponent={ProductFreeForm}
     />
   );

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { contentPlanApi } from '../api/content-plan.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -7,137 +7,132 @@ export type ContentType = 'post' | 'reel' | 'article' | 'video_script' | 'chatbo
 export type ContentStatus = 'draft' | 'ready' | 'published';
 
 export interface ContentPlanItem {
-  id: string;
-  date: string;        // ISO date string YYYY-MM-DD
-  type: ContentType;
-  title: string;
-  content?: string;    // full text of the material (editable in plan)
+  id:        string;
+  dbId?:     string;   // ID записи в БД
+  date:      string;   // YYYY-MM-DD
+  type:      ContentType;
+  title:     string;
+  content?:  string;
   platform?: string;
-  status: ContentStatus;
+  status:    ContentStatus;
   projectId?: string;
-  sourceId?: string;
+  sourceId?:  string;
 }
 
 export interface PendingAddItem {
-  type: ContentType;
-  title: string;
-  content?: string;
-  preview?: string;    // first 2 lines for modal preview
-  platform?: string;
-  sourceId?: string;
+  type:       ContentType;
+  title:      string;
+  content?:   string;
+  preview?:   string;
+  platform?:  string;
+  sourceId?:  string;
   projectId?: string;
 }
 
 interface ContentPlanState {
-  items: ContentPlanItem[];
-  modalOpen: boolean;
-  pendingItem: PendingAddItem | null;
-  addItem: (item: ContentPlanItem) => void;
-  removeItem: (id: string) => void;
-  updateItem: (id: string, patch: Partial<ContentPlanItem>) => void;
-  moveItem: (id: string, newDate: string) => void;
-  openAddModal: (pending: PendingAddItem) => void;
+  items:        ContentPlanItem[];
+  modalOpen:    boolean;
+  pendingItem:  PendingAddItem | null;
+
+  loadItems:  (projectId: string) => Promise<void>;
+  addItem:    (item: ContentPlanItem) => void;
+  addItemApi: (item: ContentPlanItem) => Promise<void>;
+  removeItem: (id: string) => Promise<void>;
+  updateItem: (id: string, patch: Partial<ContentPlanItem>) => Promise<void>;
+  moveItem:   (id: string, newDate: string) => Promise<void>;
+  openAddModal:  (pending: PendingAddItem) => void;
   closeAddModal: () => void;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(base: string, n: number): string {
-  const d = new Date(base);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-// ─── Seed data ────────────────────────────────────────────────────────────────
-
-function makeSeedItems(): ContentPlanItem[] {
-  const t = today();
-  return [
-    {
-      id: 'seed-1',
-      date: t,
-      type: 'post',
-      title: 'Почему ссоры в паре повторяются по кругу',
-      platform: 'Telegram',
-      status: 'ready',
-    },
-    {
-      id: 'seed-2',
-      date: addDays(t, 1),
-      type: 'reel',
-      title: 'Рилс: 3 фразы которые разрушают диалог',
-      platform: 'Instagram',
-      status: 'draft',
-    },
-    {
-      id: 'seed-3',
-      date: addDays(t, 2),
-      type: 'article',
-      title: 'Статья: JTBD — почему клиенты выбирают психолога',
-      status: 'draft',
-    },
-    {
-      id: 'seed-4',
-      date: addDays(t, 3),
-      type: 'video_script',
-      title: 'Видео 10 мин: Что делать после ссоры',
-      platform: 'YouTube',
-      status: 'draft',
-    },
-    {
-      id: 'seed-5',
-      date: addDays(t, 5),
-      type: 'post',
-      title: 'История клиента: как наладили контакт с подростком',
-      platform: 'Telegram',
-      status: 'draft',
-    },
-    {
-      id: 'seed-6',
-      date: addDays(t, 6),
-      type: 'chatbot',
-      title: 'Цепочка бота: лид-магнит "Ссоры в паре"',
-      platform: 'Telegram',
-      status: 'ready',
-    },
-  ];
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useContentPlanStore = create<ContentPlanState>()(
-  persist(
-    (set) => ({
-      items: makeSeedItems(),
-      modalOpen: false,
-      pendingItem: null,
+export const useContentPlanStore = create<ContentPlanState>()((set, get) => ({
+  items:       [],
+  modalOpen:   false,
+  pendingItem: null,
 
-      addItem: (item) =>
-        set((s) => ({ items: [...s.items, item] })),
+  loadItems: async (projectId: string) => {
+    try {
+      const apiItems = await contentPlanApi.list(projectId);
+      const items: ContentPlanItem[] = apiItems.map((i) => ({
+        id:        i.id,
+        dbId:      i.id,
+        date:      i.date,
+        type:      i.type as ContentType,
+        title:     i.title,
+        content:   i.content ?? undefined,
+        platform:  i.platform ?? undefined,
+        status:    i.status as ContentStatus,
+        projectId: i.projectId,
+        sourceId:  i.sourceId ?? undefined,
+      }));
+      set({ items });
+    } catch {
+      // БД недоступна — items остаются как есть
+    }
+  },
 
-      removeItem: (id) =>
-        set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
+  addItem: (item) => set((s) => ({ items: [...s.items, item] })),
 
-      updateItem: (id, patch) =>
-        set((s) => ({
-          items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-        })),
+  addItemApi: async (item) => {
+    // Оптимистичное добавление
+    set((s) => ({ items: [...s.items, item] }));
+    if (!item.projectId) return;
+    try {
+      const dbItem = await contentPlanApi.create({
+        projectId: item.projectId,
+        type:      item.type,
+        title:     item.title,
+        content:   item.content,
+        platform:  item.platform,
+        status:    item.status,
+        date:      item.date,
+        sourceId:  item.sourceId,
+      });
+      // Обновляем локальный item с dbId
+      set((s) => ({
+        items: s.items.map((i) =>
+          i.id === item.id ? { ...i, id: dbItem.id, dbId: dbItem.id } : i,
+        ),
+      }));
+    } catch {
+      // fire-and-forget: остаётся только локально
+    }
+  },
 
-      moveItem: (id, newDate) =>
-        set((s) => ({
-          items: s.items.map((i) => (i.id === id ? { ...i, date: newDate } : i)),
-        })),
+  removeItem: async (id) => {
+    const item = get().items.find((i) => i.id === id);
+    set((s) => ({ items: s.items.filter((i) => i.id !== id) }));
+    const dbId = item?.dbId ?? id;
+    try { await contentPlanApi.remove(dbId); } catch { /* fire-and-forget */ }
+  },
 
-      openAddModal: (pending) =>
-        set({ modalOpen: true, pendingItem: pending }),
+  updateItem: async (id, patch) => {
+    set((s) => ({
+      items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+    }));
+    const item = get().items.find((i) => i.id === id);
+    const dbId = item?.dbId ?? id;
+    try {
+      await contentPlanApi.update(dbId, {
+        title:    patch.title,
+        content:  patch.content,
+        status:   patch.status,
+        date:     patch.date,
+        platform: patch.platform,
+      });
+    } catch { /* fire-and-forget */ }
+  },
 
-      closeAddModal: () =>
-        set({ modalOpen: false, pendingItem: null }),
-    }),
-    { name: 'content_plan' }
-  )
-);
+  moveItem: async (id, newDate) => {
+    set((s) => ({
+      items: s.items.map((i) => (i.id === id ? { ...i, date: newDate } : i)),
+    }));
+    const item = get().items.find((i) => i.id === id);
+    const dbId = item?.dbId ?? id;
+    try { await contentPlanApi.update(dbId, { date: newDate }); } catch { /* fire-and-forget */ }
+  },
+
+  openAddModal:  (pending) => set({ modalOpen: true,  pendingItem: pending }),
+  closeAddModal: ()        => set({ modalOpen: false, pendingItem: null }),
+}));

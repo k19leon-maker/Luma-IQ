@@ -49,7 +49,7 @@ function todayISO() {
 }
 
 export default function AddToPlanModal() {
-  const { modalOpen, pendingItem, addItem, closeAddModal } = useContentPlanStore();
+  const { modalOpen, pendingItem, addItemApi, closeAddModal } = useContentPlanStore();
 
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -72,7 +72,7 @@ export default function AddToPlanModal() {
     ?? '';
 
   function handleAdd() {
-    addItem({
+    void addItemApi({
       id:        crypto.randomUUID(),
       date:      selectedDate,
       type:      pendingItem!.type,

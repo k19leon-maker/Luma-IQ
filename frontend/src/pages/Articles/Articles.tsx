@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { useContentApi } from '../../hooks/useContentApi';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -326,6 +327,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 export default function Articles() {
   const { activeProjectId } = useProjectsStore();
   const { openAddModal } = useContentPlanStore();
+  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'ARTICLE' });
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -391,6 +393,7 @@ export default function Articles() {
       updateArticles(next);
       setSelectedId(id);
       setPhase('editor');
+      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
     }, 2000);
   }
 

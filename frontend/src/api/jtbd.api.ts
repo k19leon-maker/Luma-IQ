@@ -30,4 +30,16 @@ export const jtbdApi = {
 
   generate: (req: GenerateRequest) =>
     apiClient.post<GenerateResponse>('/jtbd/generate', req).then((r) => r.data),
+
+  getByProject: (projectId: string) =>
+    apiClient
+      .get<{ session: { id: string; answers: Record<string, string> | null; currentStep: number; status: string } | null }>(
+        `/jtbd/${projectId}`,
+      )
+      .then((r) => r.data.session),
+
+  save: (projectId: string, answers: Record<string, string>, currentStep?: number) =>
+    apiClient
+      .post<{ ok: boolean; sessionId: string }>('/jtbd/save', { projectId, answers, currentStep })
+      .then((r) => r.data),
 };

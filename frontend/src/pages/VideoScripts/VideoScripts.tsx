@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { useContentApi } from '../../hooks/useContentApi';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -376,6 +377,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 export default function VideoScripts() {
   const { activeProjectId } = useProjectsStore();
   const { openAddModal } = useContentPlanStore();
+  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -441,6 +443,7 @@ export default function VideoScripts() {
       updateScripts(next);
       setSelectedId(id);
       setPhase('editor');
+      void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
     }, 2000);
   }
 

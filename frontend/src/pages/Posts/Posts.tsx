@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { useContentApi } from '../../hooks/useContentApi';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ interface StrategyData {
 
 interface SavedPost {
   id:            string;
+  dbId?:         string;   // ID записи в GeneratedText
   postType:      PostType;
   platform:      Platform;
   theme:         string;
@@ -287,6 +289,11 @@ export default function Posts() {
   const { activeProjectId } = useProjectsStore();
   const { openAddModal } = useContentPlanStore();
 
+  const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
+    projectId: activeProjectId,
+    type: 'POST',
+  });
+
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
     catch { return {}; }
@@ -296,6 +303,14 @@ export default function Posts() {
   // Posts
   const [posts, setPosts]         = useState<SavedPost[]>(() => loadPosts(activeProjectId));
   const [selectedId, setSelectedId] = useState<string | null>(() => loadPosts(activeProjectId)[0]?.id ?? null);
+
+  // Sync from API on mount
+  useEffect(() => {
+    // Already handled by useContentApi internally — здесь просто reload из localStorage при смене проекта
+    setPosts(loadPosts(activeProjectId));
+    setSelectedId(loadPosts(activeProjectId)[0]?.id ?? null);
+    setPhase(loadPosts(activeProjectId).length > 0 ? 'editor' : 'step1');
+  }, [activeProjectId]); // eslint-disable-line
 
   // Phase
   const [phase, setPhase] = useState<Phase>(() =>
@@ -354,6 +369,18 @@ export default function Posts() {
       updatePosts(next);
       setSelectedId(id);
       setPhase('editor');
+      // Сохраняем в БД и записываем dbId обратно
+      void saveToApi({
+        title,
+        content,
+        platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+        metadata: { postType, offer, keyword, theme: selectedTheme },
+      }).then((dbItem) => {
+        if (!dbItem) return;
+        updatePosts(
+          [newPost, ...posts].map((p) => (p.id === id ? { ...p, dbId: dbItem.id } : p)),
+        );
+      });
     }, 1500);
   }
 
@@ -407,6 +434,10 @@ export default function Posts() {
       p.id === postId ? { ...p, editedTitle: ov.title, editedContent: ov.content } : p,
     ));
     setEditMap(prev => { const n = { ...prev }; delete n[postId]; return n; });
+    const post = posts.find(p => p.id === postId);
+    if (post?.dbId) {
+      void updateInApi(post.dbId, { title: ov.title, content: ov.content });
+    }
   }
 
   function handleCopy(postId: string) {

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useProjectsStore } from '../../store/projects.store';
 import {
   DndContext,
   DragEndEvent,
@@ -370,7 +371,12 @@ function DroppableDay({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ContentPlan() {
-  const { items, removeItem, updateItem, moveItem } = useContentPlanStore();
+  const { items, loadItems, removeItem, updateItem, moveItem } = useContentPlanStore();
+  const { activeProjectId } = useProjectsStore();
+
+  useEffect(() => {
+    if (activeProjectId) void loadItems(activeProjectId);
+  }, [activeProjectId]); // eslint-disable-line
   const [view,        setView]        = useState<'week' | 'list'>('week');
   const [weekOffset,  setWeekOffset]  = useState(0);
   const [activeId,    setActiveId]    = useState<string | null>(null);
@@ -456,7 +462,7 @@ export default function ContentPlan() {
     if (!over) return;
     const targetDate = over.id as string;
     const item = items.find((i) => i.id === active.id);
-    if (item && item.date !== targetDate) moveItem(item.id, targetDate);
+    if (item && item.date !== targetDate) void moveItem(item.id, targetDate);
   }
 
   function handleDeleteFromCard(id: string) {
@@ -466,7 +472,7 @@ export default function ContentPlan() {
   function handleDeleteConfirm() {
     if (!deleteTarget) return;
     if (selectedItem?.id === deleteTarget) closePanel();
-    removeItem(deleteTarget);
+    void removeItem(deleteTarget);
     setDeleteTarget(null);
   }
 
@@ -631,7 +637,7 @@ export default function ContentPlan() {
                         className={`${s.listStatusChip} ${STATUS_CLASS[item.status]}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          updateItem(item.id, { status: STATUS_CYCLE[item.status] });
+                          void updateItem(item.id, { status: STATUS_CYCLE[item.status] });
                         }}
                       >
                         {STATUS_LABELS[item.status]}
@@ -657,11 +663,11 @@ export default function ContentPlan() {
         open={panelOpen}
         onClose={closePanel}
         onUpdate={(patch) => {
-          if (selectedItem) updateItem(selectedItem.id, patch);
+          if (selectedItem) void updateItem(selectedItem.id, patch);
         }}
         onDelete={() => {
           if (selectedItem) {
-            removeItem(selectedItem.id);
+            void removeItem(selectedItem.id);
             closePanel();
           }
         }}

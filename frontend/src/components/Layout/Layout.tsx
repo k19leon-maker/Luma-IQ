@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { useProjectsStore } from '../../store/projects.store';
@@ -93,10 +93,15 @@ export default function Layout({ children }: LayoutProps) {
   const showBanner = SHOW_STRATEGY_BANNER.has(location.pathname);
 
   /* Projects from store */
-  const projects        = useProjectsStore((s) => s.projects);
-  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
-  const addProject      = useProjectsStore((s) => s.addProject);
+  const projects           = useProjectsStore((s) => s.projects);
+  const activeProjectId    = useProjectsStore((s) => s.activeProjectId);
+  const loadProjects       = useProjectsStore((s) => s.loadProjects);
+  const addProject         = useProjectsStore((s) => s.addProject);
+  const removeProject      = useProjectsStore((s) => s.removeProject);
+  const renameProject      = useProjectsStore((s) => s.renameProject);
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
+
+  useEffect(() => { void loadProjects(); }, []); // eslint-disable-line
 
   const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
   const title = projectMatch
@@ -108,6 +113,22 @@ export default function Layout({ children }: LayoutProps) {
   const [newProjectName, setNewProjectName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /* Rename inline */
+  const [renamingId,    setRenamingId]    = useState<string | null>(null);
+  const [renameVal,     setRenameVal]     = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingId) setTimeout(() => renameInputRef.current?.focus(), 50);
+  }, [renamingId]);
+
+  const commitRename = useCallback(() => {
+    if (!renamingId) return;
+    const val = renameVal.trim();
+    if (val) void renameProject(renamingId, val);
+    setRenamingId(null);
+  }, [renamingId, renameVal, renameProject]);
+
   useEffect(() => {
     if (showModal) {
       const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -115,12 +136,12 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [showModal]);
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     const name = newProjectName.trim();
     if (!name) return;
-    const proj = addProject(name);
     setNewProjectName('');
     setShowModal(false);
+    const proj = await addProject(name);
     navigate(`/projects/${proj.id}`);
   };
 
@@ -143,14 +164,49 @@ export default function Layout({ children }: LayoutProps) {
           {/* Проекты */}
           <Section title="Проекты">
             {projects.map((p) => (
-              <button
+              <div
                 key={p.id}
                 className={`${s.projectItem}${p.id === activeProjectId ? ' ' + s.projectActive : ''}`}
-                onClick={() => { setActiveProjectId(p.id); navigate(`/projects/${p.id}`); }}
               >
-                <span className={s.projectDot} style={{ background: p.color }} />
-                <span className={s.projectName}>{p.name}</span>
-              </button>
+                {renamingId === p.id ? (
+                  <input
+                    ref={renameInputRef}
+                    className={s.renameInput}
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                  />
+                ) : (
+                  <button
+                    className={s.projectBtn}
+                    onClick={() => { setActiveProjectId(p.id); navigate(`/projects/${p.id}`); }}
+                  >
+                    <span className={s.projectDot} style={{ background: p.color }} />
+                    <span className={s.projectName}>{p.name}</span>
+                  </button>
+                )}
+                {renamingId !== p.id && (
+                  <div className={s.projectActions}>
+                    <button
+                      className={s.projectActionBtn}
+                      title="Переименовать"
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.name); }}
+                    >✎</button>
+                    <button
+                      className={s.projectActionBtn}
+                      title="Удалить"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Удалить проект «${p.name}»?`)) void removeProject(p.id);
+                      }}
+                    >✕</button>
+                  </div>
+                )}
+              </div>
             ))}
             <button className={s.newProjectBtn} onClick={() => setShowModal(true)}>
               + Новый проект
@@ -298,7 +354,7 @@ export default function Layout({ children }: LayoutProps) {
               placeholder="Название проекта"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+              onKeyDown={(e) => e.key === 'Enter' && void handleCreateProject()}
             />
             <div className={s.modalActions}>
               <button className={s.modalCancel} onClick={() => setShowModal(false)}>
@@ -306,7 +362,7 @@ export default function Layout({ children }: LayoutProps) {
               </button>
               <button
                 className={s.modalCreate}
-                onClick={handleCreateProject}
+                onClick={() => void handleCreateProject()}
                 disabled={!newProjectName.trim()}
               >
                 Создать и начать стратегию

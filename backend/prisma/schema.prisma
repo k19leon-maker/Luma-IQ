@@ -68,6 +68,7 @@ model Project {
   audienceAvatars     AudienceAvatar[]
   products            Product[]
   generatedTexts      GeneratedText[]
+  contentPlanItems    ContentPlanItem[]
 
   @@index([userId, createdAt])
   @@map("projects")
@@ -163,6 +164,25 @@ model GeneratedText {
 
   @@index([projectId, type, createdAt])
   @@map("generated_texts")
+}
+
+model ContentPlanItem {
+  id        String   @id @default(uuid())
+  projectId String
+  type      String
+  title     String
+  content   String?
+  platform  String?
+  status    String   @default("draft")
+  date      String
+  sourceId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, date])
+  @@map("content_plan_items")
 }
 
 enum Role {

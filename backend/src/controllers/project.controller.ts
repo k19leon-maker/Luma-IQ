@@ -79,6 +79,20 @@ export const projectController = {
     }
   },
 
+  async delete(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const deleted = await projectService.delete(req.userId!, req.params.id as string);
+      if (!deleted) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[Projects] delete:', err);
+      res.status(500).json({ error: 'Ошибка при удалении проекта' });
+    }
+  },
+
   async completeStrategy(req: AuthRequest, res: Response): Promise<void> {
     const parsed = completeStrategySchema.safeParse(req.body);
     if (!parsed.success) {

@@ -25,6 +25,9 @@ export const projectsApi = {
   update: (id: string, data: Partial<Pick<Project, 'name' | 'niche' | 'description'>>) =>
     apiClient.patch<{ project: Project }>(`/projects/${id}`, data).then((r) => r.data.project),
 
+  delete: (id: string) =>
+    apiClient.delete<{ ok: boolean }>(`/projects/${id}`).then((r) => r.data),
+
   completeStrategy: (
     id: string,
     data: { summary?: string; strategyData?: Record<string, unknown> },

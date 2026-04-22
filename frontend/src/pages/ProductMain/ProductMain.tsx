@@ -241,6 +241,7 @@ export default function ProductMain() {
       productIcon="🚀"
       emptyHint={'Флагманские продукты появятся здесь.\nНажмите «+ Создать»'}
       storageKey={`products_main_${activeProjectId}`}
+      productType="MAIN"
       FormComponent={ProductMainForm}
     />
   );

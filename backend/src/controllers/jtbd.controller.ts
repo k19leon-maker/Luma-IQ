@@ -1,9 +1,11 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
 import { getMockResponse } from '../config/jtbd-mock';
 import { chat } from '../services/ai.service';
 import { jtbdSessionService } from '../services/jtbd-session.service';
+import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -103,7 +105,45 @@ export const jtbdController = {
       key:       step.key,
       content,
       mock:      isMock,
-      sessionId,          // возвращаем для повторного использования
+      sessionId,
     });
+  },
+
+  async getByProject(req: AuthRequest, res: Response): Promise<void> {
+    const { projectId } = req.params as { projectId: string };
+    try {
+      const session = await prisma.jTBDSession.findFirst({
+        where: { projectId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, answers: true, currentStep: true, status: true },
+      });
+      res.json({ session: session ?? null });
+    } catch (err) {
+      console.error('[JTBD] getByProject:', err);
+      res.status(500).json({ error: 'Ошибка при загрузке сессии' });
+    }
+  },
+
+  async save(req: AuthRequest, res: Response): Promise<void> {
+    const { projectId, answers, currentStep } = req.body as {
+      projectId?: string;
+      answers: Record<string, string>;
+      currentStep?: number;
+    };
+    if (!projectId) { res.status(400).json({ error: 'projectId обязателен' }); return; }
+    try {
+      const session = await jtbdSessionService.getOrCreate(projectId);
+      await prisma.jTBDSession.update({
+        where: { id: session.id },
+        data: {
+          answers: answers as Prisma.InputJsonValue,
+          currentStep: currentStep ?? session.currentStep,
+        },
+      });
+      res.json({ ok: true, sessionId: session.id });
+    } catch (err) {
+      console.error('[JTBD] save:', err);
+      res.status(500).json({ error: 'Ошибка при сохранении' });
+    }
   },
 };

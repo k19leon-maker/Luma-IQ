@@ -251,8 +251,9 @@ export default function ProjectPage() {
   }
 
   function handleNewProject() {
-    const proj = addProject('Новый проект');
-    navigate(`/projects/${proj.id}`);
+    addProject('Новый проект')
+      .then((proj) => navigate(`/projects/${proj.id}`))
+      .catch(() => undefined);
   }
 
   function handleCopyProduct(product: ProductDoc) {

@@ -255,6 +255,7 @@ export default function ProductMini() {
       productIcon="⚡"
       emptyHint={'Мини-продукты появятся здесь.\nНажмите «+ Создать»'}
       storageKey={`products_mini_${activeProjectId}`}
+      productType="MINI"
       FormComponent={ProductMiniForm}
     />
   );

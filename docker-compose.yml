@@ -1,14 +1,11 @@
-version: '3.9'
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: psy_boost_postgres
-    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-psy_boost}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-psy_boost_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-psy_boost}
+      POSTGRES_DB: psy_boost
+      POSTGRES_USER: psy_boost_user
+      POSTGRES_PASSWORD: psy_boost_password
     ports:
       - "5432:5432"
     volumes:
@@ -17,53 +14,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: psy_boost_redis
-    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: psy_boost_backend
-    restart: unless-stopped
-    depends_on:
-      - postgres
-      - redis
-    environment:
-      NODE_ENV: development
-      PORT: 3001
-      FRONTEND_URL: http://localhost:5173
-      DATABASE_URL: postgresql://${POSTGRES_USER:-psy_boost}:${POSTGRES_PASSWORD:-psy_boost_secret}@postgres:5432/${POSTGRES_DB:-psy_boost}
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./backend/src:/app/src
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: psy_boost_frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      VITE_API_URL: http://localhost:3001/api/v1
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend/src:/app/src
+      - redis_data:/var/lib/redis/data
 
 volumes:
   postgres_data:

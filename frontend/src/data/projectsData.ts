@@ -1,4 +1,5 @@
-import { PROJ_SSORY, PROJ_MAMY } from '../store/projects.store';
+const PROJ_SSORY = 'proj-ssory';
+const PROJ_MAMY  = 'proj-mamy';
 
 export interface StrategyDoc {
   segment:       string;

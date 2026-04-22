@@ -8,6 +8,9 @@ import authRouter from './routes/auth.routes';
 import aiRouter from './routes/ai.routes';
 import jtbdRouter from './routes/jtbd.routes';
 import projectRouter from './routes/project.routes';
+import contentRouter from './routes/content.routes';
+import productsRouter from './routes/products.routes';
+import contentPlanRouter from './routes/content-plan.routes';
 import { projectService } from './services/project.service';
 import { env } from './config/env';
 
@@ -36,6 +39,9 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/ai', aiRouter);
 app.use('/api/v1/jtbd', jtbdRouter);
 app.use('/api/v1/projects', projectRouter);
+app.use('/api/v1/content', contentRouter);
+app.use('/api/v1/products', productsRouter);
+app.use('/api/v1/content-plan', contentPlanRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend запущен на http://localhost:${PORT}`);

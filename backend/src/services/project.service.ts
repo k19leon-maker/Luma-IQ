@@ -59,6 +59,12 @@ export const projectService = {
     return prisma.project.update({ where: { id: projectId }, data });
   },
 
+  async delete(userId: string, projectId: string) {
+    const project = await projectService.getOwned(userId, projectId);
+    if (!project) return null;
+    return prisma.project.delete({ where: { id: projectId } });
+  },
+
   async completeStrategy(
     userId: string,
     projectId: string,

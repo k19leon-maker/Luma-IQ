@@ -195,6 +195,31 @@ export default function Strategy() {
 
   useEffect(() => { loadSteps(); }, []); // eslint-disable-line
 
+  // ── Загружаем ответы из API при наличии dbProjectId ────────────────────────
+  useEffect(() => {
+    if (!dbProjectId) return;
+    jtbdApi.getByProject(dbProjectId)
+      .then((session) => {
+        if (!session?.answers) return;
+        const apiAnswers = session.answers as Record<string, string>;
+        // Мёржим с localStorage — приоритет у API данных
+        const merged = { ...loadAnswers(), ...apiAnswers };
+        setAnswers(merged);
+        saveAnswers(merged);
+      })
+      .catch(() => { /* БД недоступна — используем localStorage */ });
+  }, [dbProjectId]); // eslint-disable-line
+
+  // ── Сохраняем answers в API после каждого шага (debounced) ─────────────────
+  useEffect(() => {
+    if (!dbProjectId || Object.keys(answers).length === 0) return;
+    const t = setTimeout(() => {
+      void jtbdApi.save(dbProjectId, answers, stepIndex + 1)
+        .catch(() => { /* fire-and-forget */ });
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [answers]); // eslint-disable-line
+
   // ── Auto-run for auto steps ─────────────────────────────────────────────────
 
   useEffect(() => {

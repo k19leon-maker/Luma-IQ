@@ -1,98 +1,123 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Project } from '../api/projects.api';
+import { Project, projectsApi } from '../api/projects.api';
 
-// ── Local project (UI + localStorage) ────────────────────────────────────────
-
-export interface LocalProject {
-  id: string;
-  name: string;
-  color: string;
-}
+// ── Color assignment ──────────────────────────────────────────────────────────
 
 const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
 
-// Stable IDs so we can reference them from project data
-export const PROJ_SSORY = 'proj-ssory';
-export const PROJ_MAMY  = 'proj-mamy';
-
-const DEFAULT_PROJECTS: LocalProject[] = [
-  { id: PROJ_SSORY, name: 'Ссоры в паре',       color: '#7c6cfc' },
-  { id: PROJ_MAMY,  name: 'Мамы и подростки',   color: '#4caf82' },
-];
-
-function makeId() {
-  return `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+function colorForIndex(i: number): string {
+  return PROJECT_COLORS[i % PROJECT_COLORS.length] ?? '#7c6cfc';
 }
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ProjectsState {
-  projects: LocalProject[];
+export interface LocalProject {
+  id:    string;
+  name:  string;
+  color: string;
+}
+
+export interface ProjectsState {
+  // API-sourced list
+  projects:        LocalProject[];
   activeProjectId: string;
+  loading:         boolean;
 
-  addProject: (name: string) => LocalProject;
-  removeProject: (id: string) => void;
+  // DB project reference (used by Strategy for API calls)
+  currentProject:  Project | null;
+
+  // Actions
+  loadProjects:    () => Promise<void>;
+  addProject:      (name: string) => Promise<LocalProject>;
+  removeProject:   (id: string)   => Promise<void>;
+  renameProject:   (id: string, name: string) => Promise<void>;
   setActiveProjectId: (id: string) => void;
-  renameProject: (id: string, name: string) => void;
-
-  // DB project reference (used by Strategy page for API calls)
-  currentProject: Project | null;
-  setCurrentProject: (project: Project | null) => void;
+  setCurrentProject:  (project: Project | null) => void;
   clearCurrentProject: () => void;
 }
+
+// ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useProjectsStore = create<ProjectsState>()(
   persist(
     (set, get) => ({
-      projects: DEFAULT_PROJECTS,
-      activeProjectId: PROJ_SSORY,
+      projects:        [],
+      activeProjectId: '',
+      loading:         false,
+      currentProject:  null,
 
-      addProject: (name) => {
-        const { projects } = get();
-        const color = PROJECT_COLORS[projects.length % PROJECT_COLORS.length] ?? '#7c6cfc';
-        const project: LocalProject = { id: makeId(), name, color };
-        set((s) => ({ projects: [...s.projects, project], activeProjectId: project.id }));
-        return project;
+      loadProjects: async () => {
+        set({ loading: true });
+        try {
+          const apiProjects = await projectsApi.list();
+          const projects: LocalProject[] = apiProjects.map((p, i) => ({
+            id:    p.id,
+            name:  p.name,
+            color: colorForIndex(i),
+          }));
+          set((s) => ({
+            projects,
+            loading: false,
+            activeProjectId: projects.some((p) => p.id === s.activeProjectId)
+              ? s.activeProjectId
+              : (projects[0]?.id ?? ''),
+          }));
+        } catch {
+          set({ loading: false });
+        }
       },
 
-      removeProject: (id) => {
+      addProject: async (name: string) => {
+        const project = await projectsApi.create({ name });
+        const { projects } = get();
+        const color = colorForIndex(projects.length);
+        const local: LocalProject = { id: project.id, name: project.name, color };
+        set((s) => ({
+          projects: [...s.projects, local],
+          activeProjectId: local.id,
+        }));
+        return local;
+      },
+
+      removeProject: async (id: string) => {
+        try {
+          await projectsApi.delete(id);
+        } catch {
+          // fire-and-forget — если БД недоступна, удаляем только локально
+        }
         set((s) => {
           const next = s.projects.filter((p) => p.id !== id);
-          const fallback = next[0] ?? DEFAULT_PROJECTS[0];
+          const fallback = next[0];
           return {
-            projects: next.length > 0 ? next : DEFAULT_PROJECTS,
-            activeProjectId: s.activeProjectId === id ? fallback.id : s.activeProjectId,
+            projects: next,
+            activeProjectId: s.activeProjectId === id ? (fallback?.id ?? '') : s.activeProjectId,
           };
         });
       },
 
-      setActiveProjectId: (id) => set({ activeProjectId: id }),
-
-      renameProject: (id, name) =>
+      renameProject: async (id: string, name: string) => {
+        try {
+          await projectsApi.update(id, { name });
+        } catch {
+          // обновляем локально даже при ошибке
+        }
         set((s) => ({
           projects: s.projects.map((p) => (p.id === id ? { ...p, name } : p)),
-        })),
+        }));
+      },
 
-      currentProject: null,
-      setCurrentProject: (project) => set({ currentProject: project }),
-      clearCurrentProject: () => set({ currentProject: null }),
+      setActiveProjectId: (id) => set({ activeProjectId: id }),
+
+      setCurrentProject:   (project) => set({ currentProject: project }),
+      clearCurrentProject: ()        => set({ currentProject: null }),
     }),
     {
-      name: 'psy-boost-projects-v2',
-      // migrate: clear old single-project state
-      migrate: (persisted: unknown) => {
-        const s = persisted as Partial<ProjectsState>;
-        // If stored projects is the old single-project default, reset to new defaults
-        if (
-          !s.projects ||
-          (s.projects.length === 1 && s.projects[0]?.id === 'default')
-        ) {
-          return { ...s, projects: DEFAULT_PROJECTS, activeProjectId: PROJ_SSORY };
-        }
-        return s;
-      },
-      version: 2,
+      name:    'psy-boost-projects-v3',
+      partialize: (s) => ({
+        activeProjectId: s.activeProjectId,
+        currentProject:  s.currentProject,
+      }),
     },
   ),
 );

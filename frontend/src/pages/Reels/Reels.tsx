@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { useProjectsStore } from '../../store/projects.store';
+import { useContentApi } from '../../hooks/useContentApi';
 import s from './Reels.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -329,6 +331,8 @@ function Stepper({ currentStep }: { currentStep: 1 | 2 | 3 }) {
 export default function Reels() {
   const strategyData = loadStrategyData();
   const hasStrategy  = strategyData !== null;
+  const { activeProjectId } = useProjectsStore();
+  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'REEL' });
 
   // ── Phase ──────────────────────────────────────────────────────────────────
 
@@ -481,6 +485,10 @@ export default function Reels() {
       setActiveScriptId(newScripts[0]?.id ?? null);
       saveSession(newScripts);
       setPhase('step3');
+      // Сохраняем каждый сценарий в БД
+      newScripts.forEach((sc) => {
+        void saveToApi({ title: sc.editedTitle, content: sc.editedContent, platform: 'Instagram/TikTok' });
+      });
     }, 1500);
   }
 

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
+import { productsApi, ProductType } from '../../api/products.api';
+import { useProjectsStore } from '../../store/projects.store';
 import s from './ProductWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +18,7 @@ export interface StrategyData {
 
 export interface ProductItem {
   id:      string;
+  dbId?:   string;   // ID в БД
   title:   string;
   preview: string;
   date:    string;
@@ -35,6 +38,7 @@ interface Props {
   productIcon:  string;
   emptyHint:    string;
   storageKey:   string;
+  productType:  ProductType;
   FormComponent: React.ComponentType<ProductFormProps>;
 }
 
@@ -106,9 +110,11 @@ export default function ProductWorkspace({
   productIcon,
   emptyHint,
   storageKey,
+  productType,
   FormComponent,
 }: Props) {
   const strategy = loadStrategy();
+  const { activeProjectId } = useProjectsStore();
 
   const [items,    setItems]    = useState<ProductItem[]>(() => loadItems(storageKey));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -122,10 +128,31 @@ export default function ProductWorkspace({
   const activeItem  = items.find((m) => m.id === activeId) ?? null;
 
   useEffect(() => {
-    setItems(loadItems(storageKey));
+    const local = loadItems(storageKey);
+    setItems(local);
     setActiveId(null);
-    setMode('generate');
-  }, [storageKey]);
+    setMode(local.length > 0 ? 'editor' : 'generate');
+    // Загружаем из API и мёржим (API приоритет)
+    if (activeProjectId) {
+      productsApi.list(activeProjectId, productType)
+        .then((apiProducts) => {
+          if (!apiProducts.length) return;
+          const merged: ProductItem[] = apiProducts.map((p) => ({
+            id:      `prod-${p.id}`,
+            dbId:    p.id,
+            title:   p.title,
+            content: p.shortDescription ?? '',
+            preview: makePreview(p.shortDescription ?? ''),
+            date:    formatDate(new Date(p.createdAt)),
+            status:  'ready' as const,
+            type:    p.title,
+          }));
+          setItems(merged);
+          localStorage.setItem(storageKey, JSON.stringify(merged));
+        })
+        .catch(() => { /* БД недоступна — используем localStorage */ });
+    }
+  }, [storageKey, activeProjectId, productType]); // eslint-disable-line
 
   useEffect(() => {
     if (activeItem && mode === 'editor') {
@@ -179,6 +206,16 @@ export default function ProductWorkspace({
       setEditContent(content);
       setMode('editor');
       setLoading(false);
+      // Сохраняем в БД
+      if (activeProjectId) {
+        productsApi.create({ projectId: activeProjectId, type: productType, title, content, isAiGenerated: true })
+          .then((dbProduct) => {
+            updateItems((prev) =>
+              prev.map((item) => item.id === id ? { ...item, dbId: dbProduct.id } : item),
+            );
+          })
+          .catch(() => { /* fire-and-forget */ });
+      }
     }, 1800);
   }
 
@@ -190,6 +227,10 @@ export default function ProductWorkspace({
           : m,
       ),
     );
+    const dbId = items.find((m) => m.id === activeId)?.dbId;
+    if (dbId) {
+      void productsApi.update(dbId, { title: editTitle, content: editContent });
+    }
   }
 
   function handleCopy() {

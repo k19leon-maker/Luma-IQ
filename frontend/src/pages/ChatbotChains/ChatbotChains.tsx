@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { useContentApi } from '../../hooks/useContentApi';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -361,6 +362,7 @@ function buildFullText(messages: ChainMessage[]): string {
 export default function ChatbotChains() {
   const { activeProjectId } = useProjectsStore();
   const { openAddModal } = useContentPlanStore();
+  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'CHATBOT_CHAIN' });
 
   const [strat] = useState<StrategyData>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
@@ -403,6 +405,13 @@ export default function ChatbotChains() {
       setActiveId(messages[0]?.id ?? '');
       setEditMap({});
       setPhase('step2');
+      const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
+      void saveToApi({
+        title: `Цепочка бота: ${botName || 'Telegram'}`,
+        content: fullText,
+        platform: 'Telegram',
+        metadata: { format, botName },
+      });
     }, 2000);
   }
 

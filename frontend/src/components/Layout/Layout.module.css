@@ -110,23 +110,36 @@
 .projectItem {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 4px;
   width: 100%;
-  padding: 7px 10px;
-  background: none;
-  border: none;
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: background var(--transition);
-  text-align: left;
+  position: relative;
 }
 
 .projectItem:hover {
   background: var(--bg-hover);
 }
 
+.projectItem:hover .projectActions {
+  opacity: 1;
+}
+
 .projectActive {
   background: var(--accent-muted);
+}
+
+.projectBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
 }
 
 .projectDot {
@@ -150,6 +163,48 @@
 
 .projectActive .projectName {
   color: var(--accent);
+}
+
+.projectActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity var(--transition);
+  flex-shrink: 0;
+}
+
+.projectActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+
+.projectActionBtn:hover {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.renameInput {
+  flex: 1;
+  margin: 2px 6px;
+  padding: 3px 6px;
+  background: var(--bg-base);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
 }
 
 .newProjectBtn {
