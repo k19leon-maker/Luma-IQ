@@ -1,8 +1,48 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
-import { PROJECTS_DATA, ProjectData, ProductDoc } from '../../data/projectsData';
+import { PROJECTS_DATA, ProjectData, ProductDoc, StrategyDoc } from '../../data/projectsData';
 import s from './ProjectPage.module.css';
+
+function loadLocalStrategy(projectId: string): ProjectData | null {
+  try {
+    const raw = localStorage.getItem('strategy_answers');
+    if (!raw) return null;
+    const a = JSON.parse(raw) as Record<string, string>;
+    const segment = a['chosenSegment'] || a['segments'] || '';
+    if (!segment) return null;
+    const strategy: StrategyDoc = {
+      segment,
+      subsegment:    a['chosenSubsegment'] || a['subsegments'] || '',
+      wantList:      a['wants'] || '',
+      tenRequests:   a['requests'] || '',
+      painQuestions: a['painfulQuestions'] || '',
+      deepDesires:   a['deepDesires'] || '',
+      finalResult:   a['finalResult'] || '',
+      triedBefore:   a['triedSolutions'] || '',
+      threeKeyPains: a['corePains'] || '',
+      mainAnnoying:  a['corePains'] || '',
+      createdAt:     new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+    };
+    return {
+      id: projectId,
+      name: '',
+      color: '#7c6cfc',
+      createdAt: '',
+      strategy,
+      products: [],
+    };
+  } catch { return null; }
+}
+
+function countLocalProducts(projectId: string, type: 'main' | 'mini' | 'free'): number {
+  try {
+    const raw = localStorage.getItem(`products_${type}_${projectId}`);
+    if (!raw) return 0;
+    const arr = JSON.parse(raw) as unknown[];
+    return Array.isArray(arr) ? arr.length : 0;
+  } catch { return 0; }
+}
 
 const PANEL_WIDTH = 520;
 
@@ -174,6 +214,7 @@ export default function ProjectPage() {
 
   const data = id ? PROJECTS_DATA[id] : undefined;
   const localProject = projects.find((p) => p.id === id);
+  const localStrategyData = (!data && id) ? loadLocalStrategy(id) : null;
 
   // Panel state
   const [panelOpen, setPanelOpen] = useState(false);
@@ -337,6 +378,81 @@ export default function ProjectPage() {
                 ))}
               </div>
             </div>
+          </>
+        ) : localStrategyData ? (
+          <>
+            {/* Section 1 — Упаковка */}
+            <div className={s.section}>
+              <div className={s.sectionTitle}>📋 Упаковка</div>
+              <div className={s.docCard}>
+                <div className={s.docCardHeader}>
+                  <span className={s.docCardIcon}>📄</span>
+                  <span className={s.docCardTitle}>Стратегия · {displayName}</span>
+                </div>
+                <div className={s.docCardMeta}>
+                  <div className={s.docCardField}>
+                    <span className={s.docCardLabel}>Сегмент:</span>
+                    <span className={s.docCardValue}>
+                      {localStrategyData.strategy.segment.split('\n')[0].slice(0, 60)}
+                      {localStrategyData.strategy.segment.length > 60 ? '…' : ''}
+                    </span>
+                  </div>
+                  {localStrategyData.strategy.subsegment && (
+                    <div className={s.docCardField}>
+                      <span className={s.docCardLabel}>Подсегмент:</span>
+                      <span className={s.docCardValue}>
+                        {localStrategyData.strategy.subsegment.split('\n')[0].slice(0, 60)}
+                        {localStrategyData.strategy.subsegment.length > 60 ? '…' : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className={s.docCardDate}>Создан: {localStrategyData.strategy.createdAt}</div>
+                <div className={s.docCardActions}>
+                  <button
+                    className={s.docBtn}
+                    onClick={() => openPanel({ kind: 'strategy', data: { ...localStrategyData, name: displayName } })}
+                  >
+                    👁 Посмотреть
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2 — Продукты */}
+            {id && (
+              <div className={s.section}>
+                <div className={s.sectionTitle}>📦 Продукты</div>
+                <div className={s.productsGrid}>
+                  {([
+                    { type: 'main' as const, icon: '🚀', label: 'Основной продукт', path: '/product-main' },
+                    { type: 'mini' as const, icon: '⚡', label: 'Мини-продукт',     path: '/product-mini' },
+                    { type: 'free' as const, icon: '🎁', label: 'Бесплатный',       path: '/product-free' },
+                  ]).map(({ type, icon, label, path }) => {
+                    const count = countLocalProducts(id, type);
+                    return (
+                      <div key={type} className={s.productCard}>
+                        <div className={s.productCardHeader}>
+                          <span className={s.productIcon}>{icon}</span>
+                          <span className={s.productLabel}>{label}</span>
+                        </div>
+                        <div className={s.productName}>
+                          {count > 0 ? `${count} вариант${count === 1 ? '' : count < 5 ? 'а' : 'ов'}` : 'Не создано'}
+                        </div>
+                        <div className={s.productDesc}>
+                          {count > 0 ? 'Нажмите «Открыть» чтобы редактировать' : 'Создайте описание продукта'}
+                        </div>
+                        <div className={s.productActions}>
+                          <button className={s.docBtn} onClick={() => navigate(path)}>
+                            {count > 0 ? '✏️ Открыть' : '+ Создать'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className={s.section}>

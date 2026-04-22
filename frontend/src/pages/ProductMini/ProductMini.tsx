@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ProductWorkspace, { ProductFormProps, StrategyData } from '../../components/ProductWorkspace/ProductWorkspace';
+import { useProjectsStore } from '../../store/projects.store';
 import s from '../../components/ProductWorkspace/ProductWorkspace.module.css';
 
 // ─── Mock generator ───────────────────────────────────────────────────────────
@@ -247,11 +248,13 @@ function ProductMiniForm({ onGenerate, loading, strategy }: ProductFormProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductMini() {
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   return (
     <ProductWorkspace
       sectionTitle="Мини-продукт"
       productIcon="⚡"
       emptyHint={'Мини-продукты появятся здесь.\nНажмите «+ Создать»'}
+      storageKey={`products_mini_${activeProjectId}`}
       FormComponent={ProductMiniForm}
     />
   );

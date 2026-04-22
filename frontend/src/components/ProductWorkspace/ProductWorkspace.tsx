@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import s from './ProductWorkspace.module.css';
 
@@ -34,6 +34,7 @@ interface Props {
   sectionTitle: string;
   productIcon:  string;
   emptyHint:    string;
+  storageKey:   string;
   FormComponent: React.ComponentType<ProductFormProps>;
 }
 
@@ -55,6 +56,14 @@ function loadStrategy(): StrategyData | null {
     if (!d.chosenSegment && !d.corePains) return null;
     return d;
   } catch { return null; }
+}
+
+function loadItems(key: string): ProductItem[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    return JSON.parse(raw) as ProductItem[];
+  } catch { return []; }
 }
 
 function firstLine(text: string | undefined, fallback = ''): string {
@@ -96,11 +105,12 @@ export default function ProductWorkspace({
   sectionTitle,
   productIcon,
   emptyHint,
+  storageKey,
   FormComponent,
 }: Props) {
   const strategy = loadStrategy();
 
-  const [items,    setItems]    = useState<ProductItem[]>([]);
+  const [items,    setItems]    = useState<ProductItem[]>(() => loadItems(storageKey));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode,     setMode]     = useState<'generate' | 'editor'>('generate');
   const [loading,  setLoading]  = useState(false);
@@ -112,11 +122,28 @@ export default function ProductWorkspace({
   const activeItem  = items.find((m) => m.id === activeId) ?? null;
 
   useEffect(() => {
+    setItems(loadItems(storageKey));
+    setActiveId(null);
+    setMode('generate');
+  }, [storageKey]);
+
+  useEffect(() => {
     if (activeItem && mode === 'editor') {
       setEditTitle(activeItem.title);
       setEditContent(activeItem.content);
     }
   }, [activeId]); // eslint-disable-line
+
+  const storageKeyRef = useRef(storageKey);
+  useEffect(() => { storageKeyRef.current = storageKey; }, [storageKey]);
+
+  const updateItems = useCallback((updater: ProductItem[] | ((prev: ProductItem[]) => ProductItem[])) => {
+    setItems((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      localStorage.setItem(storageKeyRef.current, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -146,7 +173,7 @@ export default function ProductWorkspace({
         status:  'draft',
         type:    title,
       };
-      setItems((prev) => [newItem, ...prev]);
+      updateItems((prev) => [newItem, ...prev]);
       setActiveId(id);
       setEditTitle(title);
       setEditContent(content);
@@ -156,7 +183,7 @@ export default function ProductWorkspace({
   }
 
   function handleSave() {
-    setItems((prev) =>
+    updateItems((prev) =>
       prev.map((m) =>
         m.id === activeId
           ? { ...m, title: editTitle, content: editContent, preview: makePreview(editContent), status: 'ready' }

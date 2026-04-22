@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ProductWorkspace, { ProductFormProps, StrategyData } from '../../components/ProductWorkspace/ProductWorkspace';
+import { useProjectsStore } from '../../store/projects.store';
 import s from '../../components/ProductWorkspace/ProductWorkspace.module.css';
 
 // ─── Mock generator ───────────────────────────────────────────────────────────
@@ -233,11 +234,13 @@ function ProductMainForm({ onGenerate, loading, strategy }: ProductFormProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductMain() {
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   return (
     <ProductWorkspace
       sectionTitle="Основной продукт"
       productIcon="🚀"
       emptyHint={'Флагманские продукты появятся здесь.\nНажмите «+ Создать»'}
+      storageKey={`products_main_${activeProjectId}`}
       FormComponent={ProductMainForm}
     />
   );

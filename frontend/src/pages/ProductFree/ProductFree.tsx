@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ProductWorkspace, { ProductFormProps, StrategyData } from '../../components/ProductWorkspace/ProductWorkspace';
+import { useProjectsStore } from '../../store/projects.store';
 import s from '../../components/ProductWorkspace/ProductWorkspace.module.css';
 
 // ─── Mock generator ───────────────────────────────────────────────────────────
@@ -219,11 +220,13 @@ function ProductFreeForm({ onGenerate, loading, strategy }: ProductFormProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductFree() {
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   return (
     <ProductWorkspace
       sectionTitle="Бесплатный продукт"
       productIcon="🎁"
       emptyHint={'Лид-магниты появятся здесь.\nНажмите «+ Создать»'}
+      storageKey={`products_free_${activeProjectId}`}
       FormComponent={ProductFreeForm}
     />
   );
