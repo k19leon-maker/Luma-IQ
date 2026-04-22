@@ -28,6 +28,9 @@ import FileProducts from './pages/Files/FileProducts';
 // Projects
 import ProjectPage from './pages/Project/ProjectPage';
 
+// Tasks
+import Tasks from './pages/Tasks/Tasks';
+
 // Misc
 import History from './pages/History/History';
 import Settings from './pages/Settings/Settings';
@@ -71,6 +74,9 @@ export default function App() {
 
                 {/* Projects */}
                 <Route path="/projects/:id" element={<ProjectPage />} />
+
+                {/* Tasks */}
+                <Route path="/tasks" element={<Tasks />} />
 
                 {/* Misc */}
                 <Route path="/history"  element={<History />} />

@@ -44,6 +44,7 @@ const pageTitles: Record<string, string> = {
   '/articles':        'Статьи',
   '/video-scripts':   'Сценарии видео',
   '/chatbot-chains':  'Цепочка текстов',
+  '/tasks':           'План задач',
   '/content-plan':    'Контент-план',
   '/files/materials': 'Материалы',
   '/files/products':  'Продукты',
@@ -156,6 +157,19 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </Section>
 
+
+          {/* План задач */}
+          <div className={s.navSection}>
+            <NavLink
+              to="/tasks"
+              className={({ isActive }) =>
+                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>📋</span>
+              <span className={s.navLinkLabel}>План задач</span>
+            </NavLink>
+          </div>
 
           {/* Упаковка */}
           <Section title="Упаковка">

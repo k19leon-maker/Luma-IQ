@@ -1,0 +1,443 @@
+/* ── Root ─────────────────────────────────────────────────────────────────── */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Stats ────────────────────────────────────────────────────────────────── */
+
+.statsSection {
+  padding: 20px 28px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.statCards {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  min-width: 130px;
+}
+
+.statEmoji { font-size: 20px; line-height: 1; }
+
+.statValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.statPct {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progressBar {
+  flex: 1;
+  max-width: 480px;
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c6cfc, #a78bfa);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  min-width: 4px;
+}
+
+.progressLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Board ────────────────────────────────────────────────────────────────── */
+
+.board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 28px 28px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ── Column ───────────────────────────────────────────────────────────────── */
+
+.column {
+  flex-shrink: 0;
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  max-height: calc(100vh - 260px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.columnOver {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 108, 252, 0.15);
+}
+
+.colHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.colIcon { font-size: 14px; }
+
+.colLabel {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.colCount {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.colCards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.colAddBtn {
+  margin: 0 10px 10px;
+  padding: 9px 0;
+  background: none;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition),
+    background var(--transition);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.colAddBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(124, 108, 252, 0.05);
+}
+
+/* ── Task card ────────────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(124, 108, 252, 0.1);
+}
+
+.card:active { cursor: grabbing; }
+
+.cardActive { opacity: 0.35; }
+
+.cardOverlay {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  cursor: grabbing;
+  opacity: 1 !important;
+  transform: rotate(1.5deg);
+}
+
+.cardCat {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cardTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.cardLink {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity var(--transition);
+}
+
+.cardLink:hover { opacity: 0.7; }
+
+.cardDelete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+}
+
+.card:hover .cardDelete { opacity: 1; }
+
+.cardDelete:hover {
+  background: rgba(224, 92, 92, 0.12);
+  color: #e05c5c;
+}
+
+/* ── Add form ─────────────────────────────────────────────────────────────── */
+
+.addForm {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.addInput {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color var(--transition);
+}
+
+.addInput:focus { outline: none; border-color: var(--accent); }
+
+.addTextarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  box-sizing: border-box;
+  resize: none;
+  line-height: 1.5;
+  transition: border-color var(--transition);
+}
+
+.addTextarea:focus { outline: none; border-color: var(--accent); }
+
+.addCatRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addCatLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.addCatBtns {
+  display: flex;
+  gap: 5px;
+}
+
+.addCatBtn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.addCatBtn:hover { background: var(--bg-hover); }
+
+.addCatBtnActive { background: rgba(124, 108, 252, 0.08); }
+
+.addActions {
+  display: flex;
+  gap: 8px;
+}
+
+.addSubmitBtn {
+  flex: 1;
+  padding: 8px 0;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.addSubmitBtn:hover { background: var(--accent-hover); }
+.addSubmitBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.addCancelBtn {
+  padding: 8px 14px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.addCancelBtn:hover { background: var(--bg-hover); }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 500;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(135deg, #7c6cfc, #a78bfa);
+  color: #fff;
+  padding: 14px 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(124, 108, 252, 0.45);
+  min-width: 260px;
+  pointer-events: none;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.35s ease;
+}
+
+.toastVisible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toastIcon { font-size: 22px; line-height: 1.1; flex-shrink: 0; }
+
+.toastTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.toastTask {
+  font-size: 12.5px;
+  opacity: 0.85;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
