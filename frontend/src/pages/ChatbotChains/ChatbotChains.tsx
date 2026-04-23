@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -455,13 +456,7 @@ export default function ChatbotChains() {
 
   function handleDownload() {
     const text = buildFullText(chain.messages);
-    const blob  = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    a.href = url;
-    a.download = 'telegram-chain-13.docx';
-    a.click();
-    URL.revokeObjectURL(url);
+    void exportToDocx('Цепочка Telegram-бота', text, 'telegram-chain');
   }
 
   // ─────────────────────────────────────────────────────────────────────────

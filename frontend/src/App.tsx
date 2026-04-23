@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
+import Onboarding from './components/Onboarding/Onboarding';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import AuthCallback from './pages/AuthCallback/AuthCallback';
@@ -36,7 +38,17 @@ import History from './pages/History/History';
 import Settings from './pages/Settings/Settings';
 
 export default function App() {
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !localStorage.getItem('onboarding_done'),
+  );
+
   return (
+    <>
+      {showOnboarding && (
+        <PrivateRoute>
+          <Onboarding onDone={() => setShowOnboarding(false)} />
+        </PrivateRoute>
+      )}
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
@@ -91,5 +103,6 @@ export default function App() {
         }
       />
     </Routes>
+    </>
   );
 }

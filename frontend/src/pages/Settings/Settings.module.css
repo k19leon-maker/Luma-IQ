@@ -13,8 +13,8 @@
 .sections {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  max-width: 480px;
+  gap: 20px;
+  max-width: 520px;
 }
 
 .section {
@@ -33,6 +33,61 @@
   color: var(--text-primary);
 }
 
+/* ── Avatar ──────────────────────────── */
+.avatarRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.colorPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.colorLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.colors {
+  display: flex;
+  gap: 6px;
+}
+
+.colorDot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+
+.colorDot:hover {
+  transform: scale(1.15);
+}
+
+.colorDotActive {
+  border-color: var(--text-primary);
+  transform: scale(1.15);
+}
+
+/* ── Fields ──────────────────────────── */
 .field {
   display: flex;
   flex-direction: column;
@@ -45,7 +100,7 @@
   font-weight: 500;
 }
 
-.input, .select {
+.input {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -57,12 +112,53 @@
   transition: border-color var(--transition);
 }
 
-.input:focus, .select:focus {
+.input:focus {
   border-color: var(--accent);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .input::placeholder {
   color: var(--text-muted);
+}
+
+/* ── AI chips ─────────────────────────── */
+.aiChips {
+  display: flex;
+  gap: 8px;
+}
+
+.aiChip {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.aiChip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.aiChipActive {
+  background: rgba(124, 108, 252, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Save line ────────────────────────── */
+.saveLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .saveBtn {
@@ -70,13 +166,85 @@
   color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-md);
-  padding: 10px 24px;
+  padding: 9px 20px;
   font-size: 13px;
   font-weight: 600;
-  align-self: flex-start;
+  cursor: pointer;
   transition: background var(--transition);
 }
 
-.saveBtn:hover {
+.saveBtn:hover:not(:disabled) {
   background: var(--accent-hover);
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.msg {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* ── Danger zone ─────────────────────── */
+.dangerRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dangerOutlineBtn {
+  background: none;
+  border: 1px solid #e05c5c;
+  border-radius: var(--radius-md);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e05c5c;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.dangerOutlineBtn:hover {
+  background: rgba(224, 92, 92, 0.08);
+}
+
+.dangerBtn {
+  background: #e05c5c;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.dangerBtn:hover {
+  background: #c74f4f;
+}
+
+.confirmRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.confirmText {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cancelBtn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
 }

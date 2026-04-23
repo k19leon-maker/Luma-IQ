@@ -4,6 +4,7 @@ import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -450,11 +451,7 @@ export default function Posts() {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
     const { title, content } = getEditorState(post);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = `${title}.txt`; a.click();
-    URL.revokeObjectURL(url);
+    void exportToDocx(title, content, title || 'post');
   }
 
   function goToStep1() {

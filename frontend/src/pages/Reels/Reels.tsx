@@ -4,6 +4,7 @@ import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useContentApi } from '../../hooks/useContentApi';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './Reels.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -521,13 +522,8 @@ export default function Reels() {
   }
 
   function handleDownload(title: string, content: string) {
-    const blob = new Blob([`${title}\n\n${content}`], { type: 'application/octet-stream' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${title.slice(0, 40).replace(/[^\wа-яёa-z\s]/gi, '').trim() || 'reel'}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = title.slice(0, 40).replace(/[^\wа-яёa-z\s]/gi, '').trim() || 'reel';
+    void exportToDocx(title, content, filename);
   }
 
   // ── Step 1 score helper ────────────────────────────────────────────────────

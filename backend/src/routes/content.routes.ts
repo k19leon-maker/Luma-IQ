@@ -4,7 +4,8 @@ import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.get('/',      requireAuth, contentController.list);
+router.get('/history', requireAuth, contentController.history);
+router.get('/',        requireAuth, contentController.list);
 router.post('/',     requireAuth, contentController.create);
 router.patch('/:id', requireAuth, contentController.update);
 router.delete('/:id',requireAuth, contentController.remove);

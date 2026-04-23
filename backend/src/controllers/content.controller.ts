@@ -28,6 +28,28 @@ async function assertProjectOwner(userId: string, projectId: string): Promise<bo
 }
 
 export const contentController = {
+  async history(req: AuthRequest, res: Response): Promise<void> {
+    const limit  = Math.min(parseInt((req.query.limit as string) || '50', 10), 200);
+    const offset = parseInt((req.query.offset as string) || '0', 10);
+    try {
+      const items = await prisma.generatedText.findMany({
+        where: { project: { userId: req.userId! } },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+        include: { project: { select: { name: true } } },
+      });
+      const result = items.map(({ project, ...item }) => ({
+        ...item,
+        projectName: project.name,
+      }));
+      res.json({ items: result });
+    } catch (err) {
+      console.error('[Content] history:', err);
+      res.status(500).json({ error: 'Ошибка при загрузке истории' });
+    }
+  },
+
   async list(req: AuthRequest, res: Response): Promise<void> {
     const { projectId, type } = req.query as { projectId?: string; type?: string };
     if (!projectId) { res.status(400).json({ error: 'projectId обязателен' }); return; }

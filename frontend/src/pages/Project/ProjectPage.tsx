@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
 import { PROJECTS_DATA, ProjectData, ProductDoc, StrategyDoc } from '../../data/projectsData';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './ProjectPage.module.css';
 
 function loadLocalStrategy(projectId: string): ProjectData | null {
@@ -80,39 +81,25 @@ function SidePanel({
     if (!content || content.kind !== 'strategy') return;
     const { strategy, name } = content.data;
     const text = [
-      `# Стратегия: ${name}`,
-      '',
-      `## Сегмент\n${strategy.segment}`,
-      `## Подсегмент\n${strategy.subsegment}`,
-      `## Список «ХОЧУ»\n${strategy.wantList}`,
-      `## 10 запросов сегмента\n${strategy.tenRequests}`,
-      `## Болезненные вопросы\n${strategy.painQuestions}`,
-      `## Сокровенные желания\n${strategy.deepDesires}`,
-      `## Конечный результат\n${strategy.finalResult}`,
-      `## Что уже пробовала ЦА\n${strategy.triedBefore}`,
-      `## 3 ключевые боли\n${strategy.threeKeyPains}`,
-      `## Что бесит больше всего\n${strategy.mainAnnoying}`,
+      `Сегмент: ${strategy.segment}`,
+      `Подсегмент: ${strategy.subsegment}`,
+      `Список «ХОЧУ»:\n${strategy.wantList}`,
+      `10 запросов сегмента:\n${strategy.tenRequests}`,
+      `Болезненные вопросы:\n${strategy.painQuestions}`,
+      `Сокровенные желания:\n${strategy.deepDesires}`,
+      `Конечный результат:\n${strategy.finalResult}`,
+      `Что уже пробовала ЦА:\n${strategy.triedBefore}`,
+      `3 ключевые боли:\n${strategy.threeKeyPains}`,
+      `Что бесит больше всего:\n${strategy.mainAnnoying}`,
     ].join('\n\n');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `strategy-${name.replace(/\s+/g, '-').toLowerCase()}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void exportToDocx(`Стратегия: ${name}`, text, `strategy-${name.replace(/\s+/g, '-').toLowerCase()}`);
   }
 
   function handleDownloadProduct() {
     if (!content || content.kind !== 'product') return;
     const { name, description, price, duration } = content.data;
-    const text = `${name}\n\n${description}\n\nЦена: ${price}\nФормат: ${duration}`;
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `${name.replace(/\s+/g, '-').toLowerCase()}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const text = `${description}\n\nЦена: ${price}\nФормат: ${duration}`;
+    void exportToDocx(name, text, name.replace(/\s+/g, '-').toLowerCase());
   }
 
   const isStrategy = content?.kind === 'strategy';

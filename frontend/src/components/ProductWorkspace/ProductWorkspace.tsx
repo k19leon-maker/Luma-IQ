@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { productsApi, ProductType } from '../../api/products.api';
 import { useProjectsStore } from '../../store/projects.store';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './ProductWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -238,14 +239,8 @@ export default function ProductWorkspace({
   }
 
   function handleDownload() {
-    const text = `${editTitle}\n\n${editContent}`;
-    const blob  = new Blob([text], { type: 'application/octet-stream' });
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    a.href      = url;
-    a.download  = `${editTitle.slice(0, 40).replace(/[^а-яёa-z0-9\s]/gi, '').trim() || 'product'}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = editTitle.slice(0, 40).replace(/[^а-яёa-z0-9\s]/gi, '').trim() || 'product';
+    void exportToDocx(editTitle, editContent, filename);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
