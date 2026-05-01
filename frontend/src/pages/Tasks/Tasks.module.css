@@ -71,7 +71,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #7c6cfc, #a78bfa);
+  background: linear-gradient(90deg, #D4A847, #e8c470);
   border-radius: 4px;
   transition: width 0.5s ease;
   min-width: 4px;
@@ -114,7 +114,7 @@
 
 .columnOver {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 108, 252, 0.15);
+  box-shadow: 0 0 0 3px rgba(212, 168, 71, 0.15);
 }
 
 .colHeader {
@@ -178,7 +178,7 @@
 .colAddBtn:hover {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(124, 108, 252, 0.05);
+  background: rgba(212, 168, 71, 0.05);
 }
 
 /* ── Task card ────────────────────────────────────────────────────────────── */
@@ -197,7 +197,7 @@
 
 .card:hover {
   border-color: var(--accent);
-  box-shadow: 0 2px 10px rgba(124, 108, 252, 0.1);
+  box-shadow: 0 2px 10px rgba(212, 168, 71, 0.1);
 }
 
 .card:active { cursor: grabbing; }
@@ -361,7 +361,7 @@
 
 .addCatBtn:hover { background: var(--bg-hover); }
 
-.addCatBtnActive { background: rgba(124, 108, 252, 0.08); }
+.addCatBtnActive { background: rgba(212, 168, 71, 0.08); }
 
 .addActions {
   display: flex;
@@ -407,11 +407,11 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: linear-gradient(135deg, #7c6cfc, #a78bfa);
+  background: linear-gradient(135deg, #D4A847, #e8c470);
   color: #fff;
   padding: 14px 20px;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(124, 108, 252, 0.45);
+  box-shadow: 0 8px 32px rgba(212, 168, 71, 0.45);
   min-width: 260px;
   pointer-events: none;
   transform: translateY(100px);

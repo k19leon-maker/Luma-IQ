@@ -1,0 +1,28 @@
+/*
+ * LumaIQ — CSS polyfill for Tailwind arbitrary-value classes.
+ * Mirrors what Tailwind JIT would generate for custom hex colors.
+ * Needed because the project path contains spaces which can break
+ * Tailwind's file-system scanning in some environments.
+ */
+
+/* ── Backgrounds ─────────────────────────────────────────────────────────── */
+
+.bg-\[\#1a1a1a\] { background-color: #1a1a1a; }
+.bg-\[\#2a2a2a\] { background-color: #2a2a2a; }
+.bg-\[\#333\]    { background-color: #333333; }
+.bg-\[\#D4A847\] { background-color: #D4A847; }
+
+/* Opacity variants — bg-[#D4A847]/{n} */
+.bg-\[\#D4A847\]\/5  { background-color: rgba(212, 168, 71, 0.05); }
+.bg-\[\#D4A847\]\/15 { background-color: rgba(212, 168, 71, 0.15); }
+.bg-\[\#D4A847\]\/20 { background-color: rgba(212, 168, 71, 0.20); }
+.bg-\[\#D4A847\]\/25 { background-color: rgba(212, 168, 71, 0.25); }
+
+/* ── Text ────────────────────────────────────────────────────────────────── */
+
+.text-\[\#1a1a1a\] { color: #1a1a1a; }
+.text-\[\#D4A847\] { color: #D4A847; }
+
+/* ── Border ──────────────────────────────────────────────────────────────── */
+
+.border-\[\#D4A847\] { border-color: #D4A847; }

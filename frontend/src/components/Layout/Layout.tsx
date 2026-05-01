@@ -1,8 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { useProgressStore } from '../../store/progress.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import AddToPlanModal from '../AddToPlanModal/AddToPlanModal';
+import ModelSelector from '../ModelSelector/ModelSelector';
+import { ErrorBoundary } from '../ErrorBoundary/ErrorBoundary';
 import s from './Layout.module.css';
 
 /* ── Types ─────────────────────────────────────────────────────── */
@@ -11,22 +16,24 @@ interface NavItem {
   path: string;
   label: string;
   icon: string;
-  needsStrategy?: boolean;
 }
 
-const packagingNav: NavItem[] = [
-  { path: '/strategy',     label: 'Стратегия',       icon: '🎯' },
-  { path: '/product-main', label: 'Основной продукт', icon: '🚀', needsStrategy: true },
-  { path: '/product-mini', label: 'Мини-продукт',     icon: '⚡', needsStrategy: true },
-  { path: '/product-free', label: 'Бесплатный продукт', icon: '🎁', needsStrategy: true },
+const strategyNav: NavItem[] = [
+  { path: '/strategy/unpacking',    label: 'Распаковка',           icon: '🔍' },
+  { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
+  { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
+  { path: '/strategy/social',       label: 'Оформление соц сетей', icon: '📱' },
+  { path: '/strategy/product-main', label: 'Основной продукт',     icon: '🚀' },
+  { path: '/strategy/product-mini', label: 'Мини-продукт',         icon: '⚡' },
+  { path: '/strategy/lead-magnet',  label: 'Лид-магнит',           icon: '🎁' },
 ];
 
 const contentNav: NavItem[] = [
-  { path: '/posts',           label: 'Посты',               icon: '📱', needsStrategy: true },
-  { path: '/reels',           label: 'Рилсы',               icon: '🎬', needsStrategy: true },
-  { path: '/articles',        label: 'Статьи',              icon: '📝', needsStrategy: true },
-  { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥', needsStrategy: true },
-  { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖', needsStrategy: true },
+  { path: '/posts',           label: 'Посты',               icon: '📱' },
+  { path: '/reels',           label: 'Рилсы',               icon: '🎬' },
+  { path: '/articles',        label: 'Статьи',              icon: '📝' },
+  { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥' },
+  { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖' },
 ];
 
 const filesNav: NavItem[] = [
@@ -35,10 +42,13 @@ const filesNav: NavItem[] = [
 ];
 
 const pageTitles: Record<string, string> = {
-  '/strategy':        'Стратегия',
-  '/product-main':    'Основной продукт',
-  '/product-mini':    'Мини-продукт',
-  '/product-free':    'Бесплатный продукт',
+  '/strategy/unpacking':    'Распаковка',
+  '/strategy/audience':     'Целевая аудитория',
+  '/strategy/utp':          'Создание УТП',
+  '/strategy/social':       'Оформление соц. сетей',
+  '/strategy/product-main': 'Основной продукт',
+  '/strategy/product-mini': 'Мини-продукт',
+  '/strategy/lead-magnet':  'Лид-магнит',
   '/posts':           'Посты',
   '/reels':           'Рилсы',
   '/articles':        'Статьи',
@@ -51,12 +61,6 @@ const pageTitles: Record<string, string> = {
   '/history':         'История',
   '/settings':        'Настройки',
 };
-
-// Pages that show the "complete strategy first" banner.
-// Content pages (/posts и т.д.) используют full-bleed layout — banner там не нужен.
-const SHOW_STRATEGY_BANNER = new Set([
-  '/product-main', '/product-mini', '/product-free',
-]);
 
 /* ── Collapsible section component ────────────────────────────── */
 
@@ -90,7 +94,8 @@ export default function Layout({ children }: LayoutProps) {
   const navigate  = useNavigate();
   const user      = useAuthStore((st) => st.user);
 
-  const showBanner = SHOW_STRATEGY_BANNER.has(location.pathname);
+  const switchProgress    = useProgressStore((st) => st.switchProject);
+  const switchUnpacking   = useUnpackingStore((st) => st.switchProject);
 
   /* Projects from store */
   const projects           = useProjectsStore((s) => s.projects);
@@ -100,17 +105,27 @@ export default function Layout({ children }: LayoutProps) {
   const removeProject      = useProjectsStore((s) => s.removeProject);
   const renameProject      = useProjectsStore((s) => s.renameProject);
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
+  const projectsLoading    = useProjectsStore((s) => s.loading);
 
   useEffect(() => { void loadProjects(); }, []); // eslint-disable-line
+
+  // Sync per-project stores when active project changes
+  useEffect(() => {
+    if (!activeProjectId) return;
+    switchProgress(activeProjectId);
+    switchUnpacking(activeProjectId);
+  }, [activeProjectId]); // eslint-disable-line
 
   const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
-    : (pageTitles[location.pathname] ?? 'PSY Boost');
+    : (pageTitles[location.pathname] ?? 'LumaIQ');
 
   /* New project modal */
-  const [showModal,      setShowModal]      = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const [showModal,       setShowModal]       = useState(false);
+  const [newProjectName,  setNewProjectName]  = useState('');
+  const [createError,     setCreateError]     = useState('');
+  const [createLoading,   setCreateLoading]   = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /* Rename inline */
@@ -138,11 +153,19 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleCreateProject = async () => {
     const name = newProjectName.trim();
-    if (!name) return;
-    setNewProjectName('');
-    setShowModal(false);
-    const proj = await addProject(name);
-    navigate(`/projects/${proj.id}`);
+    if (!name || createLoading) return;
+    setCreateError('');
+    setCreateLoading(true);
+    try {
+      const proj = await addProject(name);
+      setNewProjectName('');
+      setShowModal(false);
+      navigate(`/projects/${proj.id}`);
+    } catch {
+      setCreateError('Не удалось создать проект. Проверьте соединение с сервером.');
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   /* User avatar */
@@ -154,9 +177,11 @@ export default function Layout({ children }: LayoutProps) {
     <div className={s.root}>
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside className={s.sidebar}>
-        <div className={s.logo}>
-          <div className={s.logoIcon}>P</div>
-          <span className={s.logoText}>PSY Boost</span>
+        <div className={s.logo} onClick={() => navigate('/dashboard')}>
+          <div className={s.logoIcon}>✦</div>
+          <span className={s.logoText}>
+            <span style={{ color: '#D4A847' }}>Luma</span>IQ
+          </span>
         </div>
 
         <nav className={s.nav}>
@@ -183,7 +208,7 @@ export default function Layout({ children }: LayoutProps) {
                 ) : (
                   <button
                     className={s.projectBtn}
-                    onClick={() => { setActiveProjectId(p.id); navigate(`/projects/${p.id}`); }}
+                    onClick={() => { setActiveProjectId(p.id); navigate('/dashboard'); }}
                   >
                     <span className={s.projectDot} style={{ background: p.color }} />
                     <span className={s.projectName}>{p.name}</span>
@@ -201,7 +226,21 @@ export default function Layout({ children }: LayoutProps) {
                       title="Удалить"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Удалить проект «${p.name}»?`)) void removeProject(p.id);
+                        toast((t) => (
+                          <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <span>Удалить проект «{p.name}»?</span>
+                            <span style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                style={{ background: '#f25c5c', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}
+                                onClick={() => { toast.dismiss(t.id); void removeProject(p.id); }}
+                              >Удалить</button>
+                              <button
+                                style={{ background: '#2d2d4e', color: '#e8e8f8', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}
+                                onClick={() => toast.dismiss(t.id)}
+                              >Отмена</button>
+                            </span>
+                          </span>
+                        ), { duration: 6000 });
                       }}
                     >✕</button>
                   </div>
@@ -227,9 +266,9 @@ export default function Layout({ children }: LayoutProps) {
             </NavLink>
           </div>
 
-          {/* Упаковка */}
-          <Section title="Упаковка">
-            {packagingNav.map((item) => (
+          {/* Стратегия */}
+          <Section title="Стратегия">
+            {strategyNav.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -325,18 +364,24 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        <header className={s.topbar}>
-          <h1 className={s.topbarTitle}>{title}</h1>
-          <div className={s.topbarActions} />
-        </header>
-        <main className={s.content}>
-          {showBanner && (
-            <div className={s.strategyBanner}>
-              💡 Для лучшего результата рекомендуем начать со{' '}
-              <NavLink to="/strategy" className={s.bannerLink}>Стратегии</NavLink>
+        {location.pathname !== '/dashboard' && (
+          <header className={s.topbar}>
+            <h1 className={s.topbarTitle}>{title}</h1>
+            <div className={s.topbarActions}>
+              <ModelSelector />
             </div>
+          </header>
+        )}
+        <main className={location.pathname === '/dashboard' ? s.contentFull : s.content}>
+          {projectsLoading && projects.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
+              Загрузка…
+            </div>
+          ) : (
+            <ErrorBoundary key={activeProjectId}>
+              {children}
+            </ErrorBoundary>
           )}
-          {children}
         </main>
       </div>
 
@@ -353,19 +398,23 @@ export default function Layout({ children }: LayoutProps) {
               className={s.modalInput}
               placeholder="Название проекта"
               value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
+              onChange={(e) => { setNewProjectName(e.target.value); setCreateError(''); }}
               onKeyDown={(e) => e.key === 'Enter' && void handleCreateProject()}
+              disabled={createLoading}
             />
+            {createError && (
+              <div className={s.modalError}>{createError}</div>
+            )}
             <div className={s.modalActions}>
-              <button className={s.modalCancel} onClick={() => setShowModal(false)}>
+              <button className={s.modalCancel} onClick={() => { setShowModal(false); setCreateError(''); }} disabled={createLoading}>
                 Отмена
               </button>
               <button
                 className={s.modalCreate}
                 onClick={() => void handleCreateProject()}
-                disabled={!newProjectName.trim()}
+                disabled={!newProjectName.trim() || createLoading}
               >
-                Создать и начать стратегию
+                {createLoading ? 'Создаём…' : 'Создать и начать стратегию'}
               </button>
             </div>
           </div>

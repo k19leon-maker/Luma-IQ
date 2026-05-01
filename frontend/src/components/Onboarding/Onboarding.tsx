@@ -1,19 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProjectsStore } from '../../store/projects.store';
+import { useProjectsStore, LocalProject } from '../../store/projects.store';
 import s from './Onboarding.module.css';
 
 interface Props {
   onDone: () => void;
 }
 
+const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
+
 export default function Onboarding({ onDone }: Props) {
-  const navigate    = useNavigate();
-  const { addProject } = useProjectsStore();
+  const navigate = useNavigate();
+  const addProject        = useProjectsStore((s) => s.addProject);
+  const projects          = useProjectsStore((s) => s.projects);
+  const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
 
   const [step, setStep]               = useState(0);
   const [projectName, setProjectName] = useState('');
   const [creating, setCreating]       = useState(false);
+  const [error, setError]             = useState('');
   const [direction, setDirection]     = useState<'forward' | 'back'>('forward');
 
   function goTo(target: number) {
@@ -22,13 +27,28 @@ export default function Onboarding({ onDone }: Props) {
   }
 
   async function handleCreateProject() {
-    if (!projectName.trim()) return;
+    const name = projectName.trim();
+    if (!name) { setError('Введите название проекта'); return; }
+    setError('');
     setCreating(true);
     try {
-      await addProject(projectName.trim());
+      await addProject(name);
       goTo(3);
     } catch {
-      // project create failed silently
+      // API недоступна — создаём проект локально
+      try {
+        const id    = crypto.randomUUID();
+        const color = PROJECT_COLORS[projects.length % PROJECT_COLORS.length] ?? '#7c6cfc';
+        const local: LocalProject = { id, name, color };
+        useProjectsStore.setState((s) => ({
+          projects:        [...s.projects, local],
+          activeProjectId: id,
+        }));
+        setActiveProjectId(id);
+        goTo(3);
+      } catch {
+        setError('Не удалось создать проект. Попробуйте ещё раз.');
+      }
     } finally {
       setCreating(false);
     }
@@ -46,9 +66,10 @@ export default function Onboarding({ onDone }: Props) {
     <StepCreateProject
       key={2}
       value={projectName}
-      onChange={setProjectName}
+      onChange={(v) => { setProjectName(v); setError(''); }}
       onCreate={() => void handleCreateProject()}
       creating={creating}
+      error={error}
     />,
     <StepReady key={3} onFinish={finish} />,
   ];
@@ -81,7 +102,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
   return (
     <div className={s.step}>
       <div className={s.icon}>🧠</div>
-      <h2 className={s.heading}>Добро пожаловать в PSY Boost</h2>
+      <h2 className={s.heading}>Добро пожаловать в LumaIQ</h2>
       <p className={s.text}>
         Сервис помогает психологам упаковать свои услуги и создать маркетинговые
         материалы по JTBD-фреймворку. Всё что нужно — описать свою нишу.
@@ -130,12 +151,13 @@ function StepHowItWorks({ onNext }: { onNext: () => void }) {
 }
 
 function StepCreateProject({
-  value, onChange, onCreate, creating,
+  value, onChange, onCreate, creating, error,
 }: {
-  value: string;
+  value:    string;
   onChange: (v: string) => void;
   onCreate: () => void;
   creating: boolean;
+  error:    string;
 }) {
   return (
     <div className={s.step}>
@@ -146,18 +168,19 @@ function StepCreateProject({
         Например: «Тревога у подростков» или «Выгорание у мам»
       </p>
       <input
-        className={s.input}
+        className={`${s.input} ${error ? s.inputError : ''}`}
         type="text"
         placeholder="Название проекта"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onCreate()}
+        onKeyDown={(e) => e.key === 'Enter' && !creating && onCreate()}
         autoFocus
       />
+      {error && <p className={s.errorText}>{error}</p>}
       <button
         className={s.primaryBtn}
         onClick={onCreate}
-        disabled={!value.trim() || creating}
+        disabled={creating}
       >
         {creating ? 'Создаём...' : 'Создать проект →'}
       </button>

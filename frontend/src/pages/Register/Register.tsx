@@ -44,7 +44,7 @@ export default function Register() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.logo}>
-          <div className={styles.logoText}>PSY Boost</div>
+          <div className={styles.logoText}>LumaIQ</div>
           <div className={styles.logoSub}>Маркетинговая упаковка психолога</div>
         </div>
 

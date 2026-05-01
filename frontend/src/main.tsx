@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/auth.store';
 import './styles/global.css';
+import './styles/luma.css';
 
 // Restore session before first render to avoid flash redirect to /login
 useAuthStore.getState().restoreSession().finally(() => {

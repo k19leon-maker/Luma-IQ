@@ -173,7 +173,7 @@
 /* Dev mode block */
 .devBanner {
   margin-top: 28px;
-  border: 1px dashed rgba(124, 108, 252, 0.4);
+  border: 1px dashed rgba(212, 168, 71, 0.4);
   border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
@@ -191,8 +191,8 @@
 }
 
 .devBtn {
-  background: rgba(124, 108, 252, 0.12);
-  border: 1px solid rgba(124, 108, 252, 0.3);
+  background: rgba(212, 168, 71, 0.12);
+  border: 1px solid rgba(212, 168, 71, 0.3);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   color: var(--accent);
@@ -203,6 +203,6 @@
 }
 
 .devBtn:hover {
-  background: rgba(124, 108, 252, 0.2);
+  background: rgba(212, 168, 71, 0.2);
   border-color: var(--accent);
 }

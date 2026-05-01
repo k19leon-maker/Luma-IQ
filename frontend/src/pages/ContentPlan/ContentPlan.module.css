@@ -30,8 +30,8 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 20px;
-  background: rgba(124, 108, 252, 0.06);
-  border-bottom: 1px solid rgba(124, 108, 252, 0.15);
+  background: rgba(212, 168, 71, 0.06);
+  border-bottom: 1px solid rgba(212, 168, 71, 0.15);
   flex-shrink: 0;
 }
 
@@ -243,8 +243,8 @@
 
 .dropZone { min-height: 40px; border-radius: var(--radius-sm); transition: background var(--transition); }
 .dropZoneOver {
-  background: rgba(124, 108, 252, 0.07);
-  outline: 1.5px dashed rgba(124, 108, 252, 0.35);
+  background: rgba(212, 168, 71, 0.07);
+  outline: 1.5px dashed rgba(212, 168, 71, 0.35);
 }
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
@@ -257,7 +257,7 @@
   position: relative;
   transition: box-shadow var(--transition), border-color var(--transition);
 }
-.card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(124, 108, 252, 0.12); }
+.card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(212, 168, 71, 0.12); }
 .card:hover .cardDelete { display: flex; }
 
 .cardDragging { opacity: 0.5; box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
@@ -707,4 +707,4 @@
 
 .statusDraft     { background: rgba(120,120,140,0.13); color: #8888aa; }
 .statusReady     { background: rgba(76, 175, 130, 0.12); color: #4caf82; }
-.statusPublished { background: rgba(124, 108, 252, 0.13); color: #7c6cfc; }
+.statusPublished { background: rgba(212, 168, 71, 0.13); color: #D4A847; }

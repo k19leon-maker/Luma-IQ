@@ -134,6 +134,17 @@
   border-color: var(--accent);
 }
 
+.inputError {
+  border-color: #e05c5c !important;
+}
+
+.errorText {
+  font-size: 12px;
+  color: #e05c5c;
+  margin-top: -8px;
+  align-self: flex-start;
+}
+
 .input::placeholder {
   color: var(--text-muted);
 }
