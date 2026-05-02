@@ -48,6 +48,9 @@ router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.get('/me', requireAuth, authController.me);
 
+// OAuth session handoff — called by frontend after OAuth redirect
+router.get('/oauth/session', authController.oauthSession);
+
 // Google OAuth
 router.get(
   '/google',

@@ -1,974 +1,469 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
-import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
+import { useContentPlanStore } from '../../store/contentPlan.store';
+import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
-import s from './Reels.module.css';
+import { ModelBar } from '../../components/MessageInput/MessageInput';
+import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type Platform  = 'telegram' | 'instagram';
+type ReelType  = 'tips' | 'story' | 'myth';
+type Offer     = 'lead' | 'mini' | 'main';
+type Phase     = 'step1' | 'step2-loading' | 'step2' | 'generating' | 'editor';
+
 interface StrategyData {
-  chosenSegment?: string;
+  chosenSegment?:    string;
   chosenSubsegment?: string;
-  wants?: string;
-  requests?: string;
-  painfulQuestions?: string;
-  deepDesires?: string;
-  finalResult?: string;
-  triedSolutions?: string;
-  corePains?: string;
+  finalResult?:      string;
+  corePains?:        string;
 }
 
-interface Hook {
-  id: string;
-  category: string;
-  categoryLabel: string;
-  text: string;
-  triggerScore: number;
-  urgencyScore: number;
-  payScore: number;
-  total: number;
-}
-
-interface Script {
-  id: string;
-  hookText: string;
-  templateLabel: string;
-  content: string;
+interface SavedReel {
+  id:            string;
+  dbId?:         string;
+  reelType:      ReelType;
+  platform:      Platform;
+  theme:         string;
+  offer:         Offer;
+  keyword:       string;
+  content:       string;
   editedContent: string;
-  editedTitle: string;
+  editedTitle:   string;
+  createdAt:     string;
 }
 
-interface ScriptItem extends SplitItem {
-  content: string;
-  editedContent: string;
-  editedTitle: string;
-  templateLabel: string;
+interface ReelItem extends SplitItem {
+  reelType: ReelType;
+  platform: Platform;
 }
-
-type Phase =
-  | 'step1-idle'
-  | 'step1-generating'
-  | 'step1-revealing'
-  | 'step1-done'
-  | 'step2'
-  | 'step3-generating'
-  | 'step3';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STORAGE_ANSWERS = 'strategy_answers';
-const REELS_KEY       = 'reels_session';
-const REVEAL_INTERVAL = 75; // ms per line
+const PLATFORM_OPTIONS = [
+  { key: 'telegram'  as Platform, emoji: '💬', label: 'Telegram'  },
+  { key: 'instagram' as Platform, emoji: '📱', label: 'Instagram' },
+];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  numbers:  '1️⃣ ЧИСЛИТЕЛЬНЫЕ',
-  how:      '2️⃣ «КАК…»',
-  intrigue: '3️⃣ ИНТРИГА',
-  address:  '4️⃣ ОБРАЩЕНИЕ',
-  combo:    '5️⃣ КОМБО',
+const REEL_TYPE_OPTIONS = [
+  { key: 'tips'  as ReelType, emoji: '💡', label: 'Советы',        desc: '3–5 практических советов по теме' },
+  { key: 'story' as ReelType, emoji: '📖', label: 'История',       desc: 'Кейс клиента или история из практики' },
+  { key: 'myth'  as ReelType, emoji: '🚫', label: 'Разрушить миф', desc: 'Опровергаем распространённое заблуждение' },
+];
+
+const OFFER_OPTIONS = [
+  { key: 'lead' as Offer, emoji: '🎁', label: 'Лид-магнит'       },
+  { key: 'mini' as Offer, emoji: '⚡', label: 'Мини-продукт'     },
+  { key: 'main' as Offer, emoji: '🚀', label: 'Основной продукт' },
+];
+
+const TYPE_LABELS: Record<ReelType, string> = {
+  tips:  'Советы',
+  story: 'История',
+  myth:  'Миф',
 };
 
-const TEMPLATE_LABELS = ['Шаблон А', 'Шаблон Б', 'Шаблон В', 'Шаблон Г', 'Шаблон Д'];
+const TYPE_ICONS: Record<ReelType, string> = {
+  tips:  '💡',
+  story: '📖',
+  myth:  '🚫',
+};
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const FACTURE_HINTS = [
+  '1. Есть ли реальный случай из практики по этой теме?',
+  '2. Что вы обычно говорите клиентам в такой ситуации?',
+  '3. Какой инсайт хотите донести?',
+  '4. Что изменилось у клиента после работы с вами?',
+];
 
-function firstLine(text: string | undefined, fallback: string): string {
-  if (!text) return fallback;
-  return text.split('\n')[0]?.replace(/^\d+\.\s*/, '').slice(0, 80) ?? fallback;
-}
+const MOCK_THEMES: Record<ReelType, string[]> = {
+  tips: [
+    '3 техники снятия тревоги за 5 минут',
+    'Как остановить скандал за 1 минуту',
+    '5 признаков что вы в выгорании',
+    'Как перестать откладывать на потом',
+    'Что делать когда всё навалилось',
+  ],
+  story: [
+    'Она боялась просить о помощи — что изменила одна сессия',
+    'Как пара за 3 встречи вышла из 8-летнего конфликта',
+    'Клиентка с паническими атаками: история восстановления',
+    'Мама подростка которая перестала кричать',
+    'Как я помогла женщине выйти из депрессии без таблеток',
+  ],
+  myth: [
+    'Миф: психолог советует что делать',
+    'Миф: к психологу ходят только «сумасшедшие»',
+    'Миф: психотерапия — это очень долго и дорого',
+    'Миф: поговорить с подругой то же самое что с психологом',
+    'Миф: сильные люди не нуждаются в помощи',
+  ],
+};
 
-function extractKeyword(hookText: string): string {
-  const words = hookText
-    .replace(/[^а-яёa-z\s]/gi, '')
-    .split(/\s+/)
-    .filter((w) => w.length > 4);
-  const word = words[0] ?? 'КЛЮЧ';
-  return word.toUpperCase();
-}
+const MOCK_REEL_CONTENT: Record<ReelType, string> = {
+  tips: `3 техники снятия тревоги за 5 минут\n\n[Слайд 1] Дыхание 4-7-8\nВдох 4 сек → задержка 7 → выдох 8. Повтори 3 раза.\n\n[Слайд 2] Метод «5-4-3-2-1»\n5 вещей видишь, 4 слышишь, 3 ощущаешь, 2 чувствуешь запах, 1 вкус.\n\n[Слайд 3] Физическая разрядка\nСожми кулаки на 5 сек — резко разожми. 5 раз.\n\nПодпись: Напиши мне — пришлю памятку с 10 техниками.`,
+  story: `История клиентки\n\nОна пришла полгода назад. Ситуация: тревога, страх ошибиться.\n\nЧто работало: не советы — вопросы. «Что произойдёт если вы ошибётесь?» → «Меня уволят» → «И что тогда?» → тишина. Потом: «Наверное, ничего страшного».\n\nРезультат: через 6 сессий — новая работа, другое качество жизни.\n\nМораль: страх — это не правда. Это гипотеза которую можно проверить.`,
+  myth: `Миф: к психологу ходят только если «совсем плохо»\n\n🚫 Реальность: ко мне приходят люди которые хотят лучше.\n\nК психологу ходят чтобы:\n— разобраться в отношениях пока они ещё есть\n— понять себя до того как это стало проблемой\n— принять важное решение осознанно\n\nПрофилактика работает. Не ждите когда станет невыносимо.`,
+};
 
-// ─── Hook generator (30 шт × 5 категорий) ────────────────────────────────────
+// ─── Seed reels ───────────────────────────────────────────────────────────────
 
-function buildHooks(sd: StrategyData | null): Hook[] {
-  const seg   = firstLine(sd?.chosenSegment,  'клиент');
-  const sub   = firstLine(sd?.chosenSubsegment, 'специалист');
-  const pain  = firstLine(sd?.corePains,       'чувствует себя потерянным');
-  const res   = firstLine(sd?.finalResult,     'обретает гармонию и уверенность');
-  const tried = firstLine(sd?.triedSolutions,  'пробовал самостоятельно справляться');
-  const want  = firstLine(sd?.wants,           'хочет изменений');
-
-  const raw: Array<[string, string]> = [
-    // 1️⃣ ЧИСЛИТЕЛЬНЫЕ
-    ['numbers', `3 вещи которые ${seg} делает из заботы — но именно они мешают`],
-    ['numbers', `2 фразы которые разрушают доверие — и одна которая всё восстанавливает`],
-    ['numbers', `5 признаков что ${sub} готов(а) к настоящим изменениям`],
-    ['numbers', `7 вопросов которые помогут понять себя прямо сейчас`],
-    ['numbers', `1 причина почему ${pain} — и как с этим работать`],
-    ['numbers', `4 ошибки которые мешают ${res}`],
-    // 2️⃣ КАК
-    ['how', `Как перестать ${pain} раз и навсегда`],
-    ['how', `Как ${seg} достигает ${res} — даже если кажется что всё безнадёжно`],
-    ['how', `Как говорить о своих потребностях не вызывая защитную реакцию`],
-    ['how', `Как распознать когда работа с психологом реально начинает помогать`],
-    ['how', `Как превратить застрявшую боль в точку роста`],
-    ['how', `Как мягко выйти из ситуации когда ${pain}`],
-    // 3️⃣ ИНТРИГА
-    ['intrigue', `Я никогда не думала что скажу это — но именно это помогает ${seg}`],
-    ['intrigue', `Все говорят что нужно просто «поговорить» — вот почему это не работает`],
-    ['intrigue', `Психологи редко говорят об этом публично — но это ключевой момент`],
-    ['intrigue', `Почему ${seg} не может решить ${pain} самостоятельно — и это нормально`],
-    ['intrigue', `То чего все боятся в терапии — но никто не обсуждает вслух`],
-    ['intrigue', `Вот почему ${tried} не сработало — и что работает на самом деле`],
-    // 4️⃣ ОБРАЩЕНИЕ
-    ['address', `Если ты ${sub} и устал(а) от того что ${pain} — это для тебя`],
-    ['address', `${seg.charAt(0).toUpperCase() + seg.slice(1)} — ты узнаешь себя в этом видео`],
-    ['address', `Для тех кто уже ${tried} — и так и не получил результат`],
-    ['address', `Это видео изменит то как ты думаешь о своей ситуации навсегда`],
-    ['address', `Если ${pain} — посмотри это прежде чем делать что-то ещё`],
-    ['address', `Ты ${want} но не знаешь с чего начать? Тогда тебе важно это знать`],
-    // 5️⃣ КОМБО
-    ['combo', `3 способа ${res} — даже если кажется что ничего не меняется`],
-    ['combo', `Как я помогла клиентам с "${pain}" — и что удивило больше всего`],
-    ['combo', `Правда о "${pain}" которую не скажет ни один другой специалист`],
-    ['combo', `Почему я перестала давать советы — и что изменилось в результатах`],
-    ['combo', `2 типа ${seg}: одни страдают годами другие меняются за месяц — в чём разница`],
-    ['combo', `Один вопрос который меняет всё — и большинство никогда его не задаёт`],
+function makeSeedReels(): SavedReel[] {
+  return [
+    {
+      id: 'reel-seed-1', reelType: 'tips', platform: 'instagram',
+      theme: '3 техники снятия тревоги за 5 минут', offer: 'lead', keyword: 'ПОКОЙ',
+      editedTitle: 'Советы · Instagram', editedContent: '', createdAt: '12 апр 2026',
+      content: MOCK_REEL_CONTENT.tips,
+    },
+    {
+      id: 'reel-seed-2', reelType: 'myth', platform: 'telegram',
+      theme: 'Миф: психолог советует что делать', offer: 'mini', keyword: 'СТАРТ',
+      editedTitle: 'Миф · Telegram', editedContent: '', createdAt: '10 апр 2026',
+      content: MOCK_REEL_CONTENT.myth,
+    },
   ];
-
-  return raw
-    .map(([cat, text], i) => ({
-      id: `hook-${i}`,
-      category: cat,
-      categoryLabel: CATEGORY_LABELS[cat] ?? cat,
-      text,
-      triggerScore: 5 + ((i * 3 + 7) % 5),
-      urgencyScore:  5 + ((i * 5 + 3) % 5),
-      payScore:      5 + ((i * 7 + 1) % 5),
-      total: (5 + ((i * 3 + 7) % 5)) + (5 + ((i * 5 + 3) % 5)) + (5 + ((i * 7 + 1) % 5)),
-    }))
-    .sort((a, b) => b.total - a.total);
 }
 
-// ─── Lines for typewriter display ────────────────────────────────────────────
+// ─── Storage ──────────────────────────────────────────────────────────────────
 
-function buildHooksLines(hooks: Hook[]): string[] {
-  const categories = ['numbers', 'how', 'intrigue', 'address', 'combo'];
-  const lines: string[] = [];
-  categories.forEach((cat) => {
-    lines.push(''); // spacer
-    lines.push(`## ${CATEGORY_LABELS[cat]} (6 хуков)`);
-    lines.push('');
-    hooks
-      .filter((h) => h.category === cat)
-      .slice(0, 6)
-      .forEach((h, i) => lines.push(`${i + 1}. ${h.text}`));
-  });
-  return lines.filter((_, i) => i !== 0); // remove leading spacer
-}
-
-// ─── Script builders (5 шаблонов) ────────────────────────────────────────────
-
-function buildScript(hook: Hook, context: string, templateIdx: number): string {
-  const ctx = context.trim();
-  const kw  = extractKeyword(hook.text);
-  const h   = hook.text;
-  // Split free-form context into sentences for sub-parts
-  const sentences = ctx
-    .split(/(?<=[.!?\n])\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const p = (idx: number, fallback: string): string =>
-    sentences[idx] ?? (ctx.length > 10 ? ctx.slice(0, 150) : fallback);
-
-  switch (templateIdx % 5) {
-    case 0: // Шаблон А — «Самый простой способ»
-      return [
-        `САМЫЙ ПРОСТОЙ СПОСОБ`,
-        h.toUpperCase(),
-        ``,
-        `ПОМОЖЕТ ДАЖЕ ТЕМ, КТО`,
-        p(0, 'уже пробовал всё и потерял надежду').toUpperCase(),
-        ``,
-        p(1, 'На первом шаге важно остановиться и задать себе один честный вопрос.'),
-        ``,
-        p(2, 'Я видела как это работает даже в самых сложных случаях.'),
-        ``,
-        `А ЕСЛИ ХОЧЕШЬ ВЫЙТИ ИЗ ЭТОГО ЗАМКНУТОГО КРУГА —`,
-        `ПИШИ «${kw}» В КОММЕНТАРИИ И Я ПРИШЛЮ ТЕБЕ В ДИРЕКТ [название лид-магнита]`,
-      ].join('\n');
-
-    case 1: // Шаблон Б — «2 ошибки»
-      return [
-        `2 ОШИБКИ ИЗ-ЗА КОТОРЫХ`,
-        h.toUpperCase(),
-        ``,
-        `ПОМНИ О НИХ ПРЕЖДЕ ЧЕМ ДЕЙСТВОВАТЬ`,
-        ``,
-        `ПЕРВОЕ.`,
-        p(0, 'Большинство пытаются решить внешнюю проблему, не касаясь внутренней.'),
-        ``,
-        `ВТОРОЕ.`,
-        p(1, 'Они ждут когда станет "совсем плохо" вместо того чтобы действовать сейчас.'),
-        ``,
-        p(2, 'Осознание этих ошибок — уже первый шаг к изменениям.'),
-        ``,
-        `ПИШИ «${kw}» В КОММЕНТАРИИ — ПРИШЛЮ [название материала] БЕСПЛАТНО`,
-      ].join('\n');
-
-    case 2: // Шаблон В — «Как сделать»
-      return [
-        `КАК СДЕЛАТЬ`,
-        h.toUpperCase(),
-        ``,
-        `ЭТО ВИДЕО ДЛЯ ВАС ЕСЛИ`,
-        p(0, 'вы узнаёте себя в этой ситуации').toUpperCase(),
-        ``,
-        `С ПОМОЩЬЮ ЭТОГО МЕТОДА Я`,
-        p(1, 'помогла клиентам получить реальные изменения уже через несколько сессий'),
-        ``,
-        `ОТЛИЧНО ПОДОЙДЁТ ТЕМ КОМУ СЛОЖНО`,
-        p(2, 'справиться с этим в одиночку'),
-        ``,
-        `ЧТОБЫ ПОЛУЧИТЬ ПОШАГОВЫЙ РАЗБОР —`,
-        `ПИШИТЕ В ДИРЕКТ «${kw}»`,
-      ].join('\n');
-
-    case 3: // Шаблон Г — «3 шага»
-      return [
-        `ТЫ ЧУВСТВУЕШЬ`,
-        h.toUpperCase(),
-        `И НЕ ЗНАЕШЬ КАК С ЭТИМ СПРАВИТЬСЯ?`,
-        ``,
-        `ДЕРЖИ 3 ШАГА`,
-        ``,
-        `ШАГ 1:`,
-        p(0, 'Остановитесь и назовите то, что вы на самом деле чувствуете.'),
-        ``,
-        `ШАГ 2:`,
-        p(1, 'Задайте себе вопрос: "Что мне сейчас действительно нужно?"'),
-        ``,
-        `ШАГ 3:`,
-        p(2, 'Сделайте одно маленькое действие в сторону этой потребности.'),
-        ``,
-        `А ЕСЛИ У ТЕБЯ ЕЩЁ НЕТ РЕЗУЛЬТАТА — СМОТРИ ЗАКРЕП`,
-        `ИЛИ ПИШИ «${kw}» В ДИРЕКТ`,
-      ].join('\n');
-
-    default: // Шаблон Д — «История результата»
-      return [
-        `ХОТИТЕ УЗНАТЬ ЧТО БУДЕТ ЕСЛИ`,
-        h.toUpperCase(),
-        ``,
-        `ЭТОТ РИЛС ДЛЯ ТЕБЯ ЕСЛИ ТЫ`,
-        p(0, 'узнаёшь себя в этой ситуации').toUpperCase(),
-        ``,
-        p(0, 'Ко мне обратился клиент с похожей ситуацией. Казалось что выхода нет.'),
-        ``,
-        p(1, 'Мы начали с простого: назвали то, что происходит, без осуждения.'),
-        ``,
-        p(2, 'Через несколько сессий человек сказал: "Я наконец чувствую себя собой".'),
-        ``,
-        `ХОЧЕШЬ ТАК ЖЕ?`,
-        `ПИШИ «${kw}» В КОММЕНТАРИИ — ПРИШЛЮ В ДИРЕКТ [лид-магнит]`,
-      ].join('\n');
-  }
-}
-
-// ─── localStorage helpers ─────────────────────────────────────────────────────
-
-function loadStrategyData(): StrategyData | null {
+function reelsKey(projectId: string) { return `reels_${projectId}`; }
+function loadReels(projectId: string): SavedReel[] {
   try {
-    const raw = localStorage.getItem(STORAGE_ANSWERS);
-    if (!raw) return null;
-    const d = JSON.parse(raw) as StrategyData;
-    if (!d.chosenSegment && !d.corePains) return null;
-    return d;
-  } catch { return null; }
+    const raw = localStorage.getItem(reelsKey(projectId));
+    if (raw) return JSON.parse(raw) as SavedReel[];
+  } catch {}
+  return makeSeedReels();
 }
-
-function loadSession(): Script[] | null {
-  try {
-    const raw = localStorage.getItem(REELS_KEY);
-    return raw ? (JSON.parse(raw) as Script[]) : null;
-  } catch { return null; }
-}
-
-function saveSession(scripts: Script[]) {
-  localStorage.setItem(REELS_KEY, JSON.stringify(scripts));
+function persistReels(projectId: string, reels: SavedReel[]) {
+  localStorage.setItem(reelsKey(projectId), JSON.stringify(reels));
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 
-function Stepper({ currentStep }: { currentStep: 1 | 2 | 3 }) {
-  const steps = ['Хуки', 'Фактура', 'Сценарии'];
+function Stepper({ step }: { step: 1 | 2 }) {
+  const steps = ['Настройка', 'Тема и фактура', 'Готовый рилс'];
   return (
     <div className={s.stepper}>
       {steps.map((label, i) => {
-        const n = i + 1;
-        const active = n === currentStep;
-        const done   = n < currentStep;
+        const n = i + 1; const isDone = n < step; const isAct = n === step;
         return (
-          <>
-            <div key={label} className={s.stepItem}>
-              <div className={`${s.stepDot}${active ? ' ' + s.stepDotActive : done ? ' ' + s.stepDotDone : ''}`}>
-                {done ? '✓' : n}
-              </div>
-              <span className={`${s.stepLabel}${active ? ' ' + s.stepLabelActive : ''}`}>
-                Шаг {n} — {label}
-              </span>
+          <div key={i} className={s.stepItem}>
+            {i > 0 && <div className={s.stepLine} />}
+            <div className={`${s.stepDot}${isAct ? ' ' + s.stepDotActive : ''}${isDone ? ' ' + s.stepDotDone : ''}`}>
+              {isDone ? '✓' : n}
             </div>
-            {i < steps.length - 1 && <div key={`line-${i}`} className={s.stepLine} />}
-          </>
+            <span className={`${s.stepLabel}${isAct ? ' ' + s.stepLabelActive : ''}`}>{label}</span>
+          </div>
         );
       })}
     </div>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Reels() {
-  const strategyData = loadStrategyData();
-  const hasStrategy  = strategyData !== null;
-  const { activeProjectId } = useProjectsStore();
-  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'REEL' });
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const { openAddModal } = useContentPlanStore();
+  const profileData = useUnpackingStore((s) => s.profileData);
 
-  // ── Phase ──────────────────────────────────────────────────────────────────
+  const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
+    projectId: activeProjectId,
+    type: 'REEL',
+  });
 
-  const [phase, setPhase] = useState<Phase>(() =>
-    loadSession() ? 'step3' : 'step1-idle',
-  );
+  const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
+  const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
-  // ── Step 1 ─────────────────────────────────────────────────────────────────
+  const [reels,      setReels]      = useState<SavedReel[]>(() => loadReels(activeProjectId));
+  const [selectedId, setSelectedId] = useState<string | null>(() => loadReels(activeProjectId)[0]?.id ?? null);
 
-  const [hooks,         setHooks]         = useState<Hook[]>([]);
-  const [hookLines,     setHookLines]     = useState<string[]>([]);
-  const [revealedCount, setRevealedCount] = useState(0);
-  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setReels(loadReels(activeProjectId));
+    setSelectedId(loadReels(activeProjectId)[0]?.id ?? null);
+    setPhase(loadReels(activeProjectId).length > 0 ? 'editor' : 'step1');
+  }, [activeProjectId]); // eslint-disable-line
 
-  // ── Step 2 ─────────────────────────────────────────────────────────────────
+  const [phase,    setPhase]    = useState<Phase>(() => loadReels(activeProjectId).length > 0 ? 'editor' : 'step1');
+  const [platform, setPlatform] = useState<Platform>('instagram');
+  const [reelType, setReelType] = useState<ReelType>('tips');
+  const [offer,    setOffer]    = useState<Offer>('lead');
+  const [keyword,  setKeyword]  = useState('');
 
-  const [facturaText,      setFacturaText]      = useState('');
-  const [inputMode,        setInputMode]        = useState<'text' | 'voice'>('text');
-  const [isRecording,      setIsRecording]      = useState(false);
-  const [interimText,      setInterimText]      = useState('');
-  const [speechSupported,  setSpeechSupported]  = useState<boolean | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [themes,        setThemes]        = useState<string[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState('');
+  const [facture,       setFacture]       = useState('');
+  const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
+  const [isListening,   setIsListening]   = useState(false);
   const recognitionRef = useRef<any>(null);
+  const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
 
-  // ── Step 3 ─────────────────────────────────────────────────────────────────
+  const updateReels = useCallback((next: SavedReel[]) => {
+    setReels(next);
+    persistReels(activeProjectId, next);
+  }, [activeProjectId]);
 
-  const [scripts,         setScripts]         = useState<Script[]>(() => loadSession() ?? []);
-  const [activeScriptId,  setActiveScriptId]  = useState<string | null>(
-    () => (loadSession()?.[0]?.id ?? null),
-  );
-
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ── Typewriter effect ──────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (phase !== 'step1-revealing') return;
-    if (revealedCount >= hookLines.length) {
-      setPhase('step1-done');
-      return;
+  async function handleGenerateThemes() {
+    setPhase('step2-loading');
+    const claudeModel = localStorage.getItem('selectedModel_reels') ?? 'claude-haiku-4-5-20251001';
+    const segCtx = strat.chosenSegment ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}.` : '';
+    const typeLabels: Record<ReelType, string> = {
+      tips: 'рилс с практическими советами', story: 'рилс-история из практики', myth: 'рилс-разрушение мифа',
+    };
+    const prompt = `${segCtx} Придумай 5 конкретных тем для рилса типа «${typeLabels[reelType]}» для психолога. Выведи только 5 тем нумерованным списком.`;
+    try {
+      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
+      const result = lines.length > 0 ? lines : MOCK_THEMES[reelType];
+      setThemes(result);
+      setSelectedTheme(result[0] ?? '');
+    } catch {
+      toast('AI недоступен — используются демо-темы', { icon: '📋', duration: 3000 });
+      setThemes(MOCK_THEMES[reelType]);
+      setSelectedTheme(MOCK_THEMES[reelType][0] ?? '');
     }
-    timerRef.current = setInterval(() => {
-      setRevealedCount((c) => c + 1);
-    }, REVEAL_INTERVAL);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [phase, hookLines.length]); // eslint-disable-line
-
-  useEffect(() => {
-    if (revealedCount >= hookLines.length && phase === 'step1-revealing') {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setPhase('step1-done');
-    }
-  }, [revealedCount, hookLines.length, phase]);
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
-  const handleGenerateHooks = useCallback(() => {
-    setPhase('step1-generating');
-    setTimeout(() => {
-      const h  = buildHooks(strategyData);
-      const lines = buildHooksLines(h);
-      setHooks(h);
-      setHookLines(lines);
-      setRevealedCount(0);
-      setPhase('step1-revealing');
-    }, 2000);
-  }, [strategyData]);
-
-  function toggleHook(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else if (next.size < 5) {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
-  function handleProceedToStep2() {
-    setFacturaText('');
-    setInputMode('text');
+    setFacture('');
     setPhase('step2');
   }
 
-  function startRecording() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      setSpeechSupported(false);
-      return;
-    }
-    setSpeechSupported(true);
-    const recognition = new SpeechRecognitionAPI();
-    recognition.lang = 'ru-RU';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      let final = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          final += result[0].transcript;
-        } else {
-          interim += result[0].transcript;
-        }
-      }
-      if (final) {
-        setFacturaText((prev) => prev + (prev === '' || prev.endsWith(' ') ? '' : ' ') + final);
-      }
-      setInterimText(interim);
+  async function handleGenerateReel() {
+    setPhase('generating');
+    const claudeModel = localStorage.getItem('selectedModel_reels') ?? 'claude-haiku-4-5-20251001';
+    const segCtx = strat.chosenSegment ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}.` : '';
+    const extraCtx = [keyword && `Ключевое слово: "${keyword}".`, facture && `Контекст: "${facture}".`].filter(Boolean).join(' ');
+    const typeLabels: Record<ReelType, string> = {
+      tips: 'рилс-советы', story: 'рилс-история', myth: 'рилс-опровержение мифа',
     };
-    recognition.onerror = () => { setIsRecording(false); setInterimText(''); };
-    recognition.onend  = () => { setIsRecording(false); setInterimText(''); };
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
-    setInterimText('');
-  }
-
-  function stopRecording() {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    const prompt = `Напиши сценарий ${typeLabels[reelType]} на тему «${selectedTheme}» для психолога. ${segCtx} ${extraCtx} Формат: заголовок + тезисы по слайдам + подпись с CTA. До 400 слов.`;
+    let content: string;
+    try {
+      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      content = resp.content;
+    } catch {
+      toast('AI недоступен — используется демо-текст', { icon: '📋', duration: 3000 });
+      content = MOCK_REEL_CONTENT[reelType];
     }
-    setIsRecording(false);
-    setInterimText('');
+    const id    = `reel-${Date.now()}`;
+    const title = `${TYPE_LABELS[reelType]} · ${platform === 'telegram' ? 'Telegram' : 'Instagram'}`;
+    const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+    const newReel: SavedReel = { id, reelType, platform, theme: selectedTheme, offer, keyword, content, editedContent: '', editedTitle: title, createdAt: now };
+    const next = [newReel, ...reels];
+    updateReels(next);
+    setSelectedId(id);
+    setPhase('editor');
+    void saveToApi({ title, content, platform: platform === 'telegram' ? 'Telegram' : 'Instagram', metadata: { reelType, offer, keyword, theme: selectedTheme } })
+      .then((dbItem) => { if (!dbItem) return; updateReels([newReel, ...reels].map((r) => (r.id === id ? { ...r, dbId: dbItem.id } : r))); });
   }
 
-  function handleGenerateScripts() {
-    stopRecording();
-    setPhase('step3-generating');
-    setTimeout(() => {
-      const selected = hooks.filter((h) => selectedIds.has(h.id));
-      const newScripts: Script[] = selected.map((hook, i) => {
-        const content = buildScript(hook, facturaText, i);
-        return {
-          id: `script-${Date.now()}-${i}`,
-          hookText: hook.text,
-          templateLabel: TEMPLATE_LABELS[i % TEMPLATE_LABELS.length] ?? `Шаблон ${i + 1}`,
-          content,
-          editedContent: content,
-          editedTitle: `Рилс: ${hook.text.slice(0, 50)}`,
-        };
-      });
-      setScripts(newScripts);
-      setActiveScriptId(newScripts[0]?.id ?? null);
-      saveSession(newScripts);
-      setPhase('step3');
-      // Сохраняем каждый сценарий в БД
-      newScripts.forEach((sc) => {
-        void saveToApi({ title: sc.editedTitle, content: sc.editedContent, platform: 'Instagram/TikTok' });
-      });
-    }, 1500);
+  function toggleVoice() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    const rec = new SR();
+    rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = false;
+    rec.onresult = (e: any) => { const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(' '); setFacture(prev => prev ? `${prev} ${t}` : t); };
+    rec.onend = () => setIsListening(false);
+    recognitionRef.current = rec; rec.start(); setIsListening(true);
   }
 
-  function handleNewSeries() {
-    localStorage.removeItem(REELS_KEY);
-    stopRecording();
-    setScripts([]);
-    setHooks([]);
-    setHookLines([]);
-    setRevealedCount(0);
-    setSelectedIds(new Set());
-    setFacturaText('');
-    setInputMode('text');
-    setActiveScriptId(null);
-    setPhase('step1-idle');
+  function getEditorState(reel: SavedReel) {
+    const ov = editMap[reel.id];
+    return { title: ov?.title ?? reel.editedTitle, content: ov?.content ?? (reel.editedContent || reel.content) };
   }
 
-  function handleSaveScript(scriptId: string, title: string, content: string) {
-    setScripts((prev) => {
-      const updated = prev.map((sc) =>
-        sc.id === scriptId ? { ...sc, editedTitle: title, editedContent: content } : sc,
-      );
-      saveSession(updated);
-      return updated;
+  function setEditorField(reelId: string, field: 'title' | 'content', value: string) {
+    setEditMap(prev => {
+      const reel = reels.find(r => r.id === reelId)!;
+      const cur  = prev[reelId] ?? { title: reel.editedTitle, content: reel.editedContent || reel.content };
+      return { ...prev, [reelId]: { ...cur, [field]: value } };
     });
   }
 
-  function handleCopy(content: string) {
-    navigator.clipboard.writeText(content).catch(() => undefined);
+  function handleSave(reelId: string) {
+    const ov = editMap[reelId]; if (!ov) return;
+    updateReels(reels.map(r => r.id === reelId ? { ...r, editedTitle: ov.title, editedContent: ov.content } : r));
+    setEditMap(prev => { const n = { ...prev }; delete n[reelId]; return n; });
+    const reel = reels.find(r => r.id === reelId);
+    if (reel?.dbId) void updateInApi(reel.dbId, { title: ov.title, content: ov.content });
   }
 
-  function handleDownload(title: string, content: string) {
-    const filename = title.slice(0, 40).replace(/[^\wа-яёa-z\s]/gi, '').trim() || 'reel';
-    void exportToDocx(title, content, filename);
+  function handleCopy(reelId: string) {
+    const reel = reels.find(r => r.id === reelId); if (!reel) return;
+    navigator.clipboard.writeText(getEditorState(reel).content);
   }
 
-  // ── Step 1 score helper ────────────────────────────────────────────────────
-
-  function scoreClass(v: number) {
-    return v >= 8 ? s.scoreHigh : s.scoreMid;
+  function handleDownload(reelId: string) {
+    const reel = reels.find(r => r.id === reelId); if (!reel) return;
+    const { title, content } = getEditorState(reel);
+    void exportToDocx(title, content, title || 'reel');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
+  function goToStep1() { setPlatform('instagram'); setReelType('tips'); setOffer('lead'); setKeyword(''); setPhase('step1'); }
 
-  // ── STEP 3: SplitEditor ────────────────────────────────────────────────────
+  const splitItems: ReelItem[] = reels.map(r => ({
+    id: r.id, icon: TYPE_ICONS[r.reelType], title: r.editedTitle,
+    meta: `${r.platform === 'telegram' ? '💬 Telegram' : '📱 Instagram'} · ${r.createdAt}`,
+    preview: (r.editedContent || r.content).slice(0, 100),
+    reelType: r.reelType, platform: r.platform,
+  }));
 
-  if (phase === 'step3' || phase === 'step3-generating') {
-    const splitItems: ScriptItem[] = scripts.map((sc) => ({
-      id:            sc.id,
-      icon:          '🎬',
-      title:         sc.editedTitle,
-      meta:          sc.templateLabel,
-      preview:       sc.editedContent.split('\n').slice(0, 2).join(' '),
-      content:       sc.content,
-      editedContent: sc.editedContent,
-      editedTitle:   sc.editedTitle,
-      templateLabel: sc.templateLabel,
-    }));
-
+  function renderEditor(item: ReelItem | null) {
+    if (!item) {
+      return <div className={s.emptyEditor}><span className={s.emptyIcon}>🎬</span><span className={s.emptyText}>Выберите рилс слева</span></div>;
+    }
+    const reel = reels.find(r => r.id === item.id)!;
+    const { title, content } = getEditorState(reel);
+    const hasChanges = !!editMap[reel.id];
     return (
-      <div className={s.step3Root}>
-        {/* top bar */}
-        <div className={s.step3TopBar}>
-          <span>5 сценариев готовы</span>
-          <div className={s.step3TopBarActions}>
-            <button className={s.secondaryBtn} onClick={handleNewSeries}>
-              ↺ Создать новую серию
-            </button>
+      <div className={s.editorPanel}>
+        <div className={s.editorHeader}>
+          <input className={s.editorTitleInput} value={title} onChange={e => setEditorField(reel.id, 'title', e.target.value)} />
+          <div className={s.editorMeta}>
+            <span className={s.badge}>{TYPE_LABELS[reel.reelType]}</span>
+            <span className={s.badge}>{reel.platform === 'telegram' ? '💬 Telegram' : '📱 Instagram'}</span>
+            <span className={s.charCount}>{content.length} симв.</span>
           </div>
         </div>
-
-        {/* SplitEditor: use negative margin trick already baked into SplitEditor,
-            but here it's inside step3Root, so we override via wrapper */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-          {phase === 'step3-generating' ? (
-            <div className={s.emptyScriptState}>
-              <span className={s.emptyIcon}>🎬</span>
-              <span>Пишем сценарии…</span>
-            </div>
-          ) : (
-            <SplitEditor<ScriptItem>
-              items={splitItems}
-              selectedId={activeScriptId}
-              onSelect={(id) => setActiveScriptId(id)}
-              listTitle="5 сценариев"
-              renderEditor={(item) => {
-                if (!item) {
-                  return (
-                    <div className={s.emptyScriptState}>
-                      <span className={s.emptyIcon}>✏️</span>
-                      <span>Выберите сценарий слева</span>
-                    </div>
-                  );
-                }
-                return (
-                  <ScriptEditor
-                    key={item.id}
-                    scriptId={item.id}
-                    initialTitle={item.editedTitle}
-                    initialContent={item.editedContent}
-                    templateLabel={item.templateLabel}
-                    onSave={handleSaveScript}
-                    onCopy={handleCopy}
-                    onDownload={handleDownload}
-                  />
-                );
-              }}
-            />
-          )}
+        <textarea className={s.editorTextarea} value={content} onChange={e => setEditorField(reel.id, 'content', e.target.value)} />
+        <div className={s.editorActions}>
+          <button className={s.actionBtn} onClick={() => handleCopy(reel.id)}>Копировать</button>
+          <button className={s.actionBtn} onClick={() => { const st = getEditorState(reel); openAddModal({ type: 'reel', title: st.title, content: st.content, preview: st.content.split('\n').filter(Boolean).slice(0, 2).join('\n'), platform: reel.platform === 'telegram' ? 'Telegram' : 'Instagram', projectId: activeProjectId ?? undefined, sourceId: reel.id }); }}>📅 В контент-план</button>
+          <button className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`} onClick={() => handleSave(reel.id)} disabled={!hasChanges}>Сохранить</button>
+          <button className={s.actionBtn} onClick={() => handleDownload(reel.id)}>Скачать</button>
         </div>
       </div>
     );
   }
 
-  // ── STEPS 1 & 2: scrollable wizard ────────────────────────────────────────
+  if (phase === 'step2-loading' || phase === 'generating') {
+    return (
+      <div className={s.loadingScreen}>
+        <div className={s.loadingSpinner} />
+        <p className={s.loadingText}>{phase === 'step2-loading' ? 'Генерирую темы для рилса...' : 'Пишу сценарий...'}</p>
+      </div>
+    );
+  }
 
-  const currentStep: 1 | 2 | 3 =
-    phase.startsWith('step1') ? 1 : phase === 'step2' ? 2 : 3;
+  if (phase === 'editor') {
+    return (
+      <SplitEditor
+        items={splitItems} selectedId={selectedId} onSelect={setSelectedId}
+        renderEditor={renderEditor} listTitle="Рилсы"
+        listHeaderAction={<button className={s.newPostBtn} onClick={goToStep1}>+ Создать</button>}
+      />
+    );
+  }
+
+  const voiceAvailable = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  if (phase === 'step1') {
+    return (
+      <div className={s.page}>
+        <Stepper step={1} />
+        {hasStrategy ? (
+          <div className={s.strategyBanner}>
+            <span className={s.strategyLabel}>Из стратегии:</span>
+            {strat.chosenSegment    && <span className={s.badge}>{strat.chosenSegment}</span>}
+            {strat.chosenSubsegment && <span className={s.badge}>{strat.chosenSubsegment}</span>}
+          </div>
+        ) : (
+          <div className={s.warnBanner}>
+            <span>⚠️</span>
+            <span>Сначала пройдите <NavLink to="/strategy" className={s.warnLink}>Стратегию</NavLink> — это улучшит качество рилсов</span>
+          </div>
+        )}
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Площадка</div>
+          <div className={s.chipGroup}>
+            {PLATFORM_OPTIONS.map(p => (
+              <button key={p.key} className={`${s.chip}${platform === p.key ? ' ' + s.chipActive : ''}`} onClick={() => setPlatform(p.key)}>{p.emoji} {p.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Формат рилса</div>
+          <div className={s.chipGroup}>
+            {REEL_TYPE_OPTIONS.map(t => (
+              <button key={t.key} className={`${s.chip}${reelType === t.key ? ' ' + s.chipActive : ''}`} onClick={() => setReelType(t.key)}>{t.emoji} {t.label}</button>
+            ))}
+          </div>
+          <div className={s.typeDesc}>{REEL_TYPE_OPTIONS.find(t => t.key === reelType)?.desc}</div>
+        </div>
+        <div className={s.section}>
+          <div className={s.sectionTitle}>К чему ведёт рилс</div>
+          <div className={s.chipGroup}>
+            {OFFER_OPTIONS.map(o => (
+              <button key={o.key} className={`${s.chip}${offer === o.key ? ' ' + s.chipActive : ''}`} onClick={() => setOffer(o.key)}>{o.emoji} {o.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Кодовое слово</div>
+          <input className={s.textInput} placeholder="Например: ПОКОЙ, СТАРТ, ПОМОЩЬ" value={keyword} onChange={e => setKeyword(e.target.value)} />
+          <div className={s.inputHint}>Используется в призыве в конце рилса</div>
+        </div>
+        <div className={s.btnRow}>
+          {reels.length > 0 && <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>← Назад к рилсам</button>}
+          <button className={s.primaryBtn} onClick={handleGenerateThemes}>Сгенерировать темы →</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={s.page}>
-      <Stepper currentStep={currentStep} />
-
-      {/* ═══════════════ STEP 1 ══════════════════════════════════════════════ */}
-      {phase.startsWith('step1') && (
-        <>
-          <div className={s.section}>
-            <h2 className={s.sectionTitle}>Шаг 1 из 3 — Генерация хуков</h2>
-            <p className={s.sectionSub}>
-              ИИ сгенерирует 30 хуков по 5 категориям, опираясь на данные вашей стратегии.
-              Затем вы выберете лучшие и перейдёте к сбору фактуры.
-            </p>
-          </div>
-
-          {/* Баннер: нет стратегии */}
-          {!hasStrategy && (
-            <div className={s.banner}>
-              💡 Для генерации рилсов сначала пройдите{' '}
-              <NavLink to="/strategy" className={s.bannerLink}>Стратегию</NavLink>{' '}
-              — ИИ использует данные о вашей аудитории.
-            </div>
-          )}
-
-          {/* Данные из стратегии */}
-          {hasStrategy && (
-            <div className={s.section}>
-              <div className={s.strategyInfo}>
-                <span className={s.strategyInfoLabel}>Из стратегии:</span>
-                {strategyData?.chosenSegment && (
-                  <span className={s.badge}>{firstLine(strategyData.chosenSegment, '')}</span>
-                )}
-                {strategyData?.chosenSubsegment && (
-                  <span className={s.badge}>{firstLine(strategyData.chosenSubsegment, '')}</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Кнопка генерации */}
-          {phase === 'step1-idle' && (
-            <div className={s.section}>
-              <button className={s.primaryBtn} onClick={handleGenerateHooks}>
-                Сгенерировать 30 хуков →
-              </button>
-            </div>
-          )}
-
-          {/* Генерация (спиннер) */}
-          {phase === 'step1-generating' && (
-            <div className={s.section}>
-              <button className={s.primaryBtn} disabled>
-                <span className={s.spinner} /> Генерирую хуки…
-              </button>
-            </div>
-          )}
-
-          {/* Typewriter output */}
-          {(phase === 'step1-revealing' || phase === 'step1-done') && (
-            <>
-              <div className={s.section}>
-                <div className={s.hooksOutput}>
-                  <HooksDisplay lines={hookLines} revealed={revealedCount} />
-                </div>
-              </div>
-
-              {/* Рейтинговая таблица */}
-              {phase === 'step1-done' && (
-                <div className={s.section}>
-                  <p className={s.sectionSub}>
-                    Выберите до 5 хуков для работы. Таблица отсортирована по суммарному баллу.
-                  </p>
-
-                  <div className={s.tableWrap}>
-                    <table className={s.hooksTable}>
-                      <thead>
-                        <tr>
-                          <th />
-                          <th>#</th>
-                          <th>Хук</th>
-                          <th>Триггерность</th>
-                          <th>Срочность</th>
-                          <th>Платёжеспос.</th>
-                          <th>Сумма</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {hooks.map((h, i) => (
-                          <tr
-                            key={h.id}
-                            className={selectedIds.has(h.id) ? s.hookRowSelected : ''}
-                            onClick={() => toggleHook(h.id)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            <td style={{ textAlign: 'center' }}>
-                              <input
-                                type="checkbox"
-                                className={s.hookCheckbox}
-                                checked={selectedIds.has(h.id)}
-                                onChange={() => toggleHook(h.id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </td>
-                            <td className={s.hookNum}>{i + 1}</td>
-                            <td className={s.hookText}>
-                              <div className={s.hookCatBadge}>{h.categoryLabel}</div>
-                              <div>{h.text}</div>
-                            </td>
-                            <td className={`${s.scoreCell} ${scoreClass(h.triggerScore)}`}>{h.triggerScore}</td>
-                            <td className={`${s.scoreCell} ${scoreClass(h.urgencyScore)}`}>{h.urgencyScore}</td>
-                            <td className={`${s.scoreCell} ${scoreClass(h.payScore)}`}>{h.payScore}</td>
-                            <td className={s.totalCell}>{h.total}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className={s.btnRow}>
-                    <button
-                      className={s.primaryBtn}
-                      disabled={selectedIds.size === 0}
-                      onClick={handleProceedToStep2}
-                    >
-                      Выбрать {selectedIds.size > 0 ? selectedIds.size : ''} хуков и продолжить →
-                    </button>
-                    <span className={`${s.selectCounter}${selectedIds.size > 0 ? ' ' + s.selectCounterActive : ''}`}>
-                      {selectedIds.size} / 5 выбрано
-                    </span>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-
-      {/* ═══════════════ STEP 2 ══════════════════════════════════════════════ */}
-      {phase === 'step2' && (
-        <>
-          <div className={s.section}>
-            <h2 className={s.sectionTitle}>Шаг 2 из 3 — Расскажите о своём опыте</h2>
-            <p className={s.sectionSub}>
-              Ответьте в свободной форме — текстом или голосом.
-              ИИ сам разберёт фактуру под каждый сценарий.
-            </p>
-          </div>
-
-          {/* Выбранные хуки */}
-          <div className={s.selectedHooks}>
-            {hooks.filter((h) => selectedIds.has(h.id)).map((h, i) => (
-              <div key={h.id} className={s.selectedHookChip}>
-                <span className={s.hookNum2}>#{i + 1}</span>
-                {h.text}
-              </div>
-            ))}
-          </div>
-
-          {/* Подсказки-вопросы */}
-          <div className={s.facturaCard}>
-            <div className={s.facturaHintTitle}>Ответьте на эти вопросы в любом порядке:</div>
-            <ol className={s.facturaHintsList}>
-              <li>Опишите реальный случай из практики — когда клиент столкнулся с этой проблемой</li>
-              <li>Что вы обычно говорите или делаете в такой ситуации?</li>
-              <li>Какой результат получил клиент после работы с вами?</li>
-              <li>Есть ли у вас личная история, связанная с этой темой?</li>
-              <li>Что чаще всего удивляет клиентов в вашем подходе?</li>
-              <li>Какую главную ошибку совершают люди в этой ситуации?</li>
-              <li>Какой инсайт вы хотите донести через эти видео?</li>
-            </ol>
-          </div>
-
-          {/* Переключатель режимов */}
-          <div className={s.modeSwitch}>
-            <button
-              className={`${s.modeSwitchChip}${inputMode === 'text' ? ' ' + s.modeSwitchChipActive : ''}`}
-              onClick={() => { stopRecording(); setInputMode('text'); }}
-            >
-              ✏️ Текст
+      <Stepper step={2} />
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Выберите тему рилса</div>
+        <div className={s.sectionSub}>ИИ предложил 5 тем для формата «{TYPE_LABELS[reelType]}»</div>
+        <div className={s.themeList}>
+          {themes.map((theme, i) => (
+            <button key={i} className={`${s.themeItem}${selectedTheme === theme ? ' ' + s.themeItemActive : ''}`} onClick={() => setSelectedTheme(theme)}>
+              <span className={s.themeRadio}>{selectedTheme === theme ? '◉' : '○'}</span>
+              <span className={s.themeText}>«{theme}»</span>
             </button>
-            <button
-              className={`${s.modeSwitchChip}${inputMode === 'voice' ? ' ' + s.modeSwitchChipActive : ''}`}
-              onClick={() => setInputMode('voice')}
-            >
-              🎤 Голос
-            </button>
-          </div>
-
-          {/* Единое поле ввода */}
-          <div className={s.facturaTextareaWrap}>
-            <textarea
-              className={s.facturaTextarea}
-              placeholder={`Пишите свободно — можно не по порядку, можно одним потоком. Например: «У меня была клиентка которая пришла с проблемой... Я обычно в таких случаях... Результат был...»`}
-              value={facturaText}
-              onChange={(e) => setFacturaText(e.target.value)}
-            />
-            {inputMode === 'voice' && interimText && (
-              <div className={s.interimPreview}>{interimText}</div>
-            )}
-            <div className={s.wordCount}>
-              {facturaText.trim() ? facturaText.trim().split(/\s+/).length : 0} слов
-            </div>
-          </div>
-
-          {/* Голосовой режим */}
-          {inputMode === 'voice' && (
-            <div className={s.voiceArea}>
-              {speechSupported === false ? (
-                <div className={s.voiceUnsupported}>
-                  Голосовой ввод недоступен в вашем браузере. Попробуйте Chrome или Safari.
-                </div>
-              ) : (
-                <div className={s.voiceBtnWrap}>
-                  {isRecording && <div className={s.pulseRing} />}
-                  <button
-                    className={`${s.voiceBtn}${isRecording ? ' ' + s.voiceBtnRecording : ''}`}
-                    onClick={isRecording ? stopRecording : startRecording}
-                  >
-                    {isRecording ? '🔴 Остановить запись' : '🎤 Начать запись'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Навигация */}
-          <div className={s.btnRow} style={{ marginTop: 28 }}>
-            <button
-              className={s.secondaryBtn}
-              onClick={() => { stopRecording(); setPhase('step1-done'); }}
-            >
-              ← Назад
-            </button>
-            <button
-              className={s.primaryBtn}
-              disabled={facturaText.trim().length < 50}
-              onClick={handleGenerateScripts}
-            >
-              Готово, пишем сценарии →
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── HooksDisplay ─────────────────────────────────────────────────────────────
-
-function HooksDisplay({ lines, revealed }: { lines: string[]; revealed: number }) {
-  const visible = lines.slice(0, revealed);
-  if (visible.length === 0) {
-    return <p className={s.hooksEmpty}>Формулирую хуки…</p>;
-  }
-  return (
-    <>
-      {visible.map((line, i) => {
-        if (line.startsWith('## ')) {
-          return <p key={i} className={s.hooksCategoryHeader}>{line.replace('## ', '')}</p>;
-        }
-        if (line === '') {
-          return <br key={i} />;
-        }
-        return <p key={i} className={s.hooksOutputLine}>{line}</p>;
-      })}
-    </>
-  );
-}
-
-// ─── ScriptEditor ─────────────────────────────────────────────────────────────
-
-interface ScriptEditorProps {
-  scriptId:       string;
-  initialTitle:   string;
-  initialContent: string;
-  templateLabel:  string;
-  onSave:         (id: string, title: string, content: string) => void;
-  onCopy:         (content: string) => void;
-  onDownload:     (title: string, content: string) => void;
-}
-
-function ScriptContentView({ content }: { content: string }) {
-  return (
-    <div className={s.scriptContent}>
-      {content.split('\n').map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={i} className={s.scriptLineSpacer} />;
-        const isCaps = trimmed === trimmed.toUpperCase() && /[А-ЯA-Z]/.test(trimmed);
-        return (
-          <p key={i} className={isCaps ? s.scriptLineCaps : s.scriptLineNormal}>
-            {line}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
-
-function ScriptEditor({
-  scriptId, initialTitle, initialContent, templateLabel,
-  onSave, onCopy, onDownload,
-}: ScriptEditorProps) {
-  const [title,     setTitle]     = useState(initialTitle);
-  const [content,   setContent]   = useState(initialContent);
-  const [isEditing, setIsEditing] = useState(false);
-  const { openAddModal } = useContentPlanStore();
-
-  return (
-    <div className={s.scriptEditorWrap}>
-      <div className={s.scriptHeader}>
-        <input
-          className={s.scriptTitleInput}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Заголовок сценария"
-        />
-        <span className={s.scriptTemplateBadge}>{templateLabel}</span>
-      </div>
-
-      <div className={s.scriptBody}>
-        {isEditing ? (
-          <textarea
-            className={s.scriptTextarea}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Текст сценария…"
-            autoFocus
-          />
-        ) : (
-          <ScriptContentView content={content} />
-        )}
-      </div>
-
-      <div className={s.scriptFooter}>
-        <span className={s.charCount}>{content.length} симв.</span>
-        <div className={s.scriptActions}>
-          <button
-            className={`${s.actionBtn}${isEditing ? ' ' + s.actionBtnActive : ''}`}
-            onClick={() => setIsEditing((v) => !v)}
-          >
-            {isEditing ? '✓ Готово' : '✏️ Редактировать'}
-          </button>
-          <button className={s.actionBtn} onClick={() => onCopy(`${title}\n\n${content}`)}>
-            📋 Копировать
-          </button>
-          <button className={s.actionBtn} onClick={() => openAddModal({ type: 'reel', title, content, preview: content.split('\n').filter(Boolean).slice(0,2).join('\n'), platform: 'Instagram', sourceId: scriptId })}>
-            📅 В контент-план
-          </button>
-          <button className={s.actionBtn} onClick={() => onDownload(title, content)}>
-            ⬇️ Скачать .docx
-          </button>
-          <button
-            className={`${s.actionBtn} ${s.actionBtnPrimary}`}
-            onClick={() => { onSave(scriptId, title, content); setIsEditing(false); }}
-          >
-            💾 Сохранить
-          </button>
+          ))}
         </div>
+      </div>
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Идея и фактура</div>
+        <div className={s.factureCard}>
+          {FACTURE_HINTS.map((hint, i) => <div key={i} className={s.factureHint}>{hint}</div>)}
+        </div>
+        {voiceAvailable && (
+          <div className={s.inputModeRow}>
+            <button className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`} onClick={() => { setInputMode('text'); if (isListening) toggleVoice(); }}>✏️ Текст</button>
+            <button className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`} onClick={() => setInputMode('voice')}>🎤 Голос</button>
+          </div>
+        )}
+        {inputMode === 'text' ? (
+          <textarea className={s.factureTextarea} placeholder="Опишите идею рилса, случай из практики или главный месседж..." value={facture} onChange={e => setFacture(e.target.value)} />
+        ) : (
+          <div className={s.voiceArea}>
+            <button className={`${s.voiceBtn}${isListening ? ' ' + s.voiceBtnActive : ''}`} onClick={toggleVoice}>
+              {isListening ? '⏹ Остановить запись' : '🎤 Начать запись'}
+            </button>
+            {facture && <div className={s.voiceTranscript}>{facture}</div>}
+          </div>
+        )}
+        <div className={s.factureCounter}>
+          {facture.length} символов{' '}
+          {facture.trim().length < 30 && <span className={s.factureCounterWarn}>(минимум 30)</span>}
+        </div>
+        <ModelBar section="reels" />
+      </div>
+      <div className={s.btnRow}>
+        <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
+        <button className={s.primaryBtn} disabled={facture.trim().length < 30} onClick={handleGenerateReel}>Написать рилс →</button>
       </div>
     </div>
   );

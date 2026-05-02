@@ -2,10 +2,14 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { chat } from '../services/ai.service';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { buildProjectContext } from '../utils/buildProjectContext';
+import { buildPromptForSection } from '../prompts/dynamic.prompts';
 
 const chatSchema = z.object({
-  message: z.string().min(1).max(4000),
+  message: z.string().min(1).max(8000),
   model: z.enum(['chatgpt', 'claude']),
+  claudeModel: z.string().optional(),
+  section: z.string().optional(),
   conversationHistory: z
     .array(
       z.object({
@@ -15,19 +19,11 @@ const chatSchema = z.object({
     )
     .optional()
     .default([]),
+  // Dynamic prompt context
+  unpackingProfile: z.record(z.string()).optional(),
+  projectName: z.string().optional(),
+  fileContext: z.string().optional(),
 });
-
-const JTBD_SYSTEM_PROMPT = `Ты — AI-ассистент для маркетинговой упаковки психологов по JTBD-фреймворку.
-Твоя цель — провести психолога через 6 шагов:
-1. Сегмент ЦА — определить идеального клиента
-2. Боли — выявить глубинные проблемы клиента
-3. JTBD-работы — сформулировать Jobs To Be Done
-4. УТП — сформировать уникальное торговое предложение
-5. Оффер — создать конкретное предложение
-6. Контент — предложить контент-стратегию
-
-Общайся на русском языке. Задавай по одному конкретному вопросу за раз. Будь структурированным, но дружелюбным.
-Когда пользователь отвечает на вопрос, делай краткое резюме его ответа, а затем задавай следующий вопрос.`;
 
 export const aiController = {
   async chat(req: AuthRequest, res: Response): Promise<void> {
@@ -37,7 +33,16 @@ export const aiController = {
       return;
     }
 
-    const { message, model, conversationHistory } = parsed.data;
+    const {
+      message,
+      model,
+      claudeModel,
+      section,
+      conversationHistory,
+      unpackingProfile,
+      projectName,
+      fileContext,
+    } = parsed.data;
 
     const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
 
@@ -46,12 +51,26 @@ export const aiController = {
       { role: 'user' as const, content: message },
     ];
 
+    // Build system prompt: dynamic if profile provided, static from SYSTEM_PROMPTS otherwise
+    let systemPrompt: string | undefined;
+    if (section) {
+      const ctx = buildProjectContext(unpackingProfile ?? null, projectName ?? '');
+      console.log(`[AI] section=${section} project="${ctx.projectName}" spec="${ctx.specialization.slice(0, 60)}"`);
+      systemPrompt = buildPromptForSection(section, ctx);
+      // Append file context if provided
+      if (fileContext?.trim()) {
+        systemPrompt += `\n\nДополнительный контекст от эксперта:\n${fileContext.trim()}`;
+      }
+    }
+
     try {
       const result = await chat({
         provider,
         messages,
-        systemPrompt: JTBD_SYSTEM_PROMPT,
-        maxTokens: 1024,
+        section,
+        claudeModel,
+        systemPrompt,
+        maxTokens: 2048,
         temperature: 0.7,
       });
 

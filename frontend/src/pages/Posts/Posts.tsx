@@ -1,10 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
+import { ModelBar } from '../../components/MessageInput/MessageInput';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -18,6 +23,7 @@ interface StrategyData {
   chosenSegment?:    string;
   chosenSubsegment?: string;
   finalResult?:      string;
+  corePains?:        string;
 }
 
 interface SavedPost {
@@ -41,8 +47,6 @@ interface PostItem extends SplitItem {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STORAGE_STRATEGY = 'strategy_answers';
-
 const PLATFORM_OPTIONS = [
   { key: 'telegram'  as Platform, emoji: '💬', label: 'Telegram'   },
   { key: 'instagram' as Platform, emoji: '📱', label: 'Instagram'  },
@@ -59,12 +63,6 @@ const OFFER_OPTIONS = [
   { key: 'mini' as Offer, emoji: '⚡', label: 'Мини-продукт'     },
   { key: 'main' as Offer, emoji: '🚀', label: 'Основной продукт' },
 ];
-
-const OFFER_LABELS: Record<Offer, string> = {
-  lead: 'бесплатный материал',
-  mini: 'мини-курс',
-  main: 'программу работы',
-};
 
 const TYPE_LABELS: Record<PostType, string> = {
   pain:    'Боль',
@@ -164,83 +162,6 @@ function makeSeedPosts(): SavedPost[] {
   ];
 }
 
-// ─── Mock generators ──────────────────────────────────────────────────────────
-
-const MOCK_THEMES: Record<PostType, string[]> = {
-  pain: [
-    'Вы ссоритесь об одном и том же снова и снова',
-    'Он замолкает — ты злишься. Ты злишься — он замолкает',
-    'После ссоры вы миритесь. Но ничего не меняется',
-    'Ты уже боишься поднимать некоторые темы',
-    'Ты любишь его. Но иногда думаешь — может хватит?',
-  ],
-  insight: [
-    'Большинство пар ссорятся не из-за проблем, а из-за того, как они о них говорят',
-    'Молчание — это не мир. Это накопленная ярость',
-    'Вы думаете, что ссоритесь из-за денег. На самом деле — нет',
-    'Тот, кто молчит в конфликте, часто говорит громче',
-    'Стремление быть правым — главный враг близости',
-  ],
-  story: [
-    'Она пришла через 8 лет брака и сказала: «Мы чужие»',
-    'Они ссорились каждую неделю. Об одном и том же',
-    'Он не понимал, почему она плачет. Она не понимала, почему он молчит',
-    'Две сессии — и она первый раз за год почувствовала себя услышанной',
-    'Пара на грани развода. Что изменилось за месяц работы',
-  ],
-};
-
-function buildPost(
-  postType: PostType,
-  platform: Platform,
-  theme:    string,
-  offer:    Offer,
-  keyword:  string,
-  facture:  string,
-): string {
-  const kw          = keyword.trim().toUpperCase() || 'СТАРТ';
-  const offerLabel  = OFFER_LABELS[offer];
-  const igSuffix    = platform === 'instagram' ? '\n\nСсылка в шапке профиля 👆' : '';
-  const hasFacture  = facture.trim().length > 0;
-
-  if (postType === 'pain') {
-    return `${theme}.
-
-${hasFacture ? facture.trim() : 'Это знакомо многим, кто приходит ко мне.'}
-
-Что происходит внутри: один чувствует себя невидимым. Другой — отвергнутым. Оба говорят об этом через претензию, а не через потребность.
-
-Один конкретный шаг: когда почувствуете раздражение — остановитесь и скажите вслух, что вам на самом деле нужно. Не «ты всегда», а «мне важно».
-
-Если узнали свою ситуацию — напишите ${kw} в директ.
-Я пришлю ${offerLabel}.${igSuffix}`;
-  }
-
-  if (postType === 'insight') {
-    return `${theme}.
-
-Объяснение: мозг воспринимает критику как угрозу. Запускается та же реакция, что при физической опасности. Поэтому партнёр «закрывается» — это не упрямство, это защита.
-
-${hasFacture ? facture.trim() : 'Была клиентка: жаловалась, что муж не слышит её. Поменяли одну формулировку — и всё изменилось.'}
-
-Один вывод: проблема часто не в том, что происходит, а в том, как мы об этом говорим.
-
-Напишите ${kw} — пришлю ${offerLabel}.${igSuffix}`;
-  }
-
-  // story
-  return `Ко мне пришла она. ${theme}.
-
-${hasFacture ? facture.trim() : 'Ссорились каждые две недели. Об одном и том же. Мирились. Всё повторялось снова.'}
-
-Работали с тем, как она выражает свои потребности. Не через упрёк — а через состояние. «Я скучаю по нам» вместо «тебе нет до меня дела».
-
-Результат: через три недели написала — «Мы поговорили нормально первый раз за год».
-
-Мораль: конфликт — это про то, чтобы быть услышанным. И этому можно научиться.
-
-Узнали себя? Напишите ${kw} — расскажу про ${offerLabel}.${igSuffix}`;
-}
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -287,18 +208,17 @@ function Stepper({ step }: { step: 1 | 2 }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Posts() {
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
+  const profileData = useUnpackingStore((s) => s.profileData);
 
   const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
     projectId: activeProjectId,
     type: 'POST',
   });
 
-  const [strat] = useState<StrategyData>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
-    catch { return {}; }
-  });
+  const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Posts
@@ -342,47 +262,91 @@ export default function Posts() {
   }, [activeProjectId]);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
-  function handleGenerateThemes() {
+  async function handleGenerateThemes() {
     setPhase('step2-loading');
-    setTimeout(() => {
-      const generated = MOCK_THEMES[postType];
-      setThemes(generated);
-      setSelectedTheme(generated[0] ?? '');
-      setFacture('');
-      setPhase('step2');
-    }, 1200);
+    const claudeModel = localStorage.getItem('selectedModel_posts') ?? 'claude-haiku-4-5-20251001';
+    const segCtx = strat.chosenSegment
+      ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Подсегмент: ${strat.chosenSubsegment?.split('\n')[0]?.slice(0, 80) ?? ''}.`
+      : '';
+    const typeLabels: Record<PostType, string> = {
+      pain: 'пост про боль клиента',
+      insight: 'пост-инсайт (озарение)',
+      story: 'пост-история (кейс)',
+    };
+    const prompt = `${segCtx} Придумай 5 конкретных тем для поста типа «${typeLabels[postType]}» для психолога на платформе ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. Темы должны цеплять за живое. Выведи только 5 тем нумерованным списком, без пояснений.`;
+    try {
+      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
+      setThemes(lines);
+      setSelectedTheme(lines[0] ?? '');
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : String(err);
+      let errorMessage = 'Ошибка соединения с AI';
+      if (raw.includes('401')) errorMessage = 'Неверный API ключ';
+      else if (raw.includes('429')) errorMessage = 'Превышен лимит запросов — проверьте баланс';
+      else if (raw.includes('500')) errorMessage = 'Ошибка сервера AI — попробуйте позже';
+      console.error('[AI posts themes]', err);
+      toast.error(errorMessage);
+      setPhase('step1');
+      return;
+    }
+    setFacture('');
+    setPhase('step2');
   }
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
-  function handleGeneratePost() {
+  async function handleGeneratePost() {
     setPhase('generating');
-    setTimeout(() => {
-      const content = buildPost(postType, platform, selectedTheme, offer, keyword, facture);
-      const id      = `post-${Date.now()}`;
-      const title   = `${TYPE_LABELS[postType]} · ${platform === 'telegram' ? 'Telegram' : 'Instagram'}`;
-      const now     = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-      const newPost: SavedPost = {
-        id, postType, platform, theme: selectedTheme,
-        offer, keyword, content,
-        editedContent: '', editedTitle: title, createdAt: now,
-      };
-      const next = [newPost, ...posts];
-      updatePosts(next);
-      setSelectedId(id);
-      setPhase('editor');
-      // Сохраняем в БД и записываем dbId обратно
-      void saveToApi({
-        title,
-        content,
-        platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
-        metadata: { postType, offer, keyword, theme: selectedTheme },
-      }).then((dbItem) => {
-        if (!dbItem) return;
-        updatePosts(
-          [newPost, ...posts].map((p) => (p.id === id ? { ...p, dbId: dbItem.id } : p)),
-        );
-      });
-    }, 1500);
+    const claudeModel = localStorage.getItem('selectedModel_posts') ?? 'claude-haiku-4-5-20251001';
+    const segCtx = strat.chosenSegment
+      ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Боли: ${(strat.corePains ?? '').slice(0, 200)}.`
+      : '';
+    const extraCtx = [
+      keyword && `Ключевое слово/фраза: "${keyword}".`,
+      facture && `Дополнительный контекст от психолога: "${facture}".`,
+      offer && `CTA в конце: призыв к ${offer === 'lead' ? 'лид-магниту' : offer === 'mini' ? 'мини-продукту' : 'основному продукту'}.`,
+    ].filter(Boolean).join(' ');
+    const typeLabels: Record<PostType, string> = {
+      pain: 'пост про боль/проблему клиента',
+      insight: 'пост-инсайт (озарение, неожиданный взгляд)',
+      story: 'короткий пост-история/кейс из практики',
+    };
+    const prompt = `Напиши ${typeLabels[postType]} на тему «${selectedTheme}» для психолога. Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. ${segCtx} ${extraCtx} Текст поста только, без заголовка файла. До 600 слов. Живой язык, без психологического жаргона.`;
+    let content: string;
+    try {
+      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      content = resp.content;
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : String(err);
+      let errorMessage = 'Ошибка соединения с AI';
+      if (raw.includes('401')) errorMessage = 'Неверный API ключ';
+      else if (raw.includes('429')) errorMessage = 'Превышен лимит запросов — проверьте баланс';
+      else if (raw.includes('500')) errorMessage = 'Ошибка сервера AI — попробуйте позже';
+      console.error('[AI posts generate]', err);
+      toast.error(errorMessage);
+      setPhase('step2');
+      return;
+    }
+    const id    = `post-${Date.now()}`;
+    const title = `${TYPE_LABELS[postType]} · ${platform === 'telegram' ? 'Telegram' : 'Instagram'}`;
+    const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+    const newPost: SavedPost = {
+      id, postType, platform, theme: selectedTheme,
+      offer, keyword, content,
+      editedContent: '', editedTitle: title, createdAt: now,
+    };
+    const next = [newPost, ...posts];
+    updatePosts(next);
+    setSelectedId(id);
+    setPhase('editor');
+    void saveToApi({
+      title, content,
+      platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+      metadata: { postType, offer, keyword, theme: selectedTheme },
+    }).then((dbItem) => {
+      if (!dbItem) return;
+      updatePosts([newPost, ...posts].map((p) => (p.id === id ? { ...p, dbId: dbItem.id } : p)));
+    });
   }
 
   // ── Voice input ───────────────────────────────────────────────────────────────
@@ -722,6 +686,7 @@ export default function Posts() {
             <span className={s.factureCounterWarn}>(минимум 30)</span>
           )}
         </div>
+        <ModelBar section="posts" />
       </div>
 
       <div className={s.btnRow}>

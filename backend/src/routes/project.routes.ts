@@ -10,5 +10,9 @@ router.get('/:id',                    requireAuth, projectController.get);
 router.patch('/:id',                  requireAuth, projectController.update);
 router.delete('/:id',                 requireAuth, projectController.delete);
 router.post('/:id/complete-strategy', requireAuth, projectController.completeStrategy);
+router.get('/:id/strategy',           requireAuth, projectController.getStrategyData);
+router.patch('/:id/strategy',         requireAuth, projectController.saveStrategyData);
+router.get('/:id/utp',                requireAuth, projectController.getUtpData);
+router.patch('/:id/utp',              requireAuth, projectController.saveUtpData);
 
 export default router;

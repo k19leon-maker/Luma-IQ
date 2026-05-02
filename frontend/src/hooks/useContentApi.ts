@@ -17,11 +17,13 @@ interface UseContentApiResult {
 export function useContentApi({ projectId, type }: UseContentApiOptions): UseContentApiResult {
   const [dbItems, setDbItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const loadedRef = useRef(false);
+  const loadedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!projectId || loadedRef.current) return;
-    loadedRef.current = true;
+    const key = `${projectId}:${type}`;
+    if (!projectId || loadedRef.current === key) return;
+    loadedRef.current = key;
+    setDbItems([]);
     setLoading(true);
     contentApi.list(projectId, type)
       .then(setDbItems)

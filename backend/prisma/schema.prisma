@@ -15,8 +15,9 @@ model User {
   googleId       String?   @unique
   role           Role      @default(USER)
   isVerified     Boolean   @default(false)
-  avatarColor    String?   @default("#7c6cfc")
-  defaultAiModel String?   @default("chatgpt")
+  avatarColor      String?   @default("#7c6cfc")
+  defaultAiModel   String?   @default("chatgpt")
+  specialization   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -62,6 +63,7 @@ model Project {
   strategySummary     String?
   strategyData        Json?
   strategyCompletedAt DateTime?
+  utpData             Json?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
