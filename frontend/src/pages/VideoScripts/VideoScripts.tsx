@@ -2,9 +2,14 @@ import { useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
+import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { aiApi } from '../../api/ai';
+import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,8 +39,6 @@ interface ScriptItem extends SplitItem {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STORAGE_STRATEGY = 'strategy_answers';
 
 const DURATION_OPTIONS: { key: Duration; label: string; desc: string }[] = [
   { key: '8',  label: '8 мин',  desc: 'Компактный формат: крючок → проблема → кейс → решение → призыв' },
@@ -376,14 +379,15 @@ function Stepper({ step }: { step: 1 | 2 }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VideoScripts() {
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
 
-  const [strat] = useState<StrategyData>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
-    catch { return {}; }
-  });
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings = useModelStore((s) => s.getSettings);
+  const profileData = useUnpackingStore((s) => s.profileData);
+
+  const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Scripts
@@ -418,34 +422,110 @@ export default function VideoScripts() {
   }, [activeProjectId]);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
-  function handleGenerateThemes() {
+  async function handleGenerateThemes() {
     setPhase('step2-loading');
-    setTimeout(() => {
+    try {
+      const settings = getSettings('video-scripts');
+      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
+      const prompt   = `Ты контент-стратег для психолога. Предложи 5 тем для YouTube-видео (~${duration} минут).
+Целевой сегмент: ${seg}
+
+Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
+
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'video-scripts',
+        message: prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: profileData as Record<string, string>,
+      });
+
+      const lines = resp.content
+        .split('\n')
+        .map((l) => l.replace(/^\d+[\.\)]\s*/, '').trim())
+        .filter((l) => l.length > 10)
+        .slice(0, 5);
+
+      const themes = lines.length >= 3 ? lines : MOCK_THEMES[duration];
+      setThemes(themes);
+      setSelectedTheme(themes[0] ?? '');
+      setFacture('');
+    } catch (err) {
+      console.warn('[VideoScripts] themes AI error:', err);
       setThemes(MOCK_THEMES[duration]);
       setSelectedTheme(MOCK_THEMES[duration][0] ?? '');
       setFacture('');
-      setPhase('step2');
-    }, 1200);
+    }
+    setPhase('step2');
   }
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
-  function handleGenerateScript() {
+  async function handleGenerateScript() {
     setPhase('generating');
-    setTimeout(() => {
-      const content = buildScript(duration, selectedTheme, ctaType, botKeyword, facture);
-      const id      = `vs-${Date.now()}`;
-      const title   = `${selectedTheme.slice(0, 50)}… · ${DURATION_LABELS[duration]}`;
-      const now     = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+    try {
+      const settings = getSettings('video-scripts');
+      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
+      const ctaText  = ctaType === 'telegram'
+        ? 'CTA: подписаться на Telegram-канал психолога'
+        : `CTA: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
+
+      const prompt = `Ты сценарист для психолога. Напиши сценарий YouTube-видео (~${duration} минут).
+
+Тема: ${selectedTheme}
+${seg ? `Целевой сегмент: ${seg}` : ''}
+${facture.trim() ? `Материал из практики психолога: ${facture.trim()}` : ''}
+${ctaText}
+
+Структура сценария:
+- КРЮЧОК (первые ~40 сек): зацепить проблемой
+- ПРОБЛЕМА: объяснить почему это происходит
+- КЕЙС: история из практики
+- РЕШЕНИЕ: конкретные инструменты
+- ПРАКТИКА: что зрители могут сделать сразу
+${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
+- ПРИЗЫВ К ДЕЙСТВИЮ
+
+Для каждого блока укажи тайминг и текст «на камеру». Используй живой разговорный язык.`;
+
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'video-scripts',
+        message: prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: profileData as Record<string, string>,
+      });
+
+      const content = resp.content.trim() || buildScript(duration, selectedTheme, ctaType, botKeyword, facture);
+      const id    = `vs-${Date.now()}`;
+      const title = `${selectedTheme.slice(0, 50)}… · ${DURATION_LABELS[duration]}`;
+      const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
       const newScript: SavedScript = {
         id, duration, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
       };
-      const next = [newScript, ...scripts];
-      updateScripts(next);
+      updateScripts([newScript, ...scripts]);
       setSelectedId(id);
       setPhase('editor');
       void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
-    }, 2000);
+    } catch (err) {
+      console.warn('[VideoScripts] generate AI error:', err);
+      const content = buildScript(duration, selectedTheme, ctaType, botKeyword, facture);
+      const id    = `vs-${Date.now()}`;
+      const title = `${selectedTheme.slice(0, 50)}… · ${DURATION_LABELS[duration]}`;
+      const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+      const newScript: SavedScript = {
+        id, duration, ctaType, botKeyword,
+        content, editedContent: '', editedTitle: title, createdAt: now,
+      };
+      updateScripts([newScript, ...scripts]);
+      setSelectedId(id);
+      setPhase('editor');
+      void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
+    }
   }
 
   // ── Voice input ───────────────────────────────────────────────────────────────
@@ -683,7 +763,7 @@ export default function VideoScripts() {
               ← Назад к сценариям
             </button>
           )}
-          <button className={s.primaryBtn} onClick={handleGenerateThemes}>
+          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()}>
             Сгенерировать темы →
           </button>
         </div>
@@ -762,6 +842,7 @@ export default function VideoScripts() {
             <span className={s.factureCounterWarn}>(минимум 50)</span>
           )}
         </div>
+        <ModelBar section="video-scripts" />
       </div>
 
       <div className={s.btnRow}>
@@ -769,7 +850,7 @@ export default function VideoScripts() {
         <button
           className={s.primaryBtn}
           disabled={facture.trim().length < 50}
-          onClick={handleGenerateScript}
+          onClick={() => void handleGenerateScript()}
         >
           Написать сценарий →
         </button>

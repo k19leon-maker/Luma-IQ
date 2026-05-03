@@ -1,39 +1,38 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { PROJECTS_DATA, ProjectData, ProductDoc, StrategyDoc } from '../../data/projectsData';
 import { exportToDocx } from '../../utils/exportDocx';
 import s from './ProjectPage.module.css';
 
-function loadLocalStrategy(projectId: string): ProjectData | null {
-  try {
-    const raw = localStorage.getItem('strategy_answers');
-    if (!raw) return null;
-    const a = JSON.parse(raw) as Record<string, string>;
-    const segment = a['chosenSegment'] || a['segments'] || '';
-    if (!segment) return null;
-    const strategy: StrategyDoc = {
-      segment,
-      subsegment:    a['chosenSubsegment'] || a['subsegments'] || '',
-      wantList:      a['wants'] || '',
-      tenRequests:   a['requests'] || '',
-      painQuestions: a['painfulQuestions'] || '',
-      deepDesires:   a['deepDesires'] || '',
-      finalResult:   a['finalResult'] || '',
-      triedBefore:   a['triedSolutions'] || '',
-      threeKeyPains: a['corePains'] || '',
-      mainAnnoying:  a['corePains'] || '',
-      createdAt:     new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
-    };
-    return {
-      id: projectId,
-      name: '',
-      color: '#7c6cfc',
-      createdAt: '',
-      strategy,
-      products: [],
-    };
-  } catch { return null; }
+function buildStrategyFromAudienceStore(projectId: string): ProjectData | null {
+  const store = useAudienceStore.getState();
+  const { answers, completed } = store.get(projectId);
+  if (!completed) return null;
+  const segment = answers.chosenSegment || answers.segments || '';
+  if (!segment) return null;
+  const strategy: StrategyDoc = {
+    segment,
+    subsegment:    answers.chosenSubsegment || answers.subsegments || '',
+    wantList:      answers.wants || '',
+    tenRequests:   answers.requests || '',
+    painQuestions: answers.painfulQuestions || '',
+    deepDesires:   answers.deepDesires || '',
+    finalResult:   answers.finalResult || '',
+    triedBefore:   '',
+    threeKeyPains: answers.corePains || '',
+    mainAnnoying:  answers.corePains || '',
+    createdAt:     new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+  };
+  return {
+    id: projectId,
+    name: '',
+    color: '#7c6cfc',
+    createdAt: '',
+    strategy,
+    products: [],
+  };
 }
 
 function countLocalProducts(projectId: string, type: 'main' | 'mini' | 'free'): number {
@@ -191,8 +190,12 @@ function SidePanel({
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { projects, activeProjectId, setActiveProjectId, renameProject, addProject } =
-    useProjectsStore();
+  const projects          = useProjectsStore((s) => s.projects);
+  const activeProjectId  = useProjectsStore((s) => s.activeProjectId);
+  const loading          = useProjectsStore((s) => s.loading);
+  const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
+  const renameProject    = useProjectsStore((s) => s.renameProject);
+  const addProject       = useProjectsStore((s) => s.addProject);
 
   // Activate this project when the page mounts / id changes
   useEffect(() => {
@@ -201,7 +204,10 @@ export default function ProjectPage() {
 
   const data = id ? PROJECTS_DATA[id] : undefined;
   const localProject = projects.find((p) => p.id === id);
-  const localStrategyData = (!data && id) ? loadLocalStrategy(id) : null;
+  const audienceData = useAudienceStore((s) => id ? s.projects[id] : undefined);
+  const localStrategyData = (!data && id && audienceData?.completed)
+    ? buildStrategyFromAudienceStore(id)
+    : null;
 
   // Panel state
   const [panelOpen, setPanelOpen] = useState(false);
@@ -249,6 +255,7 @@ export default function ProjectPage() {
   }
 
   if (!data && !localProject) {
+    if (loading) return null;
     return (
       <div className={s.notFound}>
         <div className={s.notFoundIcon}>🗂</div>

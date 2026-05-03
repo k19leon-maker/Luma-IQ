@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { usersApi, UserProfile } from '../../api/users.api';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Settings.module.css';
@@ -18,12 +19,13 @@ export default function Settings() {
   const navigate = useNavigate();
   const { user: authUser, logout } = useAuthStore();
 
-  const [profile, setProfile]         = useState<UserProfile | null>(null);
-  const [name, setName]               = useState('');
-  const [avatarColor, setAvatarColor] = useState('#7c6cfc');
-  const [aiModel, setAiModel]         = useState('chatgpt');
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileMsg, setProfileMsg]   = useState('');
+  const [profile, setProfile]                 = useState<UserProfile | null>(null);
+  const [name, setName]                       = useState('');
+  const [avatarColor, setAvatarColor]         = useState('#7c6cfc');
+  const [aiModel, setAiModel]                 = useState('chatgpt');
+  const [specialization, setSpecialization]   = useState('');
+  const [profileSaving, setProfileSaving]     = useState(false);
+  const [profileMsg, setProfileMsg]           = useState('');
 
   const [curPass, setCurPass]   = useState('');
   const [newPass, setNewPass]   = useState('');
@@ -39,6 +41,7 @@ export default function Settings() {
       setName(u.name ?? '');
       setAvatarColor(u.avatarColor ?? '#7c6cfc');
       setAiModel(u.defaultAiModel ?? 'chatgpt');
+      setSpecialization(u.specialization ?? '');
     }).catch(() => {
       if (authUser) {
         setName(authUser.name ?? '');
@@ -50,7 +53,7 @@ export default function Settings() {
     setProfileSaving(true);
     setProfileMsg('');
     try {
-      const updated = await usersApi.updateMe({ name, avatarColor, defaultAiModel: aiModel });
+      const updated = await usersApi.updateMe({ name, avatarColor, defaultAiModel: aiModel, specialization });
       setProfile(updated);
       setProfileMsg('Сохранено');
       setTimeout(() => setProfileMsg(''), 3000);
@@ -85,7 +88,7 @@ export default function Settings() {
       await logout();
       navigate('/login');
     } catch {
-      alert('Ошибка при удалении аккаунта');
+      toast.error('Ошибка при удалении аккаунта');
     }
   }
 
@@ -136,6 +139,17 @@ export default function Settings() {
           <div className={s.field}>
             <label className={s.label}>Email</label>
             <input className={s.input} type="email" value={displayEmail} readOnly disabled />
+          </div>
+          <div className={s.field}>
+            <label className={s.label}>Ваша специализация</label>
+            <input
+              className={s.input}
+              type="text"
+              value={specialization}
+              onChange={(e) => setSpecialization(e.target.value)}
+              placeholder="Например: психолог по тревоге, семейный психолог, коуч по выгоранию"
+            />
+            <span className={s.fieldHint}>Используется в конструкторе промптов стратегии</span>
           </div>
 
           <div className={s.saveLine}>

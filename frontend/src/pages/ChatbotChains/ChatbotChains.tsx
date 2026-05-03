@@ -1,9 +1,14 @@
 import { useState, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
+import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { aiApi } from '../../api/ai';
+import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,8 +39,6 @@ interface StoredChain {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STORAGE_STRATEGY = 'strategy_answers';
 
 const PART_LABELS: Record<1 | 2 | 3, string> = {
   1: 'ЧАСТЬ 1 — ЛИД-МАГНИТ',
@@ -361,14 +364,15 @@ function buildFullText(messages: ChainMessage[]): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ChatbotChains() {
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'CHATBOT_CHAIN' });
 
-  const [strat] = useState<StrategyData>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
-    catch { return {}; }
-  });
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings = useModelStore((s) => s.getSettings);
+  const profileData = useUnpackingStore((s) => s.profileData);
+
+  const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   const savedChain = loadChain(activeProjectId);
@@ -397,9 +401,79 @@ export default function ChatbotChains() {
 
   // ── Generate ──────────────────────────────────────────────────────────────
 
-  function handleGenerate() {
+  async function handleGenerate() {
     setPhase('generating');
-    setTimeout(() => {
+    try {
+      const settings    = getSettings('chatbot-chains');
+      const seg         = strat.chosenSegment ?? strat.chosenSubsegment ?? 'аудитория психолога';
+      const formatLabel = format === 'article' ? 'статью' : 'видео-урок';
+      const meet        = meetingSchedule.trim() || 'каждую пятницу в 19:00';
+      const bot         = botName.trim() || 'Telegram-бот';
+
+      const prompt = `Ты — копирайтер Telegram-воронки для психолога. Создай цепочку из 13 сообщений для бота.
+
+Бот: ${bot}
+Целевой сегмент: ${seg}
+Формат лид-магнита: ${formatLabel}
+Расписание еженедельных встреч: ${meet}
+
+Структура воронки:
+ЧАСТЬ 1 (сообщения 1–5) — Лид-магнит: приветствие + доставка материала + прогрев через боль + инсайт + история клиента
+ЧАСТЬ 2 (сообщения 6–10) — Мини-продукт: анонс → презентация → кейс → работа с возражениями → призыв к покупке
+ЧАСТЬ 3 (сообщения 11–13) — Еженедельная встреча: приглашение → ценность → напоминание
+
+Требования:
+- Каждое сообщение: 50–150 слов, разговорный живой язык
+- Используй эмодзи уместно
+- Каждое сообщение заканчивается призывом к действию или вопросом
+- В плейсхолдерах для цены/даты оставь [цена], [дата], [ссылка]
+
+Формат ответа: пронумерованный список от 1 до 13, каждое сообщение — отдельный абзац.`;
+
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'chatbot-chains',
+        message: prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: profileData as Record<string, string>,
+      });
+
+      // Parse 13 messages from response
+      const rawLines = resp.content.split(/\n+/);
+      const msgTexts: string[] = [];
+      let current = '';
+      for (const line of rawLines) {
+        const match = line.match(/^(\d+)[\.\)]\s*(.*)/);
+        if (match) {
+          if (current.trim()) msgTexts.push(current.trim());
+          current = match[2] ?? '';
+        } else {
+          current += (current ? '\n' : '') + line;
+        }
+      }
+      if (current.trim()) msgTexts.push(current.trim());
+
+      const messages: ChainMessage[] = MSG_DEFS.map((def, i) => ({
+        id:            `gen-${def.index}`,
+        index:         def.index,
+        part:          def.part,
+        role:          def.role,
+        dayDelay:      def.dayDelay,
+        content:       msgTexts[i] ?? buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null)[i]?.content ?? '',
+        editedContent: '',
+      }));
+
+      const newChain: StoredChain = { format, botName, meetingSchedule, messages };
+      updateChain(newChain);
+      setActiveId(messages[0]?.id ?? '');
+      setEditMap({});
+      setPhase('step2');
+      const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
+      void saveToApi({ title: `Цепочка бота: ${bot}`, content: fullText, platform: 'Telegram', metadata: { format, botName } });
+    } catch (err) {
+      console.warn('[ChatbotChains] AI error, using fallback:', err);
       const messages = buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null);
       const newChain: StoredChain = { format, botName, meetingSchedule, messages };
       updateChain(newChain);
@@ -407,13 +481,8 @@ export default function ChatbotChains() {
       setEditMap({});
       setPhase('step2');
       const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
-      void saveToApi({
-        title: `Цепочка бота: ${botName || 'Telegram'}`,
-        content: fullText,
-        platform: 'Telegram',
-        metadata: { format, botName },
-      });
-    }, 2000);
+      void saveToApi({ title: `Цепочка бота: ${botName || 'Telegram'}`, content: fullText, platform: 'Telegram', metadata: { format, botName } });
+    }
   }
 
   function handleNewChain() {
@@ -680,10 +749,11 @@ export default function ChatbotChains() {
               ← К текущей цепочке
             </button>
           )}
-          <button className={s.primaryBtn} onClick={handleGenerate}>
+          <button className={s.primaryBtn} onClick={() => void handleGenerate()}>
             Сгенерировать все 13 сообщений →
           </button>
         </div>
+        <ModelBar section="chatbot-chains" />
 
       </div>
     </div>

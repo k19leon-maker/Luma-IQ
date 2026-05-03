@@ -2,9 +2,14 @@ import { useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
+import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { aiApi } from '../../api/ai';
+import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,8 +39,6 @@ interface ArticleItem extends SplitItem {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STORAGE_STRATEGY = 'strategy_answers';
 
 const PLATFORM_OPTIONS: { key: Platform; emoji: string; label: string; desc: string }[] = [
   { key: 'dzen',     emoji: '📰', label: 'Яндекс Дзен', desc: 'Личные истории, эмоции, широкая аудитория'             },
@@ -326,14 +329,15 @@ function Stepper({ step }: { step: 1 | 2 }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Articles() {
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'ARTICLE' });
 
-  const [strat] = useState<StrategyData>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_STRATEGY) ?? '{}'); }
-    catch { return {}; }
-  });
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings = useModelStore((s) => s.getSettings);
+  const profileData = useUnpackingStore((s) => s.profileData);
+
+  const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Articles
@@ -368,21 +372,82 @@ export default function Articles() {
   }, [activeProjectId]);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
-  function handleGenerateThemes() {
+  async function handleGenerateThemes() {
     setPhase('step2-loading');
-    setTimeout(() => {
+    try {
+      const settings = getSettings('articles');
+      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
+      const prompt   = `Ты контент-стратег для психолога. Предложи 5 тем для статьи на платформе ${PLATFORM_LABELS[platform]}.
+Целевой сегмент: ${seg}
+Формат платформы: ${PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? ''}
+
+Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
+
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'articles',
+        message: prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: profileData as Record<string, string>,
+      });
+
+      const lines = resp.content
+        .split('\n')
+        .map((l) => l.replace(/^\d+[\.\)]\s*/, '').trim())
+        .filter((l) => l.length > 10)
+        .slice(0, 5);
+
+      const themes = lines.length >= 3 ? lines : MOCK_THEMES[platform];
+      setThemes(themes);
+      setSelectedTheme(themes[0] ?? '');
+      setFacture('');
+    } catch (err) {
+      console.warn('[Articles] themes AI error:', err);
       setThemes(MOCK_THEMES[platform]);
       setSelectedTheme(MOCK_THEMES[platform][0] ?? '');
       setFacture('');
-      setPhase('step2');
-    }, 1200);
+    }
+    setPhase('step2');
   }
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
-  function handleGenerateArticle() {
+  async function handleGenerateArticle() {
     setPhase('generating');
-    setTimeout(() => {
-      const content = buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
+    try {
+      const settings = getSettings('articles');
+      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
+      const ctaText  = ctaType === 'telegram'
+        ? 'Призыв: подписаться на Telegram-канал психолога'
+        : `Призыв: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
+
+      const prompt = `Ты — маркетолог-копирайтер психологов. Напиши полноценную SEO-статью для психолога на платформе ${PLATFORM_LABELS[platform]}.
+
+Тема: ${selectedTheme}
+${seg ? `Целевой сегмент: ${seg}` : ''}
+${facture.trim() ? `Материал из практики психолога: ${facture.trim()}` : ''}
+${ctaText}
+
+Требования:
+- Длина: 1800–2500 слов
+- Структура: введение → несколько разделов с H2-подзаголовками → заключение → призыв
+- Язык клиента, не психологический жаргон
+- SEO: ключевые слова в подзаголовках органично
+
+Напиши только текст статьи (в markdown), без вступлений и пояснений.`;
+
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'articles',
+        message: prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: profileData as Record<string, string>,
+      });
+
+      const content = resp.content.trim() || buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
       const id    = `art-${Date.now()}`;
       const title = `${selectedTheme.slice(0, 50)}… · ${PLATFORM_LABELS[platform]}`;
       const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -395,7 +460,21 @@ export default function Articles() {
       setSelectedId(id);
       setPhase('editor');
       void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
-    }, 2000);
+    } catch (err) {
+      console.warn('[Articles] generate AI error:', err);
+      const content = buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
+      const id    = `art-${Date.now()}`;
+      const title = `${selectedTheme.slice(0, 50)}… · ${PLATFORM_LABELS[platform]}`;
+      const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+      const newArticle: SavedArticle = {
+        id, platform, ctaType, botKeyword,
+        content, editedContent: '', editedTitle: title, createdAt: now,
+      };
+      updateArticles([newArticle, ...articles]);
+      setSelectedId(id);
+      setPhase('editor');
+      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
+    }
   }
 
   // ── Voice input ───────────────────────────────────────────────────────────────
@@ -634,7 +713,7 @@ export default function Articles() {
               ← Назад к статьям
             </button>
           )}
-          <button className={s.primaryBtn} onClick={handleGenerateThemes}>
+          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()}>
             Сгенерировать темы →
           </button>
         </div>
@@ -713,6 +792,7 @@ export default function Articles() {
             <span className={s.factureCounterWarn}>(минимум 30)</span>
           )}
         </div>
+        <ModelBar section="articles" />
       </div>
 
       <div className={s.btnRow}>
@@ -720,7 +800,7 @@ export default function Articles() {
         <button
           className={s.primaryBtn}
           disabled={facture.trim().length < 30}
-          onClick={handleGenerateArticle}
+          onClick={() => void handleGenerateArticle()}
         >
           Написать статью →
         </button>

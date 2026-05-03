@@ -35,4 +35,14 @@ export const projectsApi = {
     apiClient
       .post<{ project: Project }>(`/projects/${id}/complete-strategy`, data)
       .then((r) => r.data.project),
+
+  getStrategy: (id: string) =>
+    apiClient
+      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`)
+      .then((r) => r.data.strategyData),
+
+  saveStrategy: (id: string, data: Record<string, unknown>) =>
+    apiClient
+      .patch<{ ok: boolean }>(`/projects/${id}/strategy`, data)
+      .then((r) => r.data),
 };

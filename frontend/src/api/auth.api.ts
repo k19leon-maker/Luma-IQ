@@ -1,12 +1,13 @@
 import { apiClient } from './client';
 
 export interface AuthUser {
-  id: string;
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
-  role: string;
-  tariff?: string;
+  id:             string;
+  email:          string;
+  name:           string | null;
+  avatarUrl:      string | null;
+  role:           string;
+  tariff?:        string;
+  specialization?: string | null;
 }
 
 export interface TokenPair {
@@ -34,6 +35,9 @@ export const authApi = {
 
   me: () =>
     apiClient.get<{ user: AuthUser }>('/auth/me').then((r) => r.data.user),
+
+  oauthSession: () =>
+    apiClient.get<AuthResponse>('/auth/oauth/session', { withCredentials: true }).then((r) => r.data),
 
   googleLogin: () => {
     window.location.href = '/api/v1/auth/google';

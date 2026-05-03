@@ -1,8 +1,15 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { env } from '../config/env';
+
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+};
 
 const registerSchema = z.object({
   email: z.string().email('Неверный формат email'),
@@ -109,14 +116,50 @@ export const authController = {
       };
 
       const result = await authService.findOrCreateGoogleUser(profile);
-      // Redirect to frontend with tokens in query params (simple approach)
-      const params = new URLSearchParams({
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+
+      // Set tokens as httpOnly cookies — no tokens in URL
+      res.cookie('oauth_access', result.tokens.accessToken, {
+        ...COOKIE_OPTS,
+        maxAge: 5 * 60 * 1000, // 5 minutes — one-time handoff
       });
-      res.redirect(`${env.FRONTEND_URL}/auth/callback?${params.toString()}`);
+      res.cookie('oauth_refresh', result.tokens.refreshToken, {
+        ...COOKIE_OPTS,
+        maxAge: 5 * 60 * 1000,
+      });
+
+      res.redirect(`${env.FRONTEND_URL}/auth/callback`);
     } catch (err) {
       res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+    }
+  },
+
+  // Called by AuthCallback.tsx after OAuth redirect — exchanges cookie for session
+  async oauthSession(req: Request, res: Response): Promise<void> {
+    const accessToken  = (req as Request & { cookies: Record<string, string> }).cookies?.oauth_access;
+    const refreshToken = (req as Request & { cookies: Record<string, string> }).cookies?.oauth_refresh;
+
+    if (!accessToken || !refreshToken) {
+      res.status(401).json({ error: 'OAuth сессия не найдена или истекла' });
+      return;
+    }
+
+    try {
+      const payload = jwt.verify(accessToken, env.JWT_SECRET) as { sub: string };
+      const user = await authService.getUserById(payload.sub);
+      if (!user) {
+        res.status(401).json({ error: 'Пользователь не найден' });
+        return;
+      }
+
+      // Consume the one-time cookies
+      res.clearCookie('oauth_access',  COOKIE_OPTS);
+      res.clearCookie('oauth_refresh', COOKIE_OPTS);
+
+      res.json({ user, tokens: { accessToken, refreshToken } });
+    } catch {
+      res.clearCookie('oauth_access',  COOKIE_OPTS);
+      res.clearCookie('oauth_refresh', COOKIE_OPTS);
+      res.status(401).json({ error: 'OAuth токен недействителен' });
     }
   },
 };

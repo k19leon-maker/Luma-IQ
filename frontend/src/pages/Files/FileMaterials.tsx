@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore, AudienceAnswers } from '../../store/audience.store';
 import s from './Files.module.css';
 
 interface FileEntry {
@@ -16,7 +17,7 @@ function tryParse<T>(raw: string | null): T | null {
   try { return JSON.parse(raw) as T; } catch { return null; }
 }
 
-function gatherFiles(projectId: string): FileEntry[] {
+function gatherFiles(projectId: string, audienceAnswers?: Partial<AudienceAnswers>): FileEntry[] {
   const files: FileEntry[] = [];
 
   // Posts
@@ -82,13 +83,14 @@ function gatherFiles(projectId: string): FileEntry[] {
     });
   }
 
-  // Strategy
-  const stratRaw = localStorage.getItem('strategy_answers');
-  if (stratRaw) {
-    const a = tryParse<Record<string, string>>(stratRaw);
-    const seg = a?.['chosenSegment'] || a?.['segments'] || '';
+  // Strategy — from per-project audience store
+  if (audienceAnswers) {
+    const seg = audienceAnswers.chosenSegment || audienceAnswers.segments || '';
     if (seg) {
-      const text = Object.entries(a ?? {}).map(([k, v]) => `${k}:\n${v}`).join('\n\n');
+      const text = Object.entries(audienceAnswers)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}:\n${v}`)
+        .join('\n\n');
       files.push({ id: 'strategy_main', icon: '🎯', type: 'Стратегия', title: `Стратегия — ${seg.split('\n')[0]?.slice(0, 50) ?? ''}`, content: text, date: '' });
     }
   }
@@ -108,7 +110,11 @@ function download(title: string, content: string) {
 
 export default function FileMaterials() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
-  const files = useMemo(() => gatherFiles(activeProjectId), [activeProjectId]);
+  const audienceAnswers = useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers);
+  const files = useMemo(
+    () => gatherFiles(activeProjectId, audienceAnswers),
+    [activeProjectId, audienceAnswers],
+  );
 
   return (
     <div className={s.root}>

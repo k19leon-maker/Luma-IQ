@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import authRouter from './routes/auth.routes';
 import aiRouter from './routes/ai.routes';
@@ -12,6 +13,8 @@ import contentRouter from './routes/content.routes';
 import productsRouter from './routes/products.routes';
 import contentPlanRouter from './routes/content-plan.routes';
 import usersRouter from './routes/users.routes';
+import strategyExportRouter from './routes/strategy-export.routes';
+import filesRouter from './routes/files.routes';
 import { projectService } from './services/project.service';
 import { env } from './config/env';
 
@@ -30,10 +33,11 @@ app.use(cors({
 }));
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(cookieParser());
 app.use(passport.initialize());
 
 app.get('/api/v1/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'psy-boost-backend' });
+  res.json({ status: 'ok', service: 'lumaiq-backend' });
 });
 
 app.use('/api/v1/auth', authRouter);
@@ -44,6 +48,8 @@ app.use('/api/v1/content', contentRouter);
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/content-plan', contentPlanRouter);
 app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/strategy', strategyExportRouter);
+app.use('/api/v1/files', filesRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend запущен на http://localhost:${PORT}`);

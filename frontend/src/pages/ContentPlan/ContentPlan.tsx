@@ -372,7 +372,7 @@ function DroppableDay({
 
 export default function ContentPlan() {
   const { items, loadItems, removeItem, updateItem, moveItem } = useContentPlanStore();
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
 
   useEffect(() => {
     if (activeProjectId) void loadItems(activeProjectId);

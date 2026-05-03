@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { projectService } from '../services/project.service';
 
@@ -18,6 +19,16 @@ const updateSchema = z.object({
 const completeStrategySchema = z.object({
   summary: z.string().max(10000).optional(),
   strategyData: z.record(z.unknown()).optional(),
+});
+
+const saveStrategySchema = z.object({
+  answers:   z.record(z.string()).optional(),
+  completed: z.boolean().optional(),
+  // unpacking data
+  unpackingAnswers:   z.record(z.unknown()).optional(),
+  unpackingCompleted: z.boolean().optional(),
+  // progress flags
+  progressFlags: z.record(z.boolean()).optional(),
 });
 
 export const projectController = {
@@ -113,6 +124,86 @@ export const projectController = {
     } catch (err) {
       console.error('[Projects] completeStrategy:', err);
       res.status(500).json({ error: 'Ошибка при завершении стратегии' });
+    }
+  },
+
+  /** GET /api/v1/projects/:id/strategy — load persisted project data */
+  async getStrategyData(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const project = await projectService.getOwned(req.userId!, req.params.id as string);
+      if (!project) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      res.json({ strategyData: project.strategyData ?? null });
+    } catch (err) {
+      console.error('[Projects] getStrategyData:', err);
+      res.status(500).json({ error: 'Ошибка при загрузке данных стратегии' });
+    }
+  },
+
+  /** GET /api/v1/projects/:id/utp — load UTP chat + formats */
+  async getUtpData(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { prisma } = await import('../lib/prisma');
+      const project = await prisma.project.findFirst({
+        where: { id: req.params.id as string, userId: req.userId! },
+        select: { utpData: true },
+      });
+      if (!project) { res.status(404).json({ error: 'Проект не найден' }); return; }
+      res.json(project.utpData ?? null);
+    } catch (err) {
+      console.error('[Projects] getUtpData:', err);
+      res.status(500).json({ error: 'Ошибка загрузки' });
+    }
+  },
+
+  /** PATCH /api/v1/projects/:id/utp — save UTP chat + formats */
+  async saveUtpData(req: AuthRequest, res: Response): Promise<void> {
+    const { messages, formats } = req.body as { messages?: unknown[]; formats?: unknown };
+    try {
+      const { prisma } = await import('../lib/prisma');
+      const project = await prisma.project.findFirst({
+        where: { id: req.params.id as string, userId: req.userId! },
+        select: { id: true },
+      });
+      if (!project) { res.status(404).json({ error: 'Проект не найден' }); return; }
+      await prisma.project.update({
+        where: { id: req.params.id as string },
+        data: { utpData: { messages, formats, updatedAt: new Date().toISOString() } as Prisma.InputJsonValue },
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[Projects] saveUtpData:', err);
+      res.status(500).json({ error: 'Ошибка сохранения' });
+    }
+  },
+
+  /** PATCH /api/v1/projects/:id/strategy — save audience/unpacking/progress data */
+  async saveStrategyData(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = saveStrategySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    try {
+      const project = await projectService.getOwned(req.userId!, req.params.id as string);
+      if (!project) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      // Merge new data into existing strategyData
+      const existing = (project.strategyData as Record<string, unknown>) ?? {};
+      const merged   = { ...existing, ...parsed.data } as Prisma.InputJsonValue;
+      const { prisma } = await import('../lib/prisma');
+      await prisma.project.update({
+        where: { id: req.params.id as string },
+        data: { strategyData: merged },
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[Projects] saveStrategyData:', err);
+      res.status(500).json({ error: 'Ошибка при сохранении данных стратегии' });
     }
   },
 };

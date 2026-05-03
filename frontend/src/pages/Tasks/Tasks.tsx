@@ -1,355 +1,441 @@
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   DndContext,
   DragOverlay,
-  useDraggable,
-  useDroppable,
-  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
   type DragStartEvent,
+  type DragEndEvent,
+  useDroppable,
 } from '@dnd-kit/core';
-import {
-  useTasksStore,
-  type Task,
-  type TaskColumn,
-  type TaskCategory,
-} from '../../store/tasks.store';
-import s from './Tasks.module.css';
+import { useDraggable } from '@dnd-kit/core';
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const COLUMNS: { id: TaskColumn; label: string; icon: string }[] = [
-  { id: 'backlog', label: 'Список задач',   icon: '📋' },
-  { id: 'week',    label: 'На этой неделе', icon: '📅' },
-  { id: 'today',   label: 'Сегодня',        icon: '⚡' },
-  { id: 'done',    label: 'Выполнено',      icon: '✅' },
-];
+type Category = 'strategy' | 'content' | 'products';
+type Priority = 'high' | 'medium' | 'low';
+type Column   = 'all' | 'today' | 'week' | 'done';
 
-export const CATEGORIES: {
-  id: TaskCategory;
-  icon: string;
-  label: string;
-  color: string;
-}[] = [
-  { id: 'strategy', icon: '🎯', label: 'Стратегия',    color: '#7c6cfc' },
-  { id: 'products', icon: '🚀', label: 'Продукты',     color: '#f59e0b' },
-  { id: 'content',  icon: '📱', label: 'Контент',      color: '#34d399' },
-  { id: 'planning', icon: '📅', label: 'Планирование', color: '#3b82f6' },
-];
-
-function getCat(id: TaskCategory) {
-  return CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0]!;
+interface Task {
+  id:       string;
+  title:    string;
+  category: Category;
+  dueLabel: string;
+  priority: Priority;
+  done:     boolean;
+  column:   Column;
 }
 
-// ── Shared card content ────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-function CardContent({
-  task,
-  onDelete,
-  onNavigate,
-}: {
-  task:        Task;
-  onDelete?:   () => void;
-  onNavigate?: () => void;
+const CATEGORY_STYLE: Record<Category, { bg: string; color: string; label: string }> = {
+  strategy: { bg: '#FDF3EF', color: '#C1502A', label: 'Стратегия'  },
+  content:  { bg: '#E6F1FB', color: '#185FA5', label: 'Контент'    },
+  products: { bg: '#EAF3DE', color: '#3B6D11', label: 'Продукты'   },
+};
+
+const PRIORITY_STYLE: Record<Priority, { color: string; label: string }> = {
+  high:   { color: '#C1502A', label: 'Важно'   },
+  medium: { color: '#D4A847', label: 'Средний' },
+  low:    { color: '#888',    label: 'Низкий'  },
+};
+
+const COLUMNS: { id: Column; label: string; dot: string }[] = [
+  { id: 'all',   label: 'Все задачи', dot: '#888'    },
+  { id: 'today', label: 'Сегодня',    dot: '#D4A847' },
+  { id: 'week',  label: 'На неделе',  dot: '#2563EB' },
+  { id: 'done',  label: 'Выполнено',  dot: '#4A7C59' },
+];
+
+// ─── Initial tasks ────────────────────────────────────────────────────────────
+
+const INITIAL_TASKS: Task[] = [
+  { id: '1',  title: 'Создать УТП',                   category: 'strategy', dueLabel: '7 мая',   priority: 'high',   done: false, column: 'all'   },
+  { id: '2',  title: 'Создать мини-продукт',           category: 'products', dueLabel: '10 мая',  priority: 'medium', done: false, column: 'all'   },
+  { id: '3',  title: 'Запланировать контент на май',   category: 'content',  dueLabel: '9 мая',   priority: 'low',    done: false, column: 'all'   },
+  { id: '4',  title: 'Заполнить анкету распаковки',   category: 'strategy', dueLabel: 'Сегодня', priority: 'high',   done: false, column: 'today' },
+  { id: '5',  title: 'Написать 3 поста для Telegram', category: 'content',  dueLabel: 'Сегодня', priority: 'medium', done: false, column: 'today' },
+  { id: '6',  title: 'Выбрать целевую аудиторию',     category: 'strategy', dueLabel: '5 мая',   priority: 'high',   done: false, column: 'week'  },
+  { id: '7',  title: 'Создать основной продукт',      category: 'products', dueLabel: '8 мая',   priority: 'medium', done: false, column: 'week'  },
+  { id: '8',  title: 'Оформить профиль Instagram',    category: 'strategy', dueLabel: '2 мая',   priority: 'medium', done: true,  column: 'done'  },
+  { id: '9',  title: 'Создать лид-магнит',            category: 'products', dueLabel: '2 мая',   priority: 'low',    done: true,  column: 'done'  },
+  { id: '10', title: 'Снять рилс «Мой метод»',        category: 'content',  dueLabel: '1 мая',   priority: 'low',    done: true,  column: 'done'  },
+  { id: '11', title: 'Распаковка завершена',          category: 'strategy', dueLabel: '30 апр',  priority: 'high',   done: true,  column: 'done'  },
+];
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+function CalendarIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ marginRight: 3, verticalAlign: 'middle' }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+      <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ─── AddModal ─────────────────────────────────────────────────────────────────
+
+function AddModal({ column, onClose, onAdd }: {
+  column: Column;
+  onClose: () => void;
+  onAdd: (task: Omit<Task, 'id'>) => void;
 }) {
-  const cat = getCat(task.category);
-  return (
-    <>
-      <div className={s.cardCat} style={{ color: cat.color }}>
-        {cat.icon} {cat.label}
-      </div>
-      <div className={s.cardTitle}>{task.title}</div>
-      {task.description && (
-        <div className={s.cardDesc}>{task.description}</div>
-      )}
-      {task.link && onNavigate && (
-        <button
-          className={s.cardLink}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onNavigate(); }}
-        >
-          Открыть раздел →
-        </button>
-      )}
-      {onDelete && (
-        <button
-          className={s.cardDelete}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          aria-label="Удалить задачу"
-        >
-          ✕
-        </button>
-      )}
-    </>
-  );
-}
-
-// ── Draggable card ─────────────────────────────────────────────────────────────
-
-function DraggableCard({ task, isActive }: { task: Task; isActive: boolean }) {
-  const navigate   = useNavigate();
-  const removeTask = useTasksStore((st) => st.removeTask);
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: task.id });
-
-  const style: React.CSSProperties | undefined = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`${s.card}${isActive ? ' ' + s.cardActive : ''}`}
-      {...attributes}
-      {...listeners}
-    >
-      <CardContent
-        task={task}
-        onDelete={() => removeTask(task.id)}
-        onNavigate={() => { if (task.link) navigate(task.link); }}
-      />
-    </div>
-  );
-}
-
-// ── Inline add form ────────────────────────────────────────────────────────────
-
-function AddForm({ column, onClose }: { column: TaskColumn; onClose: () => void }) {
-  const addTask  = useTasksStore((st) => st.addTask);
-  const [title,  setTitle]  = useState('');
-  const [desc,   setDesc]   = useState('');
-  const [cat,    setCat]    = useState<TaskCategory>('strategy');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const [title,    setTitle]    = useState('');
+  const [category, setCategory] = useState<Category>('strategy');
+  const [priority, setPriority] = useState<Priority>('medium');
 
   function handleSubmit() {
-    const t = title.trim();
-    if (!t) return;
-    addTask({ title: t, description: desc.trim() || undefined, category: cat, column });
+    if (!title.trim()) return;
+    onAdd({ title: title.trim(), category, priority, dueLabel: column === 'today' ? 'Сегодня' : '', done: column === 'done', column });
     onClose();
   }
 
   return (
-    <div className={s.addForm}>
-      <input
-        ref={inputRef}
-        className={s.addInput}
-        placeholder="Заголовок задачи"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-      />
-      <textarea
-        className={s.addTextarea}
-        placeholder="Описание (необязательно)"
-        value={desc}
-        onChange={(e) => setDesc(e.target.value)}
-        rows={2}
-      />
-      <div className={s.addCatRow}>
-        <span className={s.addCatLabel}>Категория:</span>
-        <div className={s.addCatBtns}>
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              className={`${s.addCatBtn}${cat === c.id ? ' ' + s.addCatBtnActive : ''}`}
-              style={cat === c.id ? { borderColor: c.color, color: c.color } : undefined}
-              title={c.label}
-              onClick={() => setCat(c.id)}
-            >
-              {c.icon}
-            </button>
-          ))}
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 12, padding: 28, width: 440, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.12)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{ fontSize: 17, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>Новая задача</h2>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 12, color: '#888' }}>Название</label>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            placeholder="Что нужно сделать?"
+            style={{ padding: '10px 12px', border: '1px solid #E5E3DC', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+          />
         </div>
-      </div>
-      <div className={s.addActions}>
-        <button
-          className={s.addSubmitBtn}
-          onClick={handleSubmit}
-          disabled={!title.trim()}
-        >
-          Добавить
-        </button>
-        <button className={s.addCancelBtn} onClick={onClose}>
-          Отмена
-        </button>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12, color: '#888' }}>Раздел</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as Category)}
+              style={{ padding: '10px 12px', border: '1px solid #E5E3DC', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', background: '#fff' }}
+            >
+              <option value="strategy">Стратегия</option>
+              <option value="content">Контент</option>
+              <option value="products">Продукты</option>
+            </select>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12, color: '#888' }}>Приоритет</label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as Priority)}
+              style={{ padding: '10px 12px', border: '1px solid #E5E3DC', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', background: '#fff' }}
+            >
+              <option value="high">Важно</option>
+              <option value="medium">Средний</option>
+              <option value="low">Низкий</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+          <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #E5E3DC', background: '#fff', color: '#555', fontSize: 14, cursor: 'pointer' }}>
+            Отмена
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim()}
+            style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: title.trim() ? '#D4A847' : '#F0EEE8', color: title.trim() ? '#fff' : '#bbb', fontSize: 14, fontWeight: 500, cursor: title.trim() ? 'pointer' : 'not-allowed' }}
+          >
+            Создать
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Droppable column ───────────────────────────────────────────────────────────
+// ─── TaskCardInner ─────────────────────────────────────────────────────────────
+// Shared rendering for both draggable card and overlay ghost
 
-function DroppableColumn({
-  col,
-  tasks,
-  activeId,
-  addingIn,
-  onStartAdd,
-  onCloseAdd,
-}: {
-  col:       typeof COLUMNS[number];
-  tasks:     Task[];
-  activeId:  string | null;
-  addingIn:  TaskColumn | null;
-  onStartAdd: (col: TaskColumn) => void;
-  onCloseAdd: () => void;
+function TaskCardInner({ task, onToggle, isDragging = false }: {
+  task: Task;
+  onToggle?: (id: string) => void;
+  isDragging?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const cat     = CATEGORY_STYLE[task.category];
+  const pri     = PRIORITY_STYLE[task.priority];
+  const isToday = task.dueLabel === 'Сегодня';
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: `0.5px solid ${isDragging ? '#D4A847' : '#E5E3DC'}`,
+      borderRadius: 8,
+      padding: '12px 14px',
+      cursor: isDragging ? 'grabbing' : 'grab',
+      opacity: isDragging ? 0.95 : 1,
+      boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : 'none',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: cat.bg, color: cat.color }}>
+          {cat.label}
+        </span>
+        {onToggle && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
+            style={{
+              width: 18, height: 18, borderRadius: 4,
+              border: task.done ? 'none' : '1.5px solid #D3D1C7',
+              background: task.done ? '#4A7C59' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', padding: 0, flexShrink: 0,
+            }}
+          >
+            {task.done && <CheckIcon />}
+          </button>
+        )}
+      </div>
+
+      <div style={{ fontSize: 14, fontWeight: 500, color: task.done ? '#aaa' : '#1a1a1a', textDecoration: task.done ? 'line-through' : 'none', marginBottom: 8, lineHeight: 1.4 }}>
+        {task.title}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, color: isToday ? '#C1502A' : '#aaa', display: 'flex', alignItems: 'center' }}>
+          <CalendarIcon />
+          {task.dueLabel}
+        </span>
+        <span style={{ fontSize: 11, color: pri.color, fontWeight: 500 }}>
+          {pri.label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── DraggableTaskCard ────────────────────────────────────────────────────────
+
+function DraggableTaskCard({ task, onToggle }: { task: Task; onToggle: (id: string) => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
 
   return (
     <div
       ref={setNodeRef}
-      className={`${s.column}${isOver && activeId ? ' ' + s.columnOver : ''}`}
+      {...listeners}
+      {...attributes}
+      style={{ marginBottom: 8, opacity: isDragging ? 0.35 : 1, transition: 'opacity 0.15s' }}
     >
-      <div className={s.colHeader}>
-        <span className={s.colIcon}>{col.icon}</span>
-        <span className={s.colLabel}>{col.label}</span>
-        <span className={s.colCount}>{tasks.length}</span>
+      <TaskCardInner task={task} onToggle={onToggle} />
+    </div>
+  );
+}
+
+// ─── DroppableColumn ──────────────────────────────────────────────────────────
+
+function DroppableColumn({ col, tasks, onToggle, onAddClick }: {
+  col: typeof COLUMNS[number];
+  tasks: Task[];
+  onToggle: (id: string) => void;
+  onAddClick: (column: Column) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {/* Column header */}
+      <div style={{ borderBottom: `2px solid ${col.dot}`, paddingBottom: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: col.dot, flexShrink: 0, display: 'inline-block' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{col.label}</span>
+        <span style={{
+          minWidth: 20, height: 20, borderRadius: 10, background: '#F5F4F0',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 600, color: '#888', padding: '0 6px',
+        }}>
+          {tasks.length}
+        </span>
       </div>
 
-      <div className={s.colCards}>
-        {tasks.map((task) => (
-          <DraggableCard key={task.id} task={task} isActive={task.id === activeId} />
+      {/* Add button */}
+      <button
+        onClick={() => onAddClick(col.id)}
+        style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 13, cursor: 'pointer', textAlign: 'left', padding: '0 0 10px', transition: 'color 0.15s' }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = '#D4A847')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = '#aaa')}
+      >
+        + Добавить задачу
+      </button>
+
+      {/* Drop zone */}
+      <div
+        ref={setNodeRef}
+        style={{
+          flex: 1,
+          minHeight: 80,
+          borderRadius: 8,
+          background: isOver ? 'rgba(212, 168, 71, 0.06)' : 'transparent',
+          border: isOver ? '1.5px dashed #D4A847' : '1.5px dashed transparent',
+          transition: 'background 0.15s, border-color 0.15s',
+          padding: isOver ? 4 : 0,
+        }}
+      >
+        {tasks.map((t) => (
+          <DraggableTaskCard key={t.id} task={t} onToggle={onToggle} />
         ))}
-        {addingIn === col.id && (
-          <AddForm column={col.id} onClose={onCloseAdd} />
+
+        {tasks.length === 0 && !isOver && (
+          <div style={{ fontSize: 12, color: '#ddd', textAlign: 'center', paddingTop: 16 }}>
+            Перетащите сюда
+          </div>
         )}
       </div>
-
-      {addingIn !== col.id && (
-        <button className={s.colAddBtn} onClick={() => onStartAdd(col.id)}>
-          + Добавить задачу
-        </button>
-      )}
     </div>
   );
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────────────
-
-function Toast({ title, visible }: { title: string; visible: boolean }) {
-  return (
-    <div className={`${s.toast}${visible ? ' ' + s.toastVisible : ''}`}>
-      <span className={s.toastIcon}>🎉</span>
-      <div>
-        <div className={s.toastTitle}>Задача выполнена!</div>
-        <div className={s.toastTask}>{title}</div>
-      </div>
-    </div>
-  );
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Tasks() {
-  const { tasks, moveTask } = useTasksStore();
+  const [tasks,     setTasks]     = useState<Task[]>(INITIAL_TASKS);
+  const [addColumn, setAddColumn] = useState<Column | null>(null);
+  const [activeId,  setActiveId]  = useState<string | null>(null);
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [addingIn, setAddingIn] = useState<TaskColumn | null>(null);
-  const [toast,    setToast]    = useState({ visible: false, title: '' });
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  function showToast(title: string) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ visible: true, title });
-    toastTimer.current = setTimeout(
-      () => setToast((t) => ({ ...t, visible: false })),
-      3000,
-    );
+  const total      = tasks.length;
+  const doneCount  = tasks.filter((t) => t.done).length;
+  const todayCount = tasks.filter((t) => t.column === 'today').length;
+  const weekCount  = tasks.filter((t) => t.column === 'week').length;
+  const pct        = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  function handleToggle(id: string) {
+    setTasks((prev) => {
+      const task = prev.find((t) => t.id === id);
+      if (!task) return prev;
+      const nowDone = !task.done;
+      if (nowDone) toast.success('Задача выполнена 🎉');
+      return prev.map((t) =>
+        t.id === id
+          ? { ...t, done: nowDone, column: nowDone ? 'done' : t.column === 'done' ? 'all' : t.column }
+          : t
+      );
+    });
   }
 
-  function handleDragStart({ active }: DragStartEvent) {
-    setActiveId(active.id as string);
-    setAddingIn(null);
+  function handleAdd(task: Omit<Task, 'id'>) {
+    setTasks((prev) => [...prev, { ...task, id: crypto.randomUUID() }]);
   }
 
-  function handleDragEnd({ active, over }: DragEndEvent) {
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
     setActiveId(null);
+    const { active, over } = event;
     if (!over) return;
-    const targetCol = over.id as TaskColumn;
-    const task = tasks.find((t) => t.id === active.id);
-    if (!task || task.column === targetCol) return;
-    moveTask(task.id, targetCol);
-    if (targetCol === 'done') showToast(task.title);
+
+    const taskId    = active.id as string;
+    const targetCol = over.id as Column;
+    const validCols = new Set<Column>(['all', 'today', 'week', 'done']);
+    if (!validCols.has(targetCol)) return;
+
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t;
+      if (t.column === targetCol) return t;
+      const nowDone = targetCol === 'done';
+      if (nowDone && !t.done) toast.success('Задача выполнена 🎉');
+      return { ...t, column: targetCol, done: nowDone };
+    }));
   }
 
-  const total  = tasks.length;
-  const todayN = tasks.filter((t) => t.column === 'today').length;
-  const doneN  = tasks.filter((t) => t.column === 'done').length;
-  const pct    = total > 0 ? Math.round((doneN / total) * 100) : 0;
+  const tasksByColumn: Record<Column, Task[]> = {
+    all:   tasks.filter((t) => t.column === 'all'),
+    today: tasks.filter((t) => t.column === 'today'),
+    week:  tasks.filter((t) => t.column === 'week'),
+    done:  tasks.filter((t) => t.column === 'done'),
+  };
 
-  const byCol      = (col: TaskColumn) => tasks.filter((t) => t.column === col);
-  const activeTask = tasks.find((t) => t.id === activeId) ?? null;
+  const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
   return (
-    <div className={s.root}>
+    <div style={{ backgroundColor: '#fff', minHeight: '100%', paddingBottom: 40 }}>
 
-      {/* ── Stats ─────────────────────────────────────────────────────────────── */}
-      <div className={s.statsSection}>
-        <div className={s.statCards}>
-          <div className={s.statCard}>
-            <span className={s.statEmoji}>📋</span>
-            <div>
-              <div className={s.statValue}>{total}</div>
-              <div className={s.statLabel}>Всего задач</div>
-            </div>
-          </div>
-          <div className={s.statCard}>
-            <span className={s.statEmoji}>⚡</span>
-            <div>
-              <div className={s.statValue}>{todayN}</div>
-              <div className={s.statLabel}>На сегодня</div>
-            </div>
-          </div>
-          <div className={s.statCard}>
-            <span className={s.statEmoji}>✅</span>
-            <div>
-              <div className={s.statValue}>
-                {doneN}
-                {total > 0 && <span className={s.statPct}> ({pct}%)</span>}
-              </div>
-              <div className={s.statLabel}>Выполнено</div>
-            </div>
-          </div>
+      {/* Header row 1 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 500, color: '#1a1a1a', margin: 0 }}>План задач</h1>
+          <span style={{ fontSize: 13, color: '#888' }}>{total} задач · {pct}% выполнено</span>
         </div>
-        <div className={s.progressRow}>
-          <div className={s.progressBar}>
-            <div className={s.progressFill} style={{ width: `${pct}%` }} />
-          </div>
-          <span className={s.progressLabel}>{pct}% выполнено</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E5E3DC', background: '#fff', color: '#555', fontSize: 13, cursor: 'pointer' }}>
+            Фильтр
+          </button>
+          <button
+            onClick={() => setAddColumn('all')}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#D4A847', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+          >
+            + Добавить задачу
+          </button>
         </div>
       </div>
 
-      {/* ── Board ─────────────────────────────────────────────────────────────── */}
-      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className={s.board}>
+      {/* Header row 2 — stats */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 28 }}>
+        <span style={{ fontSize: 13, color: '#888' }}><strong style={{ color: '#1a1a1a' }}>{total}</strong> Всего</span>
+        <span style={{ fontSize: 13, color: '#888' }}><strong style={{ color: '#D4A847' }}>{todayCount}</strong> Сегодня</span>
+        <span style={{ fontSize: 13, color: '#888' }}><strong style={{ color: '#2563EB' }}>{weekCount}</strong> На неделе</span>
+        <span style={{ fontSize: 13, color: '#888' }}><strong style={{ color: '#4A7C59' }}>{doneCount}</strong> Выполнено</span>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 120, height: 6, borderRadius: 3, background: '#F0EEE8', overflow: 'hidden' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: '#D4A847', borderRadius: 3, transition: 'width 0.3s' }} />
+          </div>
+          <span style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>{pct}%</span>
+        </div>
+      </div>
+
+      {/* Kanban with DnD */}
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
           {COLUMNS.map((col) => (
             <DroppableColumn
               key={col.id}
               col={col}
-              tasks={byCol(col.id)}
-              activeId={activeId}
-              addingIn={addingIn}
-              onStartAdd={setAddingIn}
-              onCloseAdd={() => setAddingIn(null)}
+              tasks={tasksByColumn[col.id]}
+              onToggle={handleToggle}
+              onAddClick={setAddColumn}
             />
           ))}
         </div>
 
-        <DragOverlay dropAnimation={null}>
-          {activeTask && (
-            <div className={`${s.card} ${s.cardOverlay}`}>
-              <CardContent task={activeTask} />
-            </div>
-          )}
+        <DragOverlay>
+          {activeTask && <TaskCardInner task={activeTask} isDragging />}
         </DragOverlay>
       </DndContext>
 
-      {/* ── Toast ─────────────────────────────────────────────────────────────── */}
-      <Toast title={toast.title} visible={toast.visible} />
+      {addColumn !== null && (
+        <AddModal
+          column={addColumn}
+          onClose={() => setAddColumn(null)}
+          onAdd={handleAdd}
+        />
+      )}
     </div>
   );
 }

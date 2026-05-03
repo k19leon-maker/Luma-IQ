@@ -27,7 +27,7 @@ export async function exportToDocx(
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: 'Создано в PSY Boost',
+                    text: 'Создано в LumaIQ',
                     size: 18,
                     color: '888888',
                   }),

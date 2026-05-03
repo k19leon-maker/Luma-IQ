@@ -7,6 +7,7 @@ export interface UserProfile {
   avatarUrl:      string | null;
   avatarColor:    string | null;
   defaultAiModel: string | null;
+  specialization: string | null;
   role:           string;
 }
 
@@ -14,7 +15,7 @@ export const usersApi = {
   getMe: () =>
     apiClient.get<{ user: UserProfile }>('/users/me').then((r) => r.data.user),
 
-  updateMe: (data: Partial<Pick<UserProfile, 'name' | 'avatarColor' | 'defaultAiModel'>>) =>
+  updateMe: (data: Partial<Pick<UserProfile, 'name' | 'avatarColor' | 'defaultAiModel' | 'specialization'>>) =>
     apiClient.patch<{ user: UserProfile }>('/users/me', data).then((r) => r.data.user),
 
   changePassword: (currentPassword: string, newPassword: string) =>

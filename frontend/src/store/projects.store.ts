@@ -69,10 +69,16 @@ export const useProjectsStore = create<ProjectsState>()(
       },
 
       addProject: async (name: string) => {
-        const project = await projectsApi.create({ name });
         const { projects } = get();
         const color = colorForIndex(projects.length);
-        const local: LocalProject = { id: project.id, name: project.name, color };
+        let local: LocalProject;
+        try {
+          const project = await projectsApi.create({ name });
+          local = { id: project.id, name: project.name, color };
+        } catch {
+          // Backend unavailable — create locally with a UUID
+          local = { id: crypto.randomUUID(), name, color };
+        }
         set((s) => ({
           projects: [...s.projects, local],
           activeProjectId: local.id,
@@ -113,8 +119,9 @@ export const useProjectsStore = create<ProjectsState>()(
       clearCurrentProject: ()        => set({ currentProject: null }),
     }),
     {
-      name:    'psy-boost-projects-v3',
+      name:    'lumaiq-projects-v4',
       partialize: (s) => ({
+        projects:        s.projects,
         activeProjectId: s.activeProjectId,
         currentProject:  s.currentProject,
       }),

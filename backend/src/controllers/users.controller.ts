@@ -8,6 +8,7 @@ const updateProfileSchema = z.object({
   name:           z.string().min(1).max(100).optional(),
   avatarColor:    z.string().max(20).optional(),
   defaultAiModel: z.string().max(50).optional(),
+  specialization: z.string().max(200).optional(),
 });
 
 const changePasswordSchema = z.object({
@@ -22,7 +23,7 @@ export const usersController = {
         where: { id: req.userId! },
         select: {
           id: true, email: true, name: true, avatarUrl: true,
-          avatarColor: true, defaultAiModel: true, role: true,
+          avatarColor: true, defaultAiModel: true, specialization: true, role: true,
         },
       });
       if (!user) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
@@ -42,7 +43,7 @@ export const usersController = {
         data: parsed.data,
         select: {
           id: true, email: true, name: true, avatarUrl: true,
-          avatarColor: true, defaultAiModel: true, role: true,
+          avatarColor: true, defaultAiModel: true, specialization: true, role: true,
         },
       });
       res.json({ user });
