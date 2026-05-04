@@ -1,17 +1,178 @@
-import s from './LeadMagnet.module.css';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { useProjectsStore } from '../../store/projects.store';
+import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
+import { aiApi } from '../../api/ai';
+
+interface ProductState {
+  name: string;
+  price: string;
+  format: string;
+  duration: string;
+  description: string;
+  generated: boolean;
+}
+
+const MOCK_DATA = {
+  name: 'PDF «5 техник выхода из конфликта»',
+  price: 'Бесплатно',
+  format: 'PDF-гайд',
+  duration: 'Самостоятельно',
+  description:
+    'Практическое руководство с пятью доказанными техниками для снижения конфликтности в паре. Подходит для самостоятельной работы.',
+};
+
+const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; label: string }[] = [
+  { key: 'name',     label: 'Название' },
+  { key: 'price',    label: 'Цена' },
+  { key: 'format',   label: 'Формат' },
+  { key: 'duration', label: 'Длительность / изучение' },
+];
 
 export default function LeadMagnet() {
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings = useModelStore((s) => s.getSettings);
+  const profileData = useUnpackingStore((s) => s.profileData);
+
+  const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  function buildProfile(): string {
+    if (!profileData || Object.keys(profileData).length === 0) return '';
+    return Object.entries(profileData).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n');
+  }
+
+  async function handleCreate() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const settings = getSettings('lead-magnet');
+      const profile  = buildProfile();
+      const prompt   = `Ты маркетолог психологов. Создай описание ЛИД-МАГНИТА (бесплатный входной продукт) для психолога.
+Лид-магнит — бесплатный материал: PDF-гайд, чек-лист, мини-вебинар или видео-урок.
+Цена: всегда «Бесплатно». Должен решать конкретную мини-проблему целевой аудитории.
+${profile ? `\nПрофиль психолога:\n${profile}` : ''}
+
+Верни JSON (без markdown-блоков):
+{
+  "name": "название лид-магнита",
+  "price": "Бесплатно",
+  "format": "формат (PDF-гайд / Чек-лист / Мини-вебинар / Видео-урок)",
+  "duration": "время изучения (например: 15 минут)",
+  "description": "описание 2–3 предложения"
+}`;
+
+      const resp = await aiApi.chat({
+        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel:         settings.claudeModel,
+        section:             'lead-magnet',
+        message:             prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile:    profileData as Record<string, string>,
+      });
+
+      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as typeof MOCK_DATA;
+      setState({ ...json, generated: true });
+    } catch (err) {
+      console.warn('[LeadMagnet] AI error, using fallback:', err);
+      setState({ ...MOCK_DATA, generated: true });
+      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const btnGold: React.CSSProperties = {
+    background: loading ? '#e8d498' : '#D4A847',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    cursor: loading ? 'not-allowed' : 'pointer',
+    fontWeight: 500,
+  };
+
+  const btnOutlined: React.CSSProperties = {
+    background: '#fff',
+    border: '1px solid #E5E3DC',
+    color: '#555',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    cursor: 'pointer',
+    fontWeight: 500,
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: 11, textTransform: 'uppercase', color: '#999', letterSpacing: 1.5, marginBottom: 4 };
+  const valueStyle: React.CSSProperties = { fontSize: 14, color: '#1a1a1a', fontWeight: 500 };
+
   return (
-    <div className={s.root}>
-      <div className={s.placeholder}>
-        <div className={s.icon}>📄</div>
-        <h2 className={s.title}>Лид-магнит</h2>
-        <p className={s.desc}>
-          Бесплатный материал для привлечения аудитории: гайд, чек-лист,
-          мини-урок или бесплатная консультация.
-        </p>
-        <button className={s.btn}>Начать</button>
+    <div style={{ background: '#fff', minHeight: '100%' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 500, color: '#1a1a1a', marginBottom: 8, marginTop: 0 }}>
+        Лид-магнит
+      </h1>
+      <p style={{ color: '#888', fontSize: 13, marginBottom: 32, marginTop: 0 }}>
+        Бесплатный входной продукт для привлечения новых клиентов
+      </p>
+
+      {state.generated ? (
+        <div style={{ background: '#F5F4F0', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <div style={labelStyle}>{label}</div>
+                {editing ? (
+                  <input
+                    value={state[key]}
+                    onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
+                    style={{ fontSize: 14, border: '1px solid #D4A847', borderRadius: 6, padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
+                  />
+                ) : (
+                  <div style={valueStyle}>{state[key]}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          border: '1.5px dashed #D3D1C7', borderRadius: 12, padding: 40, marginBottom: 24,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160,
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 12, color: '#ccc' }}>+</div>
+          <div style={{ fontSize: 14, color: '#999' }}>Лид-магнит ещё не создан</div>
+          <div style={{ fontSize: 13, color: '#bbb', marginTop: 4 }}>Нажмите «Создать с AI»</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        <button style={btnGold} onClick={() => void handleCreate()} disabled={loading}>
+          {loading ? 'Создаю...' : 'Создать с AI'}
+        </button>
+        {state.generated && (
+          <button style={btnOutlined} onClick={() => setEditing((v) => !v)}>
+            {editing ? 'Сохранить' : 'Редактировать'}
+          </button>
+        )}
       </div>
+
+      {state.generated && state.description && (
+        <textarea
+          value={state.description}
+          readOnly={!editing}
+          onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
+          style={{
+            width: '100%', minHeight: 80, padding: 14,
+            border: editing ? '1px solid #D4A847' : '1px solid #E5E3DC',
+            borderRadius: 8, fontSize: 14, fontFamily: 'inherit',
+            color: '#555', background: '#fafafa', resize: 'vertical', boxSizing: 'border-box',
+          }}
+        />
+      )}
     </div>
   );
 }

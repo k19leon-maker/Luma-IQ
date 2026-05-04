@@ -1,248 +1,176 @@
 import { useState } from 'react';
-import ProductWorkspace, { ProductFormProps, StrategyData } from '../../components/ProductWorkspace/ProductWorkspace';
+import toast from 'react-hot-toast';
 import { useProjectsStore } from '../../store/projects.store';
-import s from '../../components/ProductWorkspace/ProductWorkspace.module.css';
+import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
+import { aiApi } from '../../api/ai';
 
-// ─── Mock generator ───────────────────────────────────────────────────────────
-
-function line(text: string | undefined, fallback: string): string {
-  if (!text) return fallback;
-  return text.split('\n')[0]?.replace(/^\d+\.\s*/, '').slice(0, 80) ?? fallback;
+interface ProductState {
+  name: string;
+  price: string;
+  format: string;
+  duration: string;
+  description: string;
+  generated: boolean;
 }
 
-function buildMainProduct(type: string, duration: string, price: string, sd: StrategyData | null): string {
-  const seg    = line(sd?.chosenSegment,    'ваша целевая аудитория');
-  const pain   = line(sd?.corePains,        'сложная ситуация');
-  const result = line(sd?.finalResult,      'желаемый результат');
-  const desires = line(sd?.deepDesires,     'глубокое желание');
-
-  const TYPE_NAMES: Record<string, string> = {
-    course:        'Курс',
-    program:       'Программа',
-    group_format:  'Групповой формат',
-    individual:    'Индивидуальная работа',
-  };
-  const typeName = TYPE_NAMES[type] ?? type;
-
-  const DURATION_LABELS: Record<string, string> = {
-    one_month:     '1 месяц',
-    two_months:    '2–3 месяца',
-    six_months:    '6+ месяцев',
-  };
-  const durationLabel = DURATION_LABELS[duration] ?? duration;
-
-  const PRICE_LABELS: Record<string, string> = {
-    low:  'до 30 000 ₽',
-    mid:  '30 000–60 000 ₽',
-    high: 'от 60 000 ₽',
-  };
-  const priceLabel = PRICE_LABELS[price] ?? price;
-
-  const weeks =
-    duration === 'one_month'  ? 4 :
-    duration === 'two_months' ? 8 :
-                                16;
-
-  const modules = Array.from({ length: Math.min(weeks, 8) }, (_, i) => {
-    const n = i + 1;
-    const titles: Record<number, string> = {
-      1: 'Диагностика и постановка целей',
-      2: `Понять корень: почему ${pain.slice(0, 30)}`,
-      3: 'Первые инструменты — практика с нуля',
-      4: 'Работа с триггерами и паттернами',
-      5: `Строим путь к: ${result.slice(0, 35)}`,
-      6: 'Новые стратегии поведения',
-      7: 'Закрепление результатов',
-      8: 'Финал: автономность и план на будущее',
-    };
-    return `  Неделя ${n}: ${titles[n] ?? `Модуль ${n}: продвижение к цели`}`;
-  }).join('\n');
-
-  const formatByType: Record<string, string> = {
-    course: `${weeks} видеоуроков + задания
-Самостоятельное прохождение в своём темпе
-Закрытый чат участников
-Обратная связь от куратора`,
-
-    program: `${weeks} еженедельных сессий × 60–90 мин
-Онлайн, 1 на 1
-Домашние задания между встречами
-Поддержка в мессенджере`,
-
-    group_format: `${weeks} групповых встреч × 90 мин
-Группа до 8 человек
-Индивидуальная работа на группе
-Закрытый чат + материалы`,
-
-    individual: `${weeks} индивидуальных сессий × 60 мин
-Онлайн, 1 на 1
-Персональная программа под ваш запрос
-Поддержка между сессиями`,
-  };
-
-  const format = formatByType[type] ?? `${weeks} встреч, онлайн`;
-
-  return `ОСНОВНОЙ ПРОДУКТ: ${typeName}
-Длительность: ${durationLabel}
-Стоимость: ${priceLabel}
-Для кого: ${seg}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-НАЗВАНИЕ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-«${result.slice(0, 60)}: ${durationLabel.toLowerCase()} работы»
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ДЛЯ КОГО
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Аудитория: ${seg}
-Боль: ${pain}
-Глубокое желание: ${desires}
-Итоговый результат: ${result}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ТРАНСФОРМАЦИЯ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-До: ${pain}
-После: ${result}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ПРОГРАММА
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${modules}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ФОРМАТ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${format}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ЧТО ПОЛУЧИТ КЛИЕНТ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ Полное понимание своей ситуации и её корней
-✓ Конкретные инструменты для устойчивых изменений
-✓ ${result}
-✓ Навыки самостоятельной работы с собой
-✓ Поддержку на всём пути
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ОФФЕР
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Стоимость: ${priceLabel}
-Рассрочка: на 2–4 части
-Старт: после вводной диагностической сессии (бесплатно)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ПРИЗЫВ К ДЕЙСТВИЮ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Напишите «ХОЧУ» — проведу бесплатную 30-минутную диагностику
-и расскажу, как именно программа решит вашу ситуацию`;
-}
-
-// ─── Form ─────────────────────────────────────────────────────────────────────
-
-const TYPES = [
-  { key: 'course',       label: 'Курс' },
-  { key: 'program',      label: 'Программа' },
-  { key: 'group_format', label: 'Групповой формат' },
-  { key: 'individual',   label: 'Индивидуально' },
-];
-
-const DURATIONS = [
-  { key: 'one_month',  label: '1 месяц' },
-  { key: 'two_months', label: '2–3 месяца' },
-  { key: 'six_months', label: '6+ месяцев' },
-];
-
-const PRICES = [
-  { key: 'low',  label: 'до 30 000 ₽' },
-  { key: 'mid',  label: '30–60 000 ₽' },
-  { key: 'high', label: 'от 60 000 ₽' },
-];
-
-const TYPE_LABELS: Record<string, string> = {
-  course: 'Курс', program: 'Программа',
-  group_format: 'Групповой формат', individual: 'Индивидуальная работа',
+const MOCK_DATA = {
+  name: 'Программа «Гармоничные отношения»',
+  price: '25 000 ₽',
+  format: 'Индивидуальная работа',
+  duration: '3 месяца',
+  description:
+    'Трёхмесячная программа индивидуальной работы по восстановлению отношений. Включает 12 сессий, домашние задания, поддержку в мессенджере.',
 };
 
-function ProductMainForm({ onGenerate, loading, strategy }: ProductFormProps) {
-  const [type,     setType]     = useState('program');
-  const [duration, setDuration] = useState('two_months');
-  const [price,    setPrice]    = useState('mid');
-
-  return (
-    <>
-      <h2 className={s.formTitle}>Создать основной продукт</h2>
-
-      <div className={s.formField}>
-        <span className={s.chipLabel}>Тип продукта</span>
-        <div className={s.chipGroup}>
-          {TYPES.map(({ key, label }) => (
-            <button
-              key={key}
-              className={`${s.chip}${type === key ? ' ' + s.chipActive : ''}`}
-              onClick={() => setType(key)}
-            >{label}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className={s.formField}>
-        <span className={s.chipLabel}>Длительность</span>
-        <div className={s.chipGroup}>
-          {DURATIONS.map(({ key, label }) => (
-            <button
-              key={key}
-              className={`${s.chip}${duration === key ? ' ' + s.chipActive : ''}`}
-              onClick={() => setDuration(key)}
-            >{label}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className={s.formField}>
-        <span className={s.chipLabel}>Ценовой диапазон</span>
-        <div className={s.chipGroup}>
-          {PRICES.map(({ key, label }) => (
-            <button
-              key={key}
-              className={`${s.chip}${price === key ? ' ' + s.chipActive : ''}`}
-              onClick={() => setPrice(key)}
-            >{label}</button>
-          ))}
-        </div>
-      </div>
-
-      <button
-        className={s.generateBtn}
-        disabled={loading}
-        onClick={() =>
-          onGenerate(
-            `${TYPE_LABELS[type] ?? type} (основной)`,
-            buildMainProduct(type, duration, price, strategy),
-          )
-        }
-      >
-        {loading
-          ? <><span className={s.spinner} /> Генерирую…</>
-          : 'Сгенерировать структуру →'}
-      </button>
-    </>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; label: string }[] = [
+  { key: 'name',     label: 'Название' },
+  { key: 'price',    label: 'Цена' },
+  { key: 'format',   label: 'Формат' },
+  { key: 'duration', label: 'Длительность' },
+];
 
 export default function ProductMain() {
-  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings = useModelStore((s) => s.getSettings);
+  const profileData = useUnpackingStore((s) => s.profileData);
+
+  const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  function buildProfile(): string {
+    if (!profileData || Object.keys(profileData).length === 0) return '';
+    return Object.entries(profileData).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n');
+  }
+
+  async function handleCreate() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const settings = getSettings('product-main');
+      const profile  = buildProfile();
+      const prompt   = `Ты маркетолог психологов. Создай описание ОСНОВНОГО (флагманского) продукта психолога.
+${profile ? `\nПрофиль психолога:\n${profile}` : ''}
+
+Верни JSON (без markdown-блоков):
+{
+  "name": "название программы",
+  "price": "цена в рублях (например: 25 000 ₽)",
+  "format": "формат работы (например: Индивидуальная работа онлайн)",
+  "duration": "длительность (например: 3 месяца)",
+  "description": "описание 2–3 предложения"
+}`;
+
+      const resp   = await aiApi.chat({
+        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel:         settings.claudeModel,
+        section:             'product-main',
+        message:             prompt,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile:    profileData as Record<string, string>,
+      });
+
+      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as typeof MOCK_DATA;
+      setState({ ...json, generated: true });
+    } catch (err) {
+      console.warn('[ProductMain] AI error, using fallback:', err);
+      setState({ ...MOCK_DATA, generated: true });
+      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const btnGold: React.CSSProperties = {
+    background: loading ? '#e8d498' : '#D4A847',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    cursor: loading ? 'not-allowed' : 'pointer',
+    fontWeight: 500,
+  };
+
+  const btnOutlined: React.CSSProperties = {
+    background: '#fff',
+    border: '1px solid #E5E3DC',
+    color: '#555',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    cursor: 'pointer',
+    fontWeight: 500,
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: 11, textTransform: 'uppercase', color: '#999', letterSpacing: 1.5, marginBottom: 4 };
+  const valueStyle: React.CSSProperties = { fontSize: 14, color: '#1a1a1a', fontWeight: 500 };
+
   return (
-    <ProductWorkspace
-      sectionTitle="Основной продукт"
-      productIcon="🚀"
-      emptyHint={'Флагманские продукты появятся здесь.\nНажмите «+ Создать»'}
-      storageKey={`products_main_${activeProjectId}`}
-      productType="MAIN"
-      FormComponent={ProductMainForm}
-    />
+    <div style={{ background: '#fff', minHeight: '100%' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 500, color: '#1a1a1a', marginBottom: 8, marginTop: 0 }}>
+        Основной продукт
+      </h1>
+      <p style={{ color: '#888', fontSize: 13, marginBottom: 32, marginTop: 0 }}>
+        Флагманская программа — основа вашего продуктового портфеля
+      </p>
+
+      {state.generated ? (
+        <div style={{ background: '#F5F4F0', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <div style={labelStyle}>{label}</div>
+                {editing ? (
+                  <input
+                    value={state[key]}
+                    onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
+                    style={{ fontSize: 14, border: '1px solid #D4A847', borderRadius: 6, padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
+                  />
+                ) : (
+                  <div style={valueStyle}>{state[key]}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          border: '1.5px dashed #D3D1C7', borderRadius: 12, padding: 40, marginBottom: 24,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160,
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 12, color: '#ccc' }}>+</div>
+          <div style={{ fontSize: 14, color: '#999' }}>Продукт ещё не создан</div>
+          <div style={{ fontSize: 13, color: '#bbb', marginTop: 4 }}>Нажмите «Создать с AI»</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        <button style={btnGold} onClick={() => void handleCreate()} disabled={loading}>
+          {loading ? 'Создаю...' : 'Создать с AI'}
+        </button>
+        {state.generated && (
+          <button style={btnOutlined} onClick={() => setEditing((v) => !v)}>
+            {editing ? 'Сохранить' : 'Редактировать'}
+          </button>
+        )}
+      </div>
+
+      {state.generated && state.description && (
+        <textarea
+          value={state.description}
+          readOnly={!editing}
+          onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
+          style={{
+            width: '100%', minHeight: 80, padding: 14,
+            border: editing ? '1px solid #D4A847' : '1px solid #E5E3DC',
+            borderRadius: 8, fontSize: 14, fontFamily: 'inherit',
+            color: '#555', background: '#fafafa', resize: 'vertical', boxSizing: 'border-box',
+          }}
+        />
+      )}
+    </div>
   );
 }

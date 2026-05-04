@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { productsApi, ProductType } from '../../api/products.api';
 import { useProjectsStore } from '../../store/projects.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { exportToDocx } from '../../utils/exportDocx';
 import s from './ProductWorkspace.module.css';
 
@@ -53,15 +54,6 @@ function makePreview(content: string): string {
   return content.replace(/\n+/g, ' ').trim().slice(0, 110);
 }
 
-function loadStrategy(): StrategyData | null {
-  try {
-    const raw = localStorage.getItem('strategy_answers');
-    if (!raw) return null;
-    const d = JSON.parse(raw) as StrategyData;
-    if (!d.chosenSegment && !d.corePains) return null;
-    return d;
-  } catch { return null; }
-}
 
 function loadItems(key: string): ProductItem[] {
   try {
@@ -114,8 +106,10 @@ export default function ProductWorkspace({
   productType,
   FormComponent,
 }: Props) {
-  const strategy = loadStrategy();
-  const { activeProjectId } = useProjectsStore();
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const audienceAnswers = useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers);
+  const strategy: StrategyData | null =
+    (audienceAnswers?.chosenSegment || audienceAnswers?.corePains) ? audienceAnswers as StrategyData : null;
 
   const [items,    setItems]    = useState<ProductItem[]>(() => loadItems(storageKey));
   const [activeId, setActiveId] = useState<string | null>(null);

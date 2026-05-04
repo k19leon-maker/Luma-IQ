@@ -1,4 +1,4 @@
-# PSY Boost
+# LumaIQ
 
 SaaS-платформа для маркетинговой упаковки психологов на основе JTBD-фреймворка.
 
@@ -43,7 +43,7 @@ npm run dev
 ## Структура проекта
 
 ```
-/psy-boost
+/lumaiq
   /frontend    — React + TypeScript + CSS Modules
   /backend     — Node.js + Express + TypeScript
   /docs        — документация

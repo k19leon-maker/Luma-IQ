@@ -11,7 +11,7 @@ export const projectService = {
       update: {},
       create: {
         id: DEV_USER_ID,
-        email: 'dev@psy-boost.local',
+        email: 'dev@lumaiq.local',
         name: 'Dev User',
         role: 'USER',
         isVerified: true,
