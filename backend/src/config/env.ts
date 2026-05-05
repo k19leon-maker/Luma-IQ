@@ -19,19 +19,27 @@ function getBool(key: string, defaultValue: boolean): boolean {
   return value === 'true' || value === '1';
 }
 
+const isDev = (process.env['NODE_ENV'] ?? 'development') === 'development';
+
+// In production, these must be explicitly set — no silent defaults.
+function requireInProd(key: string, devDefault: string): string {
+  if (!isDev) return get(key); // throws if missing
+  return get(key, devDefault);
+}
+
 export const env = {
   // App
   NODE_ENV: get('NODE_ENV', 'development'),
   PORT: parseInt(get('PORT', '3001'), 10),
   FRONTEND_URL: get('FRONTEND_URL', 'http://localhost:5174'),
 
-  // Database
-  DATABASE_URL: get('DATABASE_URL', ''),
+  // Database — empty string allowed only in dev (AI endpoint works without DB)
+  DATABASE_URL: get('DATABASE_URL', isDev ? '' : undefined),
   REDIS_URL: get('REDIS_URL', 'redis://localhost:6379'),
 
-  // Auth
-  JWT_SECRET: get('JWT_SECRET', 'dev_jwt_secret_change_in_prod'),
-  JWT_REFRESH_SECRET: get('JWT_REFRESH_SECRET', 'dev_jwt_refresh_secret_change_in_prod'),
+  // Auth — weak defaults only in dev; production must supply real secrets
+  JWT_SECRET: requireInProd('JWT_SECRET', 'dev_jwt_secret_change_in_prod'),
+  JWT_REFRESH_SECRET: requireInProd('JWT_REFRESH_SECRET', 'dev_jwt_refresh_secret_change_in_prod'),
   JWT_EXPIRES_IN: get('JWT_EXPIRES_IN', '15m'),
   JWT_REFRESH_EXPIRES_IN: get('JWT_REFRESH_EXPIRES_IN', '30d'),
 

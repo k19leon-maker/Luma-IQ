@@ -32,14 +32,15 @@ function toAuthUser(user: { id: string; email: string; name: string | null; avat
 
 export const authService = {
   async register(email: string, password: string, name?: string): Promise<{ user: AuthUser; tokens: TokenPair }> {
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       throw Object.assign(new Error('Пользователь с таким email уже существует'), { status: 409 });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { email, passwordHash, name: name ?? null },
+      data: { email: normalizedEmail, passwordHash, name: name ?? null },
     });
 
     const tokens = await authService.issueTokens(user.id);
@@ -47,7 +48,7 @@ export const authService = {
   },
 
   async login(email: string, password: string): Promise<{ user: AuthUser; tokens: TokenPair }> {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!user || !user.passwordHash) {
       throw Object.assign(new Error('Неверный email или пароль'), { status: 401 });
     }
@@ -123,8 +124,11 @@ export const authService = {
     const accessToken = signAccess(userId);
     const refreshToken = signRefresh(userId);
 
+    // Parse JWT_REFRESH_EXPIRES_IN (e.g. "30d", "7d") to derive DB expiry
+    const raw = env.JWT_REFRESH_EXPIRES_IN;
+    const days = raw.endsWith('d') ? parseInt(raw, 10) : 30;
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+    expiresAt.setDate(expiresAt.getDate() + days);
 
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId, expiresAt },

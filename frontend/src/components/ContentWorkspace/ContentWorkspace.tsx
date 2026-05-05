@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useContentPlanStore } from '../../store/contentPlan.store';
+import { exportToDocx } from '../../utils/exportDocx';
 import s from './ContentWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,14 +115,7 @@ export default function ContentWorkspace({ sectionTitle, initialMaterials, FormC
   }
 
   function handleDownload() {
-    const text = `${editTitle}\n\n${editContent}`;
-    const blob  = new Blob([text], { type: 'application/octet-stream' });
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    a.href      = url;
-    a.download  = `${editTitle.slice(0, 40).replace(/[^а-яёa-z0-9\s]/gi, '').trim() || 'material'}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void exportToDocx(editTitle, editContent, editTitle.slice(0, 60).trim() || 'material');
   }
 
   function handleContentPlan() {
