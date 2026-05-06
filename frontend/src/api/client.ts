@@ -2,8 +2,12 @@ import axios from 'axios';
 
 const DEV_TOKEN = 'dev-token';
 
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';
+
 export const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
   withCredentials: true,
 });
 
@@ -56,7 +60,7 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
+      const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
       const { accessToken: newAccess, refreshToken: newRefresh } = data.tokens;
       localStorage.setItem('accessToken', newAccess);
       localStorage.setItem('refreshToken', newRefresh);
