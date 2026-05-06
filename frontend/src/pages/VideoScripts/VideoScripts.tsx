@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
@@ -243,29 +244,6 @@ function makeSeedScripts(): SavedScript[] {
 
 // ─── Mock generators ──────────────────────────────────────────────────────────
 
-const MOCK_THEMES: Record<Duration, string[]> = {
-  '8': [
-    'Почему пары ссорятся об одном и том же — объясняю механику за 8 минут',
-    'Что стоит за молчанием партнёра: разбор для тех, кто устал угадывать',
-    'Три фразы, которые превращают разговор в ссору — и чем их заменить',
-    'Как остановить конфликт до эскалации: инструмент, который работает за 60 секунд',
-    'Почему «прости» не помогает: о примирении без решения',
-  ],
-  '10': [
-    'Невысказанные ожидания: откуда они берутся и как о них говорить',
-    'Цикл конфликта в паре: как выйти из повторяющегося сценария ссор',
-    'Что такое «мягкое начало» и почему это важнее аргументов в споре',
-    'Потребности vs позиции: переход, который меняет динамику отношений',
-    'Почему умные пары всё равно ссорятся: нейробиология конфликта',
-  ],
-  '12': [
-    'Невысказанные ожидания разрушают отношения: разбор с кейсом',
-    'Четыре всадника по Готтману: какие паттерны убивают отношения',
-    'Как говорить о конфликте, не разрушая близость: полный разбор',
-    'Привязанность и конфликт: почему те, кого мы любим, нас так задевают',
-    'Когда терапия пары помогает — а когда нет: честный разговор',
-  ],
-};
 
 function buildScript(
   duration: Duration,
@@ -448,15 +426,17 @@ export default function VideoScripts() {
         .filter((l) => l.length > 10)
         .slice(0, 5);
 
-      const themes = lines.length >= 3 ? lines : MOCK_THEMES[duration];
-      setThemes(themes);
-      setSelectedTheme(themes[0] ?? '');
+      if (lines.length === 0) {
+        toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+        return;
+      }
+      setThemes(lines);
+      setSelectedTheme(lines[0] ?? '');
       setFacture('');
     } catch (err) {
-      console.warn('[VideoScripts] themes AI error:', err);
-      setThemes(MOCK_THEMES[duration]);
-      setSelectedTheme(MOCK_THEMES[duration][0] ?? '');
-      setFacture('');
+      console.error('[VideoScripts] themes AI error:', err);
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+      return;
     }
     setPhase('step2');
   }

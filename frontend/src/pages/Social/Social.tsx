@@ -11,13 +11,6 @@ interface PlatformState {
   loading: boolean;
 }
 
-const MOCK_TEXTS: Record<string, string> = {
-  instagram:
-    'Психолог КПТ · Помогаю разобраться в отношениях и найти себя · 10+ лет практики · Онлайн по всему миру\n📩 Запись в личку или на сайте',
-  telegram:
-    'Психолог-практик. Работаю с тревогой, отношениями и самооценкой методами КПТ. Каналы связи: личные сообщения. Консультации онлайн.',
-  vk: 'Когнитивно-поведенческий психолог. Специализируюсь на работе с тревожными расстройствами и сложными жизненными ситуациями. Записаться: личные сообщения.',
-};
 
 const PLATFORM_PROMPTS: Record<string, string> = {
   instagram: `Ты маркетолог психологов. Напиши описание профиля в Instagram (bio) для психолога.
@@ -88,12 +81,9 @@ export default function Social() {
         [key]: { generated: true, text: resp.content.trim(), loading: false },
       }));
     } catch (err) {
-      console.warn('[Social] AI error for', key, err);
-      setStates((prev) => ({
-        ...prev,
-        [key]: { generated: true, text: MOCK_TEXTS[key] ?? '', loading: false },
-      }));
-      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+      console.error('[Social] AI error for', key, err);
+      setStates((prev) => ({ ...prev, [key]: { ...prev[key]!, loading: false } }));
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
     }
   }
 

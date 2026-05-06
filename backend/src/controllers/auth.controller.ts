@@ -33,6 +33,11 @@ function handleError(res: Response, err: unknown): void {
 
 export const authController = {
   async register(req: Request, res: Response): Promise<void> {
+    if (process.env['REGISTRATION_ENABLED'] === 'false') {
+      res.status(403).json({ error: 'Регистрация временно закрыта. Обратитесь к администратору.' });
+      return;
+    }
+
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.errors[0].message });

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useModelStore } from '../../store/model.store';
+import { useUnpackingStore } from '../../store/unpacking.store';
 import { aiApi, type ConversationMessage } from '../../api/ai';
 
 // ─── Fallback replies ─────────────────────────────────────────────────────────
@@ -64,17 +65,45 @@ function FileIcon() {
 export default function Unpacking() {
   const navigate          = useNavigate();
   const completeUnpacking = useProgressStore((s) => s.completeUnpacking);
+  const activeProjectId   = useProjectsStore((s) => s.activeProjectId) ?? '';
   const projectName       = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings       = useModelStore((s) => s.getSettings);
 
-  const [messages,     setMessages]     = useState<ChatMsg[]>([
-    { role: 'ai', text: WELCOME_MSG, time: '' },
-  ]);
+  const switchProject  = useUnpackingStore((s) => s.switchProject);
+  const storeMessages  = useUnpackingStore((s) => s.messages);
+  const setStoreMessages = useUnpackingStore((s) => s.setMessages);
+
+  const [messages,     setMessagesState] = useState<ChatMsg[]>(() => {
+    const stored = storeMessages as ChatMsg[];
+    return stored.length > 0 ? stored : [{ role: 'ai', text: WELCOME_MSG, time: '' }];
+  });
   const [inputText,    setInputText]    = useState('');
   const [sending,      setSending]      = useState(false);
   const [fallbackIdx,  setFallbackIdx]  = useState(0);
   const [userMsgCount, setUserMsgCount] = useState(0);
   const [aiSuggestedFinish, setAiSuggestedFinish] = useState(false);
+
+  // Switch project and restore messages
+  useEffect(() => {
+    if (!activeProjectId) return;
+    switchProject(activeProjectId);
+  }, [activeProjectId, switchProject]);
+
+  useEffect(() => {
+    const stored = storeMessages as ChatMsg[];
+    if (stored.length > 0) {
+      setMessagesState(stored);
+      setUserMsgCount(stored.filter((m) => m.role === 'user').length);
+    }
+  }, [activeProjectId]); // eslint-disable-line
+
+  function setMessages(msgs: ChatMsg[] | ((prev: ChatMsg[]) => ChatMsg[])) {
+    setMessagesState((prev) => {
+      const next = typeof msgs === 'function' ? msgs(prev) : msgs;
+      setStoreMessages(next as import('../../store/unpacking.store').UnpackingMessage[]);
+      return next;
+    });
+  }
 
   const chatEndRef   = useRef<HTMLDivElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);

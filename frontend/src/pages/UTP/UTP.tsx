@@ -5,8 +5,6 @@ import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { aiApi } from '../../api/ai';
 
-const MOCK_UTP =
-  'Я помогаю женщинам 30–45 лет восстановить гармонию в отношениях через научно обоснованные методы когнитивно-поведенческой терапии. За 3 месяца работы мои клиентки перестают чувствовать себя виноватыми и начинают строить отношения, в которых им хорошо.';
 
 export default function UTP() {
   const projectName  = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
@@ -51,9 +49,8 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
       });
       setUtpText(resp.content.trim());
     } catch (err) {
-      console.warn('[UTP] AI error, using fallback:', err);
-      setUtpText(MOCK_UTP);
-      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+      console.error('[UTP] AI error:', err);
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
     } finally {
       setLoading(false);
     }

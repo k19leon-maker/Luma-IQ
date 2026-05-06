@@ -2,12 +2,17 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
-import { getMockResponse } from '../config/jtbd-mock';
 import { chat } from '../services/ai.service';
 import { jtbdSessionService } from '../services/jtbd-session.service';
 import { prisma } from '../lib/prisma';
-import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
+
+async function assertProjectOwner(projectId: string, userId: string, res: Response): Promise<boolean> {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
+  if (!project) { res.status(404).json({ error: 'Проект не найден' }); return false; }
+  if (project.userId !== userId) { res.status(403).json({ error: 'Доступ запрещён' }); return false; }
+  return true;
+}
 
 // Публичное представление шагов — без buildPrompt
 const PUBLIC_STEPS = JTBD_FRAMEWORK.map(({ id, key, title, description, userQuestion }) => ({
@@ -51,6 +56,7 @@ export const jtbdController = {
     // ── Получаем/создаём сессию до генерации, чтобы вернуть sessionId ──────────
 
     if (projectId && !sessionId) {
+      if (!req.userId || !(await assertProjectOwner(projectId, req.userId, res))) return;
       try {
         const session = await jtbdSessionService.getOrCreate(projectId);
         sessionId = session.id;
@@ -64,10 +70,7 @@ export const jtbdController = {
     let content: string;
     let isMock: boolean;
 
-    if (env.isMockAI) {
-      content = getMockResponse(stepId, answers as JTBDAnswers);
-      isMock  = true;
-    } else {
+    {
       const prompt   = step.buildPrompt(answers as JTBDAnswers).trim();
       const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
 
@@ -82,8 +85,7 @@ export const jtbdController = {
         isMock  = result.mock;
       } catch (err) {
         console.error('[JTBD] AI error:', err);
-        const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';
-        res.status(500).json({ error: msg });
+        res.status(503).json({ error: 'Неполадки со связью. Попробуйте обновить страницу.' });
         return;
       }
     }
@@ -111,6 +113,7 @@ export const jtbdController = {
 
   async getByProject(req: AuthRequest, res: Response): Promise<void> {
     const { projectId } = req.params as { projectId: string };
+    if (!req.userId || !(await assertProjectOwner(projectId, req.userId, res))) return;
     try {
       const session = await prisma.jTBDSession.findFirst({
         where: { projectId },
@@ -131,6 +134,7 @@ export const jtbdController = {
       currentStep?: number;
     };
     if (!projectId) { res.status(400).json({ error: 'projectId обязателен' }); return; }
+    if (!req.userId || !(await assertProjectOwner(projectId, req.userId, res))) return;
     try {
       const session = await jtbdSessionService.getOrCreate(projectId);
       await prisma.jTBDSession.update({

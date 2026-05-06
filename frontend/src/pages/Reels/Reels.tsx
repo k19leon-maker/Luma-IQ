@@ -83,29 +83,6 @@ const FACTURE_HINTS = [
   '4. Что изменилось у клиента после работы с вами?',
 ];
 
-const MOCK_THEMES: Record<ReelType, string[]> = {
-  tips: [
-    '3 техники снятия тревоги за 5 минут',
-    'Как остановить скандал за 1 минуту',
-    '5 признаков что вы в выгорании',
-    'Как перестать откладывать на потом',
-    'Что делать когда всё навалилось',
-  ],
-  story: [
-    'Она боялась просить о помощи — что изменила одна сессия',
-    'Как пара за 3 встречи вышла из 8-летнего конфликта',
-    'Клиентка с паническими атаками: история восстановления',
-    'Мама подростка которая перестала кричать',
-    'Как я помогла женщине выйти из депрессии без таблеток',
-  ],
-  myth: [
-    'Миф: психолог советует что делать',
-    'Миф: к психологу ходят только «сумасшедшие»',
-    'Миф: психотерапия — это очень долго и дорого',
-    'Миф: поговорить с подругой то же самое что с психологом',
-    'Миф: сильные люди не нуждаются в помощи',
-  ],
-};
 
 const MOCK_REEL_CONTENT: Record<ReelType, string> = {
   tips: `3 техники снятия тревоги за 5 минут\n\n[Слайд 1] Дыхание 4-7-8\nВдох 4 сек → задержка 7 → выдох 8. Повтори 3 раза.\n\n[Слайд 2] Метод «5-4-3-2-1»\n5 вещей видишь, 4 слышишь, 3 ощущаешь, 2 чувствуешь запах, 1 вкус.\n\n[Слайд 3] Физическая разрядка\nСожми кулаки на 5 сек — резко разожми. 5 раз.\n\nПодпись: Напиши мне — пришлю памятку с 10 техниками.`,
@@ -223,13 +200,17 @@ export default function Reels() {
     try {
       const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
-      const result = lines.length > 0 ? lines : MOCK_THEMES[reelType];
-      setThemes(result);
-      setSelectedTheme(result[0] ?? '');
+      if (lines.length === 0) {
+        toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+        setPhase('step1');
+        return;
+      }
+      setThemes(lines);
+      setSelectedTheme(lines[0] ?? '');
     } catch {
-      toast('AI недоступен — используются демо-темы', { icon: '📋', duration: 3000 });
-      setThemes(MOCK_THEMES[reelType]);
-      setSelectedTheme(MOCK_THEMES[reelType][0] ?? '');
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+      setPhase('step1');
+      return;
     }
     setFacture('');
     setPhase('step2');
@@ -249,8 +230,9 @@ export default function Reels() {
       const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
       content = resp.content;
     } catch {
-      toast('AI недоступен — используется демо-текст', { icon: '📋', duration: 3000 });
-      content = MOCK_REEL_CONTENT[reelType];
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+      setPhase('step2');
+      return;
     }
     const id    = `reel-${Date.now()}`;
     const title = `${TYPE_LABELS[reelType]} · ${platform === 'telegram' ? 'Telegram' : 'Instagram'}`;

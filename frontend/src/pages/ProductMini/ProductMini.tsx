@@ -76,9 +76,8 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
       const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as typeof MOCK_DATA;
       setState({ ...json, generated: true });
     } catch (err) {
-      console.warn('[ProductMini] AI error, using fallback:', err);
-      setState({ ...MOCK_DATA, generated: true });
-      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+      console.error('[ProductMini] AI error:', err);
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
     } finally {
       setLoading(false);
     }

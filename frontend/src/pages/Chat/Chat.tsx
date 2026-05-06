@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import toast from 'react-hot-toast';
 import s from './Chat.module.css';
 import { aiApi, ConversationMessage } from '../../api/ai';
 
@@ -27,15 +28,6 @@ const INITIAL_AI_MSG =
   'Привет! Я помогу упаковать ваши услуги по JTBD-фреймворку.\n' +
   'Для начала — опишите вашего идеального клиента: кто он, какая у него ситуация, что его беспокоит прямо сейчас?';
 
-function getMockReply(userMsgCount: number): string {
-  if (userMsgCount === 1) {
-    return 'Отлично! Теперь углубимся в боли вашего клиента. Что он уже пробовал решить эту проблему? Почему не помогло?';
-  }
-  if (userMsgCount === 2) {
-    return 'Хорошо. Формирую JTBD-формулу на основе ваших данных:\n«Когда я [ситуация] → я хочу найти специалиста → который поможет [результат] без [страх]»';
-  }
-  return 'Понял, продолжаем. Расскажите подробнее — это поможет точнее упаковать ваши услуги.';
-}
 
 function uid() {
   return Math.random().toString(36).slice(2);
@@ -103,9 +95,7 @@ export default function Chat() {
       setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: res.content }]);
       setHistory([...updatedHistory, { role: 'assistant', content: res.content }]);
     } catch {
-      const fallback = getMockReply(newCount);
-      setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: fallback }]);
-      setHistory([...updatedHistory, { role: 'assistant', content: fallback }]);
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
     } finally {
       setIsTyping(false);
       setCurrentStep((prev) => Math.min(prev + 1, JTBD_STEPS.length - 1));
@@ -129,12 +119,8 @@ export default function Chat() {
     void sendMessage('Переходим к следующему шагу');
   }
 
-  function handleRewrite(msgId: string, count: number) {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId ? { ...m, id: uid(), text: getMockReply(count) } : m
-      )
-    );
+  function handleRewrite(_msgId: string, _count: number) {
+    // rewrite via AI not implemented
   }
 
   // ── Placeholder ─────────────────────────────────────────────────────────────
