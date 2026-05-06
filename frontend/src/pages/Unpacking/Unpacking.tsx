@@ -74,6 +74,7 @@ export default function Unpacking() {
   const [sending,      setSending]      = useState(false);
   const [fallbackIdx,  setFallbackIdx]  = useState(0);
   const [userMsgCount, setUserMsgCount] = useState(0);
+  const [aiSuggestedFinish, setAiSuggestedFinish] = useState(false);
 
   const chatEndRef   = useRef<HTMLDivElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
@@ -122,6 +123,10 @@ export default function Unpacking() {
 
       const aiMsg: ChatMsg = { role: 'ai', text: resp.content, time: nowTime() };
       setMessages((prev) => [...prev, aiMsg]);
+      const finishKeywords = ['нажмите кнопку', 'завершить распаковку', 'перейти к стратегии', 'перейти к целевой', 'достаточно информации', 'готов сформировать'];
+      if (finishKeywords.some((kw) => resp.content.toLowerCase().includes(kw))) {
+        setAiSuggestedFinish(true);
+      }
     } catch (err) {
       console.warn('[Unpacking] AI error, using fallback:', err);
       const replyText = FALLBACK_REPLIES[Math.min(fallbackIdx, FALLBACK_REPLIES.length - 1)];
@@ -171,6 +176,10 @@ export default function Unpacking() {
       });
       const aiMsg: ChatMsg = { role: 'ai', text: resp.content, time: nowTime() };
       setMessages((prev) => [...prev, aiMsg]);
+      const finishKeywords = ['нажмите кнопку', 'завершить распаковку', 'перейти к стратегии', 'перейти к целевой', 'достаточно информации', 'готов сформировать'];
+      if (finishKeywords.some((kw) => resp.content.toLowerCase().includes(kw))) {
+        setAiSuggestedFinish(true);
+      }
     } catch {
       const aiMsg: ChatMsg = {
         role: 'ai',
@@ -191,7 +200,7 @@ export default function Unpacking() {
     navigate('/dashboard');
   }
 
-  const canFinish = userMsgCount >= 3;
+  const canFinish = aiSuggestedFinish;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
