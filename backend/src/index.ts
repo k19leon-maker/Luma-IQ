@@ -22,7 +22,7 @@ import { env } from './config/env';
 const app = express();
 const PORT = process.env.PORT || 3001;
 const allowedOrigins = [...new Set([
-  env.FRONTEND_URL,
+  ...env.FRONTEND_URL.split(',').map(s => s.trim()),
   'http://localhost:5173',
   'http://localhost:5174',
 ])];
