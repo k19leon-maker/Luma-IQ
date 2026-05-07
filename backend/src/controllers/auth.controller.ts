@@ -138,6 +138,30 @@ export const authController = {
     }
   },
 
+  async verifyEmail(req: Request, res: Response): Promise<void> {
+    const { token } = req.query as { token?: string };
+    if (!token) {
+      res.status(400).json({ error: 'Токен обязателен' });
+      return;
+    }
+    try {
+      await authService.verifyEmail(token);
+      res.json({ message: 'Email подтверждён' });
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+
+  async resendVerification(req: AuthRequest, res: Response): Promise<void> {
+    if (!req.userId) { res.status(401).json({ error: 'Необходима авторизация' }); return; }
+    try {
+      await authService.resendVerification(req.userId);
+      res.json({ message: 'Письмо отправлено' });
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+
   // Called by AuthCallback.tsx after OAuth redirect — exchanges cookie for session
   async oauthSession(req: Request, res: Response): Promise<void> {
     const accessToken  = (req as Request & { cookies: Record<string, string> }).cookies?.oauth_access;

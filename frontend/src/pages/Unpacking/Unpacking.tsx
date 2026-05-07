@@ -70,6 +70,7 @@ export default function Unpacking() {
   const getSettings       = useModelStore((s) => s.getSettings);
 
   const switchProject  = useUnpackingStore((s) => s.switchProject);
+  const loadFromDb     = useUnpackingStore((s) => s.loadFromDb);
   const storeMessages  = useUnpackingStore((s) => s.messages);
   const setStoreMessages = useUnpackingStore((s) => s.setMessages);
 
@@ -83,11 +84,12 @@ export default function Unpacking() {
   const [userMsgCount, setUserMsgCount] = useState(0);
   const [aiSuggestedFinish, setAiSuggestedFinish] = useState(false);
 
-  // Switch project and restore messages
+  // Switch project and restore messages (local first, then DB fallback)
   useEffect(() => {
     if (!activeProjectId) return;
     switchProject(activeProjectId);
-  }, [activeProjectId, switchProject]);
+    void loadFromDb(activeProjectId);
+  }, [activeProjectId, switchProject, loadFromDb]);
 
   useEffect(() => {
     const stored = storeMessages as ChatMsg[];

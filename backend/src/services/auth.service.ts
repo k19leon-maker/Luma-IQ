@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import { emailService } from './email.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -14,6 +16,7 @@ export interface AuthUser {
   name: string | null;
   avatarUrl: string | null;
   role: string;
+  isVerified: boolean;
 }
 
 function signAccess(userId: string): string {
@@ -26,8 +29,8 @@ function signRefresh(userId: string): string {
   return jwt.sign({ sub: userId }, env.JWT_REFRESH_SECRET, options);
 }
 
-function toAuthUser(user: { id: string; email: string; name: string | null; avatarUrl: string | null; role: string }): AuthUser {
-  return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, role: user.role };
+function toAuthUser(user: { id: string; email: string; name: string | null; avatarUrl: string | null; role: string; isVerified: boolean }): AuthUser {
+  return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, role: user.role, isVerified: user.isVerified };
 }
 
 export const authService = {
@@ -42,6 +45,11 @@ export const authService = {
     const user = await prisma.user.create({
       data: { email: normalizedEmail, passwordHash, name: name ?? null },
     });
+
+    // Send verification email (fire-and-forget; don't block registration)
+    void authService.sendVerificationEmail(user.id, normalizedEmail).catch((e) =>
+      console.warn('[Auth] Failed to send verification email:', (e as Error).message),
+    );
 
     const tokens = await authService.issueTokens(user.id);
     return { user: toAuthUser(user), tokens };
@@ -141,5 +149,37 @@ export const authService = {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return null;
     return toAuthUser(user);
+  },
+
+  async sendVerificationEmail(userId: string, email: string): Promise<void> {
+    // Delete old tokens for this user
+    await prisma.verificationToken.deleteMany({ where: { userId } });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await prisma.verificationToken.create({ data: { userId, token, expiresAt } });
+    await emailService.sendVerificationEmail(email, token);
+  },
+
+  async verifyEmail(token: string): Promise<void> {
+    const record = await prisma.verificationToken.findUnique({ where: { token } });
+    if (!record) {
+      throw Object.assign(new Error('Ссылка недействительна'), { status: 400 });
+    }
+    if (record.expiresAt < new Date()) {
+      await prisma.verificationToken.delete({ where: { token } });
+      throw Object.assign(new Error('Ссылка истекла. Запросите новое письмо.'), { status: 400 });
+    }
+
+    await prisma.user.update({ where: { id: record.userId }, data: { isVerified: true } });
+    await prisma.verificationToken.delete({ where: { token } });
+  },
+
+  async resendVerification(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw Object.assign(new Error('Пользователь не найден'), { status: 404 });
+    if (user.isVerified) throw Object.assign(new Error('Email уже подтверждён'), { status: 400 });
+    await authService.sendVerificationEmail(userId, user.email);
   },
 };

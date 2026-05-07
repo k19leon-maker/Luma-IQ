@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
+import { authApi } from '../../api/auth.api';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
@@ -61,6 +62,48 @@ const pageTitles: Record<string, string> = {
   '/history':         'История',
   '/settings':        'Настройки',
 };
+
+/* ── Email verification banner ─────────────────────────────── */
+
+function EmailBanner({ email }: { email: string }) {
+  const [sending, setSending] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
+
+  async function resend() {
+    setSending(true);
+    try {
+      await authApi.resendVerification();
+      toast.success('Письмо отправлено на ' + email);
+    } catch {
+      toast.error('Не удалось отправить письмо');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{
+      background: '#FFF8E7', borderBottom: '1px solid #F0E0A0',
+      padding: '10px 20px', display: 'flex', alignItems: 'center',
+      gap: 12, fontSize: 13, color: '#7A6000',
+    }}>
+      <span>📧 Подтвердите email <b>{email}</b>, чтобы получить доступ ко всем функциям.</span>
+      <button onClick={resend} disabled={sending} style={{
+        background: 'none', border: '1px solid #D4A847', borderRadius: 6,
+        padding: '3px 10px', cursor: sending ? 'not-allowed' : 'pointer',
+        color: '#7A6000', fontSize: 12, fontWeight: 500,
+      }}>
+        {sending ? 'Отправка...' : 'Отправить письмо'}
+      </button>
+      <button onClick={() => setDismissed(true)} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: '#AAA', fontSize: 16, marginLeft: 'auto', lineHeight: 1,
+      }}>×</button>
+    </div>
+  );
+}
 
 /* ── Collapsible section component ────────────────────────────── */
 
@@ -364,6 +407,10 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
+        {/* Email verification banner */}
+        {user && user.isVerified === false && (
+          <EmailBanner email={user.email} />
+        )}
         {location.pathname !== '/dashboard' && (
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>

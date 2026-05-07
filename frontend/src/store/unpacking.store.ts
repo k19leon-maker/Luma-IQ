@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { projectsApi } from '../api/projects.api';
 
 export interface UnpackingMessage {
   role: 'ai' | 'user';
@@ -30,6 +31,7 @@ interface UnpackingState extends UnpackingData {
 
   // Switch active project
   switchProject: (projectId: string) => void;
+  loadFromDb: (projectId: string) => Promise<void>;
 
   // Actions (operate on currentProjectId)
   addMessage:            (m: UnpackingMessage) => void;
@@ -41,6 +43,24 @@ interface UnpackingState extends UnpackingData {
   setPositioningOptions: (o: PositioningOption[] | null) => void;
   setCompleted:          (v: boolean) => void;
   reset:                 () => void;
+}
+
+// Debounce timer for DB sync
+let dbSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulDbSync(projectId: string, data: UnpackingData) {
+  if (!projectId || projectId === 'default') return;
+  if (dbSyncTimer) clearTimeout(dbSyncTimer);
+  dbSyncTimer = setTimeout(() => {
+    projectsApi.saveUnpacking(projectId, {
+      messages:           data.messages,
+      profileData:        data.profileData,
+      positioning:        data.positioning,
+      positioningOptions: data.positioningOptions,
+      completed:          data.completed,
+      stepIndex:          data.stepIndex,
+    }).catch(() => {});
+  }, 3000);
 }
 
 const DEFAULT_DATA: UnpackingData = {
@@ -85,11 +105,40 @@ export const useUnpackingStore = create<UnpackingState>()(
         });
       },
 
-      addMessage: (m) =>
-        setData(set, (d) => ({ messages: [...d.messages, m] })),
+      loadFromDb: async (projectId: string) => {
+        if (!projectId || projectId === 'default') return;
+        try {
+          const dbData = await projectsApi.getUnpacking(projectId) as Partial<UnpackingData> | null;
+          if (!dbData || !dbData.messages?.length) return;
+          set((s) => {
+            const localData = s.projectData[projectId];
+            // Only load from DB if local has no messages
+            if (localData?.messages?.length) return {};
+            const merged: UnpackingData = { ...DEFAULT_DATA, ...dbData };
+            return {
+              projectData: { ...s.projectData, [projectId]: merged },
+              ...(s.currentProjectId === projectId ? merged : {}),
+            };
+          });
+        } catch {
+          // DB unavailable — local storage is fine
+        }
+      },
 
-      setMessages: (messages) =>
-        setData(set, () => ({ messages })),
+      addMessage: (m) => {
+        let updated: UnpackingData | null = null;
+        setData(set, (d) => { updated = { ...d, messages: [...d.messages, m] }; return { messages: updated.messages }; });
+        set((s) => { if (updated) schedulDbSync(s.currentProjectId, updated); return {}; });
+      },
+
+      setMessages: (messages) => {
+        setData(set, () => ({ messages }));
+        set((s) => {
+          const data = getData(s);
+          schedulDbSync(s.currentProjectId, { ...data, messages });
+          return {};
+        });
+      },
 
       setStepIndex: (stepIndex) =>
         setData(set, () => ({ stepIndex })),
@@ -97,17 +146,23 @@ export const useUnpackingStore = create<UnpackingState>()(
       setQAnswers: (qAnswers) =>
         setData(set, () => ({ qAnswers })),
 
-      setProfileData: (profileData) =>
-        setData(set, () => ({ profileData })),
+      setProfileData: (profileData) => {
+        setData(set, () => ({ profileData }));
+        set((s) => { schedulDbSync(s.currentProjectId, { ...getData(s), profileData }); return {}; });
+      },
 
-      setPositioning: (positioning) =>
-        setData(set, () => ({ positioning })),
+      setPositioning: (positioning) => {
+        setData(set, () => ({ positioning }));
+        set((s) => { schedulDbSync(s.currentProjectId, { ...getData(s), positioning }); return {}; });
+      },
 
       setPositioningOptions: (positioningOptions) =>
         setData(set, () => ({ positioningOptions })),
 
-      setCompleted: (completed) =>
-        setData(set, () => ({ completed })),
+      setCompleted: (completed) => {
+        setData(set, () => ({ completed }));
+        set((s) => { schedulDbSync(s.currentProjectId, { ...getData(s), completed }); return {}; });
+      },
 
       reset: () =>
         setData(set, () => ({ ...DEFAULT_DATA })),

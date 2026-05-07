@@ -56,6 +56,18 @@ export const env = {
   GEMINI_API_KEY: get('GEMINI_API_KEY', ''),
   GROK_API_KEY: get('GROK_API_KEY', ''),
 
+  // Email (SMTP)
+  SMTP_HOST: get('SMTP_HOST', ''),
+  SMTP_PORT: parseInt(get('SMTP_PORT', '465'), 10),
+  SMTP_USER: get('SMTP_USER', ''),
+  SMTP_PASS: get('SMTP_PASS', ''),
+  SMTP_FROM: get('SMTP_FROM', 'noreply@lumaiq.ru'),
+
+  // YooKassa
+  YOOKASSA_SHOP_ID:    get('YOOKASSA_SHOP_ID', ''),
+  YOOKASSA_SECRET_KEY: get('YOOKASSA_SECRET_KEY', ''),
+  YOOKASSA_RETURN_URL: get('YOOKASSA_RETURN_URL', 'http://localhost:5174/settings?tab=subscription'),
+
   // Flags
   get isMockAI() {
     return !process.env['OPENAI_API_KEY'] && !process.env['ANTHROPIC_API_KEY'];

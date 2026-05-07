@@ -7,7 +7,9 @@ import Onboarding from './components/Onboarding/Onboarding';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import AuthCallback from './pages/AuthCallback/AuthCallback';
+import VerifyEmail from './pages/VerifyEmail/VerifyEmail';
 import Dashboard from './pages/Dashboard/Dashboard';
+import Pricing from './pages/Pricing/Pricing';
 
 // Strategy
 import Unpacking   from './pages/Unpacking/Unpacking';
@@ -59,9 +61,10 @@ export default function App() {
     <>
       <Routes>
         {/* ── Public ───────────────────────────────────────────── */}
-        <Route path="/login"         element={<Login />} />
-        <Route path="/register"      element={<Register />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/login"                  element={<Login />} />
+        <Route path="/register"               element={<Register />} />
+        <Route path="/auth/callback"          element={<AuthCallback />} />
+        <Route path="/auth/verify-email"      element={<VerifyEmail />} />
 
         {/* ── Root → dashboard ─────────────────────────────────── */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -106,6 +109,7 @@ export default function App() {
                   <Route path="/tasks"    element={<ErrorBoundary><Tasks /></ErrorBoundary>} />
                   <Route path="/history"  element={<ErrorBoundary><History /></ErrorBoundary>} />
                   <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+                  <Route path="/pricing"  element={<ErrorBoundary><Pricing /></ErrorBoundary>} />
 
                   {/* Legacy redirects */}
                   <Route path="/strategy"     element={<Navigate to="/strategy/unpacking"    replace />} />

@@ -48,6 +48,10 @@ router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.get('/me', requireAuth, authController.me);
 
+// Email verification
+router.get('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', requireAuth, authController.resendVerification);
+
 // OAuth session handoff — called by frontend after OAuth redirect
 router.get('/oauth/session', authController.oauthSession);
 

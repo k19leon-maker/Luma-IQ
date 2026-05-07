@@ -6,6 +6,7 @@ export interface AuthUser {
   name:           string | null;
   avatarUrl:      string | null;
   role:           string;
+  isVerified?:    boolean;
   tariff?:        string;
   specialization?: string | null;
 }
@@ -38,6 +39,12 @@ export const authApi = {
 
   oauthSession: () =>
     apiClient.get<AuthResponse>('/auth/oauth/session', { withCredentials: true }).then((r) => r.data),
+
+  verifyEmail: (token: string) =>
+    apiClient.get<{ message: string }>(`/auth/verify-email?token=${token}`).then((r) => r.data),
+
+  resendVerification: () =>
+    apiClient.post<{ message: string }>('/auth/resend-verification').then((r) => r.data),
 
   googleLogin: () => {
     window.location.href = '/api/v1/auth/google';

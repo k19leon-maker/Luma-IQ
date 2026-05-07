@@ -45,4 +45,22 @@ export const projectsApi = {
     apiClient
       .patch<{ ok: boolean }>(`/projects/${id}/strategy`, data)
       .then((r) => r.data),
+
+  saveUnpacking: (id: string, data: Record<string, unknown>) =>
+    apiClient
+      .patch<{ ok: boolean }>(`/projects/${id}/strategy`, { unpackingData: data })
+      .then((r) => r.data),
+
+  getUnpacking: (id: string) =>
+    apiClient
+      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`)
+      .then((r) => (r.data.strategyData as Record<string, unknown> | null)?.['unpackingData'] as Record<string, unknown> | null ?? null),
+};
+
+export const paymentApi = {
+  createPayment: (plan: 'PRO' | 'ANNUAL') =>
+    apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create', { plan }).then((r) => r.data),
+
+  getSubscription: () =>
+    apiClient.get<{ subscription: { plan: string; status: string; expiresAt: string | null } }>('/payments/subscription').then((r) => r.data.subscription),
 };
