@@ -6,6 +6,7 @@ import { chat } from '../services/ai.service';
 import { jtbdSessionService } from '../services/jtbd-session.service';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { aiAccessService, AiAccessError } from '../services/ai-access.service';
 
 async function assertProjectOwner(projectId: string, userId: string, res: Response): Promise<boolean> {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
@@ -75,6 +76,8 @@ export const jtbdController = {
       const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
 
       try {
+        await aiAccessService.consume(req.userId!);
+
         const result = await chat({
           provider,
           messages: [{ role: 'user', content: prompt }],
@@ -85,6 +88,10 @@ export const jtbdController = {
         isMock  = result.mock;
       } catch (err) {
         console.error('[JTBD] AI error:', err);
+        if (err instanceof AiAccessError) {
+          res.status(err.status).json({ error: err.message });
+          return;
+        }
         res.status(503).json({ error: 'Неполадки со связью. Попробуйте обновить страницу.' });
         return;
       }

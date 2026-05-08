@@ -31,6 +31,10 @@ async function ykRequest(method: string, path: string, body?: unknown) {
 
 export const paymentService = {
   async createPayment(userId: string, plan: PlanKey): Promise<{ confirmationUrl: string; paymentId: string }> {
+    if (!env.YOOKASSA_ENABLED) {
+      throw Object.assign(new Error('Онлайн-оплата временно отключена. Для пилотного доступа напишите администратору.'), { status: 503 });
+    }
+
     if (!env.YOOKASSA_SHOP_ID || !env.YOOKASSA_SECRET_KEY) {
       throw Object.assign(new Error('Оплата временно недоступна'), { status: 503 });
     }
@@ -74,6 +78,10 @@ export const paymentService = {
   },
 
   async handleWebhook(event: { type: string; object: { id: string; status: string; metadata?: { userId?: string; plan?: string } } }): Promise<void> {
+    if (!env.YOOKASSA_ENABLED) {
+      throw Object.assign(new Error('YooKassa webhook disabled'), { status: 404 });
+    }
+
     if (event.type !== 'payment.succeeded') return;
 
     const { id: yookassaId, metadata } = event.object;

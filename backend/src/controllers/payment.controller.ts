@@ -37,8 +37,13 @@ export const paymentController = {
       await paymentService.handleWebhook(req.body as Parameters<typeof paymentService.handleWebhook>[0]);
       res.json({ ok: true });
     } catch (err) {
+      const e = err as Error & { status?: number };
+      if (e.status === 404) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
       console.error('[Payment] Webhook error:', err);
-      res.status(500).json({ error: 'Webhook processing failed' });
+      res.status(e.status ?? 500).json({ error: 'Webhook processing failed' });
     }
   },
 };

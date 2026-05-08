@@ -67,6 +67,12 @@ export const env = {
   YOOKASSA_SHOP_ID:    get('YOOKASSA_SHOP_ID', ''),
   YOOKASSA_SECRET_KEY: get('YOOKASSA_SECRET_KEY', ''),
   YOOKASSA_RETURN_URL: get('YOOKASSA_RETURN_URL', 'http://localhost:5174/settings?tab=subscription'),
+  YOOKASSA_ENABLED:    getBool('YOOKASSA_ENABLED', false),
+
+  // Pilot/admin controls
+  REGISTRATION_ENABLED: getBool('REGISTRATION_ENABLED', isDev),
+  MANUAL_ADMIN_SECRET:  get('MANUAL_ADMIN_SECRET', ''),
+  FREE_AI_DAILY_LIMIT:  parseInt(get('FREE_AI_DAILY_LIMIT', '5'), 10),
 
   // Flags
   get isMockAI() {

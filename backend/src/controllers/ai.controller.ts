@@ -4,6 +4,7 @@ import { chat } from '../services/ai.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
+import { aiAccessService, AiAccessError } from '../services/ai-access.service';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(8000),
@@ -64,6 +65,8 @@ export const aiController = {
     }
 
     try {
+      await aiAccessService.consume(req.userId!);
+
       const result = await chat({
         provider,
         messages,
@@ -77,6 +80,10 @@ export const aiController = {
       res.json({ content: result.content, mock: result.mock });
     } catch (err) {
       console.error('[AI] Error:', err);
+      if (err instanceof AiAccessError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';
       res.status(500).json({ error: msg });
     }

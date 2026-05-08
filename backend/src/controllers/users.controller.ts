@@ -1,8 +1,9 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { env } from '../config/env';
 
 const updateProfileSchema = z.object({
   name:           z.string().min(1).max(100).optional(),
@@ -16,6 +17,28 @@ const changePasswordSchema = z.object({
   newPassword:     z.string().min(8, 'Пароль должен быть не менее 8 символов'),
 });
 
+const manualProSchema = z.object({
+  email:    z.string().email(),
+  name:     z.string().min(1).max(100).optional(),
+  password: z.string().min(8).optional(),
+  plan:     z.enum(['PRO', 'ANNUAL']).default('PRO'),
+  months:   z.number().int().min(1).max(24).default(1),
+});
+
+function requireManualAdmin(req: Request, res: Response): boolean {
+  if (!env.MANUAL_ADMIN_SECRET) {
+    res.status(503).json({ error: 'Ручная активация не настроена' });
+    return false;
+  }
+
+  if (req.header('x-admin-secret') !== env.MANUAL_ADMIN_SECRET) {
+    res.status(403).json({ error: 'Доступ запрещён' });
+    return false;
+  }
+
+  return true;
+}
+
 export const usersController = {
   async getMe(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -23,7 +46,7 @@ export const usersController = {
         where: { id: req.userId! },
         select: {
           id: true, email: true, name: true, avatarUrl: true,
-          avatarColor: true, defaultAiModel: true, specialization: true, role: true,
+          avatarColor: true, defaultAiModel: true, specialization: true, role: true, isVerified: true,
         },
       });
       if (!user) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
@@ -43,7 +66,7 @@ export const usersController = {
         data: parsed.data,
         select: {
           id: true, email: true, name: true, avatarUrl: true,
-          avatarColor: true, defaultAiModel: true, specialization: true, role: true,
+          avatarColor: true, defaultAiModel: true, specialization: true, role: true, isVerified: true,
         },
       });
       res.json({ user });
@@ -80,6 +103,61 @@ export const usersController = {
     } catch (err) {
       console.error('[Users] deleteMe:', err);
       res.status(500).json({ error: 'Ошибка при удалении аккаунта' });
+    }
+  },
+
+  async manualPro(req: Request, res: Response): Promise<void> {
+    if (!requireManualAdmin(req, res)) return;
+
+    const parsed = manualProSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    const { email, name, password, plan, months } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+      if (!user) {
+        if (!password) {
+          res.status(404).json({ error: 'Пользователь не найден. Передайте password, чтобы создать пилотный аккаунт.' });
+          return;
+        }
+
+        user = await prisma.user.create({
+          data: {
+            email: normalizedEmail,
+            name: name ?? null,
+            passwordHash: await bcrypt.hash(password, 12),
+            isVerified: true,
+          },
+        });
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + months);
+
+      const subscription = await prisma.subscription.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, plan, status: 'ACTIVE', expiresAt },
+        update: { plan, status: 'ACTIVE', expiresAt },
+      });
+
+      res.json({
+        ok: true,
+        user: { id: user.id, email: user.email, name: user.name },
+        subscription: {
+          plan: subscription.plan,
+          status: subscription.status,
+          expiresAt: subscription.expiresAt,
+        },
+      });
+    } catch (err) {
+      console.error('[Users] manualPro:', err);
+      res.status(500).json({ error: 'Ошибка при ручной активации PRO' });
     }
   },
 };
