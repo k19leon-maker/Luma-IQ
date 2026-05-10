@@ -61,6 +61,7 @@ const pageTitles: Record<string, string> = {
   '/files/products':  'Продукты',
   '/history':         'История',
   '/settings':        'Настройки',
+  '/admin':           'Админка',
 };
 
 /* ── Email verification banner ─────────────────────────────── */
@@ -372,6 +373,17 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Одиночные пункты */}
           <div className={s.navSection}>
+            {user?.role === 'ADMIN' && (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+                }
+              >
+                <span className={s.navIcon}>🛠</span>
+                <span className={s.navLinkLabel}>Админка</span>
+              </NavLink>
+            )}
             <NavLink
               to="/settings"
               className={({ isActive }) =>

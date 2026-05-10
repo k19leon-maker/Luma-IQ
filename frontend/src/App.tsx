@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
+import AdminRoute from './components/AdminRoute/AdminRoute';
 import Onboarding from './components/Onboarding/Onboarding';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
@@ -35,6 +36,7 @@ import ProjectPage   from './pages/Project/ProjectPage';
 import Tasks         from './pages/Tasks/Tasks';
 import History       from './pages/History/History';
 import Settings      from './pages/Settings/Settings';
+import Admin         from './pages/Admin/Admin';
 
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 
@@ -110,6 +112,7 @@ export default function App() {
                   <Route path="/history"  element={<ErrorBoundary><History /></ErrorBoundary>} />
                   <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
                   <Route path="/pricing"  element={<ErrorBoundary><Pricing /></ErrorBoundary>} />
+                  <Route path="/admin"    element={<ErrorBoundary><AdminRoute><Admin /></AdminRoute></ErrorBoundary>} />
 
                   {/* Legacy redirects */}
                   <Route path="/strategy"     element={<Navigate to="/strategy/unpacking"    replace />} />

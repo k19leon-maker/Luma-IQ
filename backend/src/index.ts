@@ -16,6 +16,7 @@ import usersRouter from './routes/users.routes';
 import strategyExportRouter from './routes/strategy-export.routes';
 import filesRouter from './routes/files.routes';
 import paymentRouter from './routes/payment.routes';
+import adminRouter from './routes/admin.routes';
 import { projectService } from './services/project.service';
 import { env } from './config/env';
 
@@ -52,6 +53,7 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/strategy', strategyExportRouter);
 app.use('/api/v1/files', filesRouter);
 app.use('/api/v1/payments', paymentRouter);
+app.use('/api/v1/admin', adminRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend запущен на http://localhost:${PORT}`);

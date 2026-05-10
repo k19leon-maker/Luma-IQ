@@ -23,6 +23,7 @@ const manualProSchema = z.object({
   password: z.string().min(8).optional(),
   plan:     z.enum(['PRO', 'ANNUAL']).default('PRO'),
   months:   z.number().int().min(1).max(24).default(1),
+  makeAdmin: z.boolean().optional().default(false),
 });
 
 function requireManualAdmin(req: Request, res: Response): boolean {
@@ -115,7 +116,7 @@ export const usersController = {
       return;
     }
 
-    const { email, name, password, plan, months } = parsed.data;
+    const { email, name, password, plan, months, makeAdmin } = parsed.data;
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
@@ -133,7 +134,13 @@ export const usersController = {
             name: name ?? null,
             passwordHash: await bcrypt.hash(password, 12),
             isVerified: true,
+            role: makeAdmin ? 'ADMIN' : 'USER',
           },
+        });
+      } else if (makeAdmin && user.role !== 'ADMIN') {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: 'ADMIN' },
         });
       }
 
