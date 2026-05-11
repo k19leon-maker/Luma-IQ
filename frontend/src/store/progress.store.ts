@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 // ── Per-project flags ──────────────────────────────────────────────────────────
 
 export interface ProgressFlags {
+  positioningCompleted:  boolean;
   unpackingCompleted:    boolean;
   audienceCompleted:     boolean;
   utpCompleted:          boolean;
@@ -15,6 +16,7 @@ export interface ProgressFlags {
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
+  positioningCompleted:  false,
   unpackingCompleted:    false,
   audienceCompleted:     false,
   utpCompleted:          false,
@@ -36,6 +38,7 @@ interface ProgressState extends ProgressFlags {
   switchProject: (projectId: string) => void;
 
   // Actions (use currentProjectId internally — backwards compat for all callers)
+  completePositioning: () => void;
   completeUnpacking:   () => void;
   completeAudience:    () => void;
   completeUtp:         () => void;
@@ -84,6 +87,7 @@ export const useProgressStore = create<ProgressState>()(
         });
       },
 
+      completePositioning: () => setFlag(set, 'positioningCompleted'),
       completeUnpacking:   () => setFlag(set, 'unpackingCompleted'),
       completeAudience:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
       completeUtp:         () => setFlag(set, 'utpCompleted'),

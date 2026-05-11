@@ -20,6 +20,7 @@ interface NavItem {
 }
 
 const strategyNav: NavItem[] = [
+  { path: '/strategy/positioning',  label: 'Позиционирование',      icon: '🧭' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
   { path: '/strategy/social',       label: 'Оформление соц сетей', icon: '📱' },
@@ -44,6 +45,7 @@ const filesNav: NavItem[] = [
 const pageTitles: Record<string, string> = {
   '/strategy/unpacking':    'Распаковка',
   '/ai-dialog':             'Диалог с ИИ',
+  '/strategy/positioning':  'Позиционирование',
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Оформление соц. сетей',

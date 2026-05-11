@@ -73,6 +73,14 @@ const COMPLETION_TEXT =
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+interface PositioningData {
+  role?: string;
+  audience?: string;
+  problem?: string;
+  result?: string;
+  statement?: string;
+}
+
 // ── ChoiceCard sub-component ───────────────────────────────────────────────────
 
 function ChoiceCard({
@@ -251,6 +259,7 @@ export default function Strategy() {
   const [pdfError,      setPdfError]      = useState(false);
   const [aiError,       setAiError]       = useState<string | null>(null);
   const [failedStepId,  setFailedStepId]  = useState<number | null>(null);
+  const [positioningData, setPositioningData] = useState<PositioningData | null>(null);
 
   const resolveChoiceRef  = useRef<((v: string) => void) | null>(null);
   const abortRef          = useRef<{ aborted: boolean }>({ aborted: false });
@@ -300,6 +309,7 @@ export default function Strategy() {
     abortRef.current.aborted = true;
     abortRef.current = { aborted: false };
     setIsRunning(false);
+    setPositioningData(null);
 
     const localData = audienceGet(activeProjectId);
     if (localData.completed) {
@@ -321,6 +331,8 @@ export default function Strategy() {
       projectsApi.getStrategy(activeProjectId)
         .then((dbData) => {
           if (!dbData) return;
+          const remotePositioning = (dbData as Record<string, unknown>).positioningData as PositioningData | undefined;
+          setPositioningData(remotePositioning ?? null);
           const remoteAnswers   = (dbData as Record<string, unknown>).answers as Partial<AudienceAnswers> | undefined;
           const remoteCompleted = (dbData as Record<string, unknown>).completed as boolean | undefined;
           if (remoteAnswers && remoteCompleted) {
@@ -454,9 +466,28 @@ export default function Strategy() {
       .map(([k, v]) => `${k}: ${String(v).slice(0, 150)}`)
       .join('\n')
       .slice(0, 800);
-    const projectContext = profileCtx
-      ? `${activeProjectName}\n\nИнформация о психологе:\n${profileCtx}`
-      : activeProjectName;
+    const positioningCtx = positioningData
+      ? [
+        positioningData.statement ? `Базовое позиционирование: ${positioningData.statement}` : '',
+        positioningData.role ? `Роль эксперта: ${positioningData.role}` : '',
+        positioningData.audience ? `Широкая аудитория: ${positioningData.audience}` : '',
+        positioningData.problem ? `Главная тема/проблема: ${positioningData.problem}` : '',
+        positioningData.result ? `Желаемый результат клиента: ${positioningData.result}` : '',
+      ].filter(Boolean).join('\n')
+      : '';
+    const mergedProfile = {
+      ...unpackingProfile,
+      ...(positioningData?.role ? { specialization: positioningData.role } : {}),
+      ...(positioningData?.audience ? { typicalClient: positioningData.audience } : {}),
+      ...(positioningData?.problem ? { uniqueApproach: positioningData.problem } : {}),
+      ...(positioningData?.result ? { keyResult: positioningData.result } : {}),
+      ...(positioningData?.statement ? { positioning: positioningData.statement } : {}),
+    };
+    const projectContext = [
+      activeProjectName,
+      positioningCtx ? `Базовый вектор позиционирования:\n${positioningCtx}` : '',
+      profileCtx ? `Информация о психологе:\n${profileCtx}` : '',
+    ].filter(Boolean).join('\n\n');
 
     const claudeModel = useModelStore.getState().getSettings('audience').claudeModel;
 
@@ -477,7 +508,7 @@ export default function Strategy() {
             section: 'audience',
             message: prompt,
             conversationHistory: [],
-            unpackingProfile,
+            unpackingProfile: mergedProfile,
             projectName: activeProjectName,
           });
           content = resp.content;
@@ -530,7 +561,7 @@ export default function Strategy() {
                 section: 'audience',
                 message: strictPrompt,
                 conversationHistory: [],
-                unpackingProfile,
+                unpackingProfile: mergedProfile,
                 projectName: activeProjectName,
               });
               const retryRaw = parseChoiceOptions(step.id, retryResp.content);
