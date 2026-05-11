@@ -9,6 +9,7 @@ export interface AudienceAnswers {
   chosenSubsegment: string;
   wants:            string;
   requests:         string;
+  top3requests:     string;
   chosenRequest:    string;
   painfulQuestions: string;
   deepDesires:      string;

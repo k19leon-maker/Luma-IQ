@@ -35,6 +35,12 @@ interface DocEntry {
   chosen?:       string;
 }
 
+interface StepChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  stepTitle: string;
+}
+
 // ── Step definitions ───────────────────────────────────────────────────────────
 
 const STEPS: StepDef[] = [
@@ -45,11 +51,12 @@ const STEPS: StepDef[] = [
   { id: 5,  label: 'Выбор подсегмента',       type: 'choice', choiceKey: 'chosenSubsegment' },
   { id: 6,  label: 'Список «ХОЧУ»',           type: 'auto',   answerKey: 'wants' },
   { id: 7,  label: '10 запросов',             type: 'auto',   answerKey: 'requests' },
-  { id: 8,  label: 'Выбор запроса',           type: 'choice', choiceKey: 'chosenRequest' },
-  { id: 9,  label: 'Болезненные вопросы',     type: 'auto',   answerKey: 'painfulQuestions' },
-  { id: 10, label: 'Сокровенные желания',     type: 'auto',   answerKey: 'deepDesires' },
-  { id: 11, label: 'Конечный результат',      type: 'auto',   answerKey: 'finalResult' },
-  { id: 12, label: 'Что бесит больше всего',  type: 'auto',   answerKey: 'corePains' },
+  { id: 8,  label: 'ТОП 3 запроса',           type: 'auto',   answerKey: 'top3requests' },
+  { id: 9,  label: 'Выбор запроса',           type: 'choice', choiceKey: 'chosenRequest' },
+  { id: 10, label: 'Болезненные вопросы',     type: 'auto',   answerKey: 'painfulQuestions' },
+  { id: 11, label: 'Сокровенные желания',     type: 'auto',   answerKey: 'deepDesires' },
+  { id: 12, label: 'Конечный результат',      type: 'auto',   answerKey: 'finalResult' },
+  { id: 13, label: 'Что бесит больше всего',  type: 'auto',   answerKey: 'corePains' },
 ];
 
 const STEP_TITLES: Record<number, string> = {
@@ -60,11 +67,12 @@ const STEP_TITLES: Record<number, string> = {
   5:  'ВЫБОР ПОДСЕГМЕНТА',
   6:  'СПИСОК «ХОЧУ»',
   7:  '10 ЗАПРОСОВ СЕГМЕНТА',
-  8:  'ВЫБОР ЗАПРОСА',
-  9:  'БОЛЕЗНЕННЫЕ ВОПРОСЫ',
-  10: 'СОКРОВЕННЫЕ ЖЕЛАНИЯ',
-  11: 'КОНЕЧНЫЙ РЕЗУЛЬТАТ',
-  12: 'ЧТО БЕСИТ БОЛЬШЕ ВСЕГО',
+  8:  'ТОП 3 ЗАПРОСА',
+  9:  'ВЫБОР ЗАПРОСА',
+  10: 'БОЛЕЗНЕННЫЕ ВОПРОСЫ',
+  11: 'СОКРОВЕННЫЕ ЖЕЛАНИЯ',
+  12: 'КОНЕЧНЫЙ РЕЗУЛЬТАТ',
+  13: 'ЧТО БЕСИТ БОЛЬШЕ ВСЕГО',
   99: 'АНАЛИЗ ЗАВЕРШЁН',
 };
 
@@ -147,10 +155,11 @@ function buildStepPrompt(stepId: number, answers: Partial<AudienceAnswers>, proj
     case 4:  return ctx + strictPrefix + `Для выбранного сегмента «${seg}» выдай ТОЛЬКО список из 5 подсегментов. Никаких вопросов, никаких уточнений.\nФормат СТРОГО (только это, ничего лишнего):\nПодсегмент 1 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\nПодсегмент 2 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\n(и так далее до Подсегмент 5)`;
     case 6:  return ctx + `Для подсегмента «${sub}» составь список «ХОЧУ» — 10–12 конкретных желаний клиентов на языке самих клиентов. Начинай каждый пункт с «• Хочу».`;
     case 7:  return ctx + strictPrefix + `Для сегмента «${seg}» (подсегмент: «${sub}») выдай ТОЛЬКО список из 10 конкретных запросов. Никаких вопросов к пользователю, никаких уточнений.\nФормат СТРОГО (только список, ничего лишнего):\n1. [запрос на живом языке клиента]\n2. [запрос]\n...\n10. [запрос]`;
-    case 9:  return ctx + `Для подсегмента «${sub}», запрос «${req}». Напиши 8–10 болезненных вопросов которые эти клиенты задают себе внутри — от первого лица, эмоционально. Начинай каждый с «•».`;
-    case 10: return ctx + `Для подсегмента «${sub}». Опиши сокровенные желания клиентов этого сегмента — глубинные мечты, которые они не произносят вслух, но очень хотят. 6–8 пунктов, начинай с «•».`;
-    case 11: return ctx + `Для подсегмента «${sub}». Сформулируй одним ёмким предложением главный конечный результат который клиенты получают после работы с психологом.`;
-    case 12: return ctx + `Для подсегмента «${sub}». Напиши текст от первого лица (150–250 слов) — что больше всего бесит и изматывает клиентов данного сегмента. Максимально эмоционально и на языке клиента. Без заголовков.`;
+    case 8:  return ctx + strictPrefix + `Из этих 10 запросов:\n${answers.requests ?? ''}\n\nОпредели ТОП 3 запроса по срочности, боли и вероятности покупки. Покажи короткую логику выбора.\nФормат СТРОГО:\n🥇 Запрос 1 — [формулировка запроса]\n[1–2 предложения почему]\n🥈 Запрос 2 — [формулировка запроса]\n[1–2 предложения почему]\n🥉 Запрос 3 — [формулировка запроса]\n[1–2 предложения почему]`;
+    case 10: return ctx + `Для подсегмента «${sub}», запрос «${req}». Напиши 8–10 болезненных вопросов которые эти клиенты задают себе внутри — от первого лица, эмоционально. Начинай каждый с «•».`;
+    case 11: return ctx + `Для подсегмента «${sub}». Опиши сокровенные желания клиентов этого сегмента — глубинные мечты, которые они не произносят вслух, но очень хотят. 6–8 пунктов, начинай с «•».`;
+    case 12: return ctx + `Для подсегмента «${sub}». Сформулируй одним ёмким предложением главный конечный результат который клиенты получают после работы с психологом.`;
+    case 13: return ctx + `Для подсегмента «${sub}». Напиши текст от первого лица (150–250 слов) — что больше всего бесит и изматывает клиентов данного сегмента. Максимально эмоционально и на языке клиента. Без заголовков.`;
     default: return ctx + `Шаг ${stepId}: продолжи анализ целевой аудитории.`;
   }
 }
@@ -179,7 +188,7 @@ function parseChoiceOptions(stepId: number, text: string): string[] {
   {
     const matches: string[] = [];
     for (const m of text.matchAll(
-      /(?:^|\n)\s*\*{0,2}[🥇🥈🥉]\s*\*{0,2}\s*(?:(?:сегмент|вариант)\s+\d+\s*[—\-–]\s*)?([^\n*:]{3,})/gim,
+      /(?:^|\n)\s*\*{0,2}[🥇🥈🥉]\s*\*{0,2}\s*(?:(?:сегмент|запрос|вариант)\s+\d+\s*[—\-–]\s*)?([^\n*:]{3,})/gim,
     )) {
       const val = stripMd(m[1]);
       if (val.length > 3) matches.push(val);
@@ -288,6 +297,9 @@ export default function Strategy() {
   const [aiError,       setAiError]       = useState<string | null>(null);
   const [failedStepId,  setFailedStepId]  = useState<number | null>(null);
   const [positioningData, setPositioningData] = useState<PositioningData | null>(null);
+  const [stepChatMessages, setStepChatMessages] = useState<StepChatMessage[]>([]);
+  const [stepChatInput, setStepChatInput] = useState('');
+  const [stepChatLoading, setStepChatLoading] = useState(false);
 
   const resolveChoiceRef  = useRef<((v: string) => void) | null>(null);
   const abortRef          = useRef<{ aborted: boolean }>({ aborted: false });
@@ -296,6 +308,38 @@ export default function Strategy() {
   const docColRef         = useRef<HTMLDivElement>(null);
   const docEndRef         = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
+
+  const buildRuntimeContext = useCallback(() => {
+    const profileCtx = Object.entries(unpackingProfile)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${String(v).slice(0, 150)}`)
+      .join('\n')
+      .slice(0, 800);
+    const positioningCtx = positioningData
+      ? [
+        positioningData.statement ? `Базовое позиционирование: ${positioningData.statement}` : '',
+        positioningData.role ? `Роль эксперта: ${positioningData.role}` : '',
+        positioningData.audience ? `Широкая аудитория: ${positioningData.audience}` : '',
+        positioningData.problem ? `Главная тема/проблема: ${positioningData.problem}` : '',
+        positioningData.result ? `Желаемый результат клиента: ${positioningData.result}` : '',
+      ].filter(Boolean).join('\n')
+      : '';
+    const mergedProfile = {
+      ...unpackingProfile,
+      ...(positioningData?.role ? { specialization: positioningData.role } : {}),
+      ...(positioningData?.audience ? { typicalClient: positioningData.audience } : {}),
+      ...(positioningData?.problem ? { uniqueApproach: positioningData.problem } : {}),
+      ...(positioningData?.result ? { keyResult: positioningData.result } : {}),
+      ...(positioningData?.statement ? { positioning: positioningData.statement } : {}),
+    };
+    const projectContext = [
+      activeProjectName,
+      positioningCtx ? `Базовый вектор позиционирования:\n${positioningCtx}` : '',
+      profileCtx ? `Информация об эксперте:\n${profileCtx}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    return { projectContext, mergedProfile };
+  }, [activeProjectName, positioningData, unpackingProfile]);
 
   // ── Scroll tracking ──────────────────────────────────────────────────────────
 
@@ -514,33 +558,7 @@ export default function Strategy() {
     setAiError(null);
     setFailedStepId(null);
 
-    const profileCtx = Object.entries(unpackingProfile)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}: ${String(v).slice(0, 150)}`)
-      .join('\n')
-      .slice(0, 800);
-    const positioningCtx = positioningData
-      ? [
-        positioningData.statement ? `Базовое позиционирование: ${positioningData.statement}` : '',
-        positioningData.role ? `Роль эксперта: ${positioningData.role}` : '',
-        positioningData.audience ? `Широкая аудитория: ${positioningData.audience}` : '',
-        positioningData.problem ? `Главная тема/проблема: ${positioningData.problem}` : '',
-        positioningData.result ? `Желаемый результат клиента: ${positioningData.result}` : '',
-      ].filter(Boolean).join('\n')
-      : '';
-    const mergedProfile = {
-      ...unpackingProfile,
-      ...(positioningData?.role ? { specialization: positioningData.role } : {}),
-      ...(positioningData?.audience ? { typicalClient: positioningData.audience } : {}),
-      ...(positioningData?.problem ? { uniqueApproach: positioningData.problem } : {}),
-      ...(positioningData?.result ? { keyResult: positioningData.result } : {}),
-      ...(positioningData?.statement ? { positioning: positioningData.statement } : {}),
-    };
-    const projectContext = [
-      activeProjectName,
-      positioningCtx ? `Базовый вектор позиционирования:\n${positioningCtx}` : '',
-      profileCtx ? `Информация о психологе:\n${profileCtx}` : '',
-    ].filter(Boolean).join('\n\n');
+    const { projectContext, mergedProfile } = buildRuntimeContext();
 
     const claudeModel = useModelStore.getState().getSettings('audience').claudeModel;
 
@@ -593,7 +611,7 @@ export default function Strategy() {
 
       } else {
         setStepStatuses((prev) => prev.map((st, i) => (i === step.id - 1 ? 'choice' : st)));
-        const prevKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'requests';
+        const prevKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'top3requests';
         const prevContent = (answers as Record<string, string>)[prevKey] ?? '';
         console.log(`[Audience] choice step ${step.id}, prevContent length=${prevContent.length}`);
 
@@ -606,7 +624,7 @@ export default function Strategy() {
             console.warn(`[Audience step ${step.id}] only ${options.length} options, retrying strict`);
             isRetryingRef.current = true;
             try {
-              const sourceStepId = step.id === 3 ? 2 : step.id === 5 ? 4 : 7;
+              const sourceStepId = step.id === 3 ? 2 : step.id === 5 ? 4 : 8;
               const strictPrompt = buildStepPrompt(sourceStepId, answers, projectContext, true);
               const retryResp = await aiApi.chat({
                 model: 'claude',
@@ -621,7 +639,7 @@ export default function Strategy() {
               const retryOptions = filterOutQuestions(retryRaw);
               if (retryOptions.length >= 2) {
                 options = retryOptions;
-                const prevAnsKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'requests';
+                const prevAnsKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'top3requests';
                 answers[prevAnsKey as keyof AudienceAnswers] = retryResp.content;
                 answersRef.current = { ...answers };
                 updateDocEntry(sourceStepId, { fullText: retryResp.content, displayedText: retryResp.content });
@@ -685,12 +703,13 @@ export default function Strategy() {
     setCompleted(false);
     setFailedStepId(null);
     setAiError(null);
+    setStepChatMessages([]);
     setIsRunning(true);
     void runAnalysis(1);
   }
 
   function retryStep(stepId: number) {
-    const sourceStepId = stepId === 3 ? 2 : stepId === 5 ? 4 : stepId === 8 ? 7 : stepId;
+    const sourceStepId = stepId === 3 ? 2 : stepId === 5 ? 4 : stepId === 9 ? 8 : stepId;
     const newAnswers = { ...answersRef.current };
     STEPS
       .filter((s) => s.id >= sourceStepId)
@@ -703,6 +722,7 @@ export default function Strategy() {
     setDocEntries((prev) => prev.filter((e) => e.stepId < sourceStepId));
     setFailedStepId(null);
     setAiError(null);
+    setStepChatMessages([]);
     abortRef.current = { aborted: false };
     setIsRunning(true);
     void runAnalysis(sourceStepId);
@@ -724,9 +744,58 @@ export default function Strategy() {
     setCompleted(false);
     setFailedStepId(null);
     setAiError(null);
+    setStepChatMessages([]);
+    setStepChatInput('');
     audienceReset(activeProjectId);
     persistAudienceProgress({}, false);
     toast('Анализ сброшен', { icon: '↺' });
+  }
+
+  async function handleStepChat() {
+    const question = stepChatInput.trim();
+    if (!question || stepChatLoading) return;
+
+    const currentEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
+    const stepTitle = currentEntry ? STEP_TITLES[currentEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
+    const currentResult = currentEntry
+      ? currentEntry.chosen
+        ? `Выбор пользователя: ${currentEntry.chosen}`
+        : currentEntry.fullText
+      : 'Результатов по шагам пока нет.';
+    const history = stepChatMessages.slice(-8).map((msg) => ({
+      role: msg.role,
+      content: `[${msg.stepTitle}] ${msg.content}`,
+    }));
+    const { projectContext, mergedProfile } = buildRuntimeContext();
+
+    const userMsg: StepChatMessage = { role: 'user', content: question, stepTitle };
+    setStepChatMessages((prev) => [...prev, userMsg]);
+    setStepChatInput('');
+    setStepChatLoading(true);
+
+    try {
+      const resp = await aiApi.chat({
+        model: 'claude',
+        claudeModel: audienceModel,
+        section: 'audience',
+        message: [
+          `Контекст проекта:\n${projectContext}`,
+          `Текущий шаг: ${stepTitle}`,
+          `Текущий результат шага:\n${currentResult}`,
+          `Вопрос пользователя:\n${question}`,
+          'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.',
+        ].join('\n\n'),
+        conversationHistory: history,
+        unpackingProfile: mergedProfile,
+        projectName: activeProjectName,
+      });
+      setStepChatMessages((prev) => [...prev, { role: 'assistant', content: resp.content, stepTitle }]);
+    } catch {
+      toast.error('Не удалось получить ответ в чате шага');
+      setStepChatMessages((prev) => prev.filter((msg) => msg !== userMsg));
+    } finally {
+      setStepChatLoading(false);
+    }
   }
 
   async function handlePdf() {
@@ -754,6 +823,8 @@ export default function Strategy() {
   const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const runBtnDisabled = isRunning || completed;
+  const activeStepEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
+  const activeStepTitle = activeStepEntry ? STEP_TITLES[activeStepEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: '#fff' }}>
@@ -768,7 +839,7 @@ export default function Strategy() {
           <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: '0 0 4px' }}>
             Целевая аудитория
           </h2>
-          <p style={{ fontSize: 12, color: '#888', margin: '0 0 16px' }}>12-шаговый AI-анализ</p>
+          <p style={{ fontSize: 12, color: '#888', margin: '0 0 16px' }}>13-шаговый AI-анализ</p>
 
           {!completed && (
             <button
@@ -919,7 +990,7 @@ export default function Strategy() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
               }}>🧠</div>
               <p style={{ fontSize: 14, color: '#888', maxWidth: 360, lineHeight: 1.6 }}>
-                Нажмите «Запустить анализ» — ИИ автоматически проработает все 12 шагов стратегии на основе вашего позиционирования.
+                Нажмите «Запустить анализ» — ИИ автоматически проработает 13 шагов стратегии на основе вашего позиционирования.
               </p>
             </div>
           ) : (
@@ -941,6 +1012,80 @@ export default function Strategy() {
                   >
                     🔄 Повторить шаг
                   </button>
+                </div>
+              )}
+
+              {activeStepEntry && (
+                <div style={{
+                  background: '#fff', border: '1px solid #E5E3DC', borderRadius: 12,
+                  padding: 16, marginBottom: 16,
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 12, marginBottom: 10,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#D4A847', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Чат по текущему шагу
+                      </div>
+                      <div style={{ fontSize: 13, color: '#1a1a1a', marginTop: 2 }}>{activeStepTitle}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#888' }}>Можно уточнить, попросить добавить варианты или оспорить вывод</div>
+                  </div>
+
+                  {stepChatMessages.length > 0 && (
+                    <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
+                      {stepChatMessages.slice(-6).map((msg, idx) => (
+                        <div
+                          key={`${msg.stepTitle}-${idx}`}
+                          style={{
+                            justifySelf: msg.role === 'user' ? 'end' : 'start',
+                            maxWidth: '86%',
+                            background: msg.role === 'user' ? '#FFF8E8' : '#F5F4F0',
+                            border: '1px solid #ECE8DF',
+                            borderRadius: 8,
+                            padding: '8px 10px',
+                            fontSize: 12,
+                            color: '#1a1a1a',
+                            lineHeight: 1.55,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>
+                            {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
+                          </div>
+                          {msg.content}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                    <textarea
+                      value={stepChatInput}
+                      onChange={(e) => setStepChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void handleStepChat();
+                      }}
+                      placeholder="Например: добавь еще 3 сегмента, которые AI мог упустить..."
+                      rows={2}
+                      style={{
+                        flex: 1, resize: 'vertical', minHeight: 44, border: '1px solid #DAD5CB',
+                        borderRadius: 8, padding: '9px 10px', fontSize: 13, fontFamily: 'inherit',
+                      }}
+                    />
+                    <button
+                      onClick={() => void handleStepChat()}
+                      disabled={stepChatLoading || !stepChatInput.trim()}
+                      style={{
+                        border: 'none', borderRadius: 8, background: stepChatLoading || !stepChatInput.trim() ? '#F0EEE8' : '#D4A847',
+                        color: stepChatLoading || !stepChatInput.trim() ? '#aaa' : '#fff',
+                        padding: '10px 14px', fontSize: 12, fontWeight: 700, cursor: stepChatLoading ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {stepChatLoading ? 'Думаю...' : 'Спросить'}
+                    </button>
+                  </div>
                 </div>
               )}
 
