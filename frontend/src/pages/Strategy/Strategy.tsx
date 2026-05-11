@@ -133,16 +133,16 @@ function ChoiceCard({
 
 // ── AI step prompts ────────────────────────────────────────────────────────────
 
-function buildStepPrompt(stepId: number, answers: Partial<AudienceAnswers>, projectName: string, strict = false): string {
+function buildStepPrompt(stepId: number, answers: Partial<AudienceAnswers>, projectContext: string, strict = false): string {
   const seg  = (answers.chosenSegment    ?? '').slice(0, 200) || (answers.segments ?? '').slice(0, 400);
   const sub  = (answers.chosenSubsegment ?? '').slice(0, 200);
   const req  = (answers.chosenRequest    ?? '').slice(0, 200);
-  const ctx  = `Психолог работает в проекте «${projectName}».\n\n`;
+  const ctx  = `Контекст проекта:\n${projectContext || 'Контекст пока не заполнен.'}\n\nРаботай строго на основе этого контекста. Не подставляй случайные ниши, если они не следуют из контекста.\n\n`;
   const strictPrefix = strict
     ? 'ВАЖНО: Выдай ТОЛЬКО пронумерованный список. Никаких вопросов. Никаких уточнений. Только список в точном формате ниже.\n\n'
     : '';
   switch (stepId) {
-    case 1:  return ctx + 'Сгенерируй 10 сегментов ЦА для психолога. Для каждого сегмента укажи: название сегмента, ситуацию «Когда:», желание «Хочу:» и цель «Чтобы:». Используй **жирный** для названий сегментов. Формат: «Сегмент N — **[название]**». Строго 10 сегментов.';
+    case 1:  return ctx + 'Сгенерируй 10 сегментов целевой аудитории для этого эксперта/проекта. Для каждого сегмента укажи: название сегмента, ситуацию «Когда:», желание «Хочу:» и цель «Чтобы:». Используй **жирный** для названий сегментов. Формат: «Сегмент N — **[название]**». Строго 10 сегментов.';
     case 2:  return ctx + strictPrefix + `Из этих 10 сегментов:\n${answers.segments ?? ''}\n\nВыдай ТОЛЬКО список ТОП 3 сегментов по востребованности. Никаких вопросов, никаких уточнений.\nФормат СТРОГО (только это, ничего лишнего):\n🥇 Сегмент 1 — [название]\n[1–2 предложения почему]\n🥈 Сегмент 2 — [название]\n[1–2 предложения почему]\n🥉 Сегмент 3 — [название]\n[1–2 предложения почему]`;
     case 4:  return ctx + strictPrefix + `Для выбранного сегмента «${seg}» выдай ТОЛЬКО список из 5 подсегментов. Никаких вопросов, никаких уточнений.\nФормат СТРОГО (только это, ничего лишнего):\nПодсегмент 1 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\nПодсегмент 2 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\n(и так далее до Подсегмент 5)`;
     case 6:  return ctx + `Для подсегмента «${sub}» составь список «ХОЧУ» — 10–12 конкретных желаний клиентов на языке самих клиентов. Начинай каждый пункт с «• Хочу».`;
@@ -232,6 +232,34 @@ function filterOutQuestions(options: string[]): string[] {
   });
 }
 
+function buildFallbackOptions(stepId: number, positioning: PositioningData | null): string[] {
+  const audience = positioning?.audience || 'основная аудитория проекта';
+  const problem = positioning?.problem || 'ключевая проблема';
+  const result = positioning?.result || 'желаемый результат';
+
+  if (stepId === 3) {
+    return [
+      `${audience}: высокая срочность проблемы «${problem}»`,
+      `${audience}: уже пробовали решить проблему, но не получили ${result}`,
+      `${audience}: осознали проблему и готовы к работе`,
+    ];
+  }
+
+  if (stepId === 5) {
+    return [
+      `Нужен быстрый первый шаг по теме «${problem}»`,
+      `Есть повторяющийся сценарий, который мешает получить ${result}`,
+      `Нужна понятная система действий без перегруза`,
+    ];
+  }
+
+  return [
+    `Как справиться с проблемой «${problem}»`,
+    `Что делать, чтобы получить ${result}`,
+    `С чего начать работу над этой задачей`,
+  ];
+}
+
 // ── Mock content (fallback when AI unavailable) ────────────────────────────────
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -303,13 +331,36 @@ export default function Strategy() {
     }
   }, [activeProjectId]);
 
+  const persistAudienceProgress = useCallback((answers: Partial<AudienceAnswers>, done: boolean) => {
+    if (activeProjectId && activeProjectId !== 'default') {
+      audienceSave(activeProjectId, answers, done);
+    }
+    void saveProgress(answers, done);
+  }, [activeProjectId, audienceSave, saveProgress]);
+
   // ── Load project state ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    let alive = true;
+    setPositioningData(null);
+
+    if (!activeProjectId || activeProjectId === 'default') return () => { alive = false; };
+
+    projectsApi.getStrategy(activeProjectId)
+      .then((dbData) => {
+        if (!alive || !dbData) return;
+        const remotePositioning = (dbData as Record<string, unknown>).positioningData as PositioningData | undefined;
+        setPositioningData(remotePositioning ?? null);
+      })
+      .catch(() => {});
+
+    return () => { alive = false; };
+  }, [activeProjectId]);
 
   useEffect(() => {
     abortRef.current.aborted = true;
     abortRef.current = { aborted: false };
     setIsRunning(false);
-    setPositioningData(null);
 
     const localData = audienceGet(activeProjectId);
     if (localData.completed) {
@@ -331,8 +382,6 @@ export default function Strategy() {
       projectsApi.getStrategy(activeProjectId)
         .then((dbData) => {
           if (!dbData) return;
-          const remotePositioning = (dbData as Record<string, unknown>).positioningData as PositioningData | undefined;
-          setPositioningData(remotePositioning ?? null);
           const remoteAnswers   = (dbData as Record<string, unknown>).answers as Partial<AudienceAnswers> | undefined;
           const remoteCompleted = (dbData as Record<string, unknown>).completed as boolean | undefined;
           if (remoteAnswers && remoteCompleted) {
@@ -342,6 +391,10 @@ export default function Strategy() {
             setStepStatuses(STEPS.map(() => 'done'));
             setCompleted(true);
             completeAudience();
+          } else if (remoteAnswers && Object.keys(remoteAnswers).length > 0) {
+            audienceSave(activeProjectId, remoteAnswers, false);
+            answersRef.current = remoteAnswers;
+            restorePartialDoc(remoteAnswers);
           }
         })
         .catch(() => {});
@@ -535,7 +588,7 @@ export default function Strategy() {
           answersRef.current = { ...answers };
         }
         setStepStatuses((prev) => prev.map((st, i) => (i === step.id - 1 ? 'done' : st)));
-        void saveProgress(answers, false);
+        persistAudienceProgress(answers, false);
         await delay(200);
 
       } else {
@@ -572,6 +625,7 @@ export default function Strategy() {
                 answers[prevAnsKey as keyof AudienceAnswers] = retryResp.content;
                 answersRef.current = { ...answers };
                 updateDocEntry(sourceStepId, { fullText: retryResp.content, displayedText: retryResp.content });
+                persistAudienceProgress(answers, false);
               }
             } catch {
               console.warn(`[Audience step ${step.id}] strict retry failed`);
@@ -582,11 +636,7 @@ export default function Strategy() {
         }
 
         if (options.length < 2) {
-          options = step.id === 3
-            ? ['Мамы подростков 12–17 лет', 'Женщины 30–45 с тревожностью', 'Пары в кризисе']
-            : step.id === 5
-            ? ['Мамы подростков с закрытостью ребёнка', 'Мамы подростков с агрессией', 'Мамы подростков с депрессией']
-            : ['Как наладить отношения с подростком', 'Почему ребёнок стал агрессивным', 'Как разговаривать с подростком который молчит'];
+          options = buildFallbackOptions(step.id, positioningData);
         }
 
         console.log(`[Audience step ${step.id}] options:`, options);
@@ -604,7 +654,7 @@ export default function Strategy() {
         }
         updateDocEntry(step.id, { chosen });
         setStepStatuses((prev) => prev.map((st, i) => (i === step.id - 1 ? 'done' : st)));
-        void saveProgress(answers, false);
+        persistAudienceProgress(answers, false);
         await delay(300);
       }
     }
@@ -617,8 +667,7 @@ export default function Strategy() {
       await typeText(99, COMPLETION_TEXT, abort);
 
       completeAudience();
-      audienceSave(activeProjectId, answers as AudienceAnswers, true);
-      void saveProgress(answers, true);
+      persistAudienceProgress(answers, true);
       setCompleted(true);
     }
 
@@ -676,6 +725,7 @@ export default function Strategy() {
     setFailedStepId(null);
     setAiError(null);
     audienceReset(activeProjectId);
+    persistAudienceProgress({}, false);
     toast('Анализ сброшен', { icon: '↺' });
   }
 

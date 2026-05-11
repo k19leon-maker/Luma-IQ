@@ -25,7 +25,17 @@ const completeStrategySchema = z.object({
 const saveStrategySchema = z.object({
   answers:   z.record(z.string()).optional(),
   completed: z.boolean().optional(),
+  positioningData: z.object({
+    role: z.string().optional(),
+    audience: z.string().optional(),
+    problem: z.string().optional(),
+    result: z.string().optional(),
+    statement: z.string().optional(),
+    completed: z.boolean().optional(),
+    updatedAt: z.string().optional(),
+  }).passthrough().optional(),
   // unpacking data
+  unpackingData: z.record(z.unknown()).optional(),
   unpackingAnswers:   z.record(z.unknown()).optional(),
   unpackingCompleted: z.boolean().optional(),
   // progress flags
