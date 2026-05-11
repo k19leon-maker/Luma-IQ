@@ -4,6 +4,7 @@ import { chat } from '../services/ai.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
+import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
 import { aiAccessService, AiAccessError } from '../services/ai-access.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
@@ -25,6 +26,7 @@ const chatSchema = z.object({
   // Dynamic prompt context
   unpackingProfile: z.record(z.string()).optional(),
   projectName: z.string().optional(),
+  projectId: z.string().uuid().optional(),
   fileContext: z.string().optional(),
 });
 
@@ -44,6 +46,7 @@ export const aiController = {
       conversationHistory,
       unpackingProfile,
       projectName,
+      projectId,
       fileContext,
     } = parsed.data;
 
@@ -56,7 +59,17 @@ export const aiController = {
 
     // Build system prompt: dynamic if profile provided, static from SYSTEM_PROMPTS otherwise
     let systemPrompt: string | undefined;
-    if (section) {
+    if (section === 'ai-dialog' && projectId) {
+      const prompt = await buildAiDialogSystemPrompt(req.userId!, projectId);
+      if (!prompt) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      systemPrompt = prompt;
+      if (fileContext?.trim()) {
+        systemPrompt += `\n\nДополнительный контекст от пользователя:\n${fileContext.trim()}`;
+      }
+    } else if (section) {
       const ctx = buildProjectContext(unpackingProfile ?? null, projectName ?? '');
       console.log(`[AI] section=${section} project="${ctx.projectName}" spec="${ctx.specialization.slice(0, 60)}"`);
       systemPrompt = buildPromptForSection(section, ctx);

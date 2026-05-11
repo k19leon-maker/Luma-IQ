@@ -20,7 +20,6 @@ interface NavItem {
 }
 
 const strategyNav: NavItem[] = [
-  { path: '/strategy/unpacking',    label: 'Распаковка',           icon: '🔍' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
   { path: '/strategy/social',       label: 'Оформление соц сетей', icon: '📱' },
@@ -44,6 +43,7 @@ const filesNav: NavItem[] = [
 
 const pageTitles: Record<string, string> = {
   '/strategy/unpacking':    'Распаковка',
+  '/ai-dialog':             'Диалог с ИИ',
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Оформление соц. сетей',
@@ -300,6 +300,15 @@ export default function Layout({ children }: LayoutProps) {
           {/* План задач */}
           <div className={s.navSection}>
             <NavLink
+              to="/ai-dialog"
+              className={({ isActive }) =>
+                `${s.navLink} ${s.aiDialogLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>AI</span>
+              <span className={s.navLinkLabel}>Диалог с ИИ</span>
+            </NavLink>
+            <NavLink
               to="/tasks"
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
@@ -423,7 +432,7 @@ export default function Layout({ children }: LayoutProps) {
         {user && user.isVerified === false && (
           <EmailBanner email={user.email} />
         )}
-        {location.pathname !== '/dashboard' && (
+        {location.pathname !== '/dashboard' && location.pathname !== '/ai-dialog' && (
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>
             <div className={s.topbarActions}>

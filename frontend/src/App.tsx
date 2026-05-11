@@ -11,9 +11,9 @@ import AuthCallback from './pages/AuthCallback/AuthCallback';
 import VerifyEmail from './pages/VerifyEmail/VerifyEmail';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Pricing from './pages/Pricing/Pricing';
+import AIDialog from './pages/AIDialog/AIDialog';
 
 // Strategy
-import Unpacking   from './pages/Unpacking/Unpacking';
 import Strategy    from './pages/Strategy/Strategy';
 import UTP         from './pages/UTP/UTP';
 import Social      from './pages/Social/Social';
@@ -80,9 +80,9 @@ export default function App() {
                 <Routes>
                   {/* Дашборд */}
                   <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+                  <Route path="/ai-dialog" element={<ErrorBoundary><AIDialog /></ErrorBoundary>} />
 
                   {/* Стратегия */}
-                  <Route path="/strategy/unpacking"    element={<ErrorBoundary><Unpacking /></ErrorBoundary>} />
                   <Route path="/strategy/audience"     element={<ErrorBoundary><Strategy /></ErrorBoundary>} />
                   <Route path="/strategy/utp"          element={<ErrorBoundary><UTP /></ErrorBoundary>} />
                   <Route path="/strategy/social"       element={<ErrorBoundary><Social /></ErrorBoundary>} />
@@ -115,12 +115,13 @@ export default function App() {
                   <Route path="/admin"    element={<ErrorBoundary><AdminRoute><Admin /></AdminRoute></ErrorBoundary>} />
 
                   {/* Legacy redirects */}
-                  <Route path="/strategy"     element={<Navigate to="/strategy/unpacking"    replace />} />
+                  <Route path="/strategy"     element={<Navigate to="/strategy/audience"     replace />} />
+                  <Route path="/strategy/unpacking" element={<Navigate to="/ai-dialog"       replace />} />
                   <Route path="/product-main" element={<Navigate to="/strategy/product-main" replace />} />
                   <Route path="/product-mini" element={<Navigate to="/strategy/product-mini" replace />} />
                   <Route path="/product-free" element={<Navigate to="/strategy/lead-magnet"  replace />} />
                   <Route path="/lead-magnet"  element={<Navigate to="/strategy/lead-magnet"  replace />} />
-                  <Route path="/chat"         element={<Navigate to="/strategy/unpacking"    replace />} />
+                  <Route path="/chat"         element={<Navigate to="/ai-dialog"             replace />} />
                 </Routes>
               </AppLayout>
             </PrivateRoute>

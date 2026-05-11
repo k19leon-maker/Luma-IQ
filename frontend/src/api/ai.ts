@@ -16,6 +16,7 @@ export interface ChatRequest {
   // Dynamic prompt context (optional — improves prompt relevance)
   unpackingProfile?:   Record<string, string>;
   projectName?:        string;
+  projectId?:          string;
   fileContext?:        string;
 }
 
