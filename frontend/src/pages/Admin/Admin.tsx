@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { adminApi, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
+import { adminApi, AdminDashboard, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
 import s from './Admin.module.css';
 
 function fmtDate(value: string | null): string {
@@ -14,6 +14,7 @@ function planClass(plan: string): string {
 
 export default function Admin() {
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [total, setTotal] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminUserDetail | null>(null);
@@ -27,7 +28,19 @@ export default function Admin() {
   const [grantPassword, setGrantPassword] = useState('');
   const [grantPlan, setGrantPlan] = useState<'PRO' | 'ANNUAL'>('PRO');
   const [grantMonths, setGrantMonths] = useState(1);
+  const [paymentSource, setPaymentSource] = useState<'TRIBUTE' | 'MANUAL' | 'PROMO'>('TRIBUTE');
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [externalId, setExternalId] = useState('');
+  const [adminNote, setAdminNote] = useState('');
   const [grantLoading, setGrantLoading] = useState(false);
+
+  async function loadDashboard() {
+    try {
+      setDashboard(await adminApi.dashboard());
+    } catch {
+      toast.error('Не удалось загрузить метрики');
+    }
+  }
 
   async function loadUsers(nextSelectedId = selectedId) {
     setLoading(true);
@@ -60,6 +73,7 @@ export default function Admin() {
   }
 
   useEffect(() => {
+    void loadDashboard();
     void loadUsers();
   }, []);
 
@@ -84,9 +98,17 @@ export default function Admin() {
         password: grantPassword || undefined,
         plan: grantPlan,
         months: grantMonths,
+        paymentSource,
+        amount: paymentAmount,
+        externalId: externalId || undefined,
+        adminNote: adminNote || undefined,
       });
       toast.success(`Доступ ${result.subscription.plan} активирован`);
       setGrantPassword('');
+      setExternalId('');
+      setAdminNote('');
+      setPaymentAmount(0);
+      await loadDashboard();
       await loadUsers(result.user.id);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -108,25 +130,46 @@ export default function Admin() {
         </button>
       </div>
 
+      {dashboard && (
+        <div className={s.dashboardGrid}>
+          <div className={s.stat}>
+            <div className={s.statLabel}>Новые за 7 дней</div>
+            <div className={s.statValue}>{dashboard.metrics.newUsers7d}</div>
+          </div>
+          <div className={s.stat}>
+            <div className={s.statLabel}>Revenue / LTV</div>
+            <div className={s.statValue}>{dashboard.metrics.revenue.toLocaleString('ru-RU')} ₽</div>
+          </div>
+          <div className={s.stat}>
+            <div className={s.statLabel}>Средний LTV</div>
+            <div className={s.statValue}>{Math.round(dashboard.metrics.averageLtv).toLocaleString('ru-RU')} ₽</div>
+          </div>
+          <div className={s.stat}>
+            <div className={s.statLabel}>AI сегодня</div>
+            <div className={s.statValue}>{dashboard.metrics.aiToday}</div>
+          </div>
+        </div>
+      )}
+
       <div className={s.grid}>
         <div className={s.panel}>
           <div className={s.panelHeader}>
             <div className={s.statGrid} style={{ flex: 1 }}>
               <div className={s.stat}>
                 <div className={s.statLabel}>Пользователи</div>
-                <div className={s.statValue}>{total}</div>
+                <div className={s.statValue}>{dashboard?.metrics.totalUsers ?? total}</div>
               </div>
               <div className={s.stat}>
                 <div className={s.statLabel}>Активный PRO</div>
-                <div className={s.statValue}>{summary.pro}</div>
+                <div className={s.statValue}>{dashboard?.metrics.activePro ?? summary.pro}</div>
               </div>
               <div className={s.stat}>
                 <div className={s.statLabel}>LTV всего</div>
-                <div className={s.statValue}>{summary.ltv.toLocaleString('ru-RU')} ₽</div>
+                <div className={s.statValue}>{(dashboard?.metrics.revenue ?? summary.ltv).toLocaleString('ru-RU')} ₽</div>
               </div>
               <div className={s.stat}>
                 <div className={s.statLabel}>AI-запросы</div>
-                <div className={s.statValue}>{summary.ai}</div>
+                <div className={s.statValue}>{dashboard?.metrics.aiTotal ?? summary.ai}</div>
               </div>
             </div>
           </div>
@@ -159,6 +202,7 @@ export default function Admin() {
                   <th>Проекты</th>
                   <th>AI</th>
                   <th>LTV</th>
+                  <th>Активность</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,6 +224,7 @@ export default function Admin() {
                     <td>{user.projectCount}</td>
                     <td>{user.aiRequestCount}</td>
                     <td>{user.ltv.toLocaleString('ru-RU')} ₽</td>
+                    <td>{fmtDate(user.lastActivityAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -219,7 +264,7 @@ export default function Admin() {
                 </div>
 
                 <div className={s.section}>
-                  <div className={s.sectionTitle}>Выдать доступ</div>
+                  <div className={s.sectionTitle}>Добавить пользователя / выдать доступ</div>
                   <div className={s.form}>
                     <input className={s.input} value={grantEmail} onChange={(e) => setGrantEmail(e.target.value)} placeholder="Email" />
                     <input className={s.input} value={grantName} onChange={(e) => setGrantName(e.target.value)} placeholder="Имя" />
@@ -231,9 +276,36 @@ export default function Admin() {
                       </select>
                       <input className={s.input} type="number" min={1} max={24} value={grantMonths} onChange={(e) => setGrantMonths(Number(e.target.value))} />
                     </div>
+                    <div className={s.formRow}>
+                      <select className={s.select} value={paymentSource} onChange={(e) => setPaymentSource(e.target.value as 'TRIBUTE' | 'MANUAL' | 'PROMO')}>
+                        <option value="TRIBUTE">Tribute</option>
+                        <option value="MANUAL">Manual</option>
+                        <option value="PROMO">Promo</option>
+                      </select>
+                      <input className={s.input} type="number" min={0} value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} placeholder="Сумма, ₽" />
+                    </div>
+                    <input className={s.input} value={externalId} onChange={(e) => setExternalId(e.target.value)} placeholder="ID/ссылка оплаты Tribute" />
+                    <textarea className={s.textarea} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Заметка администратора" rows={3} />
                     <button className={s.button} onClick={() => void handleGrant()} disabled={grantLoading || !grantEmail}>
-                      {grantLoading ? 'Выдаю...' : 'Активировать'}
+                      {grantLoading ? 'Сохраняю...' : 'Создать / активировать'}
                     </button>
+                  </div>
+                </div>
+
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Платежи и LTV</div>
+                  <div className={s.list}>
+                    {selected.payments.slice(0, 6).map((payment) => (
+                      <div className={s.listItem} key={payment.id}>
+                        <div className={s.email}>{Number(payment.amount).toLocaleString('ru-RU')} {payment.currency}</div>
+                        <div className={s.muted}>
+                          {payment.status} · {payment.source} · {fmtDate(payment.createdAt)}
+                          {payment.externalId ? ` · ${payment.externalId}` : ''}
+                        </div>
+                        {payment.adminNote && <div className={s.note}>{payment.adminNote}</div>}
+                      </div>
+                    ))}
+                    {selected.payments.length === 0 && <div className={s.muted}>Платежей пока нет</div>}
                   </div>
                 </div>
 
@@ -264,11 +336,71 @@ export default function Admin() {
                     {selected.aiUsage.length === 0 && <div className={s.muted}>AI-запросов пока нет</div>}
                   </div>
                 </div>
+
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Последние AI-запросы</div>
+                  <div className={s.list}>
+                    {selected.aiRequestLogs.slice(0, 8).map((item) => (
+                      <div className={s.listItem} key={item.id}>
+                        <div className={s.email}>{item.provider} · {item.status}</div>
+                        <div className={s.muted}>{item.section ?? 'general'} · {fmtDate(item.createdAt)}{item.isMock ? ' · mock' : ''}</div>
+                        {item.error && <div className={s.note}>{item.error}</div>}
+                      </div>
+                    ))}
+                    {selected.aiRequestLogs.length === 0 && <div className={s.muted}>Подробных AI-логов пока нет</div>}
+                  </div>
+                </div>
+
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Activity events</div>
+                  <div className={s.list}>
+                    {selected.events.slice(0, 10).map((event) => (
+                      <div className={s.listItem} key={event.id}>
+                        <div className={s.email}>{event.type}</div>
+                        <div className={s.muted}>{fmtDate(event.createdAt)}</div>
+                      </div>
+                    ))}
+                    {selected.events.length === 0 && <div className={s.muted}>Событий пока нет</div>}
+                  </div>
+                </div>
               </>
             )}
           </div>
         </aside>
       </div>
+
+      {dashboard && (
+        <div className={s.bottomGrid}>
+          <div className={s.panel}>
+            <div className={s.card}>
+              <div className={s.sectionTitle}>AI analytics</div>
+              <div className={s.list}>
+                {dashboard.ai.byProvider.map((item) => (
+                  <div className={s.listItem} key={item.provider}>
+                    <div className={s.email}>{item.provider}</div>
+                    <div className={s.muted}>{item.count} запросов за 30 дней</div>
+                  </div>
+                ))}
+                {dashboard.ai.byProvider.length === 0 && <div className={s.muted}>AI-логов пока нет</div>}
+              </div>
+            </div>
+          </div>
+          <div className={s.panel}>
+            <div className={s.card}>
+              <div className={s.sectionTitle}>Последние события</div>
+              <div className={s.list}>
+                {dashboard.recentEvents.map((event) => (
+                  <div className={s.listItem} key={event.id}>
+                    <div className={s.email}>{event.type}</div>
+                    <div className={s.muted}>{event.user?.email ?? 'system'} · {fmtDate(event.createdAt)}</div>
+                  </div>
+                ))}
+                {dashboard.recentEvents.length === 0 && <div className={s.muted}>Событий пока нет</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

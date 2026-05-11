@@ -5,6 +5,8 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
 import { aiAccessService, AiAccessError } from '../services/ai-access.service';
+import { eventService } from '../services/event.service';
+import { prisma } from '../lib/prisma';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(8000),
@@ -77,9 +79,38 @@ export const aiController = {
         temperature: 0.7,
       });
 
+      void prisma.aIRequestLog.create({
+        data: {
+          userId: req.userId!,
+          provider,
+          section: section ?? null,
+          model: provider === 'anthropic' ? claudeModel ?? null : null,
+          status: 'SUCCEEDED',
+          isMock: result.mock,
+        },
+      }).catch(() => {});
+      void eventService.track('ai_request_succeeded', {
+        userId: req.userId!,
+        metadata: { provider, section, mock: result.mock },
+      }).catch(() => {});
+
       res.json({ content: result.content, mock: result.mock });
     } catch (err) {
       console.error('[AI] Error:', err);
+      void prisma.aIRequestLog.create({
+        data: {
+          userId: req.userId!,
+          provider,
+          section: section ?? null,
+          model: provider === 'anthropic' ? claudeModel ?? null : null,
+          status: 'FAILED',
+          error: err instanceof Error ? err.message : 'unknown',
+        },
+      }).catch(() => {});
+      void eventService.track('ai_request_failed', {
+        userId: req.userId!,
+        metadata: { provider, section, error: err instanceof Error ? err.message : 'unknown' },
+      }).catch(() => {});
       if (err instanceof AiAccessError) {
         res.status(err.status).json({ error: err.message });
         return;

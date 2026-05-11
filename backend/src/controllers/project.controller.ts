@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { projectService } from '../services/project.service';
+import { eventService } from '../services/event.service';
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -50,6 +51,10 @@ export const projectController = {
     }
     try {
       const project = await projectService.create(req.userId!, parsed.data);
+      void eventService.track('project_created', {
+        userId: req.userId!,
+        metadata: { projectId: project.id, name: project.name },
+      }).catch(() => {});
       res.status(201).json({ project });
     } catch (err) {
       console.error('[Projects] create:', err);
@@ -200,6 +205,10 @@ export const projectController = {
         where: { id: req.params.id as string },
         data: { strategyData: merged },
       });
+      void eventService.track('strategy_saved', {
+        userId: req.userId!,
+        metadata: { projectId: req.params.id, keys: Object.keys(parsed.data) },
+      }).catch(() => {});
       res.json({ ok: true });
     } catch (err) {
       console.error('[Projects] saveStrategyData:', err);

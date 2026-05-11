@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { emailService } from './email.service';
+import { eventService } from './event.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -52,6 +53,7 @@ export const authService = {
     );
 
     const tokens = await authService.issueTokens(user.id);
+    void eventService.track('user_registered', { userId: user.id }).catch(() => {});
     return { user: toAuthUser(user), tokens };
   },
 
@@ -67,6 +69,7 @@ export const authService = {
     }
 
     const tokens = await authService.issueTokens(user.id);
+    void eventService.track('user_logged_in', { userId: user.id }).catch(() => {});
     return { user: toAuthUser(user), tokens };
   },
 
@@ -174,6 +177,7 @@ export const authService = {
 
     await prisma.user.update({ where: { id: record.userId }, data: { isVerified: true } });
     await prisma.verificationToken.delete({ where: { token } });
+    void eventService.track('email_verified', { userId: record.userId }).catch(() => {});
   },
 
   async resendVerification(userId: string): Promise<void> {

@@ -19,6 +19,7 @@ export interface AdminUserListItem {
   generatedTextCount: number;
   aiRequestCount: number;
   ltv: number;
+  lastActivityAt: string;
   currentStage: string;
 }
 
@@ -30,6 +31,9 @@ export interface AdminUserDetail extends AdminUserListItem {
     currency: string;
     status: string;
     yookassaId: string | null;
+    source: string;
+    externalId: string | null;
+    adminNote: string | null;
     createdAt: string;
   }>;
   aiUsage: Array<{
@@ -48,9 +52,56 @@ export interface AdminUserDetail extends AdminUserListItem {
     generatedTextsCount: number;
     contentPlanItemsCount: number;
   }>;
+  aiRequestLogs: Array<{
+    id: string;
+    provider: string;
+    section: string | null;
+    model: string | null;
+    status: string;
+    isMock: boolean;
+    error: string | null;
+    createdAt: string;
+  }>;
+  events: Array<{
+    id: string;
+    type: string;
+    actorId: string | null;
+    metadata: unknown;
+    createdAt: string;
+  }>;
+}
+
+export interface AdminDashboard {
+  metrics: {
+    totalUsers: number;
+    newUsers7d: number;
+    activePro: number;
+    revenue: number;
+    averageLtv: number;
+    aiTotal: number;
+    aiToday: number;
+  };
+  ai: {
+    byProvider: Array<{ provider: string; count: number }>;
+    byStatus: Array<{ status: string; count: number }>;
+  };
+  recentEvents: Array<{
+    id: string;
+    type: string;
+    userId: string | null;
+    actorId: string | null;
+    metadata: unknown;
+    createdAt: string;
+    user: { email: string; name: string | null } | null;
+  }>;
 }
 
 export const adminApi = {
+  dashboard: () =>
+    apiClient
+      .get<AdminDashboard>('/admin/dashboard')
+      .then((r) => r.data),
+
   listUsers: (params?: { q?: string; plan?: string; limit?: number; offset?: number }) =>
     apiClient
       .get<{ users: AdminUserListItem[]; total: number; limit: number; offset: number }>('/admin/users', { params })
@@ -61,7 +112,17 @@ export const adminApi = {
       .get<{ user: AdminUserDetail }>(`/admin/users/${id}`)
       .then((r) => r.data.user),
 
-  grantPro: (data: { email: string; name?: string; password?: string; plan: 'PRO' | 'ANNUAL'; months: number }) =>
+  grantPro: (data: {
+    email: string;
+    name?: string;
+    password?: string;
+    plan: 'PRO' | 'ANNUAL';
+    months: number;
+    paymentSource: 'TRIBUTE' | 'MANUAL' | 'PROMO';
+    amount?: number;
+    externalId?: string;
+    adminNote?: string;
+  }) =>
     apiClient
       .post<{ ok: boolean; user: { id: string; email: string; name: string | null }; subscription: AdminSubscription }>('/admin/users/grant-pro', data)
       .then((r) => r.data),

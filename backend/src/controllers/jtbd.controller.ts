@@ -7,6 +7,7 @@ import { jtbdSessionService } from '../services/jtbd-session.service';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { aiAccessService, AiAccessError } from '../services/ai-access.service';
+import { eventService } from '../services/event.service';
 
 async function assertProjectOwner(projectId: string, userId: string, res: Response): Promise<boolean> {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
@@ -86,8 +87,34 @@ export const jtbdController = {
         });
         content = result.content;
         isMock  = result.mock;
+        void prisma.aIRequestLog.create({
+          data: {
+            userId: req.userId!,
+            provider,
+            section: 'jtbd',
+            status: 'SUCCEEDED',
+            isMock: result.mock,
+          },
+        }).catch(() => {});
+        void eventService.track('ai_request_succeeded', {
+          userId: req.userId!,
+          metadata: { provider, section: 'jtbd', stepId, mock: result.mock },
+        }).catch(() => {});
       } catch (err) {
         console.error('[JTBD] AI error:', err);
+        void prisma.aIRequestLog.create({
+          data: {
+            userId: req.userId!,
+            provider,
+            section: 'jtbd',
+            status: 'FAILED',
+            error: err instanceof Error ? err.message : 'unknown',
+          },
+        }).catch(() => {});
+        void eventService.track('ai_request_failed', {
+          userId: req.userId!,
+          metadata: { provider, section: 'jtbd', stepId, error: err instanceof Error ? err.message : 'unknown' },
+        }).catch(() => {});
         if (err instanceof AiAccessError) {
           res.status(err.status).json({ error: err.message });
           return;

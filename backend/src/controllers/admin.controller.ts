@@ -18,6 +18,10 @@ const grantProSchema = z.object({
   password: z.string().min(8).optional(),
   plan:     z.enum(['PRO', 'ANNUAL']).default('PRO'),
   months:   z.number().int().min(1).max(24).default(1),
+  paymentSource: z.enum(['TRIBUTE', 'MANUAL', 'PROMO']).default('MANUAL'),
+  amount: z.number().min(0).max(1_000_000).optional().default(0),
+  externalId: z.string().max(200).optional(),
+  adminNote: z.string().max(1000).optional(),
 });
 
 function currentStage(project: {
@@ -48,6 +52,91 @@ function formatSubscription(sub: { plan: string; status: string; expiresAt: Date
 }
 
 export const adminController = {
+  async dashboard(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const now = new Date();
+      const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const [
+        totalUsers,
+        newUsers7d,
+        activePro,
+        revenueAgg,
+        aiTotal,
+        aiToday,
+        recentEvents,
+        aiByProvider,
+        aiByStatus,
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+        prisma.subscription.count({
+          where: {
+            status: 'ACTIVE',
+            plan: { in: ['PRO', 'ANNUAL'] },
+            OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+          },
+        }),
+        prisma.payment.aggregate({
+          where: { status: 'SUCCEEDED' },
+          _sum: { amount: true },
+        }),
+        prisma.aIUsage.aggregate({ _sum: { count: true } }),
+        prisma.aIUsage.aggregate({
+          where: { date: startOfDay.toISOString().slice(0, 10) },
+          _sum: { count: true },
+        }),
+        prisma.userEvent.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 12,
+          include: { user: { select: { email: true, name: true } } },
+        }),
+        prisma.aIRequestLog.groupBy({
+          by: ['provider'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { _all: true },
+        }),
+        prisma.aIRequestLog.groupBy({
+          by: ['status'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { _all: true },
+        }),
+      ]);
+
+      const revenue = Number(revenueAgg._sum.amount ?? 0);
+
+      res.json({
+        metrics: {
+          totalUsers,
+          newUsers7d,
+          activePro,
+          revenue,
+          averageLtv: totalUsers > 0 ? revenue / totalUsers : 0,
+          aiTotal: aiTotal._sum.count ?? 0,
+          aiToday: aiToday._sum.count ?? 0,
+        },
+        ai: {
+          byProvider: aiByProvider.map((item) => ({ provider: item.provider, count: item._count._all })),
+          byStatus: aiByStatus.map((item) => ({ status: item.status, count: item._count._all })),
+        },
+        recentEvents: recentEvents.map((event) => ({
+          id: event.id,
+          type: event.type,
+          userId: event.userId,
+          actorId: event.actorId,
+          metadata: event.metadata,
+          createdAt: event.createdAt,
+          user: event.user,
+        })),
+      });
+    } catch (err) {
+      console.error('[Admin] dashboard:', err);
+      res.status(500).json({ error: 'Ошибка загрузки метрик' });
+    }
+  },
+
   async listUsers(req: AuthRequest, res: Response): Promise<void> {
     const parsed = listSchema.safeParse(req.query);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
@@ -74,7 +163,7 @@ export const adminController = {
           take: limit,
           include: {
             subscription: true,
-            payments: { where: { status: 'SUCCEEDED' }, select: { amount: true } },
+          payments: { where: { status: 'SUCCEEDED' }, select: { amount: true } },
             projects: {
               orderBy: { updatedAt: 'desc' },
               take: 1,
@@ -84,8 +173,9 @@ export const adminController = {
                 contentPlanItems: { select: { id: true } },
               },
             },
-            aiUsage: { select: { count: true } },
-            _count: { select: { projects: true } },
+          aiUsage: { select: { count: true } },
+          events: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
+          _count: { select: { projects: true } },
           },
         }),
       ]);
@@ -103,6 +193,7 @@ export const adminController = {
         generatedTextCount: user.projects[0]?.generatedTexts.length ?? 0,
         aiRequestCount: user.aiUsage.reduce((sum, item) => sum + item.count, 0),
         ltv: user.payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+        lastActivityAt: user.events[0]?.createdAt ?? user.updatedAt,
         currentStage: user.projects[0] ? currentStage(user.projects[0]) : 'Нет проекта',
       }));
 
@@ -121,6 +212,11 @@ export const adminController = {
           subscription: true,
           payments: { orderBy: { createdAt: 'desc' } },
           aiUsage: { orderBy: { date: 'desc' }, take: 30 },
+          aiRequestLogs: { orderBy: { createdAt: 'desc' }, take: 50 },
+          events: {
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+          },
           projects: {
             orderBy: { updatedAt: 'desc' },
             include: {
@@ -147,6 +243,8 @@ export const adminController = {
           subscription: formatSubscription(user.subscription),
           payments: user.payments,
           aiUsage: user.aiUsage,
+          aiRequestLogs: user.aiRequestLogs,
+          events: user.events,
           aiRequestCount: user.aiUsage.reduce((sum, item) => sum + item.count, 0),
           ltv: user.payments
             .filter((payment) => payment.status === 'SUCCEEDED')
@@ -180,7 +278,7 @@ export const adminController = {
     const parsed = grantProSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
 
-    const { email, name, password, plan, months } = parsed.data;
+    const { email, name, password, plan, months, paymentSource, amount, externalId, adminNote } = parsed.data;
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
@@ -200,6 +298,14 @@ export const adminController = {
             isVerified: true,
           },
         });
+        await prisma.userEvent.create({
+          data: {
+            userId: user.id,
+            actorId: req.userId!,
+            type: 'admin_user_created',
+            metadata: { email: user.email, plan },
+          },
+        });
       }
 
       const expiresAt = new Date();
@@ -211,10 +317,48 @@ export const adminController = {
         update: { plan, status: 'ACTIVE', expiresAt },
       });
 
+      let payment = null;
+      if (amount > 0) {
+        payment = await prisma.payment.create({
+          data: {
+            userId: user.id,
+            subscriptionId: subscription.id,
+            amount,
+            status: 'SUCCEEDED',
+            source: paymentSource,
+            externalId: externalId ?? null,
+            adminNote: adminNote ?? null,
+            metadata: {
+              plan,
+              months,
+              createdBy: req.userId!,
+            },
+          },
+        });
+      }
+
+      await prisma.userEvent.create({
+        data: {
+          userId: user.id,
+          actorId: req.userId!,
+          type: 'admin_pro_granted',
+          metadata: {
+            plan,
+            months,
+            expiresAt,
+            paymentSource,
+            amount,
+            externalId,
+            adminNote,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
       res.json({
         ok: true,
         user: { id: user.id, email: user.email, name: user.name },
         subscription,
+        payment,
       });
     } catch (err) {
       console.error('[Admin] grantPro:', err);

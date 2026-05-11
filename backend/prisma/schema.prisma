@@ -28,6 +28,8 @@ model User {
   subscription       Subscription?
   payments           Payment[]
   aiUsage            AIUsage[]
+  events             UserEvent[]
+  aiRequestLogs      AIRequestLog[]
 
   @@map("users")
 }
@@ -65,6 +67,9 @@ model Payment {
   userId         String
   subscriptionId String?
   yookassaId     String?       @unique
+  source         PaymentSource @default(YOOKASSA)
+  externalId     String?
+  adminNote      String?
   amount         Decimal       @db.Decimal(10, 2)
   currency       String        @default("RUB")
   status         PaymentStatus @default(PENDING)
@@ -76,6 +81,21 @@ model Payment {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@map("payments")
+}
+
+model UserEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  actorId   String?
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@map("user_events")
 }
 
 model AIUsage {
@@ -91,6 +111,25 @@ model AIUsage {
   @@unique([userId, date])
   @@index([date])
   @@map("ai_usage")
+}
+
+model AIRequestLog {
+  id        String   @id @default(uuid())
+  userId    String
+  provider  String
+  section   String?
+  model     String?
+  status    String
+  isMock    Boolean  @default(false)
+  error     String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([provider, createdAt])
+  @@index([status, createdAt])
+  @@map("ai_request_logs")
 }
 
 model RefreshToken {
@@ -276,6 +315,13 @@ enum PaymentStatus {
   SUCCEEDED
   CANCELLED
   FAILED
+}
+
+enum PaymentSource {
+  YOOKASSA
+  TRIBUTE
+  MANUAL
+  PROMO
 }
 
 enum ProjectStatus {
