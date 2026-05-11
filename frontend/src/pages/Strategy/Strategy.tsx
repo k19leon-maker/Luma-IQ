@@ -954,8 +954,7 @@ export default function Strategy() {
 
       {/* ── Right: document column ──────────────────────────────────────────── */}
       <div
-        ref={docColRef}
-        style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+        style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}
       >
         {/* Doc header */}
         <div style={{
@@ -968,8 +967,8 @@ export default function Strategy() {
           </div>
         </div>
 
-        {/* Doc body */}
-        <div style={{ flex: 1, padding: '24px 28px 40px' }}>
+        {/* Chat body */}
+        <div ref={docColRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minHeight: 0 }}>
           {isHaiku && (
             <div style={{
               background: 'rgba(212,168,71,0.08)', border: '1px solid rgba(212,168,71,0.3)',
@@ -983,7 +982,7 @@ export default function Strategy() {
           {docEntries.length === 0 ? (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              minHeight: 320, gap: 16, textAlign: 'center',
+              minHeight: 320, gap: 16, textAlign: 'center', maxWidth: 900, margin: '0 auto',
             }}>
               <div style={{
                 width: 64, height: 64, borderRadius: 16, backgroundColor: '#F5F4F0',
@@ -994,7 +993,7 @@ export default function Strategy() {
               </p>
             </div>
           ) : (
-            <>
+            <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {failedStepId !== null && (
                 <div style={{
                   padding: 16, background: 'rgba(220,60,60,0.06)',
@@ -1015,90 +1014,23 @@ export default function Strategy() {
                 </div>
               )}
 
-              {activeStepEntry && (
-                <div style={{
-                  background: '#fff', border: '1px solid #E5E3DC', borderRadius: 12,
-                  padding: 16, marginBottom: 16,
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    gap: 12, marginBottom: 10,
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#D4A847', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        Чат по текущему шагу
-                      </div>
-                      <div style={{ fontSize: 13, color: '#1a1a1a', marginTop: 2 }}>{activeStepTitle}</div>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#888' }}>Можно уточнить, попросить добавить варианты или оспорить вывод</div>
-                  </div>
-
-                  {stepChatMessages.length > 0 && (
-                    <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
-                      {stepChatMessages.slice(-6).map((msg, idx) => (
-                        <div
-                          key={`${msg.stepTitle}-${idx}`}
-                          style={{
-                            justifySelf: msg.role === 'user' ? 'end' : 'start',
-                            maxWidth: '86%',
-                            background: msg.role === 'user' ? '#FFF8E8' : '#F5F4F0',
-                            border: '1px solid #ECE8DF',
-                            borderRadius: 8,
-                            padding: '8px 10px',
-                            fontSize: 12,
-                            color: '#1a1a1a',
-                            lineHeight: 1.55,
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>
-                            {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
-                          </div>
-                          {msg.content}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                    <textarea
-                      value={stepChatInput}
-                      onChange={(e) => setStepChatInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void handleStepChat();
-                      }}
-                      placeholder="Например: добавь еще 3 сегмента, которые AI мог упустить..."
-                      rows={2}
-                      style={{
-                        flex: 1, resize: 'vertical', minHeight: 44, border: '1px solid #DAD5CB',
-                        borderRadius: 8, padding: '9px 10px', fontSize: 13, fontFamily: 'inherit',
-                      }}
-                    />
-                    <button
-                      onClick={() => void handleStepChat()}
-                      disabled={stepChatLoading || !stepChatInput.trim()}
-                      style={{
-                        border: 'none', borderRadius: 8, background: stepChatLoading || !stepChatInput.trim() ? '#F0EEE8' : '#D4A847',
-                        color: stepChatLoading || !stepChatInput.trim() ? '#aaa' : '#fff',
-                        padding: '10px 14px', fontSize: 12, fontWeight: 700, cursor: stepChatLoading ? 'wait' : 'pointer',
-                      }}
-                    >
-                      {stepChatLoading ? 'Думаю...' : 'Спросить'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {docEntries.map((entry) => {
                 if (entry.type === 'text') {
                   return (
                     <div
                       key={entry.stepId}
-                      style={{
-                        background: '#F5F4F0', borderRadius: 12, padding: '16px 20px',
-                        marginBottom: 16,
-                      }}
+                      style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}
                     >
+                      <div style={{
+                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                        background: '#D4A847', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                      }}>AI</div>
+                      <div style={{
+                        maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                        borderRadius: '12px 12px 12px 0', background: '#F5F4F0',
+                        color: '#1a1a1a', fontSize: 14, lineHeight: 1.6,
+                      }}>
                       <div style={{
                         fontSize: 10, fontWeight: 600, color: '#999',
                         textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 10,
@@ -1115,6 +1047,7 @@ export default function Strategy() {
                           <ReactMarkdown>{entry.fullText}</ReactMarkdown>
                         </div>
                       )}
+                      </div>
                     </div>
                   );
                 }
@@ -1123,41 +1056,145 @@ export default function Strategy() {
                   return (
                     <div
                       key={entry.stepId}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '10px 14px', borderRadius: 8, marginBottom: 10,
-                        background: '#F5F4F0', fontSize: 13, color: '#1a1a1a',
-                      }}
+                      style={{ display: 'flex', flexDirection: 'row-reverse', gap: 10, alignItems: 'flex-end' }}
                     >
-                      <span>✅</span>
-                      <span>
+                      <div style={{
+                        maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                        borderRadius: '12px 12px 0 12px', background: '#1a1a1a',
+                        color: '#fff', fontSize: 14, lineHeight: 1.6,
+                      }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginBottom: 4 }}>Выбор пользователя</div>
                         {entry.stepId === 3 ? 'Выбранный сегмент' :
                          entry.stepId === 5 ? 'Выбранный подсегмент' :
                          'Выбранный запрос'}:{' '}
                         <strong>{entry.chosen}</strong>
-                      </span>
+                      </div>
                     </div>
                   );
                 }
 
                 return (
-                  <ChoiceCard
-                    key={entry.stepId}
-                    title={STEP_TITLES[entry.stepId]}
-                    options={entry.options ?? []}
-                    onConfirm={handleConfirmChoice}
-                  />
+                  <div key={entry.stepId} style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                      background: '#D4A847', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                    }}>AI</div>
+                    <div style={{ maxWidth: 'min(720px, 74%)', width: '100%' }}>
+                      <ChoiceCard
+                        title={STEP_TITLES[entry.stepId]}
+                        options={entry.options ?? []}
+                        onConfirm={handleConfirmChoice}
+                      />
+                    </div>
+                  </div>
                 );
               })}
+              {stepChatMessages.map((msg, idx) => (
+                <div
+                  key={`${msg.stepTitle}-${idx}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                    gap: 10,
+                    alignItems: 'flex-end',
+                  }}
+                >
+                  {msg.role === 'assistant' && (
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                      background: '#D4A847', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                    }}>AI</div>
+                  )}
+                  <div style={{
+                    maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                    borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                    background: msg.role === 'user' ? '#1a1a1a' : '#F5F4F0',
+                    color: msg.role === 'user' ? '#fff' : '#1a1a1a',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    <div style={{ fontSize: 10, color: msg.role === 'user' ? 'rgba(255,255,255,0.55)' : '#888', marginBottom: 4 }}>
+                      {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
+                    </div>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {stepChatLoading && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                    background: '#D4A847', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                  }}>AI</div>
+                  <div style={{
+                    display: 'flex', gap: 5, padding: '14px 18px',
+                    borderRadius: '12px 12px 12px 0', background: '#F5F4F0',
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite' }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite 0.2s' }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite 0.4s' }} />
+                  </div>
+                </div>
+              )}
               <div ref={docEndRef} />
-            </>
+            </div>
           )}
+        </div>
+
+        <div style={{
+          flexShrink: 0, borderTop: '1px solid #E5E3DC',
+          background: '#fff', padding: '16px 28px',
+        }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+            <textarea
+              value={stepChatInput}
+              onChange={(e) => setStepChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleStepChat();
+                }
+              }}
+              disabled={stepChatLoading}
+              placeholder={activeStepEntry ? `Спросите по шагу: ${activeStepTitle.toLowerCase()}...` : 'Сначала запустите анализ, затем можно будет уточнять каждый шаг...'}
+              rows={3}
+              style={{
+                flex: 1, minHeight: 76, resize: 'none', border: '1px solid #E5E3DC',
+                borderRadius: 8, padding: '12px 14px', fontSize: 14,
+                lineHeight: 1.5, fontFamily: 'inherit', outline: 'none',
+              }}
+            />
+            <button
+              onClick={() => void handleStepChat()}
+              disabled={stepChatLoading || !stepChatInput.trim() || !activeStepEntry}
+              style={{
+                height: 44, border: 'none', borderRadius: 8,
+                background: stepChatLoading || !stepChatInput.trim() || !activeStepEntry ? '#F0EEE8' : '#D4A847',
+                color: stepChatLoading || !stepChatInput.trim() || !activeStepEntry ? '#bbb' : '#fff',
+                padding: '0 18px', fontSize: 13, fontWeight: 700,
+                cursor: stepChatLoading || !activeStepEntry ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {stepChatLoading ? 'Думаю...' : 'Отправить'}
+            </button>
+          </div>
+          <div style={{ maxWidth: 900, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
+            Enter — отправить · Shift+Enter — перенос строки
+          </div>
         </div>
       </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes blink { 50% { opacity: 0; } }
+        @keyframes pulse {
+          0%, 60%, 100% { opacity: 0.3; transform: scale(0.85); }
+          30% { opacity: 1; transform: scale(1.1); }
+        }
       `}</style>
     </div>
   );
