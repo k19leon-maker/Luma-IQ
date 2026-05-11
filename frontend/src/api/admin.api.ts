@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { AuthResponse } from './auth.api';
 
 export interface AdminSubscription {
   plan: string;
@@ -125,5 +126,10 @@ export const adminApi = {
   }) =>
     apiClient
       .post<{ ok: boolean; user: { id: string; email: string; name: string | null }; subscription: AdminSubscription }>('/admin/users/grant-pro', data)
+      .then((r) => r.data),
+
+  impersonateUser: (id: string) =>
+    apiClient
+      .post<AuthResponse>(`/admin/users/${id}/impersonate`)
       .then((r) => r.data),
 };

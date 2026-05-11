@@ -12,6 +12,13 @@
   margin-bottom: 20px;
 }
 
+.headerActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .title {
   font-size: 24px;
   line-height: 1.2;
@@ -236,9 +243,23 @@
   font-weight: 700;
 }
 
-.button:disabled {
+.secondaryButton {
+  border: 1px solid #d8d0bf;
+  border-radius: 6px;
+  background: #fff;
+  color: #29272d;
+  padding: 10px 13px;
+  font-weight: 700;
+}
+
+.button:disabled,
+.secondaryButton:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.cardActions {
+  margin-top: 12px;
 }
 
 .list {
@@ -259,6 +280,59 @@
   background: #f8f5ec;
   border-radius: 6px;
   padding: 6px 8px;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 18, 14, 0.42);
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e1d8;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(18, 16, 12, 0.22);
+  padding: 18px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f1f24;
+}
+
+.iconButton {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0dacd;
+  border-radius: 6px;
+  background: #fff;
+  color: #3c3940;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .empty {

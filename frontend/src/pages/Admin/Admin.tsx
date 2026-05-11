@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { adminApi, AdminDashboard, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
+import { useAuthStore } from '../../store/auth.store';
 import s from './Admin.module.css';
 
 function fmtDate(value: string | null): string {
@@ -13,6 +15,9 @@ function planClass(plan: string): string {
 }
 
 export default function Admin() {
+  const navigate = useNavigate();
+  const currentUser = useAuthStore((st) => st.user);
+  const setTokens = useAuthStore((st) => st.setTokens);
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [total, setTotal] = useState(0);
@@ -33,6 +38,18 @@ export default function Admin() {
   const [externalId, setExternalId] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [grantLoading, setGrantLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createName, setCreateName] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createPlan, setCreatePlan] = useState<'PRO' | 'ANNUAL'>('PRO');
+  const [createMonths, setCreateMonths] = useState(1);
+  const [createPaymentSource, setCreatePaymentSource] = useState<'TRIBUTE' | 'MANUAL' | 'PROMO'>('MANUAL');
+  const [createPaymentAmount, setCreatePaymentAmount] = useState(0);
+  const [createExternalId, setCreateExternalId] = useState('');
+  const [createAdminNote, setCreateAdminNote] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [impersonateLoading, setImpersonateLoading] = useState(false);
 
   async function loadDashboard() {
     try {
@@ -118,6 +135,67 @@ export default function Admin() {
     }
   }
 
+  async function handleCreateUser() {
+    setCreateLoading(true);
+    try {
+      const result = await adminApi.grantPro({
+        email: createEmail,
+        name: createName || undefined,
+        password: createPassword || undefined,
+        plan: createPlan,
+        months: createMonths,
+        paymentSource: createPaymentSource,
+        amount: createPaymentAmount,
+        externalId: createExternalId || undefined,
+        adminNote: createAdminNote || undefined,
+      });
+      toast.success(`Пользователь ${result.user.email} создан`);
+      setCreateOpen(false);
+      setCreateEmail('');
+      setCreateName('');
+      setCreatePassword('');
+      setCreatePlan('PRO');
+      setCreateMonths(1);
+      setCreatePaymentSource('MANUAL');
+      setCreatePaymentAmount(0);
+      setCreateExternalId('');
+      setCreateAdminNote('');
+      await loadDashboard();
+      await loadUsers(result.user.id);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось создать пользователя');
+    } finally {
+      setCreateLoading(false);
+    }
+  }
+
+  async function handleImpersonate() {
+    if (!selected) return;
+    const ok = window.confirm(`Войти в сервис как ${selected.email}? Текущая админская сессия будет заменена.`);
+    if (!ok) return;
+
+    setImpersonateLoading(true);
+    try {
+      const currentAccess = localStorage.getItem('accessToken');
+      const currentRefresh = localStorage.getItem('refreshToken');
+      if (currentAccess && currentRefresh) {
+        localStorage.setItem('adminAccessTokenBackup', currentAccess);
+        localStorage.setItem('adminRefreshTokenBackup', currentRefresh);
+      }
+
+      const { tokens } = await adminApi.impersonateUser(selected.id);
+      setTokens(tokens.accessToken, tokens.refreshToken);
+      toast.success(`Вы вошли как ${selected.email}`);
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось войти под пользователем');
+    } finally {
+      setImpersonateLoading(false);
+    }
+  }
+
   return (
     <div className={s.root}>
       <div className={s.header}>
@@ -125,9 +203,14 @@ export default function Admin() {
           <h1 className={s.title}>Админка</h1>
           <div className={s.subtitle}>Пользователи, подписки и ручной пилотный доступ</div>
         </div>
-        <button className={s.button} onClick={() => void loadUsers()} disabled={loading}>
-          Обновить
-        </button>
+        <div className={s.headerActions}>
+          <button className={s.secondaryButton} onClick={() => setCreateOpen(true)}>
+            Добавить пользователя
+          </button>
+          <button className={s.button} onClick={() => void loadUsers()} disabled={loading}>
+            Обновить
+          </button>
+        </div>
       </div>
 
       {dashboard && (
@@ -240,6 +323,15 @@ export default function Admin() {
             {selected && (
               <>
                 <div className={s.muted}>{selected.name ?? 'Без имени'} · {selected.isVerified ? 'email подтвержден' : 'email не подтвержден'}</div>
+                <div className={s.cardActions}>
+                  <button
+                    className={s.secondaryButton}
+                    onClick={() => void handleImpersonate()}
+                    disabled={impersonateLoading || selected.id === currentUser?.id}
+                  >
+                    {impersonateLoading ? 'Вхожу...' : selected.id === currentUser?.id ? 'Это текущий аккаунт' : 'Войти как пользователь'}
+                  </button>
+                </div>
 
                 <div className={s.section}>
                   <div className={s.sectionTitle}>Подписка</div>
@@ -264,7 +356,7 @@ export default function Admin() {
                 </div>
 
                 <div className={s.section}>
-                  <div className={s.sectionTitle}>Добавить пользователя / выдать доступ</div>
+                  <div className={s.sectionTitle}>Выдать / продлить доступ</div>
                   <div className={s.form}>
                     <input className={s.input} value={grantEmail} onChange={(e) => setGrantEmail(e.target.value)} placeholder="Email" />
                     <input className={s.input} value={grantName} onChange={(e) => setGrantName(e.target.value)} placeholder="Имя" />
@@ -396,6 +488,49 @@ export default function Admin() {
                   </div>
                 ))}
                 {dashboard.recentEvents.length === 0 && <div className={s.muted}>Событий пока нет</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createOpen && (
+        <div className={s.modalBackdrop} onMouseDown={() => setCreateOpen(false)}>
+          <div className={s.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <div className={s.modalHeader}>
+              <div>
+                <div className={s.modalTitle}>Добавить пользователя</div>
+                <div className={s.muted}>Создайте пилотный аккаунт и сразу откройте доступ.</div>
+              </div>
+              <button className={s.iconButton} onClick={() => setCreateOpen(false)} aria-label="Закрыть">×</button>
+            </div>
+
+            <div className={s.form}>
+              <input className={s.input} value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} placeholder="Email" autoFocus />
+              <input className={s.input} value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="Имя" />
+              <input className={s.input} value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} placeholder="Пароль от 8 символов" />
+              <div className={s.formRow}>
+                <select className={s.select} value={createPlan} onChange={(e) => setCreatePlan(e.target.value as 'PRO' | 'ANNUAL')}>
+                  <option value="PRO">PRO</option>
+                  <option value="ANNUAL">ANNUAL</option>
+                </select>
+                <input className={s.input} type="number" min={1} max={24} value={createMonths} onChange={(e) => setCreateMonths(Number(e.target.value))} />
+              </div>
+              <div className={s.formRow}>
+                <select className={s.select} value={createPaymentSource} onChange={(e) => setCreatePaymentSource(e.target.value as 'TRIBUTE' | 'MANUAL' | 'PROMO')}>
+                  <option value="MANUAL">Manual</option>
+                  <option value="TRIBUTE">Tribute</option>
+                  <option value="PROMO">Promo</option>
+                </select>
+                <input className={s.input} type="number" min={0} value={createPaymentAmount} onChange={(e) => setCreatePaymentAmount(Number(e.target.value))} placeholder="Сумма, ₽" />
+              </div>
+              <input className={s.input} value={createExternalId} onChange={(e) => setCreateExternalId(e.target.value)} placeholder="ID/ссылка оплаты" />
+              <textarea className={s.textarea} value={createAdminNote} onChange={(e) => setCreateAdminNote(e.target.value)} placeholder="Заметка администратора" rows={3} />
+              <div className={s.modalActions}>
+                <button className={s.secondaryButton} onClick={() => setCreateOpen(false)}>Отмена</button>
+                <button className={s.button} onClick={() => void handleCreateUser()} disabled={createLoading || !createEmail || !createPassword}>
+                  {createLoading ? 'Создаю...' : 'Создать'}
+                </button>
               </div>
             </div>
           </div>

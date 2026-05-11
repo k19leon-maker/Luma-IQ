@@ -139,6 +139,8 @@ export default function Layout({ children }: LayoutProps) {
   const location  = useLocation();
   const navigate  = useNavigate();
   const user      = useAuthStore((st) => st.user);
+  const setTokens = useAuthStore((st) => st.setTokens);
+  const [hasAdminBackup, setHasAdminBackup] = useState(() => Boolean(localStorage.getItem('adminAccessTokenBackup')));
 
   const switchProgress    = useProgressStore((st) => st.switchProject);
   const switchUnpacking   = useUnpackingStore((st) => st.switchProject);
@@ -154,6 +156,17 @@ export default function Layout({ children }: LayoutProps) {
   const projectsLoading    = useProjectsStore((s) => s.loading);
 
   useEffect(() => { void loadProjects(); }, []); // eslint-disable-line
+
+  const restoreAdminSession = useCallback(() => {
+    const access = localStorage.getItem('adminAccessTokenBackup');
+    const refresh = localStorage.getItem('adminRefreshTokenBackup');
+    if (!access || !refresh) return;
+    localStorage.removeItem('adminAccessTokenBackup');
+    localStorage.removeItem('adminRefreshTokenBackup');
+    setTokens(access, refresh);
+    setHasAdminBackup(false);
+    navigate('/admin');
+  }, [navigate, setTokens]);
 
   // Sync per-project stores when active project changes
   useEffect(() => {
@@ -430,6 +443,12 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
+        {hasAdminBackup && (
+          <div className={s.impersonationBanner}>
+            <span>Вы просматриваете сервис под пользователем {user?.email}.</span>
+            <button onClick={restoreAdminSession}>Вернуться в админку</button>
+          </div>
+        )}
         {/* Email verification banner */}
         {user && user.isVerified === false && (
           <EmailBanner email={user.email} />

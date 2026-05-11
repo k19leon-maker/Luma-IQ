@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { authService } from '../services/auth.service';
 
 const listSchema = z.object({
   q: z.string().optional(),
@@ -363,6 +364,35 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] grantPro:', err);
       res.status(500).json({ error: 'Ошибка выдачи PRO' });
+    }
+  },
+
+  async impersonateUser(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.params.id as string },
+        select: { id: true, email: true, name: true, avatarUrl: true, role: true, isVerified: true },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: 'Пользователь не найден' });
+        return;
+      }
+
+      const tokens = await authService.issueTokens(user.id);
+      await prisma.userEvent.create({
+        data: {
+          userId: user.id,
+          actorId: req.userId!,
+          type: 'admin_impersonation_started',
+          metadata: { email: user.email } as Prisma.InputJsonValue,
+        },
+      });
+
+      res.json({ user, tokens });
+    } catch (err) {
+      console.error('[Admin] impersonateUser:', err);
+      res.status(500).json({ error: 'Ошибка входа под пользователем' });
     }
   },
 };

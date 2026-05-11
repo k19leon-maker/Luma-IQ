@@ -375,6 +375,28 @@
   overflow: hidden;
 }
 
+.impersonationBanner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 9px 16px;
+  background: #fff8e7;
+  border-bottom: 1px solid #ead391;
+  color: #765b10;
+  font-size: 13px;
+}
+
+.impersonationBanner button {
+  border: 1px solid #d4a847;
+  border-radius: 6px;
+  background: #fff;
+  color: #765b10;
+  padding: 4px 10px;
+  font-weight: 700;
+}
+
 .topbar {
   height: var(--topbar-height);
   min-height: var(--topbar-height);

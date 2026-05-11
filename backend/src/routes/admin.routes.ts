@@ -11,5 +11,6 @@ router.get('/dashboard', adminController.dashboard);
 router.get('/users', adminController.listUsers);
 router.get('/users/:id', adminController.getUser);
 router.post('/users/grant-pro', adminController.grantPro);
+router.post('/users/:id/impersonate', adminController.impersonateUser);
 
 export default router;
