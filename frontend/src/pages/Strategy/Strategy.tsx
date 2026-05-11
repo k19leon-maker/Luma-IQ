@@ -269,6 +269,30 @@ function buildFallbackOptions(stepId: number, positioning: PositioningData | nul
   ];
 }
 
+function isAffirmativeChoice(text: string): boolean {
+  return /^(да|ок|окей|выбираю|хочу выбрать|берем|берём|подтверждаю|согласен|согласна|продолжаем)/i.test(text.trim());
+}
+
+function extractChoiceCandidate(text: string, stepId: number): string | null {
+  const bold = [...text.matchAll(/\*\*([^*\n]{4,140})\*\*/g)].map((m) => m[1].trim()).filter(Boolean);
+  if (bold.length) return bold[bold.length - 1];
+
+  const quoted = [...text.matchAll(/[«"]([^»"\n]{4,140})[»"]/g)].map((m) => m[1].trim()).filter(Boolean);
+  if (quoted.length) return quoted[quoted.length - 1];
+
+  const label = stepId === 3 ? 'сегмент' : stepId === 5 ? 'подсегмент' : 'запрос';
+  const byLabel = text.match(new RegExp(`${label}\\s*[—:-]\\s*([^\\n.?!]{4,140})`, 'i'))?.[1]?.trim();
+  if (byLabel) return byLabel;
+
+  const direct = text
+    .replace(/^(добавь|добавить|предложи|хочу выбрать|выбираю|берем|берём)\s+/i, '')
+    .replace(new RegExp(`^${label}\\s*`, 'i'), '')
+    .trim();
+  if (direct.length >= 8 && direct.length <= 140 && !direct.includes('?')) return direct;
+
+  return null;
+}
+
 // ── Mock content (fallback when AI unavailable) ────────────────────────────────
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -300,6 +324,7 @@ export default function Strategy() {
   const [stepChatMessages, setStepChatMessages] = useState<StepChatMessage[]>([]);
   const [stepChatInput, setStepChatInput] = useState('');
   const [stepChatLoading, setStepChatLoading] = useState(false);
+  const [pendingCustomChoice, setPendingCustomChoice] = useState<string | null>(null);
 
   const resolveChoiceRef  = useRef<((v: string) => void) | null>(null);
   const abortRef          = useRef<{ aborted: boolean }>({ aborted: false });
@@ -704,6 +729,7 @@ export default function Strategy() {
     setFailedStepId(null);
     setAiError(null);
     setStepChatMessages([]);
+    setPendingCustomChoice(null);
     setIsRunning(true);
     void runAnalysis(1);
   }
@@ -723,6 +749,7 @@ export default function Strategy() {
     setFailedStepId(null);
     setAiError(null);
     setStepChatMessages([]);
+    setPendingCustomChoice(null);
     abortRef.current = { aborted: false };
     setIsRunning(true);
     void runAnalysis(sourceStepId);
@@ -731,6 +758,7 @@ export default function Strategy() {
   function handleConfirmChoice(value: string) {
     resolveChoiceRef.current?.(value);
     resolveChoiceRef.current = null;
+    setPendingCustomChoice(null);
   }
 
   function handleReset() {
@@ -746,6 +774,7 @@ export default function Strategy() {
     setAiError(null);
     setStepChatMessages([]);
     setStepChatInput('');
+    setPendingCustomChoice(null);
     audienceReset(activeProjectId);
     persistAudienceProgress({}, false);
     toast('Анализ сброшен', { icon: '↺' });
@@ -757,6 +786,10 @@ export default function Strategy() {
 
     const currentEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
     const stepTitle = currentEntry ? STEP_TITLES[currentEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
+    const isChoicePending = Boolean(currentEntry?.type === 'choice' && !currentEntry.chosen && resolveChoiceRef.current);
+    const questionCandidate = currentEntry && isChoicePending
+      ? extractChoiceCandidate(question, currentEntry.stepId)
+      : null;
     const currentResult = currentEntry
       ? currentEntry.chosen
         ? `Выбор пользователя: ${currentEntry.chosen}`
@@ -769,6 +802,22 @@ export default function Strategy() {
     const { projectContext, mergedProfile } = buildRuntimeContext();
 
     const userMsg: StepChatMessage = { role: 'user', content: question, stepTitle };
+
+    if (isChoicePending && pendingCustomChoice && isAffirmativeChoice(question)) {
+      setStepChatMessages((prev) => [
+        ...prev,
+        userMsg,
+        { role: 'assistant', content: `Принял. Продолжаю проработку с вариантом: ${pendingCustomChoice}`, stepTitle },
+      ]);
+      setStepChatInput('');
+      handleConfirmChoice(pendingCustomChoice);
+      return;
+    }
+
+    if (questionCandidate) {
+      setPendingCustomChoice(questionCandidate);
+    }
+
     setStepChatMessages((prev) => [...prev, userMsg]);
     setStepChatInput('');
     setStepChatLoading(true);
@@ -789,6 +838,10 @@ export default function Strategy() {
         unpackingProfile: mergedProfile,
         projectName: activeProjectName,
       });
+      const responseCandidate = currentEntry && isChoicePending
+        ? extractChoiceCandidate(resp.content, currentEntry.stepId)
+        : null;
+      if (responseCandidate) setPendingCustomChoice(responseCandidate);
       setStepChatMessages((prev) => [...prev, { role: 'assistant', content: resp.content, stepTitle }]);
     } catch {
       toast.error('Не удалось получить ответ в чате шага');
@@ -1149,6 +1202,28 @@ export default function Strategy() {
           flexShrink: 0, borderTop: '1px solid #E5E3DC',
           background: '#fff', padding: '16px 28px',
         }}>
+          {activeStepEntry?.type === 'choice' && !activeStepEntry.chosen && pendingCustomChoice && (
+            <div style={{
+              maxWidth: 900, margin: '0 auto 10px', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: 12, padding: '10px 12px',
+              border: '1px solid #EAD8A6', borderRadius: 8, background: '#FFF8E7',
+              color: '#6F5520', fontSize: 13,
+            }}>
+              <span>
+                Вариант из переписки: <strong>{pendingCustomChoice}</strong>
+              </span>
+              <button
+                onClick={() => handleConfirmChoice(pendingCustomChoice)}
+                style={{
+                  border: 'none', borderRadius: 7, background: '#D4A847',
+                  color: '#fff', padding: '8px 12px', fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Продолжить с ним
+              </button>
+            </div>
+          )}
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
             <textarea
               value={stepChatInput}
