@@ -1,214 +1,290 @@
-# LumaIQ — Контекст проекта
+# LumaIQ — актуальный контекст проекта
 
-## Описание
+## Что это
 
-**LumaIQ** — SaaS-платформа для маркетинговой упаковки психологов на основе JTBD-фреймворка. Помогает психологам структурировать услуги, создавать продуктовую линейку и генерировать маркетинговые материалы с помощью ИИ.
+**LumaIQ** — SaaS-сервис для маркетинговой упаковки экспертов, в первую очередь психологов, нутрициологов, коучей и фитнес-тренеров. Сервис помогает пройти путь от базового позиционирования и анализа целевой аудитории до УТП, продуктовой линейки, контент-плана и AI-материалов.
 
-## Стек технологий
+Главная логика продукта: пользователь ведет проект внутри сервиса, а AI-маркетолог знает контекст проекта и помогает принимать решения по упаковке, стратегии, воронке и контенту.
+
+## Продакшен
+
+- Frontend: Vercel
+- Домен frontend: `https://www.lumaiq.ru`
+- Backend: Hetzner VPS `128.140.111.43`
+- Домен API: `https://api.lumaiq.ru`
+- Backend path на сервере: `/app/backend`
+- PM2 process: `lumaiq-backend`
+- SSH: `ssh root@128.140.111.43`
+- GitHub branch: `main`
+
+Типовой деплой backend:
+
+```bash
+ssh root@128.140.111.43 "cd /app && git fetch origin main && git reset --hard origin/main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
+```
+
+Frontend деплоится автоматически через Vercel после `git push origin main`.
+
+## Стек
 
 | Слой | Технологии |
-|------|-----------|
-| Frontend | React 18, TypeScript, CSS Modules, Vite |
+|------|------------|
+| Frontend | React 18, TypeScript, Vite, CSS Modules |
 | Backend | Node.js, Express, TypeScript |
-| База данных | PostgreSQL (основная), Redis (кэш / очереди) |
-| Аутентификация | JWT (access + refresh tokens), Google OAuth 2.0 |
-| Очереди | Bull (Redis-based) — для AI-задач |
+| DB | PostgreSQL |
+| ORM | Prisma 7 |
+| Auth | JWT access/refresh, email/password |
+| State | Zustand + localStorage |
+| AI | Anthropic Claude основной, OpenAI альтернативный |
+| Process manager | PM2 |
 
-## Основные модули
+Redis/Bull сейчас не являются активной частью продукта.
 
-1. **Стратегия (распаковка по JTBD)** — диалоговый чат с AI-маркетологом, профиль эксперта
-2. **Продукты КПТ** — трёхуровневая продуктовая линейка (лид-магнит / мини / основной)
-3. **Генерация контента** — AI-генерация постов, рилсов, статей, видео-сценариев, цепочек
-4. **Целевая аудитория** — 12-шаговый анализ ЦА с выбором сегментов
-5. **Контент-план** — Kanban по дням недели с drag-and-drop
-6. **План задач** — Kanban с 4 колонками и drag-and-drop
+## Основные разделы
 
-## ИИ-интеграции
+### Стратегия
 
-Активные (API-ключи настроены, реальные запросы работают):
-- **Anthropic Claude** — `@anthropic-ai/sdk` — основной провайдер
-- **OpenAI (ChatGPT)** — `openai` npm package — альтернативный провайдер (ключ закомментирован в .env)
+1. **Позиционирование** — первый обязательный шаг стратегии.
+   - Route: `/strategy/positioning`
+   - Пользователь заполняет 4 простых поля: кто он, для кого работает, с какой проблемой помогает, к какому результату ведет.
+   - Данные сохраняются в `project.strategyData.positioningData`.
+   - Эти данные используются как базовый контекст для ЦА и AI-диалога.
 
-Неактивные (закомментированы):
-- Google Gemini, Grok (xAI), Nano Banana Pro
+2. **Целевая аудитория** — 12-шаговая AI-проработка ЦА.
+   - Route: `/strategy/audience`
+   - Данные сохраняются в `project.strategyData.answers` и `audience-store-v1`.
+   - AI-промпт должен учитывать `positioningData`.
+   - Промежуточный прогресс сохраняется после каждого шага.
+
+3. **УТП**
+   - Route: `/strategy/utp`
+
+4. **Оформление соцсетей**
+   - Route: `/strategy/social`
+
+5. **Продукты**
+   - Routes: `/strategy/product-main`, `/strategy/product-mini`, `/strategy/lead-magnet`
+
+### Диалог с ИИ
+
+- Route: `/ai-dialog`
+- Это отдельный пункт бокового меню, вынесен за пределы блока стратегии.
+- Старые `/strategy/unpacking` и `/chat` редиректят сюда.
+- Смысл раздела: прямой AI-маркетолог по проекту.
+- Backend собирает контекст проекта через `buildAiDialogContext.ts`: проект, стратегия, прогресс, контент, задачи, история.
+
+### Контент
+
+- `/posts`
+- `/reels`
+- `/articles`
+- `/video-scripts`
+- `/chatbot-chains`
+- `/content-plan`
+
+### Операционные разделы
+
+- `/dashboard`
+- `/tasks`
+- `/files/materials`
+- `/files/products`
+- `/history`
+- `/settings`
+
+### Админка
+
+- Route: `/admin`
+- Доступ только для роли `ADMIN`.
+- Обычные пользователи не должны иметь доступ к admin API и admin UI.
+- Реализовано:
+  - dashboard метрик;
+  - список пользователей;
+  - карточка пользователя;
+  - ручное создание пользователя;
+  - ручная выдача PRO;
+  - просмотр подписки;
+  - payment source: `MANUAL`, `TRIBUTE`, `YOOKASSA`;
+  - LTV;
+  - activity events;
+  - AI usage analytics.
+
+## Backend API
+
+Все основные API начинаются с `/api/v1`.
+
+Ключевые группы:
+
+- `/api/v1/auth`
+- `/api/v1/projects`
+- `/api/v1/ai/chat`
+- `/api/v1/payments`
+- `/api/v1/admin`
+- `/api/v1/strategy/export-pdf`
 
 ### AI endpoint
-- `POST /api/v1/ai/chat` — универсальный endpoint
-- Body: `{ model, claudeModel, section, message, conversationHistory, unpackingProfile?, projectName? }`
-- Dev-token авторизация: `Authorization: Bearer dev-token` (только в NODE_ENV=development)
-- Возвращает: `{ content: string, mock: boolean }`
 
-### Выбор модели (frontend)
-- `frontend/src/store/model.store.ts` — хранит выбранную модель per-section в localStorage
-- Ключи: `selectedModel_${section}`, `sectionSettings_${section}`
-- Дефолты по секциям: unpacking→opus-4-6, audience/utp/social/products→sonnet-4-6, контент→haiku-4-5
+`POST /api/v1/ai/chat`
 
-## UI/UX
+Пример body:
 
-- **Светлая тема** — белый фон (`#ffffff`), поверхности `#F5F4F0`
-- **Акцентный цвет: `#D4A847`** (золотой) — кнопки, ссылки, выделения
-- Язык интерфейса: русский
-- CSS-переменные в `:root` (`frontend/src/styles/variables.css`)
-- CSS Modules для компонентов (без UI-библиотек)
-- `@dnd-kit/core` + `@dnd-kit/sortable` — drag-and-drop (Kanban)
-
-## Структура директорий
-
-```
-/lumaiq
-  /frontend
-    /src
-      /components    — переиспользуемые UI-компоненты
-      /pages         — страницы приложения
-      /hooks         — кастомные React-хуки
-      /api           — клиент для запросов к backend (axios)
-      /store         — глобальное состояние (zustand)
-      /styles        — глобальные CSS-переменные и сбросы
-      /config        — конфиги (jtbd-steps, strategy-prompts)
-  /backend
-    /src
-      /routes        — Express-роутеры
-      /controllers   — обработчики запросов
-      /services      — бизнес-логика (ai.service.ts — главный)
-      /middleware    — auth, validation, error handling
-      /utils         — вспомогательные функции
-  /docs              — документация API и архитектуры
-```
-
-## Соглашения
-
-- API эндпоинты: `/api/v1/...`
-- Переменные окружения: `.env` (не коммитить, есть `.env.example`)
-- Все тексты интерфейса — на русском языке
-- Backend порт: `3001`, Frontend dev-сервер: `5174`
-
-## Архитектурные паттерны
-
-### Zustand stores (актуальный список)
-- `auth.store.ts` — пользователь, токены, isAuthenticated
-- `projects.store.ts` — список проектов, activeProjectId, currentProject (key: `lumaiq-projects-v4`)
-- `progress.store.ts` — 4 флага завершения стратегии: unpackingCompleted, audienceCompleted, utpCompleted, socialCompleted (key: `lumaiq-progress`)
-- `unpacking.store.ts` — per-project: messages, qAnswers, profileData, positioning (key: `unpacking-store-v2`)
-- `audience.store.ts` — per-project: answers, completed (key: `audience-store-v1`)
-- `model.store.ts` — выбранная AI-модель per-section (localStorage, не persist-middleware)
-- `contentPlan.store.ts` — карточки контент-плана
-- `tasks.store.ts` — задачи (если используется, иначе локальный state в Tasks.tsx)
-
-### Fallback при недоступном бэкенде
-- `addProject` в projects.store.ts создаёт проект локально (UUID) если API недоступен
-- Все AI-разделы имеют catch-блок с mock-данными и toast-уведомлением
-
-### Прогресс и блокировки
-- 4 флага в progress.store.ts: `unpackingCompleted`, `audienceCompleted`, `utpCompleted`, `socialCompleted`
-- Разделы стратегии блокируются пока не завершён предыдущий этап (иконка 🔒 в сайдбаре)
-- Завершение: `completeUnpacking()` / `completeAudience()` / `completeUtp()` / `completeSocial()`
-
-### Маршрутизация
-- `/dashboard` — главная страница (DashboardEmpty / InProgress / Complete в зависимости от прогресса)
-- `/strategy/unpacking` — распаковка (чат с AI)
-- `/strategy/audience` — целевая аудитория
-- `/strategy/utp` — УТП
-- `/strategy/social` — оформление соцсетей
-- `/strategy/product-main`, `/strategy/product-mini` — продукты
-- `/strategy/lead-magnet` — лид-магнит
-- `/tasks` — план задач (kanban)
-- `/content-plan` — контент-план
-- `/posts`, `/reels`, `/articles`, `/video-scripts`, `/chatbot-chains` — контент
-- `/files/materials`, `/files/products` — мои файлы
-- `/history` — история генераций
-- `/settings` — настройки профиля
-
-### AI в страницах — паттерн вызова
 ```ts
-const settings = useModelStore((s) => s.getSettings('section-name'));
-const resp = await aiApi.chat({
-  model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-  claudeModel:         settings.claudeModel,
-  section:             'section-name',
-  message:             prompt,
-  conversationHistory: history,
-  projectName,
-  unpackingProfile:    profileData,
-});
+{
+  model: 'claude' | 'chatgpt',
+  claudeModel?: string,
+  section: string,
+  message: string,
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  unpackingProfile?: Record<string, unknown>,
+  projectName?: string,
+  projectId?: string
+}
 ```
 
-### PDF-экспорт (backend)
-- Скрипт: `backend/src/utils/generate_strategy_pdf.py` (reportlab)
-- Маршрут: `POST /api/v1/strategy/export-pdf` (requireAuth)
-- Frontend: `frontend/src/api/strategy.api.ts` → `downloadStrategyPdf(projectName, answers)`
+Для `section: 'ai-dialog'` важно передавать `projectId`, чтобы backend собрал полный контекст проекта.
 
-## Текущий статус разработки
+## AI и ограничения
 
-### Статус на 04.05.2026
+- Anthropic Claude сейчас основной провайдер.
+- OpenAI есть как альтернативный провайдер, если ключ настроен.
+- Mock-ответы в пользовательских AI-разделах должны быть отключены или не использоваться как “успешная генерация”.
+- При ошибке AI пользователь должен видеть toast с ошибкой связи, а раздел не должен подставлять старые демо-данные.
+- Для free-пользователей есть backend paywall/лимиты AI.
+- Используется логирование AI-запросов для аналитики.
 
-### Готово ✅
+## Оплаты и доступы
 
-ИНФРАСТРУКТУРА:
-- Backend: Express + Node.js на порту 3001 (запускать: `cd backend && npm run dev`)
-- Frontend: React + TypeScript + Vite на порту 5174 (запускать: `cd frontend && npm run dev`)
-- TypeScript компилируется без ошибок (`npx tsc --noEmit`)
-- Docker + PostgreSQL + Redis (для полного запуска — `docker compose up -d`)
-- Prisma 7 с adapter-pg, миграции применены
+Текущий режим — пилотный:
 
-АВТОРИЗАЦИЯ:
-- Login, Register, PrivateRoute
-- Dev-режим: кнопка "Войти как тестовый пользователь" (dev-token)
-- Онбординг при первом входе (4 шага)
+- Регистрация в production должна быть закрыта, если явно не включена через env.
+- Доступы пользователям открываются вручную через админку.
+- PRO можно выдавать вручную.
+- YooKassa ветка должна быть выключена до реального запуска.
+- Tribute/manual платежи используются как источник оплаты для пилота.
 
-ПРОЕКТЫ:
-- CRUD через API + БД, fallback на локальный UUID если сервер недоступен
-- Переключение в сайдбаре, имя активного проекта отображается на дашборде
-- При смене проекта audience.store сбрасывает состояние ЦА
+Важно: платежный webhook YooKassa не должен активировать подписки, пока `YOOKASSA_ENABLED=false`.
 
-AI — РЕАЛЬНЫЕ ЗАПРОСЫ (подключены и работают):
-- Anthropic API ключ в .env, `mock: false` при успешном ответе
-- **Распаковка** (`/strategy/unpacking`) — чат с Claude, история диалога передаётся
-- **Целевая аудитория** (`/strategy/audience`) — 12 шагов, реальный AI + mock fallback
-- **УТП** (`/strategy/utp`) — генерация и улучшение УТП через Claude
-- **Соцсети** (`/strategy/social`) — отдельный промпт для Instagram / Telegram / ВКонтакте
-- **Основной продукт** (`/strategy/product-main`) — JSON-ответ от Claude
-- **Мини-продукт** (`/strategy/product-mini`) — JSON-ответ от Claude
-- **Лид-магнит** (`/strategy/lead-magnet`) — JSON-ответ от Claude
-- **Посты, Рилсы, Статьи, Видео, Цепочки** — реальный AI + mock fallback
+## Email
 
-НАВИГАЦИЯ / LAYOUT:
-- Светлый сайдбар, акцент #D4A847
-- 7 подпунктов стратегии с lock/unlock логикой
-- Динамический баннер на заблокированных страницах
+- Email verification реализована.
+- Если SMTP не настроен, backend должен работать без падения и логировать ссылку в консоль.
 
-ПЛАН ЗАДАЧ (`/tasks`):
-- 4-колоночный Kanban: Все / Сегодня / На неделе / Выполнено
-- Drag-and-drop между колонками через @dnd-kit
-- Галочка для быстрого выполнения + toast
-- Добавление задач с категорией и приоритетом
+## Prisma / DB
 
-КОНТЕНТ-ПЛАН (`/content-plan`):
-- Kanban по дням недели с drag-and-drop
-- Статусы: Черновик / Готов / Опубликован
+Основные сущности:
 
-ИСТОРИЯ (`/history`):
-- Список генераций из БД, фильтры, боковая панель
+- `User`
+- `Project`
+- `VerificationToken`
+- `Subscription`
+- `Payment`
+- `AIUsage`
+- `AIRequestLog`
+- `UserEvent`
 
-НАСТРОЙКИ (`/settings`):
-- Профиль, выбор AI-модели по умолчанию (Claude / ChatGPT), смена пароля
+Стратегические данные проекта хранятся в JSON-поле `Project.strategyData`.
 
-ЭКСПОРТ:
-- .docx через библиотеку `docx`
-- Копирование во всех разделах
+Важные ключи внутри `strategyData`:
 
-### Следующие шаги 🔜
+- `positioningData`
+- `answers`
+- `completed`
+- `unpackingData`
+- `progressFlags`
 
-КРИТИЧНО:
-- Разобраться почему в Распаковке AI иногда не отвечает (возможно CORS или бэкенд не запущен)
-- Сохранять answers из Распаковки и ЦА в БД (сейчас только в localStorage / unpacking.store)
+Миграции на сервере применять через:
 
-ВАЖНО:
-- Email-верификация при регистрации
-- Подключение оплаты (ЮКасса / Robokassa)
-- Деплой: фронтенд на Timeweb/Selectel, бэкенд на Hetzner
+```bash
+cd /app/backend && npx prisma migrate deploy && npx prisma generate
+```
 
-ОТЛОЖЕНО:
-- Telegram Bot Builder
-- Обучение / курсы
-- Командная работа
-- Аналитика использования
+## Frontend state
+
+Zustand stores:
+
+- `auth.store.ts` — пользователь, токены, сессия.
+- `projects.store.ts` — проекты и `activeProjectId`.
+- `progress.store.ts` — флаги прохождения стратегии, включая positioning/audience/utp/social.
+- `audience.store.ts` — ответы и completed для ЦА по проектам.
+- `unpacking.store.ts` — исторический store; часть данных может использоваться как профиль/контекст, но основной “чат распаковки” заменен на AI-диалог.
+- `model.store.ts` — выбранные AI-модели по разделам.
+- `contentPlan.store.ts` — контент-план.
+- `tasks.store.ts` — задачи.
+
+## UI
+
+- Интерфейс на русском.
+- Основной фон светлый.
+- Акцентный цвет: `#D4A847`.
+- CSS Modules, без большой UI-библиотеки.
+- Drag-and-drop: `@dnd-kit`.
+- Пункт “Диалог с ИИ” в боковом меню визуально выделен.
+
+## Важные файлы
+
+Backend:
+
+- `backend/src/controllers/ai.controller.ts`
+- `backend/src/services/ai.service.ts`
+- `backend/src/controllers/project.controller.ts`
+- `backend/src/controllers/admin.controller.ts`
+- `backend/src/services/payment.service.ts`
+- `backend/src/services/ai-access.service.ts`
+- `backend/src/utils/buildAiDialogContext.ts`
+- `backend/prisma/schema.prisma`
+
+Frontend:
+
+- `frontend/src/App.tsx`
+- `frontend/src/components/Layout/Layout.tsx`
+- `frontend/src/pages/Positioning/Positioning.tsx`
+- `frontend/src/pages/Strategy/Strategy.tsx`
+- `frontend/src/pages/AiDialog/AiDialog.tsx`
+- `frontend/src/pages/Admin/*`
+- `frontend/src/api/projects.api.ts`
+- `frontend/src/api/ai.ts`
+- `frontend/src/store/*`
+
+## Проверки перед завершением задачи
+
+Минимум:
+
+```bash
+cd backend && npm run build
+cd frontend && npm run build
+```
+
+После backend-деплоя:
+
+```bash
+curl -s -i https://api.lumaiq.ru/api/v1/health
+```
+
+После frontend-деплоя:
+
+```bash
+curl -s -i https://www.lumaiq.ru/
+```
+
+## Текущее состояние на 11.05.2026
+
+Готово:
+
+- Production домены подключены.
+- Backend работает на Hetzner под PM2.
+- Frontend работает на Vercel.
+- Админка P0/P1 реализована.
+- Закрыта production-регистрация.
+- Реализованы manual PRO и ручное создание пользователей.
+- Реализованы AI usage analytics, activity events, LTV, payment source.
+- Реализован отдельный раздел “Диалог с ИИ”.
+- Реализован первый шаг стратегии “Позиционирование”.
+- Исправлено сохранение `positioningData`.
+- ЦА подтягивает `positioningData` и сохраняет промежуточный прогресс.
+
+Ближайшие важные задачи:
+
+- Доработать качество AI-промптов ЦА на основе позиционирования.
+- Проверить весь путь пилотного пользователя: ручное создание → вход → позиционирование → ЦА → УТП → продукты → контент.
+- Улучшить backend paywall по конкретным действиям/разделам.
+- Добавить phone SMS verification и Telegram linking позже.
+- Перед реальным запуском оплаты включить и заново проверить YooKassa webhook.
