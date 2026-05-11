@@ -18,6 +18,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
+  const isAdmin = currentUser?.role === 'ADMIN';
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [total, setTotal] = useState(0);
@@ -204,9 +205,11 @@ export default function Admin() {
           <div className={s.subtitle}>Пользователи, подписки и ручной пилотный доступ</div>
         </div>
         <div className={s.headerActions}>
-          <button className={s.secondaryButton} onClick={() => setCreateOpen(true)}>
-            Добавить пользователя
-          </button>
+          {isAdmin && (
+            <button className={s.secondaryButton} onClick={() => setCreateOpen(true)}>
+              Добавить пользователя
+            </button>
+          )}
           <button className={s.button} onClick={() => void loadUsers()} disabled={loading}>
             Обновить
           </button>
@@ -494,7 +497,7 @@ export default function Admin() {
         </div>
       )}
 
-      {createOpen && (
+      {isAdmin && createOpen && (
         <div className={s.modalBackdrop} onMouseDown={() => setCreateOpen(false)}>
           <div className={s.modal} onMouseDown={(e) => e.stopPropagation()}>
             <div className={s.modalHeader}>
