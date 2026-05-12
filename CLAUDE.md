@@ -244,6 +244,86 @@ Frontend:
 - `frontend/src/api/ai.ts`
 - `frontend/src/store/*`
 
+## Backlog: social context import
+
+Цель: дать пользователю возможность подключить свои соцсети, чтобы LumaIQ сам проанализировал его реальный контент и дальше генерировал материалы в стиле конкретного эксперта.
+
+### Telegram
+
+MVP-логика:
+
+- Создать бота, например `@luma_iq_bot`.
+- Пользователь добавляет бота администратором в свой Telegram-канал.
+- Backend получает новые публикации через Telegram Bot API webhook / updates `channel_post`.
+- Новые посты сохраняются в БД как `SocialPost`.
+- Для старой истории Bot API недостаточен: бот не может просто выкачать всю прошлую историю канала.
+- Для старых постов MVP-вариант: пользователь экспортирует историю канала из Telegram Desktop в `.json` и загружает файл в LumaIQ.
+- Позже можно рассмотреть Telegram Client API / MTProto для импорта старой истории, но это сложнее по безопасности и UX.
+
+### Instagram
+
+MVP-логика:
+
+- В интерфейсе проекта кнопка `Подключить Instagram`.
+- Пользователь проходит OAuth через Meta / Instagram.
+- Основной поддерживаемый сценарий: Instagram Professional account — Business или Creator.
+- Backend получает access token и подтягивает последние публикации аккаунта.
+- Сохранять: caption, media type, timestamp, permalink, media url / thumbnail, raw metadata.
+- Этого достаточно, чтобы AI понял темы, тональность, структуру постов, частые формулировки, офферы и CTA.
+- Для Reels/video на первом этапе анализировать caption и metadata.
+- Позже добавить скачивание/обработку видео и транскрибацию речи для анализа содержания Reels.
+
+### Предлагаемые сущности
+
+```text
+SocialAccount
+- id
+- userId
+- projectId
+- provider: INSTAGRAM | TELEGRAM
+- handle
+- externalId
+- accessTokenEncrypted
+- refreshTokenEncrypted
+- connectedAt
+- status
+
+SocialPost
+- id
+- socialAccountId
+- providerPostId
+- text
+- mediaType
+- url
+- publishedAt
+- metricsJson
+- rawJson
+
+ContentStyleProfile
+- id
+- projectId
+- summary
+- tone
+- themesJson
+- vocabularyJson
+- contentPatternsJson
+- audienceSignalsJson
+- doDontJson
+- examplesJson
+- updatedAt
+```
+
+### AI-использование
+
+- Импортировать последние 50-200 постов.
+- Очистить текст от мусора, ссылок и дублей.
+- Построить `ContentStyleProfile`.
+- При генерации контента подмешивать:
+  - краткий профиль стиля;
+  - 3-7 релевантных примеров старых постов;
+  - текущий контекст проекта.
+- В генераторах добавить режим `Писать в стиле моих соцсетей`.
+
 ## Проверки перед завершением задачи
 
 Минимум:
@@ -286,5 +366,6 @@ curl -s -i https://www.lumaiq.ru/
 - Доработать качество AI-промптов ЦА на основе позиционирования.
 - Проверить весь путь пилотного пользователя: ручное создание → вход → позиционирование → ЦА → УТП → продукты → контент.
 - Улучшить backend paywall по конкретным действиям/разделам.
+- Добавить импорт контекста из Telegram и Instagram: подключение аккаунтов, импорт постов, анализ стиля.
 - Добавить phone SMS verification и Telegram linking позже.
 - Перед реальным запуском оплаты включить и заново проверить YooKassa webhook.
