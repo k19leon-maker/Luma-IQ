@@ -300,6 +300,16 @@ function previousChoiceSourceKey(stepId: number): keyof AudienceAnswers | null {
   return null;
 }
 
+function firstIncompleteStepId(answers: Partial<AudienceAnswers>): number {
+  const ans = answers as Record<string, string | undefined>;
+  const next = STEPS.find((step) => {
+    if (step.answerKey) return !ans[step.answerKey];
+    if (step.choiceKey) return !ans[step.choiceKey];
+    return false;
+  });
+  return next?.id ?? 1;
+}
+
 // ── Mock content (fallback when AI unavailable) ────────────────────────────────
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -764,6 +774,23 @@ export default function Strategy() {
     void runAnalysis(1);
   }
 
+  function handleContinueAnalysis() {
+    if (isRunning || completed) return;
+    const pendingChoice = docEntries.find((entry) => entry.type === 'choice' && !entry.chosen);
+    if (pendingChoice) {
+      toast('Сначала выберите вариант, чтобы продолжить', { icon: '👆' });
+      return;
+    }
+
+    const fromStepId = firstIncompleteStepId(answersRef.current);
+    abortRef.current = { aborted: false };
+    setFailedStepId(null);
+    setAiError(null);
+    setPendingCustomChoice(null);
+    setIsRunning(true);
+    void runAnalysis(fromStepId);
+  }
+
   function retryStep(stepId: number) {
     const sourceStepId = stepId === 3 ? 2 : stepId === 5 ? 4 : stepId === 9 ? 8 : stepId;
     const newAnswers = { ...answersRef.current };
@@ -836,7 +863,7 @@ export default function Strategy() {
 
     const currentEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
     const stepTitle = currentEntry ? STEP_TITLES[currentEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
-    const isChoicePending = Boolean(currentEntry?.type === 'choice' && !currentEntry.chosen && resolveChoiceRef.current);
+    const isChoicePending = Boolean(currentEntry?.type === 'choice' && !currentEntry.chosen);
     const questionCandidate = currentEntry && isChoicePending
       ? extractChoiceCandidate(question, currentEntry.stepId)
       : null;
@@ -928,6 +955,16 @@ export default function Strategy() {
   const runBtnDisabled = isRunning || completed;
   const activeStepEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
   const activeStepTitle = activeStepEntry ? STEP_TITLES[activeStepEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
+  const hasPartialProgress = docEntries.some((entry) => entry.stepId !== 99);
+  const hasPendingChoice = docEntries.some((entry) => entry.type === 'choice' && !entry.chosen);
+  const primaryActionLabel = isRunning
+    ? 'Анализ...'
+    : hasPartialProgress
+      ? hasPendingChoice
+        ? 'Выберите вариант'
+        : 'Продолжить анализ'
+      : '▶ Запустить анализ';
+  const primaryAction = hasPartialProgress ? handleContinueAnalysis : handleStartAnalysis;
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: '#fff' }}>
@@ -946,22 +983,22 @@ export default function Strategy() {
 
           {!completed && (
             <button
-              onClick={handleStartAnalysis}
-              disabled={runBtnDisabled}
+              onClick={primaryAction}
+              disabled={runBtnDisabled || hasPendingChoice}
               style={{
                 width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
-                backgroundColor: runBtnDisabled ? '#F0EEE8' : '#D4A847',
-                color: runBtnDisabled ? '#bbb' : '#fff',
-                fontSize: 13, fontWeight: 500, cursor: runBtnDisabled ? 'not-allowed' : 'pointer',
+                backgroundColor: runBtnDisabled || hasPendingChoice ? '#F0EEE8' : '#D4A847',
+                color: runBtnDisabled || hasPendingChoice ? '#bbb' : '#fff',
+                fontSize: 13, fontWeight: 500, cursor: runBtnDisabled || hasPendingChoice ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
             >
               {isRunning ? (
                 <>
                   <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 12 }}>⟳</span>
-                  Анализ...
+                  {primaryActionLabel}
                 </>
-              ) : '▶ Запустить анализ'}
+              ) : primaryActionLabel}
             </button>
           )}
 
