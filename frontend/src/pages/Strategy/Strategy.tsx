@@ -270,7 +270,11 @@ function buildFallbackOptions(stepId: number, positioning: PositioningData | nul
 }
 
 function isAffirmativeChoice(text: string): boolean {
-  return /^(да|ок|окей|выбираю|хочу выбрать|берем|берём|подтверждаю|согласен|согласна|продолжаем)/i.test(text.trim());
+  return /^(да|ок|окей|выбираю|хочу выбрать|берем|берём|подтверждаю|согласен|согласна|продолжаем|продолжай|готов|готова|готов продолжать|готова продолжать|двигаемся дальше|идем дальше|идём дальше|давай дальше)/i.test(text.trim());
+}
+
+function looksLikeContinueIntent(text: string): boolean {
+  return /(продолж|готов|дальше|двигаемся|идем|идём|выбираю|берем|берём|подтверждаю)/i.test(text.trim());
 }
 
 function extractChoiceCandidate(text: string, stepId: number): string | null {
@@ -891,6 +895,23 @@ export default function Strategy() {
       return;
     }
 
+    if (isChoicePending && looksLikeContinueIntent(question)) {
+      setStepChatMessages((prev) => [
+        ...prev,
+        userMsg,
+        {
+          role: 'assistant',
+          content: pendingCustomChoice
+            ? `Принял. Продолжаю проработку с вариантом: ${pendingCustomChoice}`
+            : 'Чтобы продолжить, выберите один из вариантов выше или нажмите “Продолжить с ним”, если добавили свой вариант в переписке.',
+          stepTitle,
+        },
+      ]);
+      setStepChatInput('');
+      if (pendingCustomChoice) handleConfirmChoice(pendingCustomChoice);
+      return;
+    }
+
     if (questionCandidate) {
       setPendingCustomChoice(questionCandidate);
     }
@@ -909,7 +930,9 @@ export default function Strategy() {
           `Текущий шаг: ${stepTitle}`,
           `Текущий результат шага:\n${currentResult}`,
           `Вопрос пользователя:\n${question}`,
-          'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.',
+          isChoicePending
+            ? 'Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**. Не спрашивай "готов ли продолжать" и не проси написать, когда пользователь будет готов. Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.'
+            : 'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.',
         ].join('\n\n'),
         conversationHistory: history,
         unpackingProfile: mergedProfile,
