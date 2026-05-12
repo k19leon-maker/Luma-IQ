@@ -170,6 +170,11 @@ function stripMd(s: string): string {
 }
 
 function parseChoiceOptions(stepId: number, text: string): string[] {
+  if (stepId === 9) {
+    const requestOptions = parseRequestChoiceOptions(text);
+    if (requestOptions.length >= 2) return requestOptions;
+  }
+
   // Pattern 1: "Сегмент N —", "Подсегмент N —", "Запрос N —" (handles ** wrapping)
   {
     const matches: string[] = [];
@@ -234,12 +239,75 @@ function parseChoiceOptions(stepId: number, text: string): string[] {
   return fallback;
 }
 
+function cleanChoiceLine(line: string): string {
+  return stripMd(line)
+    .replace(/^[\s#.)🥇🥈🥉—\-–:«»]+/, '')
+    .replace(/^(?:топ\s*)?(?:сегмент|подсегмент|запрос|вариант)\s*\d*\s*[—\-–:.)]*/i, '')
+    .replace(/^[«"“”]+|[»"“”]+$/g, '')
+    .trim();
+}
+
+function parseRequestChoiceOptions(text: string): string[] {
+  const matches: string[] = [];
+  const push = (value: string | undefined) => {
+    const cleaned = cleanChoiceLine(value ?? '').split(/\s+—\s+почему/i)[0].trim();
+    if (cleaned.length >= 8 && cleaned.length <= 180 && !/^(почему|логика|вывод|итого)/i.test(cleaned)) {
+      matches.push(cleaned);
+    }
+  };
+
+  for (const m of text.matchAll(/(?:^|\n)\s*[🥇🥈🥉]\s*(?:\*{0,2}(?:запрос\s*\d*)\*{0,2}\s*[—\-–:])?\s*([^\n]+)/gim)) {
+    push(m[1]);
+  }
+
+  if (matches.length < 2) {
+    for (const m of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]|[-•])\s*(?:\*{0,2}(?:запрос\s*\d*)\*{0,2}\s*[—\-–:])?\s*([^\n]+)/gim)) {
+      push(m[1]);
+    }
+  }
+
+  if (matches.length < 2) {
+    for (const m of text.matchAll(/(?:^|\n)\s*\*{0,2}запрос\s*\d+\*{0,2}\s*[—\-–:]\s*([^\n]+)/gim)) {
+      push(m[1]);
+    }
+  }
+
+  return Array.from(new Set(matches)).slice(0, 3);
+}
+
 function filterOutQuestions(options: string[]): string[] {
   return options.filter((opt) => {
     if (opt.includes('?')) return false;
     if (/^(кто|что|как|когда|почему|зачем|какой|какая|какие|уточни|можете|расскажи|поясни)/i.test(opt)) return false;
     return true;
   });
+}
+
+function normalizeChoiceOptions(stepId: number, text: string): string[] {
+  const options = parseChoiceOptions(stepId, text);
+  return stepId === 9 ? options : filterOutQuestions(options);
+}
+
+function buildChoiceOptionsFallback(
+  stepId: number,
+  answers: Partial<AudienceAnswers>,
+  positioning: PositioningData | null,
+): string[] {
+  if (stepId === 9) {
+    const fromTop = parseRequestChoiceOptions(answers.top3requests ?? '');
+    if (fromTop.length >= 2) return fromTop;
+
+    const fromRequests = parseRequestChoiceOptions(answers.requests ?? '');
+    if (fromRequests.length >= 2) return fromRequests.slice(0, 3);
+
+    return [
+      'Самый срочный запрос клиента',
+      'Запрос с самой сильной эмоциональной болью',
+      'Запрос, по которому клиент быстрее готов купить решение',
+    ];
+  }
+
+  return buildFallbackOptions(stepId, positioning);
 }
 
 function buildFallbackOptions(stepId: number, positioning: PositioningData | null): string[] {
@@ -557,7 +625,7 @@ export default function Strategy() {
             .some((s) => (s.answerKey && ans[s.answerKey]) || (s.choiceKey && ans[s.choiceKey]));
 
           if (source && !nextStepHasAnswer) {
-            const options = filterOutQuestions(parseChoiceOptions(step.id, source));
+            const options = normalizeChoiceOptions(step.id, source);
             entries.push({
               stepId: step.id,
               type: 'choice',
@@ -565,7 +633,7 @@ export default function Strategy() {
               fullText: '',
               displayedText: '',
               isTyping: false,
-              options: options.length >= 2 ? options : buildFallbackOptions(step.id, positioningData),
+              options: options.length >= 2 ? options : buildChoiceOptionsFallback(step.id, answers, positioningData),
               chosen: undefined,
             });
             statuses[step.id - 1] = 'choice';
@@ -692,8 +760,7 @@ export default function Strategy() {
 
         let options: string[] = [];
         if (prevContent) {
-          const raw = parseChoiceOptions(step.id, prevContent);
-          options = filterOutQuestions(raw);
+          options = normalizeChoiceOptions(step.id, prevContent);
 
           if (options.length < 2 && !isRetryingRef.current) {
             console.warn(`[Audience step ${step.id}] only ${options.length} options, retrying strict`);
@@ -710,8 +777,7 @@ export default function Strategy() {
                 unpackingProfile: mergedProfile,
                 projectName: activeProjectName,
               });
-              const retryRaw = parseChoiceOptions(step.id, retryResp.content);
-              const retryOptions = filterOutQuestions(retryRaw);
+              const retryOptions = normalizeChoiceOptions(step.id, retryResp.content);
               if (retryOptions.length >= 2) {
                 options = retryOptions;
                 const prevAnsKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'top3requests';
@@ -729,7 +795,7 @@ export default function Strategy() {
         }
 
         if (options.length < 2) {
-          options = buildFallbackOptions(step.id, positioningData);
+          options = buildChoiceOptionsFallback(step.id, answers, positioningData);
         }
 
         console.log(`[Audience step ${step.id}] options:`, options);
