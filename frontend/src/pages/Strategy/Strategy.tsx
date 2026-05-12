@@ -293,6 +293,13 @@ function extractChoiceCandidate(text: string, stepId: number): string | null {
   return null;
 }
 
+function previousChoiceSourceKey(stepId: number): keyof AudienceAnswers | null {
+  if (stepId === 3) return 'top3segments';
+  if (stepId === 5) return 'subsegments';
+  if (stepId === 9) return 'top3requests';
+  return null;
+}
+
 // ── Mock content (fallback when AI unavailable) ────────────────────────────────
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -508,6 +515,7 @@ export default function Strategy() {
   function restorePartialDoc(answers: Partial<AudienceAnswers>) {
     const entries: DocEntry[] = [];
     const statuses = STEPS.map(() => 'idle' as StepStatus);
+    let waitingChoiceId: number | null = null;
     for (const step of STEPS) {
       const ans = answers as Record<string, string>;
       if (step.type === 'auto' && step.answerKey) {
@@ -521,6 +529,28 @@ export default function Strategy() {
         if (chosen) {
           entries.push({ stepId: step.id, type: 'choice', title: STEP_TITLES[step.id], fullText: '', displayedText: '', isTyping: false, options: [], chosen });
           statuses[step.id - 1] = 'done';
+        } else if (waitingChoiceId === null) {
+          const sourceKey = previousChoiceSourceKey(step.id);
+          const source = sourceKey ? ans[sourceKey] ?? '' : '';
+          const nextStepHasAnswer = STEPS
+            .filter((s) => s.id > step.id)
+            .some((s) => (s.answerKey && ans[s.answerKey]) || (s.choiceKey && ans[s.choiceKey]));
+
+          if (source && !nextStepHasAnswer) {
+            const options = filterOutQuestions(parseChoiceOptions(step.id, source));
+            entries.push({
+              stepId: step.id,
+              type: 'choice',
+              title: STEP_TITLES[step.id],
+              fullText: '',
+              displayedText: '',
+              isTyping: false,
+              options: options.length >= 2 ? options : buildFallbackOptions(step.id, positioningData),
+              chosen: undefined,
+            });
+            statuses[step.id - 1] = 'choice';
+            waitingChoiceId = step.id;
+          }
         }
       }
     }
@@ -756,8 +786,28 @@ export default function Strategy() {
   }
 
   function handleConfirmChoice(value: string) {
-    resolveChoiceRef.current?.(value);
-    resolveChoiceRef.current = null;
+    if (resolveChoiceRef.current) {
+      resolveChoiceRef.current(value);
+      resolveChoiceRef.current = null;
+      setPendingCustomChoice(null);
+      return;
+    }
+
+    const choiceEntry = [...docEntries].reverse().find((entry) => entry.type === 'choice' && !entry.chosen);
+    const step = choiceEntry ? STEPS.find((item) => item.id === choiceEntry.stepId) : null;
+    if (!choiceEntry || !step?.choiceKey) {
+      setPendingCustomChoice(null);
+      return;
+    }
+
+    const answers = { ...answersRef.current, [step.choiceKey]: value };
+    answersRef.current = answers;
+    updateDocEntry(step.id, { chosen: value });
+    setStepStatuses((prev) => prev.map((st, i) => (STEPS[i].id === step.id ? 'done' : st)));
+    persistAudienceProgress(answers, false);
+    abortRef.current = { aborted: false };
+    setIsRunning(true);
+    void runAnalysis(step.id + 1);
     setPendingCustomChoice(null);
   }
 
