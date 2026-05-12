@@ -202,22 +202,43 @@ function buildPdfElement(projectName: string, answers: Record<string, string>): 
   return root;
 }
 
+async function waitForPdfRender(): Promise<void> {
+  if ('fonts' in document) {
+    await document.fonts.ready;
+  }
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
 export const downloadStrategyPdf = async (
   projectName: string,
   answers: Record<string, string>,
 ): Promise<void> => {
   const element = buildPdfElement(projectName, answers);
-  element.style.position = 'fixed';
-  element.style.left = '-10000px';
+  element.style.position = 'absolute';
+  element.style.left = '0';
   element.style.top = '0';
+  element.style.zIndex = '-1';
+  element.style.pointerEvents = 'none';
   document.body.appendChild(element);
 
   try {
+    await waitForPdfRender();
+    const pdfElement = element.querySelector<HTMLElement>('.liq-pdf');
+    if (!pdfElement || pdfElement.offsetWidth === 0 || pdfElement.offsetHeight === 0) {
+      throw new Error('Не удалось подготовить PDF-макет');
+    }
+
     const options = {
       margin: 0,
       filename: `LumaIQ_${safeFileName(projectName)}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: pdfElement.offsetWidth,
+        windowWidth: pdfElement.offsetWidth,
+      },
       jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] },
     } as Record<string, unknown>;
@@ -229,7 +250,7 @@ export const downloadStrategyPdf = async (
       };
     })
       .set(options)
-      .from(element)
+      .from(pdfElement)
       .save();
   } finally {
     document.body.removeChild(element);
