@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -39,6 +39,7 @@ interface StepChatMessage {
   role: 'user' | 'assistant';
   content: string;
   stepTitle: string;
+  stepId: number;
 }
 
 // ── Step definitions ───────────────────────────────────────────────────────────
@@ -302,6 +303,11 @@ function previousChoiceSourceKey(stepId: number): keyof AudienceAnswers | null {
   if (stepId === 5) return 'subsegments';
   if (stepId === 9) return 'top3requests';
   return null;
+}
+
+function nextStepId(stepId: number): number {
+  const index = STEPS.findIndex((step) => step.id === stepId);
+  return STEPS[index + 1]?.id ?? 99;
 }
 
 function firstIncompleteStepId(answers: Partial<AudienceAnswers>): number {
@@ -867,6 +873,7 @@ export default function Strategy() {
 
     const currentEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
     const stepTitle = currentEntry ? STEP_TITLES[currentEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
+    const stepId = currentEntry?.stepId ?? 0;
     const isChoicePending = Boolean(currentEntry?.type === 'choice' && !currentEntry.chosen);
     const questionCandidate = currentEntry && isChoicePending
       ? extractChoiceCandidate(question, currentEntry.stepId)
@@ -882,16 +889,20 @@ export default function Strategy() {
     }));
     const { projectContext, mergedProfile } = buildRuntimeContext();
 
-    const userMsg: StepChatMessage = { role: 'user', content: question, stepTitle };
+    const userMsg: StepChatMessage = { role: 'user', content: question, stepTitle, stepId };
 
     if (isChoicePending && pendingCustomChoice && isAffirmativeChoice(question)) {
       setStepChatMessages((prev) => [
         ...prev,
         userMsg,
-        { role: 'assistant', content: `Принял. Продолжаю проработку с вариантом: ${pendingCustomChoice}`, stepTitle },
+        {
+          role: 'assistant',
+          content: `Чтобы продолжить с вариантом «${pendingCustomChoice}», нажмите кнопку “Продолжить с ним” ниже. Если это была просто идея, выберите один из вариантов выше или обсудите еще.`,
+          stepTitle,
+          stepId,
+        },
       ]);
       setStepChatInput('');
-      handleConfirmChoice(pendingCustomChoice);
       return;
     }
 
@@ -902,13 +913,13 @@ export default function Strategy() {
         {
           role: 'assistant',
           content: pendingCustomChoice
-            ? `Принял. Продолжаю проработку с вариантом: ${pendingCustomChoice}`
-            : 'Чтобы продолжить, выберите один из вариантов выше или нажмите “Продолжить с ним”, если добавили свой вариант в переписке.',
+            ? `Вижу вариант из переписки: «${pendingCustomChoice}». Я не буду выбирать его автоматически. Нажмите “Продолжить с ним”, если точно хотите работать с ним, или выберите один из вариантов выше.`
+            : 'Чтобы продолжить, выберите один из вариантов выше. Если хотите добавить свой вариант, напишите его явно.',
           stepTitle,
+          stepId,
         },
       ]);
       setStepChatInput('');
-      if (pendingCustomChoice) handleConfirmChoice(pendingCustomChoice);
       return;
     }
 
@@ -942,7 +953,7 @@ export default function Strategy() {
         ? extractChoiceCandidate(resp.content, currentEntry.stepId)
         : null;
       if (responseCandidate) setPendingCustomChoice(responseCandidate);
-      setStepChatMessages((prev) => [...prev, { role: 'assistant', content: resp.content, stepTitle }]);
+      setStepChatMessages((prev) => [...prev, { role: 'assistant', content: resp.content, stepTitle, stepId }]);
     } catch {
       toast.error('Не удалось получить ответ в чате шага');
       setStepChatMessages((prev) => prev.filter((msg) => msg !== userMsg));
@@ -1178,114 +1189,123 @@ export default function Strategy() {
               )}
 
               {docEntries.map((entry) => {
-                if (entry.type === 'text') {
-                  return (
-                    <div
-                      key={entry.stepId}
-                      style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}
-                    >
+                const chatForEntry = stepChatMessages.filter((msg) => {
+                  const upperBound = nextStepId(entry.stepId);
+                  return msg.stepId >= entry.stepId && msg.stepId < upperBound;
+                });
+
+                const renderStepChat = chatForEntry.map((msg, idx) => (
+                  <div
+                    key={`${entry.stepId}-${msg.stepTitle}-${idx}`}
+                    style={{
+                      display: 'flex',
+                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                      gap: 10,
+                      alignItems: 'flex-end',
+                    }}
+                  >
+                    {msg.role === 'assistant' && (
                       <div style={{
                         width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
                         background: '#D4A847', display: 'flex', alignItems: 'center',
                         justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
                       }}>AI</div>
-                      <div style={{
-                        maxWidth: 'min(720px, 74%)', padding: '12px 16px',
-                        borderRadius: '12px 12px 12px 0', background: '#F5F4F0',
-                        color: '#1a1a1a', fontSize: 14, lineHeight: 1.6,
-                      }}>
-                      <div style={{
-                        fontSize: 10, fontWeight: 600, color: '#999',
-                        textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 10,
-                      }}>
-                        {entry.title}
+                    )}
+                    <div style={{
+                      maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                      borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                      background: msg.role === 'user' ? '#1a1a1a' : '#F5F4F0',
+                      color: msg.role === 'user' ? '#fff' : '#1a1a1a',
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      <div style={{ fontSize: 10, color: msg.role === 'user' ? 'rgba(255,255,255,0.55)' : '#888', marginBottom: 4 }}>
+                        {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
                       </div>
-                      {entry.isTyping ? (
-                        <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                          {entry.displayedText}
-                          <span style={{ opacity: 0.6, animation: 'blink 1s step-end infinite' }}>|</span>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7 }}>
-                          <ReactMarkdown>{entry.fullText}</ReactMarkdown>
-                        </div>
-                      )}
-                      </div>
+                      {msg.content}
                     </div>
+                  </div>
+                ));
+
+                if (entry.type === 'text') {
+                  return (
+                    <Fragment key={entry.stepId}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                        <div style={{
+                          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                          background: '#D4A847', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                        }}>AI</div>
+                        <div style={{
+                          maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                          borderRadius: '12px 12px 12px 0', background: '#F5F4F0',
+                          color: '#1a1a1a', fontSize: 14, lineHeight: 1.6,
+                        }}>
+                          <div style={{
+                            fontSize: 10, fontWeight: 600, color: '#999',
+                            textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 10,
+                          }}>
+                            {entry.title}
+                          </div>
+                          {entry.isTyping ? (
+                            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                              {entry.displayedText}
+                              <span style={{ opacity: 0.6, animation: 'blink 1s step-end infinite' }}>|</span>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7 }}>
+                              <ReactMarkdown>{entry.fullText}</ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {renderStepChat}
+                    </Fragment>
                   );
                 }
 
                 if (entry.chosen) {
                   return (
-                    <div
-                      key={entry.stepId}
-                      style={{ display: 'flex', flexDirection: 'row-reverse', gap: 10, alignItems: 'flex-end' }}
-                    >
-                      <div style={{
-                        maxWidth: 'min(720px, 74%)', padding: '12px 16px',
-                        borderRadius: '12px 12px 0 12px', background: '#1a1a1a',
-                        color: '#fff', fontSize: 14, lineHeight: 1.6,
-                      }}>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginBottom: 4 }}>Выбор пользователя</div>
-                        {entry.stepId === 3 ? 'Выбранный сегмент' :
-                         entry.stepId === 5 ? 'Выбранный подсегмент' :
-                         'Выбранный запрос'}:{' '}
-                        <strong>{entry.chosen}</strong>
+                    <Fragment key={entry.stepId}>
+                      <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: 10, alignItems: 'flex-end' }}>
+                        <div style={{
+                          maxWidth: 'min(720px, 74%)', padding: '12px 16px',
+                          borderRadius: '12px 12px 0 12px', background: '#1a1a1a',
+                          color: '#fff', fontSize: 14, lineHeight: 1.6,
+                        }}>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginBottom: 4 }}>Выбор пользователя</div>
+                          {entry.stepId === 3 ? 'Выбранный сегмент' :
+                           entry.stepId === 5 ? 'Выбранный подсегмент' :
+                           'Выбранный запрос'}:{' '}
+                          <strong>{entry.chosen}</strong>
+                        </div>
                       </div>
-                    </div>
+                      {renderStepChat}
+                    </Fragment>
                   );
                 }
 
                 return (
-                  <div key={entry.stepId} style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-                    <div style={{
-                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                      background: '#D4A847', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
-                    }}>AI</div>
-                    <div style={{ maxWidth: 'min(720px, 74%)', width: '100%' }}>
-                      <ChoiceCard
-                        title={STEP_TITLES[entry.stepId]}
-                        options={entry.options ?? []}
-                        onConfirm={handleConfirmChoice}
-                      />
+                  <Fragment key={entry.stepId}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                        background: '#D4A847', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
+                      }}>AI</div>
+                      <div style={{ maxWidth: 'min(720px, 74%)', width: '100%' }}>
+                        <ChoiceCard
+                          title={STEP_TITLES[entry.stepId]}
+                          options={entry.options ?? []}
+                          onConfirm={handleConfirmChoice}
+                        />
+                      </div>
                     </div>
-                  </div>
+                    {renderStepChat}
+                  </Fragment>
                 );
               })}
-              {stepChatMessages.map((msg, idx) => (
-                <div
-                  key={`${msg.stepTitle}-${idx}`}
-                  style={{
-                    display: 'flex',
-                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                    gap: 10,
-                    alignItems: 'flex-end',
-                  }}
-                >
-                  {msg.role === 'assistant' && (
-                    <div style={{
-                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                      background: '#D4A847', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff',
-                    }}>AI</div>
-                  )}
-                  <div style={{
-                    maxWidth: 'min(720px, 74%)', padding: '12px 16px',
-                    borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
-                    background: msg.role === 'user' ? '#1a1a1a' : '#F5F4F0',
-                    color: msg.role === 'user' ? '#fff' : '#1a1a1a',
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap',
-                  }}>
-                    <div style={{ fontSize: 10, color: msg.role === 'user' ? 'rgba(255,255,255,0.55)' : '#888', marginBottom: 4 }}>
-                      {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
-                    </div>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
               {stepChatLoading && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                   <div style={{
