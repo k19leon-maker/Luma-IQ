@@ -35,6 +35,7 @@ export function buildPositioningMaterial(data: PositioningData): Omit<ProjectMat
     title: 'positioning.md',
     content,
     summary: summarizeMaterial(content),
+    linkedMaterialIds: ['audience.md', 'utp.md'],
   };
 }
 
@@ -62,12 +63,20 @@ export function buildAudienceMaterial(answers: Partial<AudienceAnswers>): Omit<P
     title: 'audience.md',
     content,
     summary: summarizeMaterial(content),
+    linkedMaterialIds: ['positioning.md', 'utp.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
   };
 }
 
 export function buildUtpMaterial(value: string): Omit<ProjectMaterial, 'updatedAt'> {
   const content = ['# УТП', value.trim()].filter(Boolean).join('\n\n');
-  return { id: 'utp.md', kind: 'utp', title: 'utp.md', content, summary: summarizeMaterial(content) };
+  return {
+    id: 'utp.md',
+    kind: 'utp',
+    title: 'utp.md',
+    content,
+    summary: summarizeMaterial(content),
+    linkedMaterialIds: ['positioning.md', 'audience.md', 'social.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
+  };
 }
 
 export function buildSocialMaterial(value: Partial<SocialDraft>): Omit<ProjectMaterial, 'updatedAt'> {
@@ -78,7 +87,14 @@ export function buildSocialMaterial(value: Partial<SocialDraft>): Omit<ProjectMa
     section('ВКонтакте', value.vk),
   ].filter(Boolean).join('\n\n');
 
-  return { id: 'social.md', kind: 'social', title: 'social.md', content, summary: summarizeMaterial(content) };
+  return {
+    id: 'social.md',
+    kind: 'social',
+    title: 'social.md',
+    content,
+    summary: summarizeMaterial(content),
+    linkedMaterialIds: ['positioning.md', 'audience.md', 'utp.md'],
+  };
 }
 
 export function buildProductMaterial(
@@ -96,7 +112,13 @@ export function buildProductMaterial(
     section('Описание', value.description),
   ].filter(Boolean).join('\n\n');
 
-  return { id: fileName, kind, title: fileName, content, summary: summarizeMaterial(content) };
+  const linkedMaterialIds = kind === 'product-main'
+    ? ['positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'lead-magnet.md']
+    : kind === 'product-mini'
+      ? ['positioning.md', 'audience.md', 'utp.md', 'product-main.md', 'lead-magnet.md']
+      : ['positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'product-main.md'];
+
+  return { id: fileName, kind, title: fileName, content, summary: summarizeMaterial(content), linkedMaterialIds };
 }
 
 export function buildKnowledgeContext(
@@ -105,12 +127,14 @@ export function buildKnowledgeContext(
   fallback = '',
 ): string {
   const byId = new Map(materials.map((item) => [item.id, item]));
-  const selected = preferredIds
+  const linkedIds = preferredIds.flatMap((id) => byId.get(id)?.linkedMaterialIds ?? []);
+  const selectedIds = Array.from(new Set([...preferredIds, ...linkedIds]));
+  const selected = selectedIds
     .map((id) => byId.get(id))
     .filter((item): item is ProjectMaterial => Boolean(item));
 
   const extras = materials
-    .filter((item) => !preferredIds.includes(item.id))
+    .filter((item) => !selectedIds.includes(item.id))
     .slice(0, 4);
 
   const materialContext = [...selected, ...extras]

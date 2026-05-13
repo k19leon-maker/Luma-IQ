@@ -35,6 +35,7 @@ export default function ProductMini() {
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [materialStatus, setMaterialStatus] = useState('');
 
   useEffect(() => {
     const savedProduct = savedData.productMini ?? { name: '', price: '', format: '', duration: '', description: '', generated: false };
@@ -50,6 +51,10 @@ export default function ProductMini() {
     if (activeProjectId) saveProductMini(activeProjectId, next as ProductDraft);
     if (activeProjectId) upsertMaterial(activeProjectId, buildProductMaterial('product-mini', 'Мини-продукт', next as ProductDraft));
     if (next.generated) completeProductMini();
+    if (next.generated) {
+      setMaterialStatus('Материал product-mini.md обновлен в knowledge base');
+      setTimeout(() => setMaterialStatus(''), 2500);
+    }
   }
 
   async function handleCreate() {
@@ -180,6 +185,9 @@ ${context || 'Контекст пока не заполнен.'}
             color: '#555', background: '#fafafa', resize: 'vertical', boxSizing: 'border-box',
           }}
         />
+      )}
+      {materialStatus && (
+        <div style={{ marginTop: 12, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
       )}
     </div>
   );

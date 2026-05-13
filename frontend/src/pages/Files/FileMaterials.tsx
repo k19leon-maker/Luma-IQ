@@ -6,11 +6,16 @@ import s from './Files.module.css';
 
 interface FileEntry {
   id:      string;
+  materialId?: string;
   icon:    string;
   type:    string;
   title:   string;
   content: string;
   date:    string;
+  summary?: string;
+  summaryStatus?: string;
+  linkedCount?: number;
+  versionsCount?: number;
 }
 
 function tryParse<T>(raw: string | null): T | null {
@@ -136,6 +141,7 @@ export default function FileMaterials() {
   const audienceAnswers = useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers);
   const projectMaterials = useMaterialsStore((s) => s.projects[activeProjectId ?? ''] ?? []);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
+  const refreshSummary = useMaterialsStore((s) => s.refreshSummary);
 
   useEffect(() => {
     if (activeProjectId) void loadMaterialsFromDb(activeProjectId);
@@ -145,11 +151,16 @@ export default function FileMaterials() {
     () => {
       const materialFiles: FileEntry[] = projectMaterials.map((item) => ({
         id: `mat_${item.id}`,
+        materialId: item.id,
         icon: MATERIAL_ICONS[item.kind] ?? '📄',
         type: MATERIAL_TYPES[item.kind] ?? 'Материал',
         title: item.title,
         content: item.content,
         date: new Date(item.updatedAt).toLocaleDateString('ru-RU'),
+        summary: item.summary,
+        summaryStatus: item.summaryStatus,
+        linkedCount: item.linkedMaterialIds?.length ?? 0,
+        versionsCount: item.versions?.length ?? 0,
       }));
       const legacyFiles = gatherFiles(activeProjectId, audienceAnswers)
         .filter((file) => !materialFiles.some((item) => item.title === file.title || item.id === file.id));
@@ -183,11 +194,28 @@ export default function FileMaterials() {
                 <div className={s.fileMeta}>
                   {file.type}{file.date ? ` · ${file.date}` : ''}
                   {' · '}{file.content.length} симв.
+                  {file.summaryStatus ? ` · ${
+                    file.summaryStatus === 'fresh' ? 'саммари актуально' :
+                    file.summaryStatus === 'updating' ? 'саммари обновляется' :
+                    file.summaryStatus === 'pending' ? 'саммари в очереди' :
+                    'саммари требует обновления'
+                  }` : ''}
+                  {file.linkedCount ? ` · связей ${file.linkedCount}` : ''}
+                  {file.versionsCount ? ` · версий ${file.versionsCount}` : ''}
                 </div>
                 <div className={s.preview}>
-                  {file.content.replace(/\n+/g, ' ').slice(0, 100)}…
+                  {(file.summary || file.content).replace(/\n+/g, ' ').slice(0, 140)}…
                 </div>
               </div>
+              {file.materialId && (
+                <button
+                  className={s.actionBtn}
+                  onClick={() => void refreshSummary(activeProjectId, file.materialId!)}
+                  disabled={file.summaryStatus === 'updating'}
+                >
+                  {file.summaryStatus === 'updating' ? 'Обновляю...' : 'Обновить саммари'}
+                </button>
+              )}
               <button className={s.actionBtn} onClick={() => download(file.title, file.content)}>
                 ⬇️ Скачать
               </button>

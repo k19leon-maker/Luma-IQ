@@ -51,6 +51,7 @@ export default function Social() {
 
   const [states, setStates] = useState<Record<string, PlatformState>>(INIT_STATE);
   const [copied, setCopied] = useState('');
+  const [materialStatus, setMaterialStatus] = useState('');
 
   useEffect(() => {
     const social = savedData.social ?? {};
@@ -101,6 +102,8 @@ ${basePrompt}`;
         upsertMaterial(activeProjectId, buildSocialMaterial({ ...savedData.social, [key]: text }));
       }
       completeSocial();
+      setMaterialStatus('Материал social.md обновлен в knowledge base');
+      setTimeout(() => setMaterialStatus(''), 2500);
     } catch (err) {
       console.error('[Social] AI error for', key, err);
       setStates((prev) => ({ ...prev, [key]: { ...prev[key]!, loading: false } }));
@@ -223,6 +226,9 @@ ${basePrompt}`;
           ))}
         </div>
       </div>
+      {materialStatus && (
+        <div style={{ marginTop: 18, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
+      )}
     </div>
   );
 }

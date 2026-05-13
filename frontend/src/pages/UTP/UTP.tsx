@@ -22,6 +22,7 @@ export default function UTP() {
   const [focused,   setFocused]   = useState(false);
   const [copied,    setCopied]    = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [materialStatus, setMaterialStatus] = useState('');
 
   useEffect(() => {
     const savedUtp = savedData.utp ?? '';
@@ -36,6 +37,8 @@ export default function UTP() {
     if (activeProjectId) saveUtp(activeProjectId, value);
     if (activeProjectId) upsertMaterial(activeProjectId, buildUtpMaterial(value));
     completeUtp();
+    setMaterialStatus('Материал обновлен в knowledge base');
+    setTimeout(() => setMaterialStatus(''), 2500);
   }
 
   async function handleGenerate() {
@@ -189,6 +192,9 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
           {copied ? '✅ Скопировано' : 'Скопировать'}
         </button>
       </div>
+      {materialStatus && (
+        <div style={{ marginTop: 12, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
+      )}
     </div>
   );
 }

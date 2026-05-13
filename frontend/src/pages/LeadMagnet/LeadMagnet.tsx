@@ -35,6 +35,7 @@ export default function LeadMagnet() {
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [materialStatus, setMaterialStatus] = useState('');
 
   useEffect(() => {
     const savedProduct = savedData.leadMagnet ?? { name: '', price: '', format: '', duration: '', description: '', generated: false };
@@ -50,6 +51,10 @@ export default function LeadMagnet() {
     if (activeProjectId) saveLeadMagnet(activeProjectId, next as ProductDraft);
     if (activeProjectId) upsertMaterial(activeProjectId, buildProductMaterial('lead-magnet', 'Лид-магнит', next as ProductDraft));
     if (next.generated) completeLeadMagnet();
+    if (next.generated) {
+      setMaterialStatus('Материал lead-magnet.md обновлен в knowledge base');
+      setTimeout(() => setMaterialStatus(''), 2500);
+    }
   }
 
   async function handleCreate() {
@@ -181,6 +186,9 @@ ${context || 'Контекст пока не заполнен.'}
             color: '#555', background: '#fafafa', resize: 'vertical', boxSizing: 'border-box',
           }}
         />
+      )}
+      {materialStatus && (
+        <div style={{ marginTop: 12, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
       )}
     </div>
   );

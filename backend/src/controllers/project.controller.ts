@@ -46,6 +46,13 @@ const saveStrategySchema = z.object({
     title: z.string(),
     content: z.string(),
     summary: z.string(),
+    summaryStatus: z.string().optional(),
+    linkedMaterialIds: z.array(z.string()).optional(),
+    versions: z.array(z.object({
+      content: z.string(),
+      summary: z.string(),
+      updatedAt: z.string(),
+    }).passthrough()).optional(),
     updatedAt: z.string(),
   }).passthrough()).optional(),
 });
