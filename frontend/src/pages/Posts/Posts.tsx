@@ -10,6 +10,7 @@ import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -212,6 +213,9 @@ export default function Posts() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
   const profileData = useUnpackingStore((s) => s.profileData);
+  const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'posts')]);
+  const startGenerationTask = useContentGenerationStore((s) => s.startTask);
+  const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
   const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
     projectId: activeProjectId,
@@ -296,6 +300,7 @@ export default function Posts() {
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGeneratePost() {
+    startGenerationTask(activeProjectId, 'posts', 'Пишу пост', selectedTheme || 'Собираю текст поста');
     setPhase('generating');
     const claudeModel = localStorage.getItem('selectedModel_posts') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment
@@ -325,6 +330,7 @@ export default function Posts() {
       console.error('[AI posts generate]', err);
       toast.error(errorMessage);
       setPhase('step2');
+      finishGenerationTask(activeProjectId, 'posts');
       return;
     }
     const id    = `post-${Date.now()}`;
@@ -347,6 +353,7 @@ export default function Posts() {
       if (!dbItem) return;
       updatePosts([newPost, ...posts].map((p) => (p.id === id ? { ...p, dbId: dbItem.id } : p)));
     });
+    finishGenerationTask(activeProjectId, 'posts');
   }
 
   // ── Voice input ───────────────────────────────────────────────────────────────
@@ -486,12 +493,12 @@ export default function Posts() {
   }
 
   // ── Loading ───────────────────────────────────────────────────────────────────
-  if (phase === 'step2-loading' || phase === 'generating') {
+  if (phase === 'step2-loading' || phase === 'generating' || generationTask) {
     return (
       <div className={s.loadingScreen}>
         <div className={s.loadingSpinner} />
         <p className={s.loadingText}>
-          {phase === 'step2-loading' ? 'Генерирую темы для поста...' : 'Пишу пост...'}
+          {generationTask?.title ?? (phase === 'step2-loading' ? 'Генерирую темы для поста...' : 'Пишу пост...')}
         </p>
       </div>
     );

@@ -9,6 +9,7 @@ import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
+import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -371,6 +372,9 @@ export default function ChatbotChains() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings = useModelStore((s) => s.getSettings);
   const profileData = useUnpackingStore((s) => s.profileData);
+  const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'chatbot-chains')]);
+  const startGenerationTask = useContentGenerationStore((s) => s.startTask);
+  const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
   const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
@@ -402,6 +406,7 @@ export default function ChatbotChains() {
   // ── Generate ──────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
+    startGenerationTask(activeProjectId, 'chatbot-chains', 'Пишу цепочку сообщений', 'Собираю структуру Telegram-воронки');
     setPhase('generating');
     try {
       const settings    = getSettings('chatbot-chains');
@@ -482,6 +487,8 @@ export default function ChatbotChains() {
       setPhase('step2');
       const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
       void saveToApi({ title: `Цепочка бота: ${botName || 'Telegram'}`, content: fullText, platform: 'Telegram', metadata: { format, botName } });
+    } finally {
+      finishGenerationTask(activeProjectId, 'chatbot-chains');
     }
   }
 
@@ -534,12 +541,12 @@ export default function ChatbotChains() {
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
-  if (phase === 'generating') {
+  if (phase === 'generating' || generationTask) {
     return (
       <div className={s.root}>
         <div className={s.loadingScreen}>
           <div className={s.loadingSpinner} />
-          <p className={s.loadingText}>✉️ Пишу цепочку сообщений...</p>
+          <p className={s.loadingText}>✉️ {generationTask?.title ?? 'Пишу цепочку сообщений...'}</p>
         </div>
       </div>
     );

@@ -8,7 +8,7 @@
   display: flex;
   /* undo the 24px padding from Layout .content on all sides */
   margin: -24px;
-  height: calc(100vh - var(--topbar-height));
+  height: calc(100% + 48px);
   min-height: 0;
   overflow: hidden;
 }

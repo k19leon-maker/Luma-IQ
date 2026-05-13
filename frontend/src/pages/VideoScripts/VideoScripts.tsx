@@ -11,6 +11,7 @@ import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
+import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -364,6 +365,9 @@ export default function VideoScripts() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings = useModelStore((s) => s.getSettings);
   const profileData = useUnpackingStore((s) => s.profileData);
+  const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'video-scripts')]);
+  const startGenerationTask = useContentGenerationStore((s) => s.startTask);
+  const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
   const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
@@ -443,6 +447,7 @@ export default function VideoScripts() {
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGenerateScript() {
+    startGenerationTask(activeProjectId, 'video-scripts', 'Пишу сценарий видео', selectedTheme || 'Формирую структуру сценария');
     setPhase('generating');
     try {
       const settings = getSettings('video-scripts');
@@ -505,6 +510,8 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
       setSelectedId(id);
       setPhase('editor');
       void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
+    } finally {
+      finishGenerationTask(activeProjectId, 'video-scripts');
     }
   }
 
@@ -638,11 +645,11 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
     );
   }
 
-  if (phase === 'generating') {
+  if (phase === 'generating' || generationTask) {
     return (
       <div className={s.loadingScreen}>
         <span className={s.loadingSpinner} />
-        <p className={s.loadingText}>Пишу сценарий... это займёт несколько секунд</p>
+        <p className={s.loadingText}>{generationTask?.title ?? 'Пишу сценарий... это займёт несколько секунд'}</p>
       </div>
     );
   }

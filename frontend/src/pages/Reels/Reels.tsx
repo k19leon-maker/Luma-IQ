@@ -10,6 +10,7 @@ import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -152,6 +153,9 @@ export default function Reels() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
   const profileData = useUnpackingStore((s) => s.profileData);
+  const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'reels')]);
+  const startGenerationTask = useContentGenerationStore((s) => s.startTask);
+  const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
   const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
     projectId: activeProjectId,
@@ -217,6 +221,7 @@ export default function Reels() {
   }
 
   async function handleGenerateReel() {
+    startGenerationTask(activeProjectId, 'reels', 'Пишу сценарий рилса', selectedTheme || 'Собираю сценарий');
     setPhase('generating');
     const claudeModel = localStorage.getItem('selectedModel_reels') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}.` : '';
@@ -232,6 +237,7 @@ export default function Reels() {
     } catch {
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
       setPhase('step2');
+      finishGenerationTask(activeProjectId, 'reels');
       return;
     }
     const id    = `reel-${Date.now()}`;
@@ -244,6 +250,7 @@ export default function Reels() {
     setPhase('editor');
     void saveToApi({ title, content, platform: platform === 'telegram' ? 'Telegram' : 'Instagram', metadata: { reelType, offer, keyword, theme: selectedTheme } })
       .then((dbItem) => { if (!dbItem) return; updateReels([newReel, ...reels].map((r) => (r.id === id ? { ...r, dbId: dbItem.id } : r))); });
+    finishGenerationTask(activeProjectId, 'reels');
   }
 
   function toggleVoice() {
@@ -326,11 +333,11 @@ export default function Reels() {
     );
   }
 
-  if (phase === 'step2-loading' || phase === 'generating') {
+  if (phase === 'step2-loading' || phase === 'generating' || generationTask) {
     return (
       <div className={s.loadingScreen}>
         <div className={s.loadingSpinner} />
-        <p className={s.loadingText}>{phase === 'step2-loading' ? 'Генерирую темы для рилса...' : 'Пишу сценарий...'}</p>
+        <p className={s.loadingText}>{generationTask?.title ?? (phase === 'step2-loading' ? 'Генерирую темы для рилса...' : 'Пишу сценарий...')}</p>
       </div>
     );
   }

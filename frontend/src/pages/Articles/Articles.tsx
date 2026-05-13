@@ -11,6 +11,7 @@ import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
+import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -306,6 +307,9 @@ export default function Articles() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings = useModelStore((s) => s.getSettings);
   const profileData = useUnpackingStore((s) => s.profileData);
+  const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'articles')]);
+  const startGenerationTask = useContentGenerationStore((s) => s.startTask);
+  const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
   const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
@@ -386,6 +390,7 @@ export default function Articles() {
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGenerateArticle() {
+    startGenerationTask(activeProjectId, 'articles', 'Пишу статью', selectedTheme || 'Формирую структуру и текст статьи');
     setPhase('generating');
     try {
       const settings = getSettings('articles');
@@ -446,6 +451,8 @@ ${ctaText}
       setSelectedId(id);
       setPhase('editor');
       void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
+    } finally {
+      finishGenerationTask(activeProjectId, 'articles');
     }
   }
 
@@ -579,12 +586,12 @@ ${ctaText}
     );
   }
 
-  if (phase === 'generating') {
+  if (phase === 'generating' || generationTask) {
     return (
       <div className={s.loadingScreen}>
         <span className={s.loadingEmoji}>✍️</span>
-        <p className={s.loadingText}>Пишу статью... это займёт несколько секунд</p>
-        <p className={s.loadingSub}>Формирую структуру и блоки статьи</p>
+        <p className={s.loadingText}>{generationTask?.title ?? 'Пишу статью... это займёт несколько секунд'}</p>
+        <p className={s.loadingSub}>{generationTask?.detail ?? 'Формирую структуру и блоки статьи'}</p>
       </div>
     );
   }
