@@ -6,6 +6,7 @@ import { useProjectsStore } from '../../store/projects.store';
 import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { aiApi, type ConversationMessage } from '../../api/ai';
+import FormattedText from '../../components/FormattedText/FormattedText';
 
 // ─── Fallback replies ─────────────────────────────────────────────────────────
 
@@ -304,7 +305,6 @@ export default function Unpacking() {
                 color: msg.role === 'ai' ? '#1a1a1a' : '#fff',
                 fontSize: 14,
                 lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
               }}>
                 {msg.file ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -320,7 +320,11 @@ export default function Unpacking() {
                       <div style={{ fontSize: 11, opacity: 0.6 }}>{msg.file.size}</div>
                     </div>
                   </div>
-                ) : msg.text}
+                ) : msg.role === 'ai' ? (
+                  <FormattedText compact>{msg.text}</FormattedText>
+                ) : (
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                )}
               </div>
               {msg.time && (
                 <div style={{ fontSize: 11, color: '#aaa' }}>{msg.time}</div>

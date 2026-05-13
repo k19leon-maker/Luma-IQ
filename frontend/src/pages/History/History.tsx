@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { historyApi, HistoryItem } from '../../api/history.api';
 import { useProjectsStore } from '../../store/projects.store';
 import { exportToDocx } from '../../utils/exportDocx';
+import FormattedText from '../../components/FormattedText/FormattedText';
 import s from './History.module.css';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -139,7 +140,9 @@ export default function History() {
               </div>
               <button className={s.closeBtn} onClick={() => setSelected(null)}>✕</button>
             </div>
-            <div className={s.panelContent}>{selected.content}</div>
+            <div className={s.panelContent}>
+              <FormattedText>{selected.content}</FormattedText>
+            </div>
             <div className={s.panelActions}>
               <button className={s.panelBtn} onClick={() => handleCopy(selected.content)}>
                 {copied ? '✓ Скопировано' : '📋 Копировать'}

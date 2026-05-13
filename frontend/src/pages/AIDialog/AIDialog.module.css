@@ -99,13 +99,13 @@
   color: #1a1a1a;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
 }
 
 .messageRowUser .bubble {
   border-radius: 12px 12px 0 12px;
   background: #1a1a1a;
   color: #fff;
+  white-space: pre-wrap;
 }
 
 .time {

@@ -7,6 +7,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildSocialMaterial } from '../../utils/projectMaterials';
+import FormattedText from '../../components/FormattedText/FormattedText';
 
 interface PlatformState {
   generated: boolean;
@@ -177,8 +178,8 @@ ${basePrompt}`;
 
               {state.generated && (
                 <>
-                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginTop: 12, whiteSpace: 'pre-line' }}>
-                    {state.text}
+                  <div style={{ marginTop: 12, color: '#555' }}>
+                    <FormattedText compact>{state.text}</FormattedText>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <button style={btnOutlined} onClick={() => void handleRegenerate(key)}>

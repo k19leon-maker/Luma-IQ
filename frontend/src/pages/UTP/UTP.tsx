@@ -7,6 +7,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildUtpMaterial } from '../../utils/projectMaterials';
+import FormattedText from '../../components/FormattedText/FormattedText';
 
 
 export default function UTP() {
@@ -153,9 +154,7 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
           <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#999', letterSpacing: 1.5, marginBottom: 8 }}>
             Ваше УТП
           </div>
-          <div style={{ fontSize: 15, color: '#1a1a1a', lineHeight: 1.7 }}>
-            {utpText}
-          </div>
+          <FormattedText>{utpText}</FormattedText>
         </div>
       )}
 

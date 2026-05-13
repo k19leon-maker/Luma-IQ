@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
 import toast from 'react-hot-toast';
 import s from './Chat.module.css';
 import { aiApi, ConversationMessage } from '../../api/ai';
+import FormattedText from '../../components/FormattedText/FormattedText';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,7 +200,9 @@ export default function Chat() {
               {msg.role === 'ai' && <div className={s.aiAvatar}>🧠</div>}
 
               <div className={s.msgContent}>
-                <div className={s.msgBubble}>{msg.text}</div>
+                <div className={s.msgBubble}>
+                  {msg.role === 'ai' ? <FormattedText compact>{msg.text}</FormattedText> : msg.text}
+                </div>
 
                 {msg.role === 'ai' && (
                   <div className={s.msgActions}>

@@ -253,7 +253,6 @@
   font-size: 13px;
   color: var(--text-primary);
   line-height: 1.7;
-  white-space: pre-wrap;
 }
 
 .panelActions {

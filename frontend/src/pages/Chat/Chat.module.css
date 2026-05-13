@@ -233,6 +233,7 @@
   border: 1px solid var(--border);
   border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
   color: var(--text-primary);
+  white-space: normal;
 }
 
 .msgUser .msgBubble {

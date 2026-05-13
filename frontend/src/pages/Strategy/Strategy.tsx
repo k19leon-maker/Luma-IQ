@@ -1,7 +1,7 @@
 import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import ReactMarkdown from 'react-markdown';
+import FormattedText from '../../components/FormattedText/FormattedText';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
@@ -1308,12 +1308,13 @@ export default function Strategy() {
                       color: msg.role === 'user' ? '#fff' : '#1a1a1a',
                       fontSize: 14,
                       lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap',
                     }}>
                       <div style={{ fontSize: 10, color: msg.role === 'user' ? 'rgba(255,255,255,0.55)' : '#888', marginBottom: 4 }}>
                         {msg.role === 'user' ? 'Вы' : 'AI'} · {msg.stepTitle}
                       </div>
-                      {msg.content}
+                      {msg.role === 'assistant'
+                        ? <FormattedText compact>{msg.content}</FormattedText>
+                        : <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>}
                     </div>
                   </div>
                 ));
@@ -1344,9 +1345,7 @@ export default function Strategy() {
                               <span style={{ opacity: 0.6, animation: 'blink 1s step-end infinite' }}>|</span>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7 }}>
-                              <ReactMarkdown>{entry.fullText}</ReactMarkdown>
-                            </div>
+                            <FormattedText compact>{entry.fullText}</FormattedText>
                           )}
                         </div>
                       </div>

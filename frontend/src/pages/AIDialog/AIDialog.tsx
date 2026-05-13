@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { aiApi, ConversationMessage } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
+import FormattedText from '../../components/FormattedText/FormattedText';
 import s from './AIDialog.module.css';
 
 interface DialogMessage {
@@ -137,7 +138,11 @@ export default function AIDialog() {
             >
               {message.role === 'assistant' && <div className={s.avatar}>AI</div>}
               <div className={s.bubbleWrap}>
-                <div className={s.bubble}>{message.content}</div>
+                <div className={s.bubble}>
+                  {message.role === 'assistant'
+                    ? <FormattedText compact>{message.content}</FormattedText>
+                    : message.content}
+                </div>
                 {message.time && <div className={s.time}>{message.time}</div>}
               </div>
             </div>
