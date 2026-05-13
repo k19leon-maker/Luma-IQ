@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useProjectsStore } from '../../store/projects.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useGeneratedStore } from '../../store/generated.store';
+import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 
 
 export default function UTP() {
-  const projectName  = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
   const getSettings  = useModelStore((s) => s.getSettings);
-  const profileData  = useUnpackingStore((s) => s.profileData);
+  const savedData    = useGeneratedStore((s) => s.getProject(activeProjectId));
+  const saveUtp      = useGeneratedStore((s) => s.setUtp);
+  const completeUtp  = useProgressStore((s) => s.completeUtp);
 
   const [utpText,   setUtpText]   = useState('');
   const [inputText, setInputText] = useState('');
@@ -17,12 +20,14 @@ export default function UTP() {
   const [copied,    setCopied]    = useState(false);
   const [loading,   setLoading]   = useState(false);
 
-  function buildProfile(): string {
-    if (!profileData || Object.keys(profileData).length === 0) return '';
-    return Object.entries(profileData)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join('\n');
+  useEffect(() => {
+    setUtpText(savedData.utp ?? '');
+  }, [activeProjectId, savedData.utp]);
+
+  function persistUtp(value: string) {
+    setUtpText(value);
+    if (activeProjectId) saveUtp(activeProjectId, value);
+    completeUtp();
   }
 
   async function handleGenerate() {
@@ -30,9 +35,11 @@ export default function UTP() {
     setLoading(true);
     try {
       const settings = getSettings('utp');
-      const profile  = buildProfile();
-      const prompt   = `Ты маркетолог-эксперт по позиционированию психологов. Создай УТП (уникальное торговое предложение) для психолога в 2–3 предложениях.
-${profile ? `\nДанные о практике:\n${profile}` : ''}
+      const prompt   = `Ты маркетолог-стратег. Создай УТП (уникальное торговое предложение) для проекта в 2–3 предложениях.
+Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
+
+Контекст проекта:
+${context || 'Контекст пока не заполнен.'}
 ${inputText ? `\nДополнительно: ${inputText}` : ''}
 
 Структура: Кому помогаю + Какую проблему решаю + Какой результат получает клиент + За счёт чего (метод).
@@ -45,9 +52,9 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
         message:             prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile:    profileData as Record<string, string>,
+        unpackingProfile:    mergedProfile as Record<string, string>,
       });
-      setUtpText(resp.content.trim());
+      persistUtp(resp.content.trim());
     } catch (err) {
       console.error('[UTP] AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -61,7 +68,11 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
     setLoading(true);
     try {
       const settings = getSettings('utp');
-      const prompt   = `Улучши это УТП психолога — сделай его более конкретным, убедительным и эмоциональным:
+      const prompt   = `Улучши это УТП проекта — сделай его более конкретным, убедительным и привязанным к контексту.
+Не меняй нишу и не подставляй психологию, если ее нет в контексте.
+
+Контекст проекта:
+${context || 'Контекст пока не заполнен.'}
 
 ${utpText}
 ${inputText ? `\nПожелания: ${inputText}` : ''}
@@ -75,8 +86,9 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
         message:             prompt,
         conversationHistory: [],
         projectName,
+        unpackingProfile:    mergedProfile as Record<string, string>,
       });
-      setUtpText(resp.content.trim());
+      persistUtp(resp.content.trim());
       toast.success('УТП улучшено');
     } catch (err) {
       console.warn('[UTP] improve error:', err);

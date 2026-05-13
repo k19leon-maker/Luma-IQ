@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useProjectsStore } from '../../store/projects.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 
 interface ProductState {
@@ -14,15 +15,6 @@ interface ProductState {
   generated: boolean;
 }
 
-const MOCK_DATA = {
-  name: 'PDF «5 техник выхода из конфликта»',
-  price: 'Бесплатно',
-  format: 'PDF-гайд',
-  duration: 'Самостоятельно',
-  description:
-    'Практическое руководство с пятью доказанными техниками для снижения конфликтности в паре. Подходит для самостоятельной работы.',
-};
-
 const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; label: string }[] = [
   { key: 'name',     label: 'Название' },
   { key: 'price',    label: 'Цена' },
@@ -31,17 +23,25 @@ const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; labe
 ];
 
 export default function LeadMagnet() {
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
+  const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
+  const completeLeadMagnet = useProgressStore((s) => s.completeLeadMagnet);
 
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  function buildProfile(): string {
-    if (!profileData || Object.keys(profileData).length === 0) return '';
-    return Object.entries(profileData).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n');
+  useEffect(() => {
+    setState(savedData.leadMagnet ?? { name: '', price: '', format: '', duration: '', description: '', generated: false });
+    setEditing(false);
+  }, [activeProjectId, savedData.leadMagnet]);
+
+  function persistState(next: ProductState) {
+    setState(next);
+    if (activeProjectId) saveLeadMagnet(activeProjectId, next as ProductDraft);
+    if (next.generated) completeLeadMagnet();
   }
 
   async function handleCreate() {
@@ -49,11 +49,13 @@ export default function LeadMagnet() {
     setLoading(true);
     try {
       const settings = getSettings('lead-magnet');
-      const profile  = buildProfile();
-      const prompt   = `Ты маркетолог психологов. Создай описание ЛИД-МАГНИТА (бесплатный входной продукт) для психолога.
+      const prompt   = `Ты продуктовый маркетолог. Создай описание ЛИД-МАГНИТА для проекта.
 Лид-магнит — бесплатный материал: PDF-гайд, чек-лист, мини-вебинар или видео-урок.
 Цена: всегда «Бесплатно». Должен решать конкретную мини-проблему целевой аудитории.
-${profile ? `\nПрофиль психолога:\n${profile}` : ''}
+Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
+
+Контекст проекта:
+${context || 'Контекст пока не заполнен.'}
 
 Верни JSON (без markdown-блоков):
 {
@@ -71,11 +73,11 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
         message:             prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile:    profileData as Record<string, string>,
+        unpackingProfile:    mergedProfile as Record<string, string>,
       });
 
-      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as typeof MOCK_DATA;
-      setState({ ...json, generated: true });
+      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as ProductDraft;
+      persistState({ ...json, generated: true });
     } catch (err) {
       console.error('[LeadMagnet] AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -127,7 +129,7 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
                 {editing ? (
                   <input
                     value={state[key]}
-                    onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
+                    onChange={(e) => persistState({ ...state, [key]: e.target.value })}
                     style={{ fontSize: 14, border: '1px solid #D4A847', borderRadius: 6, padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
                   />
                 ) : (
@@ -163,7 +165,7 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
         <textarea
           value={state.description}
           readOnly={!editing}
-          onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
+          onChange={(e) => persistState({ ...state, description: e.target.value })}
           style={{
             width: '100%', minHeight: 80, padding: 14,
             border: editing ? '1px solid #D4A847' : '1px solid #E5E3DC',

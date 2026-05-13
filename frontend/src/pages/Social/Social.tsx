@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useProjectsStore } from '../../store/projects.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useGeneratedStore, type SocialDraft } from '../../store/generated.store';
+import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 
 interface PlatformState {
@@ -13,14 +14,14 @@ interface PlatformState {
 
 
 const PLATFORM_PROMPTS: Record<string, string> = {
-  instagram: `Ты маркетолог психологов. Напиши описание профиля в Instagram (bio) для психолога.
-Требования: максимум 150 символов, эмодзи уместны, специализация + аудитория + призыв к действию.
+  instagram: `Напиши описание профиля Instagram (bio).
+Требования: максимум 150 символов, уместные эмодзи, ниша + аудитория + понятный результат + призыв к действию.
 Напиши только текст bio, без пояснений.`,
-  telegram: `Ты маркетолог психологов. Напиши описание Telegram-канала или профиля для психолога.
-Требования: 2–3 предложения, профессиональный тон, специализация + что получит подписчик + призыв.
+  telegram: `Напиши описание Telegram-канала или профиля.
+Требования: 2–3 предложения, профессиональный тон, ниша + что получит подписчик + призыв.
 Напиши только текст описания.`,
-  vk: `Ты маркетолог психологов. Напиши описание страницы ВКонтакте для психолога.
-Требования: 2–3 предложения, профессиональный тон, специализация и метод работы, призыв к записи.
+  vk: `Напиши описание страницы ВКонтакте.
+Требования: 2–3 предложения, профессиональный тон, ниша/подход + аудитория + призыв к действию.
 Напиши только текст описания.`,
 };
 
@@ -39,20 +40,23 @@ const INIT_STATE = {
 };
 
 export default function Social() {
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
+  const saveSocial = useGeneratedStore((s) => s.setSocial);
+  const completeSocial = useProgressStore((s) => s.completeSocial);
 
   const [states, setStates] = useState<Record<string, PlatformState>>(INIT_STATE);
   const [copied, setCopied] = useState('');
 
-  function buildProfile(): string {
-    if (!profileData || Object.keys(profileData).length === 0) return '';
-    return Object.entries(profileData)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join('\n');
-  }
+  useEffect(() => {
+    const social = savedData.social ?? {};
+    setStates({
+      instagram: { generated: Boolean(social.instagram), text: social.instagram ?? '', loading: false },
+      telegram:  { generated: Boolean(social.telegram),  text: social.telegram  ?? '', loading: false },
+      vk:        { generated: Boolean(social.vk),        text: social.vk        ?? '', loading: false },
+    });
+  }, [activeProjectId, savedData.social]);
 
   async function handleGenerate(key: string) {
     const state = states[key];
@@ -62,9 +66,14 @@ export default function Social() {
 
     try {
       const settings  = getSettings('social');
-      const profile   = buildProfile();
       const basePrompt = PLATFORM_PROMPTS[key] ?? '';
-      const prompt    = `${basePrompt}${profile ? `\n\nПрофиль психолога:\n${profile}` : ''}`;
+      const prompt    = `Ты маркетолог-стратег. Работай строго по контексту проекта.
+Не подставляй психологию, если ее нет в контексте.
+
+Контекст проекта:
+${context || 'Контекст пока не заполнен.'}
+
+${basePrompt}`;
 
       const resp = await aiApi.chat({
         model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
@@ -73,13 +82,16 @@ export default function Social() {
         message:             prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile:    profileData as Record<string, string>,
+        unpackingProfile:    mergedProfile as Record<string, string>,
       });
 
+      const text = resp.content.trim();
       setStates((prev) => ({
         ...prev,
-        [key]: { generated: true, text: resp.content.trim(), loading: false },
+        [key]: { generated: true, text, loading: false },
       }));
+      if (activeProjectId) saveSocial(activeProjectId, key as keyof SocialDraft, text);
+      completeSocial();
     } catch (err) {
       console.error('[Social] AI error for', key, err);
       setStates((prev) => ({ ...prev, [key]: { ...prev[key]!, loading: false } }));

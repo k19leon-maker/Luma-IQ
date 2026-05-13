@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useProjectsStore } from '../../store/projects.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 
 interface ProductState {
@@ -14,15 +15,6 @@ interface ProductState {
   generated: boolean;
 }
 
-const MOCK_DATA = {
-  name: 'Интенсив «Выход из конфликта»',
-  price: '3 500 ₽',
-  format: 'Групповой интенсив',
-  duration: '2 недели',
-  description:
-    'Двухнедельный интенсив для пар в кризисе. 4 групповых встречи + практические техники для немедленного применения.',
-};
-
 const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; label: string }[] = [
   { key: 'name',     label: 'Название' },
   { key: 'price',    label: 'Цена' },
@@ -31,17 +23,25 @@ const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; labe
 ];
 
 export default function ProductMini() {
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
+  const saveProductMini = useGeneratedStore((s) => s.setProductMini);
+  const completeProductMini = useProgressStore((s) => s.completeProductMini);
 
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  function buildProfile(): string {
-    if (!profileData || Object.keys(profileData).length === 0) return '';
-    return Object.entries(profileData).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n');
+  useEffect(() => {
+    setState(savedData.productMini ?? { name: '', price: '', format: '', duration: '', description: '', generated: false });
+    setEditing(false);
+  }, [activeProjectId, savedData.productMini]);
+
+  function persistState(next: ProductState) {
+    setState(next);
+    if (activeProjectId) saveProductMini(activeProjectId, next as ProductDraft);
+    if (next.generated) completeProductMini();
   }
 
   async function handleCreate() {
@@ -49,17 +49,19 @@ export default function ProductMini() {
     setLoading(true);
     try {
       const settings = getSettings('product-mini');
-      const profile  = buildProfile();
-      const prompt   = `Ты маркетолог психологов. Создай описание МИНИ-ПРОДУКТА (недорогой платный продукт) психолога.
-Цена мини-продукта обычно 1 500–5 000 ₽. Формат: интенсив, воркшоп, мини-курс, консультация.
-${profile ? `\nПрофиль психолога:\n${profile}` : ''}
+      const prompt   = `Ты продуктовый маркетолог. Создай описание МИНИ-ПРОДУКТА для проекта.
+Это недорогой платный продукт, который помогает клиенту получить первый ощутимый результат и перейти к основному продукту.
+Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
+
+Контекст проекта:
+${context || 'Контекст пока не заполнен.'}
 
 Верни JSON (без markdown-блоков):
 {
   "name": "название продукта",
-  "price": "цена в рублях (например: 3 500 ₽)",
-  "format": "формат (например: Групповой интенсив)",
-  "duration": "длительность (например: 2 недели)",
+  "price": "цена в рублях, реалистичная для этой ниши",
+  "format": "формат",
+  "duration": "длительность",
   "description": "описание 2–3 предложения"
 }`;
 
@@ -70,11 +72,11 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
         message:             prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile:    profileData as Record<string, string>,
+        unpackingProfile:    mergedProfile as Record<string, string>,
       });
 
-      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as typeof MOCK_DATA;
-      setState({ ...json, generated: true });
+      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as ProductDraft;
+      persistState({ ...json, generated: true });
     } catch (err) {
       console.error('[ProductMini] AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -126,7 +128,7 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
                 {editing ? (
                   <input
                     value={state[key]}
-                    onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
+                    onChange={(e) => persistState({ ...state, [key]: e.target.value })}
                     style={{ fontSize: 14, border: '1px solid #D4A847', borderRadius: 6, padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
                   />
                 ) : (
@@ -162,7 +164,7 @@ ${profile ? `\nПрофиль психолога:\n${profile}` : ''}
         <textarea
           value={state.description}
           readOnly={!editing}
-          onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
+          onChange={(e) => persistState({ ...state, description: e.target.value })}
           style={{
             width: '100%', minHeight: 80, padding: 14,
             border: editing ? '1px solid #D4A847' : '1px solid #E5E3DC',
