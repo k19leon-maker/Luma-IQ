@@ -36,14 +36,14 @@ function formatAudience(data: Partial<AudienceAnswers>): string {
     data.chosenSegment ? `Выбранный сегмент: ${data.chosenSegment}` : '',
     data.chosenSubsegment ? `Выбранный подсегмент: ${data.chosenSubsegment}` : '',
     data.chosenRequest ? `Выбранный запрос: ${data.chosenRequest}` : '',
-    data.top3segments ? `ТОП 3 сегмента:\n${data.top3segments}` : '',
-    data.subsegments ? `Подсегменты:\n${data.subsegments}` : '',
-    data.wants ? `Желания клиентов:\n${data.wants}` : '',
-    data.top3requests ? `ТОП 3 запроса:\n${data.top3requests}` : '',
-    data.painfulQuestions ? `Болезненные вопросы:\n${data.painfulQuestions}` : '',
-    data.deepDesires ? `Сокровенные желания:\n${data.deepDesires}` : '',
+    data.top3segments ? `ТОП 3 сегмента:\n${data.top3segments.slice(0, 900)}` : '',
+    data.subsegments ? `Подсегменты:\n${data.subsegments.slice(0, 900)}` : '',
+    data.wants ? `Желания клиентов:\n${data.wants.slice(0, 900)}` : '',
+    data.top3requests ? `ТОП 3 запроса:\n${data.top3requests.slice(0, 900)}` : '',
+    data.painfulQuestions ? `Болезненные вопросы:\n${data.painfulQuestions.slice(0, 900)}` : '',
+    data.deepDesires ? `Сокровенные желания:\n${data.deepDesires.slice(0, 700)}` : '',
     data.finalResult ? `Конечный результат:\n${data.finalResult}` : '',
-    data.corePains ? `Что бесит/изматывает:\n${data.corePains}` : '',
+    data.corePains ? `Что бесит/изматывает:\n${data.corePains.slice(0, 900)}` : '',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -90,7 +90,7 @@ export function useProjectMarketingContext() {
       formatRecord('Дополнительная распаковка эксперта', unpackingProfile as Record<string, unknown>),
     ].filter(Boolean);
 
-    return blocks.join('\n\n').slice(0, 12000);
+    return blocks.join('\n\n').slice(0, 5500);
   }, [audience, positioning, projectName, unpackingProfile]);
 
   const mergedProfile = useMemo(() => ({
