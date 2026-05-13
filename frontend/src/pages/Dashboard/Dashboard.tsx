@@ -32,9 +32,9 @@ export function getNextStep(f: SectionFlags): NextStep {
   if (!f.audience)  return { route: '/strategy/audience',     label: 'Целевую аудиторию',   hint: 'AI проанализирует и определит идеальный сегмент клиентов',         btnText: 'Анализировать ЦА →'    };
   if (!f.utp)       return { route: '/strategy/utp',          label: 'УТП',                 hint: 'На основе распаковки AI создаст уникальное торговое предложение',   btnText: 'Создать УТП →'         };
   if (!f.social)    return { route: '/strategy/social',       label: 'Оформление соцсетей', hint: 'AI создаст описания профиля для Instagram, Telegram и ВКонтакте',   btnText: 'Оформить соцсети →'    };
-  if (!f.main)      return { route: '/strategy/product-main', label: 'Основной продукт',    hint: 'Опишите флагманскую программу — самый важный продукт в линейке',    btnText: 'Создать продукт →'     };
-  if (!f.mini)      return { route: '/strategy/product-mini', label: 'Мини-продукт',        hint: 'Создайте входной продукт по доступной цене',                        btnText: 'Создать мини-продукт →'};
-  return              { route: '/strategy/lead-magnet',       label: 'Лид-магнит',          hint: 'Создайте бесплатный продукт для привлечения аудитории',             btnText: 'Создать лид-магнит →'  };
+  if (!f.main)      return { route: '/products/main', label: 'Основной продукт',    hint: 'Опишите флагманскую программу — самый важный продукт в линейке',    btnText: 'Создать продукт →'     };
+  if (!f.mini)      return { route: '/products/mini', label: 'Мини-продукт',        hint: 'Создайте входной продукт по доступной цене',                        btnText: 'Создать мини-продукт →'};
+  return              { route: '/products/lead-magnet',       label: 'Лид-магнит',          hint: 'Создайте бесплатный продукт для привлечения аудитории',             btnText: 'Создать лид-магнит →'  };
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ const DEFAULT_TASKS: Task[] = [
     title: 'Создать описание основного продукта',
     description: 'Флагманская программа — самый важный продукт в линейке.',
     category: 'products',
-    link: '/product-main',
+    link: '/products/main',
     column: 'backlog',
   },
   {
@@ -43,7 +43,7 @@ const DEFAULT_TASKS: Task[] = [
     title: 'Создать описание мини-продукта',
     description: 'Входной продукт по доступной цене. Снижает барьер для первой покупки.',
     category: 'products',
-    link: '/product-mini',
+    link: '/products/mini',
     column: 'backlog',
   },
   {
@@ -51,7 +51,7 @@ const DEFAULT_TASKS: Task[] = [
     title: 'Создать бесплатный лид-магнит',
     description: 'PDF или видео которое привлекает целевую аудиторию.',
     category: 'products',
-    link: '/product-free',
+    link: '/products/lead-magnet',
     column: 'backlog',
   },
   {

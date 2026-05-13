@@ -420,9 +420,9 @@ export default function ProjectPage() {
                 <div className={s.sectionTitle}>📦 Продукты</div>
                 <div className={s.productsGrid}>
                   {([
-                    { type: 'main' as const, icon: '🚀', label: 'Основной продукт', path: '/product-main' },
-                    { type: 'mini' as const, icon: '⚡', label: 'Мини-продукт',     path: '/product-mini' },
-                    { type: 'free' as const, icon: '🎁', label: 'Бесплатный',       path: '/product-free' },
+                    { type: 'main' as const, icon: '🚀', label: 'Основной продукт', path: '/products/main' },
+                    { type: 'mini' as const, icon: '⚡', label: 'Мини-продукт',     path: '/products/mini' },
+                    { type: 'free' as const, icon: '🎁', label: 'Бесплатный',       path: '/products/lead-magnet' },
                   ]).map(({ type, icon, label, path }) => {
                     const count = countLocalProducts(id, type);
                     return (

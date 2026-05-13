@@ -65,8 +65,23 @@ Redis/Bull сейчас не являются активной частью пр
 4. **Оформление соцсетей**
    - Route: `/strategy/social`
 
-5. **Продукты**
-   - Routes: `/strategy/product-main`, `/strategy/product-mini`, `/strategy/lead-magnet`
+### Конструктор продуктов
+
+Продуктовые разделы вынесены из блока “Стратегия” в отдельный блок бокового меню “Конструктор продуктов”.
+
+1. **Основной продукт**
+   - Route: `/products/main`
+   - Флагманский продукт / основная программа.
+
+2. **Мини-продукт**
+   - Route: `/products/mini`
+   - Быстрый входной платный продукт.
+
+3. **Лид-магнит**
+   - Route: `/products/lead-magnet`
+   - Бесплатный вход в воронку.
+
+Legacy routes `/strategy/product-main`, `/strategy/product-mini`, `/strategy/lead-magnet`, `/product-main`, `/product-mini`, `/product-free`, `/lead-magnet` редиректят на новые product routes.
 
 ### Диалог с ИИ
 

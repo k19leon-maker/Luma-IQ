@@ -220,7 +220,7 @@ function MainContent({ products, onGenerateContent }: { products: ApiProduct[]; 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Продукты</h2>
             <span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>3 из 3 ✓</span>
-            <button onClick={() => navigate('/strategy/product-main')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Редактировать →</button>
+            <button onClick={() => navigate('/products/main')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Редактировать →</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
             <ProductCard product={productMain} type="MAIN" />

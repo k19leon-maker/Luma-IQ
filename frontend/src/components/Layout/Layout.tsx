@@ -24,9 +24,12 @@ const strategyNav: NavItem[] = [
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
   { path: '/strategy/social',       label: 'Оформление соц сетей', icon: '📱' },
-  { path: '/strategy/product-main', label: 'Основной продукт',     icon: '🚀' },
-  { path: '/strategy/product-mini', label: 'Мини-продукт',         icon: '⚡' },
-  { path: '/strategy/lead-magnet',  label: 'Лид-магнит',           icon: '🎁' },
+];
+
+const productNav: NavItem[] = [
+  { path: '/products/main',        label: 'Основной продукт', icon: '🚀' },
+  { path: '/products/mini',        label: 'Мини-продукт',     icon: '⚡' },
+  { path: '/products/lead-magnet', label: 'Лид-магнит',       icon: '🎁' },
 ];
 
 const contentNav: NavItem[] = [
@@ -49,9 +52,9 @@ const pageTitles: Record<string, string> = {
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Оформление соц. сетей',
-  '/strategy/product-main': 'Основной продукт',
-  '/strategy/product-mini': 'Мини-продукт',
-  '/strategy/lead-magnet':  'Лид-магнит',
+  '/products/main':         'Основной продукт',
+  '/products/mini':         'Мини-продукт',
+  '/products/lead-magnet':  'Лид-магнит',
   '/posts':           'Посты',
   '/reels':           'Рилсы',
   '/articles':        'Статьи',
@@ -337,6 +340,22 @@ export default function Layout({ children }: LayoutProps) {
           {/* Стратегия */}
           <Section title="Стратегия">
             {strategyNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${s.navLink}${isActive ? ' ' + s.active : ''}`
+                }
+              >
+                <span className={s.navIcon}>{item.icon}</span>
+                <span className={s.navLinkLabel}>{item.label}</span>
+              </NavLink>
+            ))}
+          </Section>
+
+          {/* Конструктор продуктов */}
+          <Section title="Конструктор продуктов">
+            {productNav.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}

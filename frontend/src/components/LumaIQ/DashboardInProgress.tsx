@@ -81,9 +81,9 @@ function MetricCard({ label, value, sub }: { label: string; value: string; sub: 
 // ─── Product card ─────────────────────────────────────────────────────────────
 
 const PRODUCT_META = {
-  MAIN: { label: 'Основной продукт', route: '/strategy/product-main' },
-  MINI: { label: 'Мини-продукт',     route: '/strategy/product-mini' },
-  FREE: { label: 'Лид-магнит',       route: '/strategy/lead-magnet'  },
+  MAIN: { label: 'Основной продукт', route: '/products/main' },
+  MINI: { label: 'Мини-продукт',     route: '/products/mini' },
+  FREE: { label: 'Лид-магнит',       route: '/products/lead-magnet'  },
 } as const;
 
 function ProductCard({ product, type, onNavigate }: {
@@ -280,7 +280,7 @@ function MainContent({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Продукты</h2>
             <span style={{ fontSize: 13, color: '#999' }}>{productsCount} из 3</span>
-            <button onClick={() => navigate('/strategy/product-main')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={() => navigate('/products/main')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
               Настроить →
             </button>
           </div>
