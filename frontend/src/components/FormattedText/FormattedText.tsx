@@ -58,6 +58,108 @@ function normalizeAiText(value: string): string {
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+interface TextSegment {
+  type: 'text';
+  value: string;
+}
+
+interface TableSegment {
+  type: 'table';
+  headers: string[];
+  rows: string[][];
+}
+
+type Segment = TextSegment | TableSegment;
+
+function isPipeTableLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.split('|').length >= 4;
+}
+
+function parsePipeRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function isSeparatorRow(cells: string[]): boolean {
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function parseTable(lines: string[]): TableSegment | null {
+  const parsed = lines.map(parsePipeRow).filter((row) => row.length >= 2);
+  if (parsed.length < 2) return null;
+
+  const separatorIndex = parsed.findIndex(isSeparatorRow);
+  const headers = separatorIndex > 0 ? parsed[separatorIndex - 1] : parsed[0];
+  const rows = parsed
+    .filter((_, index) => index !== separatorIndex && index !== (separatorIndex > 0 ? separatorIndex - 1 : 0))
+    .filter((row) => !isSeparatorRow(row));
+
+  if (headers.length < 2 || rows.length === 0) return null;
+
+  return {
+    type: 'table',
+    headers,
+    rows: rows.map((row) => headers.map((_, index) => row[index] ?? '')),
+  };
+}
+
+function splitSegments(markdown: string): Segment[] {
+  const lines = markdown.split('\n');
+  const segments: Segment[] = [];
+  let textBuffer: string[] = [];
+  let tableBuffer: string[] = [];
+
+  function flushText() {
+    const value = textBuffer.join('\n').trim();
+    if (value) segments.push({ type: 'text', value });
+    textBuffer = [];
+  }
+
+  function flushTable() {
+    if (tableBuffer.length > 0) {
+      const table = parseTable(tableBuffer);
+      if (table) {
+        flushText();
+        segments.push(table);
+      } else {
+        textBuffer.push(...tableBuffer);
+      }
+    }
+    tableBuffer = [];
+  }
+
+  for (const line of lines) {
+    if (isPipeTableLine(line)) {
+      tableBuffer.push(line);
+    } else {
+      flushTable();
+      textBuffer.push(line);
+    }
+  }
+
+  flushTable();
+  flushText();
+
+  return segments;
+}
+
+function InlineMarkdown({ children }: { children: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        p: ({ children: paragraphChildren }) => <>{paragraphChildren}</>,
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+}
+
 export default function FormattedText({ children, compact = false, inverse = false, className = '' }: FormattedTextProps) {
   const classes = [
     s.root,
@@ -65,10 +167,38 @@ export default function FormattedText({ children, compact = false, inverse = fal
     inverse ? s.inverse : '',
     className,
   ].filter(Boolean).join(' ');
+  const segments = splitSegments(normalizeAiText(children));
 
   return (
     <div className={classes}>
-      <ReactMarkdown>{normalizeAiText(children)}</ReactMarkdown>
+      {segments.map((segment, index) => {
+        if (segment.type === 'text') {
+          return <ReactMarkdown key={`text-${index}`}>{segment.value}</ReactMarkdown>;
+        }
+
+        return (
+          <div key={`table-${index}`} className={s.tableScroll}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  {segment.headers.map((header, headerIndex) => (
+                    <th key={`h-${headerIndex}`}><InlineMarkdown>{header}</InlineMarkdown></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {segment.rows.map((row, rowIndex) => (
+                  <tr key={`r-${rowIndex}`}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={`c-${rowIndex}-${cellIndex}`}><InlineMarkdown>{cell}</InlineMarkdown></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }
