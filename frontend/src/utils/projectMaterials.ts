@@ -40,8 +40,24 @@ export function buildPositioningMaterial(data: PositioningData): Omit<ProjectMat
 }
 
 export function buildAudienceMaterial(answers: Partial<AudienceAnswers>): Omit<ProjectMaterial, 'updatedAt'> {
+  const strategicBrief = [
+    answers.chosenSegment ? `- Ключевой сегмент: ${answers.chosenSegment}` : '',
+    answers.chosenSubsegment ? `- Рабочий подсегмент: ${answers.chosenSubsegment}` : '',
+    answers.chosenRequest ? `- Главный запрос: ${answers.chosenRequest}` : '',
+    answers.finalResult ? `- Желаемый конечный результат клиента: ${answers.finalResult}` : '',
+  ].filter(Boolean).join('\n');
+
   const content = [
     '# Целевая аудитория',
+    section('Стратегическое ядро для следующих разделов', strategicBrief),
+    section(
+      'Как использовать этот материал',
+      [
+        '- УТП, оформление соцсетей и офферы должны опираться в первую очередь на выбранный сегмент, подсегмент, главный запрос, боли, желания и конечный результат.',
+        '- Продукты и лид-магниты нужно строить вокруг уже найденного спроса, а не вокруг абстрактных идей.',
+        '- Контент должен говорить языком клиента из блоков «Болезненные вопросы», «Сокровенные желания» и «Что бесит больше всего».',
+      ].join('\n'),
+    ),
     section('10 сегментов', answers.segments),
     section('ТОП 3 сегмента', answers.top3segments),
     section('Выбранный сегмент', answers.chosenSegment),
