@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
+import { buildProductMaterial } from '../../utils/projectMaterials';
 
 interface ProductState {
   name: string;
@@ -27,6 +29,7 @@ export default function ProductMain() {
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveProductMain = useGeneratedStore((s) => s.setProductMain);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeProductMain = useProgressStore((s) => s.completeProductMain);
 
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
@@ -34,13 +37,18 @@ export default function ProductMain() {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    setState(savedData.productMain ?? { name: '', price: '', format: '', duration: '', description: '', generated: false });
+    const savedProduct = savedData.productMain ?? { name: '', price: '', format: '', duration: '', description: '', generated: false };
+    setState(savedProduct);
     setEditing(false);
-  }, [activeProjectId, savedData.productMain]);
+    if (activeProjectId && savedProduct.generated) {
+      upsertMaterial(activeProjectId, buildProductMaterial('product-main', 'Основной продукт', savedProduct));
+    }
+  }, [activeProjectId, savedData.productMain, upsertMaterial]);
 
   function persistState(next: ProductState) {
     setState(next);
     if (activeProjectId) saveProductMain(activeProjectId, next as ProductDraft);
+    if (activeProjectId) upsertMaterial(activeProjectId, buildProductMaterial('product-main', 'Основной продукт', next as ProductDraft));
     if (next.generated) completeProductMain();
   }
 

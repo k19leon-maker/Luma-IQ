@@ -7,9 +7,11 @@ import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { useModelStore } from '../../store/model.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { aiApi } from '../../api/ai';
 import { downloadStrategyPdf } from '../../api/strategy.api';
 import { projectsApi } from '../../api/projects.api';
+import { buildAudienceMaterial } from '../../utils/projectMaterials';
 import type { AudienceAnswers } from '../../store/audience.store';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -405,6 +407,7 @@ export default function Strategy() {
   const audienceReset = useAudienceStore((st) => st.reset);
   const audienceGet   = useAudienceStore((st) => st.get);
   const audienceModel = useModelStore((st) => st.getSettings('audience').claudeModel);
+  const upsertMaterial = useMaterialsStore((st) => st.upsertMaterial);
   const isHaiku = audienceModel === 'claude-haiku-4-5-20251001';
 
   const [stepStatuses,  setStepStatuses]  = useState<StepStatus[]>(() => STEPS.map(() => 'idle'));
@@ -826,6 +829,7 @@ export default function Strategy() {
       await typeText(99, COMPLETION_TEXT, abort);
 
       completeAudience();
+      upsertMaterial(activeProjectId, buildAudienceMaterial(answers));
       persistAudienceProgress(answers, true);
       setCompleted(true);
     }

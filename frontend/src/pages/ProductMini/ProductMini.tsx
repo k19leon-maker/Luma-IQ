@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
+import { buildProductMaterial } from '../../utils/projectMaterials';
 
 interface ProductState {
   name: string;
@@ -27,6 +29,7 @@ export default function ProductMini() {
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveProductMini = useGeneratedStore((s) => s.setProductMini);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeProductMini = useProgressStore((s) => s.completeProductMini);
 
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
@@ -34,13 +37,18 @@ export default function ProductMini() {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    setState(savedData.productMini ?? { name: '', price: '', format: '', duration: '', description: '', generated: false });
+    const savedProduct = savedData.productMini ?? { name: '', price: '', format: '', duration: '', description: '', generated: false };
+    setState(savedProduct);
     setEditing(false);
-  }, [activeProjectId, savedData.productMini]);
+    if (activeProjectId && savedProduct.generated) {
+      upsertMaterial(activeProjectId, buildProductMaterial('product-mini', 'Мини-продукт', savedProduct));
+    }
+  }, [activeProjectId, savedData.productMini, upsertMaterial]);
 
   function persistState(next: ProductState) {
     setState(next);
     if (activeProjectId) saveProductMini(activeProjectId, next as ProductDraft);
+    if (activeProjectId) upsertMaterial(activeProjectId, buildProductMaterial('product-mini', 'Мини-продукт', next as ProductDraft));
     if (next.generated) completeProductMini();
   }
 

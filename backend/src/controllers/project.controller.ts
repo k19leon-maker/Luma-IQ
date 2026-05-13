@@ -40,6 +40,14 @@ const saveStrategySchema = z.object({
   unpackingCompleted: z.boolean().optional(),
   // progress flags
   progressFlags: z.record(z.boolean()).optional(),
+  materialsData: z.array(z.object({
+    id: z.string(),
+    kind: z.string(),
+    title: z.string(),
+    content: z.string(),
+    summary: z.string(),
+    updatedAt: z.string(),
+  }).passthrough()).optional(),
 });
 
 export const projectController = {

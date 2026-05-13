@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
+import { buildProductMaterial } from '../../utils/projectMaterials';
 
 interface ProductState {
   name: string;
@@ -27,6 +29,7 @@ export default function LeadMagnet() {
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeLeadMagnet = useProgressStore((s) => s.completeLeadMagnet);
 
   const [state,   setState]   = useState<ProductState>({ name: '', price: '', format: '', duration: '', description: '', generated: false });
@@ -34,13 +37,18 @@ export default function LeadMagnet() {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    setState(savedData.leadMagnet ?? { name: '', price: '', format: '', duration: '', description: '', generated: false });
+    const savedProduct = savedData.leadMagnet ?? { name: '', price: '', format: '', duration: '', description: '', generated: false };
+    setState(savedProduct);
     setEditing(false);
-  }, [activeProjectId, savedData.leadMagnet]);
+    if (activeProjectId && savedProduct.generated) {
+      upsertMaterial(activeProjectId, buildProductMaterial('lead-magnet', 'Лид-магнит', savedProduct));
+    }
+  }, [activeProjectId, savedData.leadMagnet, upsertMaterial]);
 
   function persistState(next: ProductState) {
     setState(next);
     if (activeProjectId) saveLeadMagnet(activeProjectId, next as ProductDraft);
+    if (activeProjectId) upsertMaterial(activeProjectId, buildProductMaterial('lead-magnet', 'Лид-магнит', next as ProductDraft));
     if (next.generated) completeLeadMagnet();
   }
 

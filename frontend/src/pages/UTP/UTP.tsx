@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore } from '../../store/generated.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
+import { buildUtpMaterial } from '../../utils/projectMaterials';
 
 
 export default function UTP() {
@@ -12,6 +14,7 @@ export default function UTP() {
   const getSettings  = useModelStore((s) => s.getSettings);
   const savedData    = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveUtp      = useGeneratedStore((s) => s.setUtp);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeUtp  = useProgressStore((s) => s.completeUtp);
 
   const [utpText,   setUtpText]   = useState('');
@@ -21,12 +24,17 @@ export default function UTP() {
   const [loading,   setLoading]   = useState(false);
 
   useEffect(() => {
-    setUtpText(savedData.utp ?? '');
-  }, [activeProjectId, savedData.utp]);
+    const savedUtp = savedData.utp ?? '';
+    setUtpText(savedUtp);
+    if (activeProjectId && savedUtp.trim()) {
+      upsertMaterial(activeProjectId, buildUtpMaterial(savedUtp));
+    }
+  }, [activeProjectId, savedData.utp, upsertMaterial]);
 
   function persistUtp(value: string) {
     setUtpText(value);
     if (activeProjectId) saveUtp(activeProjectId, value);
+    if (activeProjectId) upsertMaterial(activeProjectId, buildUtpMaterial(value));
     completeUtp();
   }
 

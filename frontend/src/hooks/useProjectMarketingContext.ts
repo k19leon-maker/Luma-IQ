@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { projectsApi } from '../api/projects.api';
 import { useAudienceStore, type AudienceAnswers } from '../store/audience.store';
+import { useMaterialsStore } from '../store/materials.store';
 import { useProjectsStore } from '../store/projects.store';
 import { useUnpackingStore } from '../store/unpacking.store';
+import { buildKnowledgeContext } from '../utils/projectMaterials';
 
 interface PositioningData {
   role?: string;
@@ -52,6 +54,8 @@ export function useProjectMarketingContext() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? 'Проект');
   const unpackingProfile = useUnpackingStore((s) => s.profileData);
   const audienceGet = useAudienceStore((s) => s.get);
+  const materials = useMaterialsStore((s) => s.projects[activeProjectId] ?? []);
+  const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
 
   const [positioning, setPositioning] = useState<PositioningData | null>(null);
   const [remoteAudience, setRemoteAudience] = useState<Partial<AudienceAnswers>>({});
@@ -65,6 +69,8 @@ export function useProjectMarketingContext() {
 
     if (!activeProjectId || activeProjectId === 'default') return;
 
+    void loadMaterialsFromDb(activeProjectId);
+
     projectsApi.getStrategy(activeProjectId)
       .then((data) => {
         if (!alive || !data) return;
@@ -75,7 +81,7 @@ export function useProjectMarketingContext() {
       .catch(() => {});
 
     return () => { alive = false; };
-  }, [activeProjectId]);
+  }, [activeProjectId, loadMaterialsFromDb]);
 
   const audience = useMemo(
     () => ({ ...remoteAudience, ...localAudience }),
@@ -90,8 +96,13 @@ export function useProjectMarketingContext() {
       formatRecord('Дополнительная распаковка эксперта', unpackingProfile as Record<string, unknown>),
     ].filter(Boolean);
 
-    return blocks.join('\n\n').slice(0, 5500);
-  }, [audience, positioning, projectName, unpackingProfile]);
+    const fallback = blocks.join('\n\n');
+    return buildKnowledgeContext(
+      materials,
+      ['positioning.md', 'audience.md', 'utp.md', 'social.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
+      fallback,
+    );
+  }, [audience, materials, positioning, projectName, unpackingProfile]);
 
   const mergedProfile = useMemo(() => ({
     ...unpackingProfile,

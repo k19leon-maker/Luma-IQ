@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import { projectsApi } from '../../api/projects.api';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { useMaterialsStore } from '../../store/materials.store';
+import { buildPositioningMaterial } from '../../utils/projectMaterials';
 import s from './Positioning.module.css';
 
 export interface PositioningData {
@@ -35,6 +37,7 @@ export default function Positioning() {
   const navigate = useNavigate();
   const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const completePositioning = useProgressStore((st) => st.completePositioning);
+  const upsertMaterial = useMaterialsStore((st) => st.upsertMaterial);
 
   const [role, setRole] = useState('');
   const [audience, setAudience] = useState('');
@@ -88,6 +91,7 @@ export default function Positioning() {
     setSaving(true);
     try {
       await projectsApi.saveStrategy(activeProjectId, { positioningData });
+      upsertMaterial(activeProjectId, buildPositioningMaterial(positioningData));
       completePositioning();
       toast.success('Позиционирование сохранено');
       if (goNext) navigate('/strategy/audience');

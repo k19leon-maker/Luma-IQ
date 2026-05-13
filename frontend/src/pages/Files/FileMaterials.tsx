@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore, AudienceAnswers } from '../../store/audience.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import s from './Files.module.css';
 
 interface FileEntry {
@@ -98,6 +99,28 @@ function gatherFiles(projectId: string, audienceAnswers?: Partial<AudienceAnswer
   return files;
 }
 
+const MATERIAL_ICONS: Record<string, string> = {
+  positioning: '🧭',
+  audience: '🎯',
+  utp: '💎',
+  social: '📣',
+  'product-main': '🚀',
+  'product-mini': '⚡',
+  'lead-magnet': '🎁',
+  content: '📄',
+};
+
+const MATERIAL_TYPES: Record<string, string> = {
+  positioning: 'Позиционирование',
+  audience: 'Целевая аудитория',
+  utp: 'УТП',
+  social: 'Соцсети',
+  'product-main': 'Основной продукт',
+  'product-mini': 'Мини-продукт',
+  'lead-magnet': 'Лид-магнит',
+  content: 'Контент',
+};
+
 function download(title: string, content: string) {
   const blob = new Blob([`${title}\n\n${content}`], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -111,9 +134,28 @@ function download(title: string, content: string) {
 export default function FileMaterials() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const audienceAnswers = useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers);
+  const projectMaterials = useMaterialsStore((s) => s.projects[activeProjectId ?? ''] ?? []);
+  const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
+
+  useEffect(() => {
+    if (activeProjectId) void loadMaterialsFromDb(activeProjectId);
+  }, [activeProjectId, loadMaterialsFromDb]);
+
   const files = useMemo(
-    () => gatherFiles(activeProjectId, audienceAnswers),
-    [activeProjectId, audienceAnswers],
+    () => {
+      const materialFiles: FileEntry[] = projectMaterials.map((item) => ({
+        id: `mat_${item.id}`,
+        icon: MATERIAL_ICONS[item.kind] ?? '📄',
+        type: MATERIAL_TYPES[item.kind] ?? 'Материал',
+        title: item.title,
+        content: item.content,
+        date: new Date(item.updatedAt).toLocaleDateString('ru-RU'),
+      }));
+      const legacyFiles = gatherFiles(activeProjectId, audienceAnswers)
+        .filter((file) => !materialFiles.some((item) => item.title === file.title || item.id === file.id));
+      return [...materialFiles, ...legacyFiles];
+    },
+    [activeProjectId, audienceAnswers, projectMaterials],
   );
 
   return (
@@ -122,7 +164,7 @@ export default function FileMaterials() {
         <h2 className={s.title}>Материалы</h2>
         <p className={s.desc}>
           {files.length > 0
-            ? `${files.length} документ${files.length === 1 ? '' : files.length < 5 ? 'а' : 'ов'} — все созданные в проекте материалы`
+            ? `${files.length} документ${files.length === 1 ? '' : files.length < 5 ? 'а' : 'ов'} — knowledge base проекта`
             : 'Созданные материалы появятся здесь'}
         </p>
       </div>

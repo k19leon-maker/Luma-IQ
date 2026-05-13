@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type SocialDraft } from '../../store/generated.store';
+import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
+import { buildSocialMaterial } from '../../utils/projectMaterials';
 
 interface PlatformState {
   generated: boolean;
@@ -44,6 +46,7 @@ export default function Social() {
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveSocial = useGeneratedStore((s) => s.setSocial);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeSocial = useProgressStore((s) => s.completeSocial);
 
   const [states, setStates] = useState<Record<string, PlatformState>>(INIT_STATE);
@@ -56,7 +59,10 @@ export default function Social() {
       telegram:  { generated: Boolean(social.telegram),  text: social.telegram  ?? '', loading: false },
       vk:        { generated: Boolean(social.vk),        text: social.vk        ?? '', loading: false },
     });
-  }, [activeProjectId, savedData.social]);
+    if (activeProjectId && (social.instagram || social.telegram || social.vk)) {
+      upsertMaterial(activeProjectId, buildSocialMaterial(social));
+    }
+  }, [activeProjectId, savedData.social, upsertMaterial]);
 
   async function handleGenerate(key: string) {
     const state = states[key];
@@ -91,6 +97,9 @@ ${basePrompt}`;
         [key]: { generated: true, text, loading: false },
       }));
       if (activeProjectId) saveSocial(activeProjectId, key as keyof SocialDraft, text);
+      if (activeProjectId) {
+        upsertMaterial(activeProjectId, buildSocialMaterial({ ...savedData.social, [key]: text }));
+      }
       completeSocial();
     } catch (err) {
       console.error('[Social] AI error for', key, err);
