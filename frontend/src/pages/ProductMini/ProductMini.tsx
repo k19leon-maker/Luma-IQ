@@ -7,6 +7,8 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
+import { exportToDocx } from '../../utils/exportDocx';
+import FormattedText from '../../components/FormattedText/FormattedText';
 
 interface ProductState {
   name: string;
@@ -23,6 +25,12 @@ const FIELDS: { key: keyof Omit<ProductState, 'description' | 'generated'>; labe
   { key: 'format',   label: 'Формат' },
   { key: 'duration', label: 'Длительность' },
 ];
+
+function extractName(markdown: string, fallback: string): string {
+  const heading = markdown.match(/^##\s+1\.\s+Название\s*\n+(.+)$/im)?.[1]
+    ?? markdown.match(/^#\s+(.+)$/m)?.[1];
+  return heading?.replace(/^\d+[\.\)]\s*/, '').replace(/\*/g, '').trim().slice(0, 80) || fallback;
+}
 
 export default function ProductMini() {
   const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
@@ -62,21 +70,65 @@ export default function ProductMini() {
     setLoading(true);
     try {
       const settings = getSettings('product-mini');
-      const prompt   = `Ты продуктовый маркетолог. Создай описание МИНИ-ПРОДУКТА для проекта.
-Это недорогой платный продукт, который помогает клиенту получить первый ощутимый результат и перейти к основному продукту.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
+      const prompt   = `Ты продуктовый маркетолог. Спроектируй МИНИ-ПРОДУКТ для проекта.
+Мини-продукт — быстрый платный продукт на 7–14 дней, который решает один конкретный острый запрос, дает первый результат и ведет к следующему шагу в воронке.
 
 Контекст проекта:
 ${context || 'Контекст пока не заполнен.'}
 
-Верни JSON (без markdown-блоков):
-{
-  "name": "название продукта",
-  "price": "цена в рублях, реалистичная для этой ниши",
-  "format": "формат",
-  "duration": "длительность",
-  "description": "описание 2–3 предложения"
-}`;
+Требования:
+- Длительность: 1–2 недели.
+- Форматы на выбор: мини-курс, практикум, марафон, интенсив, закрытый Telegram-канал, серия видеоуроков, живой эфир + задания, гибрид.
+- Выбери лучший формат под контекст и объясни почему.
+- Программа должна быть по дням или этапам.
+- Обязательно покажи механику Telegram, если она полезна для формата.
+- Покажи переход к диагностике, консультации или основному продукту.
+- Не подставляй психологию или другую нишу, если ее нет в контексте.
+
+Верни markdown строго по структуре:
+
+# Мини-продукт
+
+## 1. Название
+Дай 3 варианта.
+
+## 2. Главный быстрый оффер
+Что клиент получит за 7–14 дней.
+
+## 3. Для кого
+Кому нужен мини-продукт и в какой ситуации.
+
+## 4. Одна главная проблема
+Какой один конкретный запрос решает продукт.
+
+## 5. Формат
+Выбери лучший формат и объясни почему.
+
+## 6. Программа на 7–14 дней
+Разбей продукт по дням или этапам.
+Для каждого дня/этапа:
+### День / Этап N. [Название]
+**Задача дня:** ...
+**Материал:** урок / эфир / пост / задание.
+**Практика:** ...
+**Результат:** ...
+
+## 7. Механика Telegram
+- что публикуется в канале;
+- как выдаются задания;
+- как собираются ответы;
+- как поддерживать вовлечение;
+- какие напоминания нужны.
+
+## 8. Переход к следующему шагу
+Как мини-продукт ведет к диагностике, консультации или основному продукту.
+
+## 9. Цена и упаковка
+- рекомендуемый ценовой диапазон;
+- что входит;
+- бонусы;
+- ограничения;
+- продающая формулировка.`;
 
       const resp = await aiApi.chat({
         model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
@@ -88,14 +140,32 @@ ${context || 'Контекст пока не заполнен.'}
         unpackingProfile:    mergedProfile as Record<string, string>,
       });
 
-      const json = JSON.parse(resp.content.replace(/```json|```/g, '').trim()) as ProductDraft;
-      persistState({ ...json, generated: true });
+      const content = resp.content.replace(/```(?:markdown|md)?|```/g, '').trim();
+      persistState({
+        name: extractName(content, 'Мини-продукт'),
+        price: 'Входной платный продукт',
+        format: '7–14 дней / Telegram / уроки / практика',
+        duration: '1–2 недели',
+        description: content,
+        generated: true,
+      });
     } catch (err) {
       console.error('[ProductMini] AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleCopy() {
+    if (!state.description) return;
+    navigator.clipboard.writeText(state.description).catch(() => undefined);
+    toast.success('Скопировано');
+  }
+
+  function handleDownload() {
+    if (!state.description) return;
+    void exportToDocx(state.name || 'Мини-продукт', state.description, state.name || 'product-mini');
   }
 
   const btnGold: React.CSSProperties = {
@@ -129,8 +199,16 @@ ${context || 'Контекст пока не заполнен.'}
         Мини-продукт
       </h1>
       <p style={{ color: '#888', fontSize: 13, marginBottom: 32, marginTop: 0 }}>
-        Недорогой платный продукт для знакомства с вашим подходом
+        Быстрый платный продукт на 7–14 дней: первый результат, Telegram-механика и переход к следующей покупке
       </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 24 }}>
+        {['1–2 недели', 'Один конкретный острый запрос', 'Ведет к диагностике или основному продукту'].map((item) => (
+          <div key={item} style={{ background: '#FFF8E8', border: '1px solid rgba(212,168,71,0.22)', borderRadius: 10, padding: 14, fontSize: 13, color: '#6f5516', fontWeight: 600 }}>
+            {item}
+          </div>
+        ))}
+      </div>
 
       {state.generated ? (
         <div style={{ background: '#F5F4F0', borderRadius: 12, padding: 24, marginBottom: 24 }}>
@@ -167,24 +245,34 @@ ${context || 'Контекст пока не заполнен.'}
           {loading ? 'Создаю...' : 'Создать с AI'}
         </button>
         {state.generated && (
-          <button style={btnOutlined} onClick={() => setEditing((v) => !v)}>
-            {editing ? 'Сохранить' : 'Редактировать'}
-          </button>
+          <>
+            <button style={btnOutlined} onClick={() => setEditing((v) => !v)}>
+              {editing ? 'Готово' : 'Редактировать'}
+            </button>
+            <button style={btnOutlined} onClick={handleCopy}>Копировать</button>
+            <button style={btnOutlined} onClick={handleDownload}>Скачать .docx</button>
+          </>
         )}
       </div>
 
       {state.generated && state.description && (
-        <textarea
-          value={state.description}
-          readOnly={!editing}
-          onChange={(e) => persistState({ ...state, description: e.target.value })}
-          style={{
-            width: '100%', minHeight: 80, padding: 14,
-            border: editing ? '1px solid #D4A847' : '1px solid #E5E3DC',
-            borderRadius: 8, fontSize: 14, fontFamily: 'inherit',
-            color: '#555', background: '#fafafa', resize: 'vertical', boxSizing: 'border-box',
-          }}
-        />
+        editing ? (
+          <textarea
+            value={state.description}
+            onChange={(e) => persistState({ ...state, description: e.target.value })}
+            style={{
+              width: '100%', minHeight: 520, padding: 16,
+              border: '1px solid #D4A847',
+              borderRadius: 8, fontSize: 14, fontFamily: 'inherit',
+              color: '#333', background: '#fff', resize: 'vertical', boxSizing: 'border-box',
+              lineHeight: 1.65,
+            }}
+          />
+        ) : (
+          <div style={{ background: '#fff', border: '1px solid #E5E3DC', borderRadius: 12, padding: 24 }}>
+            <FormattedText>{state.description}</FormattedText>
+          </div>
+        )
       )}
       {materialStatus && (
         <div style={{ marginTop: 12, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
