@@ -42,14 +42,32 @@ interface TariffBlock {
   support: string;
 }
 
+type AiTextValue = string | string[] | null | undefined;
+
+interface MainProductAiModule {
+  title?: AiTextValue;
+  job?: AiTextValue;
+  offer?: AiTextValue;
+  theses?: AiTextValue;
+  result?: AiTextValue;
+}
+
+interface MainProductAiTariff {
+  name?: string;
+  price?: AiTextValue;
+  description?: AiTextValue;
+  included?: AiTextValue;
+  support?: AiTextValue;
+}
+
 interface MainProductAiDraft {
   name?: string;
   nameOptions?: string[];
   offer?: string;
   productDescription?: string;
-  modules?: ModuleBlock[];
+  modules?: MainProductAiModule[];
   transformation?: string;
-  tariffs?: TariffBlock[];
+  tariffs?: MainProductAiTariff[];
 }
 
 const DEFAULT_MODULES: ModuleBlock[] = Array.from({ length: 10 }, (_, index) => ({
@@ -119,6 +137,23 @@ function cleanCodeFence(value: string): string {
   return value.replace(/```(?:json|markdown|md)?/gi, '').replace(/```/g, '').trim();
 }
 
+function extractJsonObject(value: string): string {
+  const cleaned = cleanCodeFence(value);
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return cleaned;
+  return cleaned.slice(start, end + 1);
+}
+
+function parseAiJson<T>(value: string): T {
+  return JSON.parse(extractJsonObject(value)) as T;
+}
+
+function aiText(value: AiTextValue): string {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String).join('\n');
+  return typeof value === 'string' ? value : '';
+}
+
 function normalizeProduct(saved?: ProductDraft): ProductState {
   if (!saved) return EMPTY_PRODUCT;
   const raw = saved as ProductState;
@@ -145,12 +180,36 @@ function normalizeModules(modules?: ModuleBlock[]): ModuleBlock[] {
   }));
 }
 
+function normalizeAiModules(modules?: MainProductAiModule[]): ModuleBlock[] {
+  return normalizeModules(
+    modules?.map((module) => ({
+      title: aiText(module.title),
+      job: aiText(module.job),
+      offer: aiText(module.offer),
+      theses: aiText(module.theses),
+      result: aiText(module.result),
+    })),
+  );
+}
+
 function normalizeTariffs(tariffs?: TariffBlock[]): TariffBlock[] {
   const source = tariffs?.slice(0, 3) ?? [];
   return Array.from({ length: 3 }, (_, index) => ({
     ...DEFAULT_TARIFFS[index]!,
     ...(source[index] ?? {}),
   }));
+}
+
+function normalizeAiTariffs(tariffs?: MainProductAiTariff[]): TariffBlock[] {
+  return normalizeTariffs(
+    tariffs?.map((tariff, index) => ({
+      name: tariff.name || DEFAULT_TARIFFS[index]?.name || `Тариф ${index + 1}`,
+      price: aiText(tariff.price),
+      description: aiText(tariff.description),
+      included: aiText(tariff.included),
+      support: aiText(tariff.support),
+    })),
+  );
 }
 
 function buildMainProductMarkdown(product: ProductState): string {
@@ -288,6 +347,8 @@ ${context || 'Контекст пока не заполнен.'}
   - VIP: все 10 модулей + мини-группа + индивидуальная работа + закрытый Telegram-чат.
 - Не подставляй психологию или другую нишу, если ее нет в контексте.
 - Пиши конкретно, как рабочий черновик, который эксперт сможет редактировать руками.
+- Верни валидный JSON. Без markdown, без комментариев, без текста до или после JSON.
+- Для списков используй массивы строк, а не текст с переносами внутри строки.
 
 Верни только JSON без markdown-блоков:
 {
@@ -300,7 +361,7 @@ ${context || 'Контекст пока не заполнен.'}
       "title": "название модуля как job-to-be-done",
       "job": "что клиент хочет сделать/понять/изменить",
       "offer": "оффер этого модуля",
-      "theses": "- тезис 1\\n- тезис 2\\n- тезис 3",
+      "theses": ["тезис 1", "тезис 2", "тезис 3"],
       "result": "конкретный результат модуля"
     }
   ],
@@ -310,7 +371,7 @@ ${context || 'Контекст пока не заполнен.'}
       "name": "Эконом",
       "price": "35 000 ₽",
       "description": "для кого тариф",
-      "included": "что входит списком через переносы строк",
+      "included": ["что входит 1", "что входит 2", "что входит 3"],
       "support": "формат поддержки"
     }
   ]
@@ -327,9 +388,10 @@ ${context || 'Контекст пока не заполнен.'}
         conversationHistory: [],
         projectName,
         unpackingProfile:    mergedProfile as Record<string, string>,
+        maxTokens:           6000,
       });
 
-      const draft = JSON.parse(cleanCodeFence(resp.content)) as MainProductAiDraft;
+      const draft = parseAiJson<MainProductAiDraft>(resp.content);
       const nameOptions = normalizeNameOptions(
         draft.nameOptions?.length ? draft.nameOptions : [draft.name ?? 'Основной продукт', '', ''],
         draft.name,
@@ -343,9 +405,9 @@ ${context || 'Контекст пока не заполнен.'}
         duration: '3 месяца',
         offer: draft.offer ?? '',
         productDescription: draft.productDescription ?? '',
-        modules: normalizeModules(draft.modules),
+        modules: normalizeAiModules(draft.modules),
         transformation: draft.transformation ?? '',
-        tariffs: normalizeTariffs(draft.tariffs),
+        tariffs: normalizeAiTariffs(draft.tariffs),
         description: '',
         generated: true,
       };

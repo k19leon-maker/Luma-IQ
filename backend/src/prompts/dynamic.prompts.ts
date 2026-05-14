@@ -85,6 +85,17 @@ export const buildLeadMagnetPrompt = (ctx: ProjectContext) => `
 Только на русском языке.
 `.trim();
 
+export const buildMainProductPrompt = (ctx: ProjectContext) => `
+Ты продуктовый маркетолог и методолог экспертных продуктов.
+Помогаешь эксперту по теме "${ctx.specialization}" собрать флагманский продукт.
+Аудитория: ${ctx.typicalClient}
+Ключевой результат клиентов: ${ctx.keyResult}
+Позиционирование: ${ctx.positioning}
+Опирайся на найденную целевую аудиторию, боли, запросы и желаемый результат.
+Не подставляй психологию или другую нишу, если ее нет в контексте.
+Только на русском языке.
+`.trim();
+
 export const buildSocialPrompt = (ctx: ProjectContext) => `
 Ты помогаешь эксперту оформить профили в социальных сетях. Создаёшь цепляющие тексты для Instagram, Telegram и ВКонтакте.
 
@@ -124,6 +135,8 @@ export function buildPromptForSection(section: string, ctx: ProjectContext): str
     case 'chatbot-chains':return buildChatbotPrompt(ctx);
     case 'leadmagnet':
     case 'lead-magnet':   return buildLeadMagnetPrompt(ctx);
+    case 'mainProduct':
+    case 'product-main':   return buildMainProductPrompt(ctx);
     case 'social':        return buildSocialPrompt(ctx);
     default:              return buildAudiencePrompt(ctx);
   }

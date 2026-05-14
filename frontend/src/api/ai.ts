@@ -18,6 +18,7 @@ export interface ChatRequest {
   projectName?:        string;
   projectId?:          string;
   fileContext?:        string;
+  maxTokens?:          number;
 }
 
 export interface ChatResponse {

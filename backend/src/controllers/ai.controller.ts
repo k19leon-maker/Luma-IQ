@@ -10,7 +10,7 @@ import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
 
 const chatSchema = z.object({
-  message: z.string().min(1).max(8000),
+  message: z.string().min(1).max(16000),
   model: z.enum(['chatgpt', 'claude']),
   claudeModel: z.string().optional(),
   section: z.string().optional(),
@@ -28,6 +28,7 @@ const chatSchema = z.object({
   projectName: z.string().optional(),
   projectId: z.string().uuid().optional(),
   fileContext: z.string().optional(),
+  maxTokens: z.number().int().min(256).max(8000).optional(),
 });
 
 export const aiController = {
@@ -48,6 +49,7 @@ export const aiController = {
       projectName,
       projectId,
       fileContext,
+      maxTokens,
     } = parsed.data;
 
     const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
@@ -88,7 +90,7 @@ export const aiController = {
         section,
         claudeModel,
         systemPrompt,
-        maxTokens: 2048,
+        maxTokens: maxTokens ?? (section === 'product-main' ? 6000 : 2048),
         temperature: 0.7,
       });
 
