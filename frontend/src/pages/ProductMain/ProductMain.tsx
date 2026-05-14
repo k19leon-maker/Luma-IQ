@@ -104,9 +104,15 @@ function cleanCodeFence(value: string): string {
 function normalizeProduct(saved?: ProductDraft): ProductState {
   if (!saved) return EMPTY_PRODUCT;
   const raw = saved as ProductState;
+  const hasStructuredBlocks = Boolean(
+    raw.offer || raw.productDescription || raw.transformation || raw.modules?.some((module) =>
+      module.title || module.job || module.offer || module.theses || module.result,
+    ),
+  );
   return {
     ...EMPTY_PRODUCT,
     ...raw,
+    description: hasStructuredBlocks ? raw.description : '',
     modules: raw.modules?.length ? raw.modules : DEFAULT_MODULES,
     tariffs: raw.tariffs?.length ? raw.tariffs : DEFAULT_TARIFFS,
   };
@@ -299,14 +305,14 @@ ${context || 'Контекст пока не заполнен.'}
   }
 
   function handleCopy() {
-    if (!state.description) return;
-    navigator.clipboard.writeText(state.description).catch(() => undefined);
+    if (!state.generated) return;
+    navigator.clipboard.writeText(buildMainProductMarkdown(state)).catch(() => undefined);
     toast.success('Скопировано');
   }
 
   function handleDownload() {
-    if (!state.description) return;
-    void exportToDocx(state.name || 'Основной продукт', state.description, state.name || 'product-main');
+    if (!state.generated) return;
+    void exportToDocx(state.name || 'Основной продукт', buildMainProductMarkdown(state), state.name || 'product-main');
   }
 
   async function handleAiReview() {
@@ -320,7 +326,7 @@ ${context || 'Контекст пока не заполнен.'}
 ${context || 'Контекст пока не заполнен.'}
 
 Текущий продукт:
-${state.description || buildMainProductMarkdown(state)}
+${buildMainProductMarkdown(state)}
 
 Дай короткий аудит:
 1. Что сильное в продукте.
@@ -531,11 +537,6 @@ ${state.description || buildMainProductMarkdown(state)}
               <FormattedText>{state.aiReview}</FormattedText>
             </div>
           )}
-
-          <div style={{ ...blockStyle, background: '#FAFAFA' }}>
-            <div style={labelStyle}>Markdown-версия для материалов</div>
-            <FormattedText>{state.description || buildMainProductMarkdown(state)}</FormattedText>
-          </div>
         </div>
       )}
       {materialStatus && (
