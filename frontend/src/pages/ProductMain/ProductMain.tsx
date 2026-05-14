@@ -17,6 +17,7 @@ interface ProductState {
   duration: string;
   description: string;
   generated: boolean;
+  nameOptions?: string[];
   offer?: string;
   productDescription?: string;
   modules?: ModuleBlock[];
@@ -43,6 +44,7 @@ interface TariffBlock {
 
 interface MainProductAiDraft {
   name?: string;
+  nameOptions?: string[];
   offer?: string;
   productDescription?: string;
   modules?: ModuleBlock[];
@@ -82,6 +84,21 @@ const DEFAULT_TARIFFS: TariffBlock[] = [
   },
 ];
 
+function createEmptyModule(index: number): ModuleBlock {
+  return {
+    title: `Модуль ${index + 1}`,
+    job: '',
+    offer: '',
+    theses: '',
+    result: '',
+  };
+}
+
+function normalizeNameOptions(options?: string[], fallback = ''): string[] {
+  const source = options?.slice(0, 3) ?? [];
+  return Array.from({ length: 3 }, (_, index) => source[index] ?? (index === 0 ? fallback : ''));
+}
+
 const EMPTY_PRODUCT: ProductState = {
   name: '',
   price: '35 000 / 50 000 / 80 000 ₽',
@@ -89,6 +106,7 @@ const EMPTY_PRODUCT: ProductState = {
   duration: '3 месяца',
   description: '',
   generated: false,
+  nameOptions: ['', '', ''],
   offer: '',
   productDescription: '',
   modules: DEFAULT_MODULES,
@@ -113,16 +131,17 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
     ...EMPTY_PRODUCT,
     ...raw,
     description: hasStructuredBlocks ? raw.description : '',
-    modules: raw.modules?.length ? raw.modules : DEFAULT_MODULES,
+    modules: normalizeModules(raw.modules),
+    nameOptions: normalizeNameOptions(raw.nameOptions, raw.name),
     tariffs: raw.tariffs?.length ? raw.tariffs : DEFAULT_TARIFFS,
   };
 }
 
 function normalizeModules(modules?: ModuleBlock[]): ModuleBlock[] {
-  const source = modules?.slice(0, 10) ?? [];
-  return Array.from({ length: 10 }, (_, index) => ({
-    ...DEFAULT_MODULES[index]!,
-    ...(source[index] ?? {}),
+  const source = modules?.length ? modules : DEFAULT_MODULES;
+  return source.map((module, index) => ({
+    ...createEmptyModule(index),
+    ...module,
   }));
 }
 
@@ -135,6 +154,8 @@ function normalizeTariffs(tariffs?: TariffBlock[]): TariffBlock[] {
 }
 
 function buildMainProductMarkdown(product: ProductState): string {
+  const nameOptions = normalizeNameOptions(product.nameOptions, product.name);
+  const primaryName = product.name || nameOptions.find(Boolean) || '';
   const modules = (product.modules?.length ? product.modules : DEFAULT_MODULES)
     .map((module, index) => [
       `### Модуль ${index + 1}. ${module.title || `Модуль ${index + 1}`}`,
@@ -157,7 +178,10 @@ function buildMainProductMarkdown(product: ProductState): string {
 
   return [
     '# Основной продукт',
-    product.name ? `## Название\n${product.name}` : '',
+    nameOptions.filter(Boolean).length
+      ? `## Варианты названия\n${nameOptions.filter(Boolean).map((name, index) => `${index + 1}. ${name}`).join('\n')}`
+      : '',
+    primaryName ? `## Основное название\n${primaryName}` : '',
     product.offer ? `## Оффер\n${product.offer}` : '',
     product.productDescription ? `## Описание\n${product.productDescription}` : '',
     `## Программа\n${modules}`,
@@ -205,8 +229,32 @@ export default function ProductMain() {
 
   function patchModule(index: number, patch: Partial<ModuleBlock>) {
     const modules = [...(state.modules ?? DEFAULT_MODULES)];
-    modules[index] = { ...(modules[index] ?? DEFAULT_MODULES[index]!), ...patch };
+    modules[index] = { ...(modules[index] ?? createEmptyModule(index)), ...patch };
     patchState({ modules });
+  }
+
+  function addModule() {
+    const modules = [...(state.modules ?? DEFAULT_MODULES)];
+    modules.push(createEmptyModule(modules.length));
+    patchState({ modules, format: `3 месяца / ${modules.length} модулей / еженедельно` });
+  }
+
+  function removeModule(index: number) {
+    const modules = [...(state.modules ?? DEFAULT_MODULES)];
+    if (modules.length <= 1) {
+      toast.error('Должен остаться хотя бы один модуль');
+      return;
+    }
+    modules.splice(index, 1);
+    patchState({ modules, format: `3 месяца / ${modules.length} модулей / еженедельно` });
+  }
+
+  function patchNameOption(index: number, value: string) {
+    const options = normalizeNameOptions(state.nameOptions, state.name);
+    const previousValue = options[index];
+    options[index] = value;
+    const shouldUpdatePrimary = index === 0 || !state.name || state.name === previousValue;
+    patchState({ nameOptions: options, name: shouldUpdatePrimary ? value : state.name });
   }
 
   function patchTariff(index: number, patch: Partial<TariffBlock>) {
@@ -244,6 +292,7 @@ ${context || 'Контекст пока не заполнен.'}
 Верни только JSON без markdown-блоков:
 {
   "name": "название продукта",
+  "nameOptions": ["вариант названия 1", "вариант названия 2", "вариант названия 3"],
   "offer": "главный оффер продукта",
   "productDescription": "описание продукта в 5-7 предложениях",
   "modules": [
@@ -281,9 +330,14 @@ ${context || 'Контекст пока не заполнен.'}
       });
 
       const draft = JSON.parse(cleanCodeFence(resp.content)) as MainProductAiDraft;
+      const nameOptions = normalizeNameOptions(
+        draft.nameOptions?.length ? draft.nameOptions : [draft.name ?? 'Основной продукт', '', ''],
+        draft.name,
+      );
       const next: ProductState = {
         ...EMPTY_PRODUCT,
-        name: draft.name?.trim() || 'Основной продукт',
+        nameOptions,
+        name: draft.name?.trim() || nameOptions.find(Boolean)?.trim() || 'Основной продукт',
         price: '35 000 / 50 000 / 80 000 ₽',
         format: '3 месяца / 10 модулей / еженедельно',
         duration: '3 месяца',
@@ -312,7 +366,8 @@ ${context || 'Контекст пока не заполнен.'}
 
   function handleDownload() {
     if (!state.generated) return;
-    void exportToDocx(state.name || 'Основной продукт', buildMainProductMarkdown(state), state.name || 'product-main');
+    const fileName = state.name || state.nameOptions?.find(Boolean) || 'Основной продукт';
+    void exportToDocx(fileName, buildMainProductMarkdown(state), fileName || 'product-main');
   }
 
   async function handleAiReview() {
@@ -378,18 +433,19 @@ ${buildMainProductMarkdown(state)}
   };
 
   const blockStyle: React.CSSProperties = {
-    background: '#fff',
-    border: '1px solid #E5E3DC',
+    background: '#F8F7F3',
+    border: '1.5px solid #D8D4C8',
     borderRadius: 12,
     padding: 18,
+    boxShadow: '0 8px 22px rgba(25, 24, 20, 0.04)',
   };
   const labelStyle: React.CSSProperties = {
     fontSize: 11,
     textTransform: 'uppercase',
-    color: '#999',
+    color: '#1a1a1a',
     letterSpacing: 1.3,
     marginBottom: 8,
-    fontWeight: 700,
+    fontWeight: 800,
   };
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -407,6 +463,26 @@ ${buildMainProductMarkdown(state)}
     resize: 'vertical',
     lineHeight: 1.55,
   };
+  const subtleButton: React.CSSProperties = {
+    background: '#1a1a1a',
+    border: '1px solid #1a1a1a',
+    color: '#fff',
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontSize: 13,
+    cursor: 'pointer',
+    fontWeight: 700,
+  };
+  const dangerButton: React.CSSProperties = {
+    background: '#fff',
+    border: '1px solid #D8D4C8',
+    color: '#7A2727',
+    borderRadius: 8,
+    padding: '7px 10px',
+    fontSize: 12,
+    cursor: 'pointer',
+    fontWeight: 700,
+  };
 
   return (
     <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
@@ -416,14 +492,6 @@ ${buildMainProductMarkdown(state)}
       <p style={{ color: '#888', fontSize: 13, marginBottom: 32, marginTop: 0 }}>
         Блочный конструктор флагманской программы: оффер, 10 модулей, результат продукта и тарифы
       </p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 24 }}>
-        {['10 еженедельных модулей', '3 тарифа: 35k / 50k / 80k', 'Каждый модуль = job + оффер + результат'].map((item) => (
-          <div key={item} style={{ background: '#FFF8E8', border: '1px solid rgba(212,168,71,0.22)', borderRadius: 10, padding: 14, fontSize: 13, color: '#6f5516', fontWeight: 600 }}>
-            {item}
-          </div>
-        ))}
-      </div>
 
       {!state.generated && (
         <div style={{
@@ -453,52 +521,77 @@ ${buildMainProductMarkdown(state)}
 
       {state.generated && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ ...blockStyle, background: '#F5F4F0' }}>
-            <div style={labelStyle}>Название продукта</div>
-            <input value={state.name} onChange={(e) => patchState({ name: e.target.value })} style={{ ...inputStyle, fontWeight: 700, fontSize: 16 }} />
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', marginBottom: 12 }}>
+              Варианты названия продукта
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+              {normalizeNameOptions(state.nameOptions, state.name).map((name, index) => (
+                <div key={index} style={{ ...blockStyle, background: index === 0 ? '#F1EBDD' : '#F8F7F3' }}>
+                  <div style={labelStyle}>{index === 0 ? 'Вариант 1 / основной' : `Вариант ${index + 1}`}</div>
+                  <textarea
+                    value={name}
+                    onChange={(e) => patchNameOption(index, e.target.value)}
+                    style={{ ...textareaStyle, minHeight: 72, fontWeight: 800, fontSize: 16, background: '#fff' }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div style={blockStyle}>
-            <div style={labelStyle}>Оффер</div>
-            <textarea value={state.offer ?? ''} onChange={(e) => patchState({ offer: e.target.value })} style={textareaStyle} />
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 14 }}>
+            <div style={blockStyle}>
+              <div style={labelStyle}>Оффер</div>
+              <textarea value={state.offer ?? ''} onChange={(e) => patchState({ offer: e.target.value })} style={{ ...textareaStyle, minHeight: 130, background: '#fff' }} />
+            </div>
 
-          <div style={blockStyle}>
-            <div style={labelStyle}>Описание продукта</div>
-            <textarea value={state.productDescription ?? ''} onChange={(e) => patchState({ productDescription: e.target.value })} style={{ ...textareaStyle, minHeight: 120 }} />
+            <div style={blockStyle}>
+              <div style={labelStyle}>Описание продукта</div>
+              <textarea value={state.productDescription ?? ''} onChange={(e) => patchState({ productDescription: e.target.value })} style={{ ...textareaStyle, minHeight: 130, background: '#fff' }} />
+            </div>
           </div>
 
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', marginBottom: 12 }}>
-              Программа по модулям
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>
+                Программа по модулям
+              </div>
+              <button style={subtleButton} onClick={addModule}>+ Добавить модуль</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 14 }}>
               {(state.modules ?? DEFAULT_MODULES).map((module, index) => (
-                <div key={index} style={{ ...blockStyle, padding: 0, overflow: 'hidden' }}>
-                  <div style={{ background: '#FFE8A8', borderBottom: '1px solid #E5D08A', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#7A5A00', minWidth: 78 }}>Модуль {index + 1}</div>
+                <div key={index} style={{ ...blockStyle, padding: 0, overflow: 'hidden', background: '#F8F7F3' }}>
+                  <div style={{ background: '#E7E1D4', borderBottom: '1.5px solid #D8D4C8', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: '#1a1a1a', minWidth: 78 }}>Модуль {index + 1}</div>
                     <input
                       value={module.title}
                       onChange={(e) => patchModule(index, { title: e.target.value })}
-                      style={{ ...inputStyle, padding: '7px 9px', fontWeight: 700, background: '#fffdf6' }}
+                      style={{ ...inputStyle, padding: '7px 9px', fontWeight: 800, background: '#fff', borderColor: '#CEC8B8' }}
                     />
+                    <button
+                      style={{ ...dangerButton, opacity: (state.modules?.length ?? DEFAULT_MODULES.length) <= 1 ? 0.45 : 1 }}
+                      onClick={() => removeModule(index)}
+                      disabled={(state.modules?.length ?? DEFAULT_MODULES.length) <= 1}
+                    >
+                      Удалить
+                    </button>
                   </div>
                   <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div>
                       <div style={labelStyle}>Job клиента</div>
-                      <textarea value={module.job} onChange={(e) => patchModule(index, { job: e.target.value })} style={textareaStyle} />
+                      <textarea value={module.job} onChange={(e) => patchModule(index, { job: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
                     </div>
                     <div>
                       <div style={labelStyle}>Оффер модуля</div>
-                      <textarea value={module.offer} onChange={(e) => patchModule(index, { offer: e.target.value })} style={textareaStyle} />
+                      <textarea value={module.offer} onChange={(e) => patchModule(index, { offer: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
                     </div>
                     <div>
                       <div style={labelStyle}>Тезисы / содержание</div>
-                      <textarea value={module.theses} onChange={(e) => patchModule(index, { theses: e.target.value })} style={{ ...textareaStyle, minHeight: 120 }} />
+                      <textarea value={module.theses} onChange={(e) => patchModule(index, { theses: e.target.value })} style={{ ...textareaStyle, minHeight: 120, background: '#fff' }} />
                     </div>
-                    <div style={{ background: '#FFE2E2', border: '1px solid #F1C4C4', borderRadius: 8, padding: 10 }}>
-                      <div style={{ ...labelStyle, color: '#8A4A4A' }}>Результат модуля</div>
-                      <textarea value={module.result} onChange={(e) => patchModule(index, { result: e.target.value })} style={{ ...textareaStyle, background: '#fffafa' }} />
+                    <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 10 }}>
+                      <div style={labelStyle}>Результат модуля</div>
+                      <textarea value={module.result} onChange={(e) => patchModule(index, { result: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
                     </div>
                   </div>
                 </div>
