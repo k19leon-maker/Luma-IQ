@@ -60,12 +60,18 @@ interface MainProductAiTariff {
   support?: AiTextValue;
 }
 
-interface MainProductAiDraft {
+interface ProductIntroAiDraft {
   name?: string;
   nameOptions?: string[];
   offer?: string;
   productDescription?: string;
+}
+
+interface ProductModulesAiDraft {
   modules?: MainProductAiModule[];
+}
+
+interface ProductFinalAiDraft {
   transformation?: string;
   tariffs?: MainProductAiTariff[];
 }
@@ -259,6 +265,7 @@ export default function ProductMain() {
 
   const [state,   setState]   = useState<ProductState>(EMPTY_PRODUCT);
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [materialStatus, setMaterialStatus] = useState('');
 
@@ -325,15 +332,30 @@ export default function ProductMain() {
   async function handleCreate() {
     if (loading) return;
     setLoading(true);
+    setLoadingStep('Готовлю структуру продукта...');
     try {
       const settings = getSettings('product-main');
-      const prompt   = `Ты продуктовый маркетолог и методолог экспертных продуктов с большим опытом в нише пользователя.
-Создай структурированный черновик флагманского ОСНОВНОГО ПРОДУКТА эксперта.
+      const requestAiJson = async <T,>(message: string, maxTokens = 2200): Promise<T> => {
+        const resp = await aiApi.chat({
+          model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
+          claudeModel:         settings.claudeModel,
+          section:             'product-main',
+          message,
+          conversationHistory: [],
+          projectName,
+          unpackingProfile:    mergedProfile as Record<string, string>,
+          maxTokens,
+        });
+        return parseAiJson<T>(resp.content);
+      };
+
+      const baseContext = `Ты продуктовый маркетолог и методолог экспертных продуктов с большим опытом в нише пользователя.
+Создаёшь флагманский ОСНОВНОЙ ПРОДУКТ эксперта.
 
 Контекст проекта:
 ${context || 'Контекст пока не заполнен.'}
 
-Требования:
+Общие требования:
 - Это флагман на 3 месяца.
 - Логика: 10 еженедельных модулей.
 - Каждый модуль решает отдельную job-to-be-done клиента.
@@ -348,14 +370,64 @@ ${context || 'Контекст пока не заполнен.'}
 - Не подставляй психологию или другую нишу, если ее нет в контексте.
 - Пиши конкретно, как рабочий черновик, который эксперт сможет редактировать руками.
 - Верни валидный JSON. Без markdown, без комментариев, без текста до или после JSON.
-- Для списков используй массивы строк, а не текст с переносами внутри строки.
+- Для списков используй массивы строк, а не текст с переносами внутри строки.`;
+
+      setLoadingStep('Генерирую названия, оффер и описание...');
+      const intro = await requestAiJson<ProductIntroAiDraft>(`${baseContext}
+
+Сейчас создай только верхнюю часть продукта: 3 варианта названия, главный оффер и описание продукта.
 
 Верни только JSON без markdown-блоков:
 {
   "name": "название продукта",
   "nameOptions": ["вариант названия 1", "вариант названия 2", "вариант названия 3"],
   "offer": "главный оффер продукта",
-  "productDescription": "описание продукта в 5-7 предложениях",
+  "productDescription": "описание продукта в 5-7 предложениях"
+}`, 1600);
+
+      const nameOptions = normalizeNameOptions(
+        intro.nameOptions?.length ? intro.nameOptions : [intro.name ?? 'Основной продукт', '', ''],
+        intro.name,
+      );
+
+      let next: ProductState = {
+        ...EMPTY_PRODUCT,
+        nameOptions,
+        name: intro.name?.trim() || nameOptions.find(Boolean)?.trim() || 'Основной продукт',
+        price: '35 000 / 50 000 / 80 000 ₽',
+        format: '3 месяца / 10 модулей / еженедельно',
+        duration: '3 месяца',
+        offer: intro.offer ?? '',
+        productDescription: intro.productDescription ?? '',
+        modules: Array.from({ length: 10 }, (_, index) => createEmptyModule(index)),
+        transformation: '',
+        tariffs: DEFAULT_TARIFFS,
+        description: '',
+        generated: true,
+      };
+      persistState(next);
+
+      const moduleRanges = [
+        { start: 1, end: 3 },
+        { start: 4, end: 6 },
+        { start: 7, end: 10 },
+      ];
+
+      for (const range of moduleRanges) {
+        setLoadingStep(`Генерирую модули ${range.start}-${range.end}...`);
+        const modulesDraft = await requestAiJson<ProductModulesAiDraft>(`${baseContext}
+
+Уже создана верхняя часть продукта:
+Название: ${next.name}
+Оффер: ${next.offer}
+Описание: ${next.productDescription}
+
+Сейчас создай только модули ${range.start}-${range.end}.
+Количество элементов в modules: ${range.end - range.start + 1}.
+Первый элемент массива соответствует модулю ${range.start}, последний — модулю ${range.end}.
+
+Верни только JSON без markdown-блоков:
+{
   "modules": [
     {
       "title": "название модуля как job-to-be-done",
@@ -364,7 +436,28 @@ ${context || 'Контекст пока не заполнен.'}
       "theses": ["тезис 1", "тезис 2", "тезис 3"],
       "result": "конкретный результат модуля"
     }
-  ],
+  ]
+}`, range.end === 10 ? 3200 : 2600);
+
+        const currentModules = [...(next.modules ?? [])];
+        const normalizedBatch = normalizeAiModules(modulesDraft.modules);
+        normalizedBatch.slice(0, range.end - range.start + 1).forEach((module, batchIndex) => {
+          currentModules[range.start - 1 + batchIndex] = module;
+        });
+        next = { ...next, modules: currentModules };
+        persistState(next);
+      }
+
+      setLoadingStep('Генерирую общий результат и тарифы...');
+      const finalDraft = await requestAiJson<ProductFinalAiDraft>(`${baseContext}
+
+Уже создан продукт:
+${buildMainProductMarkdown(next)}
+
+Сейчас создай только общий результат продукта и 3 тарифа.
+
+Верни только JSON без markdown-блоков:
+{
   "transformation": "общий результат продукта / продуктовое обещание",
   "tariffs": [
     {
@@ -377,46 +470,21 @@ ${context || 'Контекст пока не заполнен.'}
   ]
 }
 
-В modules должно быть строго 10 элементов.
-В tariffs должно быть строго 3 элемента: Эконом, Стандарт, VIP.`;
+В tariffs должно быть строго 3 элемента: Эконом, Стандарт, VIP.`, 2600);
 
-      const resp   = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
-        section:             'product-main',
-        message:             prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile:    mergedProfile as Record<string, string>,
-        maxTokens:           6000,
-      });
-
-      const draft = parseAiJson<MainProductAiDraft>(resp.content);
-      const nameOptions = normalizeNameOptions(
-        draft.nameOptions?.length ? draft.nameOptions : [draft.name ?? 'Основной продукт', '', ''],
-        draft.name,
-      );
-      const next: ProductState = {
-        ...EMPTY_PRODUCT,
-        nameOptions,
-        name: draft.name?.trim() || nameOptions.find(Boolean)?.trim() || 'Основной продукт',
-        price: '35 000 / 50 000 / 80 000 ₽',
-        format: '3 месяца / 10 модулей / еженедельно',
-        duration: '3 месяца',
-        offer: draft.offer ?? '',
-        productDescription: draft.productDescription ?? '',
-        modules: normalizeAiModules(draft.modules),
-        transformation: draft.transformation ?? '',
-        tariffs: normalizeAiTariffs(draft.tariffs),
-        description: '',
-        generated: true,
+      next = {
+        ...next,
+        transformation: finalDraft.transformation ?? '',
+        tariffs: normalizeAiTariffs(finalDraft.tariffs),
       };
       persistState(next);
+      toast.success('Основной продукт создан');
     } catch (err) {
       console.error('[ProductMain] AI error:', err);
-      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+      toast.error('Не удалось завершить генерацию продукта. Уже созданные блоки сохранены, попробуйте ещё раз.');
     } finally {
       setLoading(false);
+      setLoadingStep('');
     }
   }
 
@@ -580,6 +648,21 @@ ${buildMainProductMarkdown(state)}
           </>
         )}
       </div>
+
+      {loadingStep && (
+        <div style={{
+          marginBottom: 20,
+          background: '#FFF8E8',
+          border: '1px solid rgba(212,168,71,0.28)',
+          borderRadius: 10,
+          padding: '12px 14px',
+          color: '#6f5516',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {loadingStep}
+        </div>
+      )}
 
       {state.generated && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
