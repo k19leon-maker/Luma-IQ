@@ -195,11 +195,13 @@ function AutoTextarea({
   onChange,
   style,
   minHeight = 84,
+  maxHeight,
 }: {
   value: string;
   onChange: (value: string) => void;
   style?: React.CSSProperties;
   minHeight?: number;
+  maxHeight?: number;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -207,15 +209,17 @@ function AutoTextarea({
     const el = ref.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
-  }, [value, minHeight]);
+    const nextHeight = Math.max(minHeight, el.scrollHeight);
+    el.style.height = `${maxHeight ? Math.min(maxHeight, nextHeight) : nextHeight}px`;
+    el.style.overflowY = maxHeight && nextHeight > maxHeight ? 'auto' : 'hidden';
+  }, [value, minHeight, maxHeight]);
 
   return (
     <textarea
       ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={{ ...style, minHeight, overflow: 'hidden' }}
+      style={{ ...style, minHeight, maxHeight, overflow: 'hidden' }}
     />
   );
 }
@@ -1032,7 +1036,7 @@ ${buildMainProductMarkdown(state)}
   const modules = state.modules ?? DEFAULT_MODULES;
   const activeModule = modules[activeModuleIndex] ?? modules[0] ?? createEmptyModule(0);
   const stickyTop = 76;
-  const stickyHeight = `calc(100vh - ${stickyTop + 14}px)`;
+  const stickyHeight = `calc(100vh - ${stickyTop + 18}px)`;
 
   return (
     <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
@@ -1165,11 +1169,11 @@ ${buildMainProductMarkdown(state)}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(300px, 0.75fr)', gap: 14, alignItems: 'stretch', position: 'sticky', top: stickyTop, height: stickyHeight, overflow: 'hidden' }}>
-                <div style={{ ...blockStyle, background: '#fff', height: '100%', overflowY: 'auto' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                <div style={{ ...blockStyle, background: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexShrink: 0 }}>
                     <div>
                       <div style={labelStyle}>Редактор выбранного модуля</div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Модуль {activeModuleIndex + 1}</div>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Модуль {activeModuleIndex + 1}</div>
                     </div>
                     <button
                       style={{ ...dangerButton, opacity: modules.length <= 1 ? 0.45 : 1 }}
@@ -1180,26 +1184,26 @@ ${buildMainProductMarkdown(state)}
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7, paddingRight: 4 }}>
                     <div>
                       <div style={labelStyle}>Название модуля</div>
-                      <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 14, fontWeight: 800, background: '#fff' }} minHeight={48} />
+                      <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 13, fontWeight: 800, background: '#fff' }} minHeight={42} maxHeight={76} />
                     </div>
                     <div>
                       <div style={labelStyle}>Job клиента</div>
-                      <AutoTextarea value={activeModule.job} onChange={(value) => patchModule(activeModuleIndex, { job: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={64} />
+                      <AutoTextarea value={activeModule.job} onChange={(value) => patchModule(activeModuleIndex, { job: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={54} maxHeight={92} />
                     </div>
                     <div>
                       <div style={labelStyle}>Оффер модуля</div>
-                      <AutoTextarea value={activeModule.offer} onChange={(value) => patchModule(activeModuleIndex, { offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={64} />
+                      <AutoTextarea value={activeModule.offer} onChange={(value) => patchModule(activeModuleIndex, { offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={54} maxHeight={92} />
                     </div>
                     <div>
                       <div style={labelStyle}>Тезисы / содержание</div>
-                      <AutoTextarea value={activeModule.theses} onChange={(value) => patchModule(activeModuleIndex, { theses: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={96} />
+                      <AutoTextarea value={activeModule.theses} onChange={(value) => patchModule(activeModuleIndex, { theses: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={76} maxHeight={150} />
                     </div>
-                    <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 9 }}>
+                    <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 8 }}>
                       <div style={labelStyle}>Результат модуля</div>
-                      <AutoTextarea value={activeModule.result} onChange={(value) => patchModule(activeModuleIndex, { result: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={68} />
+                      <AutoTextarea value={activeModule.result} onChange={(value) => patchModule(activeModuleIndex, { result: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={56} maxHeight={96} />
                     </div>
                   </div>
                 </div>
