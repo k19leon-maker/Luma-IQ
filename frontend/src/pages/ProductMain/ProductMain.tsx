@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
@@ -67,8 +67,30 @@ function cleanCodeFence(value: string): string {
   return value.replace(/```(?:json|markdown|md)?/gi, '').replace(/```/g, '').trim();
 }
 
+function splitProductMarkdownToMessages(markdown: string): ProductChatMessage[] {
+  const cleaned = cleanCodeFence(markdown);
+  if (!cleaned.trim()) return [];
+  const sections = cleaned
+    .split(/\n(?=##\s+)/g)
+    .map((section) => section.trim())
+    .filter((section) => section && section.replace(/^#\s+Основной продукт\s*/i, '').trim());
+
+  if (sections.length <= 1) {
+    return [{ role: 'assistant', content: cleaned, stepTitle: 'Основной продукт' }];
+  }
+
+  return sections.map((section) => {
+    const titleMatch = section.match(/^##\s+(.+)$/m);
+    const title = titleMatch?.[1]?.trim() || 'Основной продукт';
+    return { role: 'assistant', content: section, stepTitle: title };
+  });
+}
+
 function normalizeProduct(saved?: ProductDraft): ProductState {
   const raw = (saved ?? {}) as ProductState;
+  const savedMessages = raw.chatMessages?.length === 1 && raw.chatMessages[0]?.content.includes('# Основной продукт')
+    ? splitProductMarkdownToMessages(raw.chatMessages[0].content)
+    : raw.chatMessages;
   const stepStatuses = { ...EMPTY_STATUSES, ...(raw.stepStatuses ?? {}) };
   if (raw.name || raw.offer || raw.productDescription || raw.modulesText || raw.transformation || raw.description) {
     for (const step of PRODUCT_STEPS) {
@@ -86,10 +108,10 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
     ...EMPTY_PRODUCT,
     ...raw,
     stepStatuses,
-    chatMessages: raw.chatMessages?.length
-      ? raw.chatMessages
+    chatMessages: savedMessages?.length
+      ? savedMessages
       : raw.description?.trim()
-        ? [{ role: 'assistant', content: raw.description, stepTitle: 'Сохранённая версия продукта' }]
+        ? splitProductMarkdownToMessages(raw.description)
         : [],
   };
 }
@@ -272,8 +294,6 @@ export default function ProductMain() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chatMessages?.length, loading]);
-
-  const finalMarkdown = useMemo(() => buildMainProductMarkdown(state), [state]);
 
   function persistState(next: ProductState) {
     const withMarkdown = { ...next, description: buildMainProductMarkdown(next) };
@@ -466,7 +486,16 @@ ${buildMainProductMarkdown(stateWithUser)}
         },
         { role: 'assistant', content: response, stepTitle: 'Редактирование продукта' },
       );
-      persistState(next);
+      persistState({
+        ...next,
+        chatMessages: [
+          ...(stateWithUser.chatMessages ?? []),
+          ...splitProductMarkdownToMessages(next.description).map((message) => ({
+            ...message,
+            stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
+          })),
+        ],
+      });
     } catch (err) {
       console.error('[ProductMain chat] AI error:', err);
       persistState(withMessage(stateWithUser, {
@@ -514,186 +543,283 @@ ${buildMainProductMarkdown(stateWithUser)}
   };
 
   return (
-    <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 21, fontWeight: 800, color: '#1a1a1a', margin: '0 0 6px' }}>
-        Основной продукт
-      </h1>
-      <p style={{ color: '#888', fontSize: 13, margin: '0 0 22px' }}>
-        Диалоговая проработка флагманского продукта: название, оффер, описание, модули и продуктовое обещание
-      </p>
-
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <button style={btnGold} onClick={() => void handleCreate()} disabled={loading}>
-          {loading ? 'ИИ работает...' : state.generated ? 'Пересобрать продукт с ИИ' : 'Создать продукт с ИИ'}
-        </button>
-        {state.generated && (
-          <button style={btnOutlined} onClick={() => void handleDownload()} disabled={pdfLoading}>
-            {pdfLoading ? 'Генерирую PDF...' : 'Скачать PDF-презентацию'}
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: '#fff' }}>
+      <div style={{
+        width: 280,
+        flexShrink: 0,
+        backgroundColor: '#F5F4F0',
+        borderRight: '1px solid #E5E3DC',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '24px 20px 16px' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: '0 0 4px' }}>
+            Основной продукт
+          </h2>
+          <p style={{ fontSize: 12, color: '#888', margin: '0 0 16px' }}>
+            AI-проработка флагмана
+          </p>
+          <button
+            style={{ ...btnGold, width: '100%', display: 'flex', justifyContent: 'center', gap: 6 }}
+            onClick={() => void handleCreate()}
+            disabled={loading}
+          >
+            {loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>}
+            {loading ? 'ИИ работает...' : state.generated ? 'Пересобрать продукт' : 'Создать продукт'}
           </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 16px' }}>
+          {PRODUCT_STEPS.map((step, index) => {
+            const status = state.stepStatuses?.[step.id] ?? 'idle';
+            return (
+              <div
+                key={step.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '7px 8px',
+                  borderRadius: 6,
+                  marginBottom: 2,
+                  backgroundColor: status === 'running' ? 'rgba(212,168,71,0.1)' : 'transparent',
+                }}
+              >
+                <span style={{ fontSize: 13, width: 18, textAlign: 'center', flexShrink: 0 }}>
+                  {status === 'idle' && <span style={{ color: '#ccc' }}>○</span>}
+                  {status === 'running' && <span style={{ color: '#D4A847', display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>}
+                  {status === 'done' && <span>✅</span>}
+                </span>
+                <span style={{
+                  fontSize: 12,
+                  color: status === 'idle' ? '#aaa' : '#1a1a1a',
+                  fontWeight: status === 'running' ? 500 : 400,
+                  flex: 1,
+                }}>
+                  {index + 1}. {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {state.generated && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              onClick={() => void handleDownload()}
+              disabled={pdfLoading}
+              style={{
+                ...btnOutlined,
+                width: '100%',
+                padding: '9px 0',
+                fontSize: 12,
+                color: pdfLoading ? '#bbb' : '#555',
+              }}
+            >
+              {pdfLoading ? 'Генерирую PDF...' : 'Скачать PDF'}
+            </button>
+          </div>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <aside style={{
-          border: '1px solid #E5E3DC',
-          borderRadius: 12,
-          padding: 14,
-          background: '#F8F7F3',
-          position: 'sticky',
-          top: 0,
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{
+          padding: '20px 28px 16px',
+          borderBottom: '1px solid #F0EEE8',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
         }}>
-          <div style={{ fontSize: 12, fontWeight: 900, color: '#9A6A00', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
-            Чеклист продукта
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>
+              Продуктовая упаковка
+            </h2>
+            <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>
+              {projectName} · название, оффер, описание, модули и обещание
+            </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {PRODUCT_STEPS.map((step, index) => {
-              const status = state.stepStatuses?.[step.id] ?? 'idle';
-              return (
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minHeight: 0 }}>
+          {!state.chatMessages?.length ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 320,
+              gap: 16,
+              textAlign: 'center',
+              maxWidth: 900,
+              margin: '0 auto',
+            }}>
+              <div style={{
+                width: 64,
+                height: 64,
+                borderRadius: 16,
+                backgroundColor: '#F5F4F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 28,
+              }}>🚀</div>
+              <p style={{ fontSize: 14, color: '#888', maxWidth: 390, lineHeight: 1.6 }}>
+                Нажмите «Создать продукт» — ИИ пройдёт чеклист и выдаст каждый блок продукта отдельным сообщением.
+              </p>
+            </div>
+          ) : (
+            <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {state.chatMessages?.map((message, index) => (
                 <div
-                  key={step.id}
+                  key={index}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: message.role === 'user' ? 'row-reverse' : 'row',
                     gap: 10,
-                    padding: '10px 11px',
-                    borderRadius: 10,
-                    background: status === 'running' ? '#FFF8E8' : status === 'done' ? '#fff' : '#F0EEE8',
-                    border: status === 'running' ? '1px solid #D4A847' : '1px solid #E5E3DC',
+                    alignItems: 'flex-end',
                   }}
                 >
-                  <span style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 999,
+                  {message.role === 'assistant' && (
+                    <div style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      background: '#D4A847',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: '#fff',
+                    }}>AI</div>
+                  )}
+                  <div style={{
+                    maxWidth: 'min(760px, 78%)',
+                    padding: '12px 16px',
+                    borderRadius: message.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                    background: message.role === 'user' ? '#1a1a1a' : '#F5F4F0',
+                    color: message.role === 'user' ? '#fff' : '#1a1a1a',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                  }}>
+                    <div style={{
+                      fontSize: 10,
+                      color: message.role === 'user' ? 'rgba(255,255,255,0.55)' : '#888',
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: 1.2,
+                    }}>
+                      {message.role === 'user' ? 'Вы' : 'AI'}{message.stepTitle ? ` · ${message.stepTitle}` : ''}
+                    </div>
+                    {message.role === 'assistant'
+                      ? <FormattedText compact>{message.content}</FormattedText>
+                      : <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
+                  </div>
+                </div>
+              ))}
+
+              {loading && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                  <div style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    background: '#D4A847',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: status === 'done' ? '#3B6D11' : status === 'running' ? '#D4A847' : '#ddd',
+                    fontSize: 10,
+                    fontWeight: 800,
                     color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    flexShrink: 0,
+                  }}>AI</div>
+                  <div style={{
+                    display: 'flex',
+                    gap: 5,
+                    padding: '14px 18px',
+                    borderRadius: '12px 12px 12px 0',
+                    background: '#F5F4F0',
                   }}>
-                    {status === 'done' ? '✓' : status === 'running' ? '…' : index + 1}
-                  </span>
-                  <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: status === 'running' ? 800 : 600 }}>
-                    {step.label}
-                  </span>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite' }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite 0.2s' }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D4A847', animation: 'pulse 1.2s ease-in-out infinite 0.4s' }} />
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </aside>
-
-        <section style={{
-          border: '1px solid #E5E3DC',
-          borderRadius: 12,
-          minHeight: 'calc(100vh - 210px)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 22, background: '#F5F4F0' }}>
-            {!state.chatMessages?.length && (
-              <div style={{
-                background: '#fff',
-                border: '1px dashed #D8D4C8',
-                borderRadius: 12,
-                padding: 28,
-                color: '#777',
-                fontSize: 14,
-                lineHeight: 1.6,
-              }}>
-                Нажмите «Создать продукт с ИИ». Я пройду чеклист по шагам и буду выдавать каждый элемент продукта прямо в этом диалоге.
-              </div>
-            )}
-
-            {state.chatMessages?.map((message, index) => (
-              <div
-                key={index}
-                style={{
-                  display: 'flex',
-                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  marginBottom: 14,
-                }}
-              >
-                <div style={{
-                  maxWidth: message.role === 'user' ? '72%' : '86%',
-                  background: message.role === 'user' ? '#D4A847' : '#fff',
-                  color: '#1a1a1a',
-                  border: message.role === 'assistant' ? '1px solid #E5E3DC' : 'none',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  boxShadow: message.role === 'assistant' ? '0 8px 20px rgba(25,24,20,0.04)' : 'none',
-                }}>
-                  {message.stepTitle && (
-                    <div style={{ fontSize: 11, color: message.role === 'user' ? '#5b4107' : '#9A6A00', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-                      {message.role === 'user' ? 'Вы' : 'ИИ'} · {message.stepTitle}
-                    </div>
-                  )}
-                  {message.role === 'assistant' ? (
-                    <FormattedText>{message.content}</FormattedText>
-                  ) : (
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>{message.content}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div style={{ color: '#9A6A00', fontSize: 13, fontWeight: 700, padding: '4px 2px' }}>
-                ИИ думает...
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {state.generated && (
-            <div style={{ borderTop: '1px solid #E5E3DC', background: '#fff', padding: 14 }}>
-              <textarea
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Например: Хочу отредактировать продукт: сделай программу короче, добавь больше практики и усили продуктовое обещание..."
-                style={{
-                  width: '100%',
-                  minHeight: 82,
-                  resize: 'vertical',
-                  border: '1px solid #E5E3DC',
-                  borderRadius: 10,
-                  padding: 12,
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  boxSizing: 'border-box',
-                  marginBottom: 10,
-                }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                <div style={{ fontSize: 12, color: '#999' }}>
-                  ИИ обновит продукт в диалоге, а PDF будет скачиваться из последней сохранённой версии.
-                </div>
-                <button
-                  style={{ ...btnGold, opacity: loading || !chatInput.trim() ? 0.6 : 1 }}
-                  disabled={loading || !chatInput.trim()}
-                  onClick={() => void handleChatSend()}
-                >
-                  {loading ? 'Думаю...' : 'Отправить'}
-                </button>
-              </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
           )}
-        </section>
+        </div>
+
+        <div style={{
+          flexShrink: 0,
+          borderTop: '1px solid #E5E3DC',
+          background: '#fff',
+          padding: '16px 28px',
+        }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+            <textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleChatSend();
+                }
+              }}
+              disabled={loading || !state.generated}
+              placeholder={state.generated
+                ? 'Напишите, что изменить в продукте: модули, оффер, описание, обещание...'
+                : 'Сначала создайте продукт, затем здесь можно будет редактировать его через ИИ...'}
+              rows={3}
+              style={{
+                flex: 1,
+                minHeight: 76,
+                resize: 'none',
+                border: '1px solid #E5E3DC',
+                borderRadius: 8,
+                padding: '12px 14px',
+                fontSize: 14,
+                lineHeight: 1.5,
+                fontFamily: 'inherit',
+                outline: 'none',
+                background: state.generated ? '#fff' : '#F8F7F3',
+              }}
+            />
+            <button
+              onClick={() => void handleChatSend()}
+              disabled={loading || !chatInput.trim() || !state.generated}
+              style={{
+                height: 44,
+                border: 'none',
+                borderRadius: 8,
+                background: loading || !chatInput.trim() || !state.generated ? '#F0EEE8' : '#D4A847',
+                color: loading || !chatInput.trim() || !state.generated ? '#bbb' : '#fff',
+                padding: '0 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: loading || !state.generated ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading ? 'Думаю...' : 'Отправить'}
+            </button>
+          </div>
+          <div style={{ maxWidth: 900, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
+            Enter — отправить · Shift+Enter — перенос строки
+          </div>
+        </div>
       </div>
 
-      {state.generated && (
-        <details style={{ marginTop: 18, border: '1px solid #E5E3DC', borderRadius: 12, padding: 14, background: '#fff' }}>
-          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#555' }}>
-            Итоговый markdown продукта
-          </summary>
-          <div style={{ marginTop: 12 }}>
-            <FormattedText>{finalMarkdown}</FormattedText>
-          </div>
-        </details>
-      )}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+          0%, 80%, 100% { opacity: 0.35; transform: scale(0.9); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
