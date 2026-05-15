@@ -7,8 +7,8 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
-import { exportToDocx } from '../../utils/exportDocx';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import html2pdf from 'html2pdf.js';
 
 interface ProductState {
   name: string;
@@ -52,14 +52,6 @@ interface MainProductAiModule {
   result?: AiTextValue;
 }
 
-interface MainProductAiTariff {
-  name?: string;
-  price?: AiTextValue;
-  description?: AiTextValue;
-  included?: AiTextValue;
-  support?: AiTextValue;
-}
-
 interface ProductIntroAiDraft {
   name?: string;
   nameOptions?: string[];
@@ -71,22 +63,23 @@ interface ProductModulesAiDraft {
   modules?: MainProductAiModule[];
 }
 
-interface ProductTransformationAiDraft {
-  transformation?: string;
-}
-
-interface ProductTariffsAiDraft {
-  tariffs?: MainProductAiTariff[];
-}
-
 interface ProductChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
+interface ProductChatPatch {
+  nameOptions?: string[];
+  offer?: AiTextValue;
+  productDescription?: AiTextValue;
+  modules?: MainProductAiModule[];
+  activeModule?: MainProductAiModule;
+  transformation?: AiTextValue;
+}
+
 interface ProductChatAiDraft {
   reply?: string;
-  patch?: Partial<ModuleBlock>;
+  patch?: ProductChatPatch;
 }
 
 const DEFAULT_MODULES: ModuleBlock[] = Array.from({ length: 10 }, (_, index) => ({
@@ -173,6 +166,30 @@ function aiText(value: AiTextValue): string {
   return typeof value === 'string' ? value : '';
 }
 
+function cleanModuleTitle(value: string, index: number): string {
+  const fallback = `Модуль ${index + 1}`;
+  const cleaned = value
+    .replace(new RegExp(`^\\s*модуль\\s*${index + 1}\\s*[.\\-:—–]?\\s*`, 'i'), '')
+    .replace(/^\s*модуль\s*\d+\s*[.\-:—–]?\s*/i, '')
+    .trim();
+  return cleaned || fallback;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatPdfText(value?: string): string {
+  return escapeHtml(value || '—')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br />');
+}
+
 function AutoTextarea({
   value,
   onChange,
@@ -217,7 +234,7 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
     description: hasStructuredBlocks ? raw.description : '',
     modules: normalizeModules(raw.modules),
     nameOptions: normalizeNameOptions(raw.nameOptions, raw.name),
-    tariffs: raw.tariffs?.length ? raw.tariffs : DEFAULT_TARIFFS,
+    tariffs: normalizeTariffs(raw.tariffs),
   };
 }
 
@@ -226,6 +243,7 @@ function normalizeModules(modules?: ModuleBlock[]): ModuleBlock[] {
   return source.map((module, index) => ({
     ...createEmptyModule(index),
     ...module,
+    title: cleanModuleTitle(module.title, index),
   }));
 }
 
@@ -249,23 +267,16 @@ function normalizeTariffs(tariffs?: TariffBlock[]): TariffBlock[] {
   }));
 }
 
-function normalizeAiTariffs(tariffs?: MainProductAiTariff[]): TariffBlock[] {
-  return normalizeTariffs(
-    tariffs?.map((tariff, index) => ({
-      name: tariff.name || DEFAULT_TARIFFS[index]?.name || `Тариф ${index + 1}`,
-      price: aiText(tariff.price),
-      description: aiText(tariff.description),
-      included: aiText(tariff.included),
-      support: aiText(tariff.support),
-    })),
-  );
-}
-
-function cleanModulePatch(patch?: Partial<ModuleBlock>): Partial<ModuleBlock> {
+function cleanModulePatch(patch?: MainProductAiModule): Partial<ModuleBlock> {
   if (!patch) return {};
-  return Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => typeof value === 'string' && value.trim()),
-  ) as Partial<ModuleBlock>;
+  const normalized = {
+    title: aiText(patch.title),
+    job: aiText(patch.job),
+    offer: aiText(patch.offer),
+    theses: aiText(patch.theses),
+    result: aiText(patch.result),
+  };
+  return Object.fromEntries(Object.entries(normalized).filter(([, value]) => value.trim())) as Partial<ModuleBlock>;
 }
 
 function buildMainProductMarkdown(product: ProductState): string {
@@ -303,6 +314,222 @@ function buildMainProductMarkdown(product: ProductState): string {
     product.transformation ? `## Общий результат продукта\n${product.transformation}` : '',
     `## Тарифы\n${tariffs}`,
   ].filter(Boolean).join('\n\n');
+}
+
+async function downloadProductPresentationPdf(product: ProductState, projectName: string): Promise<void> {
+  const nameOptions = normalizeNameOptions(product.nameOptions, product.name).filter(Boolean);
+  const productTitle = product.name || nameOptions[0] || 'Основной продукт';
+  const modules = product.modules?.length ? product.modules : DEFAULT_MODULES;
+  const safeFileName = productTitle.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'product';
+
+  const root = document.createElement('div');
+  root.style.position = 'absolute';
+  root.style.left = '0';
+  root.style.top = '0';
+  root.style.zIndex = '-1';
+  root.style.pointerEvents = 'none';
+  root.innerHTML = `
+    <style>
+      .product-pdf {
+        width: 1123px;
+        background: #ffffff;
+        color: #1a1a1a;
+        font-family: Inter, Arial, sans-serif;
+      }
+      .product-slide {
+        width: 1123px;
+        min-height: 794px;
+        box-sizing: border-box;
+        padding: 42px 50px;
+        page-break-after: always;
+        background: #ffffff;
+      }
+      .product-cover {
+        background: linear-gradient(135deg, #fff8e8 0%, #ffffff 56%, #f2efe7 100%);
+        border: 1px solid #ead8a6;
+      }
+      .product-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 70px;
+      }
+      .product-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: #1a1a1a;
+        color: #d4a847;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .product-logo {
+        font-size: 20px;
+        font-weight: 900;
+      }
+      .product-logo span { color: #d4a847; }
+      .product-kicker {
+        color: #9a6a00;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 1.6px;
+        font-weight: 900;
+        margin: 0 0 12px;
+      }
+      .product-title {
+        max-width: 790px;
+        margin: 0;
+        font-size: 42px;
+        line-height: 1.1;
+        font-weight: 900;
+      }
+      .product-subtitle {
+        max-width: 780px;
+        margin: 20px 0 0;
+        color: #555;
+        font-size: 18px;
+        line-height: 1.55;
+      }
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .product-card {
+        border: 1.5px solid #d8d4c8;
+        border-radius: 14px;
+        padding: 22px;
+        background: #f8f7f3;
+      }
+      .product-label {
+        color: #9a6a00;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .product-card h2 {
+        margin: 0 0 12px;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      .product-text {
+        font-size: 15px;
+        line-height: 1.55;
+        color: #282828;
+      }
+      .product-module-title {
+        font-size: 28px;
+        line-height: 1.2;
+        margin: 0 0 22px;
+        font-weight: 900;
+      }
+      .product-module-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .product-result {
+        background: #111111;
+        color: #ffffff;
+        border-radius: 14px;
+        padding: 20px;
+        margin-top: 16px;
+      }
+      .product-result .product-label { color: #d4a847; }
+      .product-footer {
+        margin-top: 28px;
+        color: #8a867d;
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+      }
+    </style>
+    <div class="product-pdf">
+      <section class="product-slide product-cover">
+        <div class="product-brand">
+          <div class="product-mark">✦</div>
+          <div class="product-logo"><span>Luma</span>IQ</div>
+        </div>
+        <p class="product-kicker">PDF-презентация основного продукта</p>
+        <h1 class="product-title">${escapeHtml(productTitle)}</h1>
+        <p class="product-subtitle">${formatPdfText(product.offer || product.productDescription || projectName)}</p>
+        <div class="product-footer"><span>${escapeHtml(projectName)}</span><span>lumaiq.ru</span></div>
+      </section>
+
+      <section class="product-slide">
+        <p class="product-kicker">Архитектура продукта</p>
+        <div class="product-grid">
+          <div class="product-card">
+            <div class="product-label">Оффер</div>
+            <div class="product-text">${formatPdfText(product.offer)}</div>
+          </div>
+          <div class="product-card">
+            <div class="product-label">Описание</div>
+            <div class="product-text">${formatPdfText(product.productDescription)}</div>
+          </div>
+          <div class="product-card" style="grid-column: 1 / -1;">
+            <div class="product-label">Общий результат продукта</div>
+            <div class="product-text">${formatPdfText(product.transformation)}</div>
+          </div>
+        </div>
+        <div class="product-footer"><span>LumaIQ</span><span>Основной продукт</span></div>
+      </section>
+
+      ${modules.map((module, index) => `
+        <section class="product-slide">
+          <p class="product-kicker">Модуль ${index + 1}</p>
+          <h2 class="product-module-title">${escapeHtml(cleanModuleTitle(module.title, index))}</h2>
+          <div class="product-module-grid">
+            <div class="product-card">
+              <div class="product-label">Job клиента</div>
+              <div class="product-text">${formatPdfText(module.job)}</div>
+            </div>
+            <div class="product-card">
+              <div class="product-label">Оффер модуля</div>
+              <div class="product-text">${formatPdfText(module.offer)}</div>
+            </div>
+            <div class="product-card" style="grid-column: 1 / -1;">
+              <div class="product-label">Тезисы / содержание</div>
+              <div class="product-text">${formatPdfText(module.theses)}</div>
+            </div>
+          </div>
+          <div class="product-result">
+            <div class="product-label">Результат модуля</div>
+            <div class="product-text" style="color: #ffffff;">${formatPdfText(module.result)}</div>
+          </div>
+          <div class="product-footer"><span>${escapeHtml(productTitle)}</span><span>Модуль ${index + 1}</span></div>
+        </section>
+      `).join('')}
+    </div>
+  `;
+
+  document.body.appendChild(root);
+  try {
+    const pdfElement = root.querySelector<HTMLElement>('.product-pdf');
+    if (!pdfElement) throw new Error('Не удалось подготовить PDF-презентацию');
+    await (html2pdf() as {
+      set: (opts: Record<string, unknown>) => {
+        from: (el: HTMLElement) => { save: () => Promise<void> };
+      };
+    })
+      .set({
+        margin: 0,
+        filename: `LumaIQ_${safeFileName}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 1123, windowWidth: 1123 },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['css', 'legacy'] },
+      })
+      .from(pdfElement)
+      .save();
+  } finally {
+    document.body.removeChild(root);
+  }
 }
 
 export default function ProductMain() {
@@ -406,6 +633,21 @@ export default function ProductMain() {
     return parseAiJson<T>(resp.content);
   }
 
+  async function requestProductAiText(message: string, maxTokens = 1600): Promise<string> {
+    const settings = getSettings('product-main');
+    const resp = await aiApi.chat({
+      model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
+      claudeModel:         settings.claudeModel,
+      section:             'product-main',
+      message,
+      conversationHistory: [],
+      projectName,
+      unpackingProfile:    mergedProfile as Record<string, string>,
+      maxTokens,
+    });
+    return cleanCodeFence(resp.content);
+  }
+
   function buildProductBaseContext() {
     return `Ты продуктовый маркетолог и методолог экспертных продуктов с большим опытом в нише пользователя.
 Создаёшь флагманский ОСНОВНОЙ ПРОДУКТ эксперта.
@@ -419,12 +661,7 @@ ${context || 'Контекст пока не заполнен.'}
 - Каждый модуль решает отдельную job-to-be-done клиента.
 - У каждого модуля должны быть: название, job клиента, оффер модуля, тезисы/содержание, результат модуля.
 - Нужен общий результат продукта / продуктовое обещание.
-- Обязательно сделай 3 тарифа: Эконом, Стандарт, VIP.
-- Базовые цены: Эконом 35 000 ₽, Стандарт 50 000 ₽, VIP 80 000 ₽.
-- Логика тарифов:
-  - Эконом: 8 модулей + закрытый Telegram-чат.
-  - Стандарт: 8 модулей + мини-группа + закрытый Telegram-чат.
-  - VIP: все 10 модулей + мини-группа + индивидуальная работа + закрытый Telegram-чат.
+- Тарифы пользователь заполняет вручную. Не меняй тарифы, если пользователь прямо не просит.
 - Не подставляй психологию или другую нишу, если ее нет в контексте.
 - Пиши конкретно, как рабочий черновик, который эксперт сможет редактировать руками.
 - Верни валидный JSON. Без markdown, без комментариев, без текста до или после JSON.
@@ -515,7 +752,7 @@ ${context || 'Контекст пока не заполнен.'}
       }
 
       setLoadingStep('Генерирую общий результат продукта...');
-      const resultDraft = await requestProductAiJson<ProductTransformationAiDraft>(`${baseContext}
+      const transformation = await requestProductAiText(`${baseContext}
 
 Уже создан продукт:
 ${buildMainProductMarkdown(next)}
@@ -523,43 +760,11 @@ ${buildMainProductMarkdown(next)}
 Сейчас создай только общий результат продукта / продуктовое обещание.
 Опиши итоговую трансформацию клиента после прохождения всей программы: что изменится в бизнесе/жизни, какие решения появятся, какой результат станет возможен.
 
-Верни только JSON без markdown-блоков:
-{
-  "transformation": "общий результат продукта / продуктовое обещание"
-}`, 1600);
+Верни только текст общего результата без JSON и без markdown-блоков.`, 1400);
 
       next = {
         ...next,
-        transformation: resultDraft.transformation ?? '',
-      };
-      persistState(next);
-
-      setLoadingStep('Генерирую тарифы...');
-      const tariffsDraft = await requestProductAiJson<ProductTariffsAiDraft>(`${baseContext}
-
-Уже создан продукт:
-${buildMainProductMarkdown(next)}
-
-Сейчас создай только 3 тарифа.
-
-Верни только JSON без markdown-блоков:
-{
-  "tariffs": [
-    {
-      "name": "Эконом",
-      "price": "35 000 ₽",
-      "description": "для кого тариф",
-      "included": ["что входит 1", "что входит 2", "что входит 3"],
-      "support": "формат поддержки"
-    }
-  ]
-}
-
-В tariffs должно быть строго 3 элемента: Эконом, Стандарт, VIP.`, 1800);
-
-      next = {
-        ...next,
-        tariffs: normalizeAiTariffs(tariffsDraft.tariffs),
+        transformation,
       };
       persistState(next);
       toast.success('Основной продукт создан');
@@ -580,8 +785,7 @@ ${buildMainProductMarkdown(next)}
 
   function handleDownload() {
     if (!state.generated) return;
-    const fileName = state.name || state.nameOptions?.find(Boolean) || 'Основной продукт';
-    void exportToDocx(fileName, buildMainProductMarkdown(state), fileName || 'product-main');
+    void downloadProductPresentationPdf(state, projectName);
   }
 
   async function handleGenerateTransformation() {
@@ -589,18 +793,16 @@ ${buildMainProductMarkdown(next)}
     setLoading(true);
     setLoadingStep('Дозаполняю общий результат продукта...');
     try {
-      const resultDraft = await requestProductAiJson<ProductTransformationAiDraft>(`${buildProductBaseContext()}
+      const transformation = await requestProductAiText(`${buildProductBaseContext()}
 
 Текущий продукт:
 ${buildMainProductMarkdown(state)}
 
 Сгенерируй только общий результат продукта / продуктовое обещание.
-Верни только JSON:
-{
-  "transformation": "итоговая трансформация клиента после всей программы"
-}`, 1600);
+Опиши итоговую трансформацию клиента после всей программы.
+Верни только текст без JSON и без markdown-блоков.`, 1400);
 
-      patchState({ transformation: resultDraft.transformation ?? '' });
+      patchState({ transformation });
       toast.success('Общий результат заполнен');
     } catch (err) {
       console.error('[ProductMain transformation] AI error:', err);
@@ -624,8 +826,13 @@ ${buildMainProductMarkdown(state)}
     try {
       const resp = await requestProductAiJson<ProductChatAiDraft>(`${buildProductBaseContext()}
 
-Ты работаешь как продуктовый методолог внутри редактора модуля.
-Пользователь редактирует модуль ${activeModuleIndex + 1}.
+Ты работаешь как продуктовый методолог внутри конструктора основного продукта.
+Ты можешь помогать и по выбранному модулю, и по всей программе сразу.
+Если пользователь просит удалить лишние модули, сократить программу до 6 модулей, добавить модуль, пересобрать структуру, доработать все модули — выполни это в patch.modules.
+Если пользователь просит доработать только выбранный модуль — выполни это в patch.activeModule.
+Не отказывайся от комплексных правок. Делай их аккуратно и сохраняй смысл продукта.
+
+Сейчас выбран модуль ${activeModuleIndex + 1}.
 
 Текущий продукт:
 ${buildMainProductMarkdown(state)}
@@ -641,23 +848,57 @@ ${activeModule.theses}
 История диалога по этому модулю:
 ${nextMessages.map((msg) => `${msg.role === 'user' ? 'Пользователь' : 'ИИ'}: ${msg.content}`).join('\n')}
 
-Ответь пользователю коротко и по делу. Если пользователь просит улучшить, переписать, усилить или применить идею к модулю, верни patch только для полей, которые нужно изменить.
+Ответь пользователю коротко и по делу.
 
 Верни только JSON:
 {
   "reply": "короткий ответ пользователю, что именно предлагаешь или что изменил",
   "patch": {
-    "title": "новое название модуля, если нужно",
-    "job": "новая job клиента, если нужно",
-    "offer": "новый оффер модуля, если нужно",
-    "theses": "новые тезисы через переносы строк, если нужно",
-    "result": "новый результат модуля, если нужно"
+    "offer": "новый общий оффер продукта, если нужно",
+    "productDescription": "новое описание продукта, если нужно",
+    "transformation": "новый общий результат продукта, если нужно",
+    "activeModule": {
+      "title": "новое название выбранного модуля, если нужно",
+      "job": "новая job клиента, если нужно",
+      "offer": "новый оффер модуля, если нужно",
+      "theses": ["новый тезис 1", "новый тезис 2"],
+      "result": "новый результат модуля, если нужно"
+    },
+    "modules": [
+      {
+        "title": "название модуля без слов Модуль 1 / Модуль 2",
+        "job": "job клиента",
+        "offer": "оффер модуля",
+        "theses": ["тезис 1", "тезис 2", "тезис 3"],
+        "result": "результат модуля"
+      }
+    ]
   }
-}`, 2200);
+}`, 4200);
 
-      const patch = cleanModulePatch(resp.patch);
-      if (Object.values(patch).some(Boolean)) {
-        patchModule(activeModuleIndex, patch);
+      const patch = resp.patch;
+      if (patch) {
+        const statePatch: Partial<ProductState> = {};
+        if (patch.offer) statePatch.offer = aiText(patch.offer);
+        if (patch.productDescription) statePatch.productDescription = aiText(patch.productDescription);
+        if (patch.transformation) statePatch.transformation = aiText(patch.transformation);
+        if (patch.nameOptions?.length) {
+          statePatch.nameOptions = normalizeNameOptions(patch.nameOptions, state.name);
+          statePatch.name = statePatch.nameOptions.find(Boolean) || state.name;
+        }
+        if (patch.modules?.length) {
+          statePatch.modules = normalizeAiModules(patch.modules);
+          statePatch.format = `3 месяца / ${statePatch.modules.length} модулей / еженедельно`;
+          setActiveModuleIndex((current) => Math.min(current, statePatch.modules!.length - 1));
+        }
+        if (Object.keys(statePatch).length) {
+          patchState(statePatch);
+        }
+
+        const activePatch = cleanModulePatch(patch.activeModule);
+        if (Object.values(activePatch).some(Boolean) && !patch.modules?.length) {
+          patchModule(activeModuleIndex, activePatch);
+        }
       }
 
       setProductChatMessages((current) => [
@@ -821,7 +1062,7 @@ ${buildMainProductMarkdown(state)}
               {reviewing ? 'Проверяю...' : 'Проверить с ИИ'}
             </button>
             <button style={btnOutlined} onClick={handleCopy}>Копировать</button>
-            <button style={btnOutlined} onClick={handleDownload}>Скачать .docx</button>
+            <button style={btnOutlined} onClick={handleDownload}>Скачать презентацию .pdf</button>
           </>
         )}
       </div>
@@ -851,10 +1092,11 @@ ${buildMainProductMarkdown(state)}
               {normalizeNameOptions(state.nameOptions, state.name).map((name, index) => (
                 <div key={index} style={{ ...blockStyle, background: index === 0 ? '#F1EBDD' : '#F8F7F3' }}>
                   <div style={labelStyle}>{index === 0 ? 'Вариант 1 / основной' : `Вариант ${index + 1}`}</div>
-                  <textarea
+                  <AutoTextarea
                     value={name}
-                    onChange={(e) => patchNameOption(index, e.target.value)}
-                    style={{ ...textareaStyle, minHeight: 72, fontWeight: 800, fontSize: 16, background: '#fff' }}
+                    onChange={(value) => patchNameOption(index, value)}
+                    style={{ ...textareaStyle, fontWeight: 800, fontSize: 15, background: '#fff' }}
+                    minHeight={72}
                   />
                 </div>
               ))}
@@ -864,12 +1106,12 @@ ${buildMainProductMarkdown(state)}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 14 }}>
             <div style={blockStyle}>
               <div style={labelStyle}>Оффер</div>
-              <textarea value={state.offer ?? ''} onChange={(e) => patchState({ offer: e.target.value })} style={{ ...textareaStyle, minHeight: 130, background: '#fff' }} />
+              <AutoTextarea value={state.offer ?? ''} onChange={(value) => patchState({ offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={130} />
             </div>
 
             <div style={blockStyle}>
               <div style={labelStyle}>Описание продукта</div>
-              <textarea value={state.productDescription ?? ''} onChange={(e) => patchState({ productDescription: e.target.value })} style={{ ...textareaStyle, minHeight: 130, background: '#fff' }} />
+              <AutoTextarea value={state.productDescription ?? ''} onChange={(value) => patchState({ productDescription: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={130} />
             </div>
           </div>
 
@@ -908,7 +1150,7 @@ ${buildMainProductMarkdown(state)}
                         </span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.35, marginBottom: 6 }}>
-                        {module.title || `Модуль ${index + 1}`}
+                        {cleanModuleTitle(module.title, index)}
                       </div>
                       {module.result && (
                         <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4 }}>
@@ -920,7 +1162,7 @@ ${buildMainProductMarkdown(state)}
                 })}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16, alignItems: 'start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16, alignItems: 'start', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflowY: 'auto' }}>
                 <div style={{ ...blockStyle, background: '#fff' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
                     <div>
@@ -960,15 +1202,15 @@ ${buildMainProductMarkdown(state)}
                   </div>
                 </div>
 
-                <div style={{ ...blockStyle, background: '#111', color: '#fff', position: 'sticky', top: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 4 }}>ИИ по модулю {activeModuleIndex + 1}</div>
+                <div style={{ ...blockStyle, background: '#111', color: '#fff' }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 4 }}>ИИ по продукту</div>
                   <div style={{ fontSize: 12, color: '#bbb', lineHeight: 1.45, marginBottom: 14 }}>
-                    Обсуждайте модуль, просите усилить оффер, упростить язык или добавить содержание. Если ИИ предложит правку, она применится к выбранному модулю.
+                    Можно дорабатывать выбранный модуль или всю программу сразу: удалить лишние модули, сократить до 6, добавить блоки, усилить логику и результат.
                   </div>
                   <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
                     {productChatMessages.length === 0 && (
                       <div style={{ background: '#1f1f1f', borderRadius: 10, padding: 10, fontSize: 13, color: '#ddd', lineHeight: 1.45 }}>
-                        Например: “Усиль результат модуля и сделай его конкретнее для клиента”.
+                        Например: “Сократи программу до 6 модулей и пересобери логику так, чтобы клиент проходил путь без лишних шагов”.
                       </div>
                     )}
                     {productChatMessages.map((message, index) => (
@@ -1007,7 +1249,7 @@ ${buildMainProductMarkdown(state)}
                     {productChatLoading ? 'Отправляю...' : 'Отправить ИИ'}
                   </button>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 10 }}>
-                    {['Усиль оффер модуля', 'Сделай результат конкретнее', 'Упрости язык для клиента'].map((quickPrompt) => (
+                    {['Усиль выбранный модуль', 'Сократи программу до 6 модулей', 'Пересобери логику всех модулей'].map((quickPrompt) => (
                       <button
                         key={quickPrompt}
                         style={{ ...btnOutlined, padding: '8px 10px', fontSize: 12, background: '#1f1f1f', color: '#fff', borderColor: '#333' }}
