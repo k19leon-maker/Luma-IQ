@@ -1035,8 +1035,8 @@ ${buildMainProductMarkdown(state)}
   };
   const modules = state.modules ?? DEFAULT_MODULES;
   const activeModule = modules[activeModuleIndex] ?? modules[0] ?? createEmptyModule(0);
-  const stickyTop = 76;
-  const stickyHeight = `calc(100vh - ${stickyTop + 18}px)`;
+  const stickyTop = 0;
+  const stickyHeight = 'calc(100vh - 136px)';
 
   return (
     <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
@@ -1129,7 +1129,7 @@ ${buildMainProductMarkdown(state)}
               <button style={subtleButton} onClick={addModule}>+ Добавить модуль</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 320px) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
-              <div style={{ ...blockStyle, padding: 10, position: 'sticky', top: stickyTop, maxHeight: stickyHeight, overflowY: 'auto' }}>
+              <div style={{ ...blockStyle, padding: 10, position: 'sticky', top: stickyTop, height: stickyHeight, overflowY: 'auto', overscrollBehavior: 'contain' }}>
                 {modules.map((module, index) => {
                   const filledFields = [module.title, module.job, module.offer, module.theses, module.result].filter((value) => value?.trim()).length;
                   const isActive = index === activeModuleIndex;
@@ -1169,7 +1169,7 @@ ${buildMainProductMarkdown(state)}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(300px, 0.75fr)', gap: 14, alignItems: 'stretch', position: 'sticky', top: stickyTop, height: stickyHeight, overflow: 'hidden' }}>
-                <div style={{ ...blockStyle, background: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ ...blockStyle, background: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', overscrollBehavior: 'contain' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexShrink: 0 }}>
                     <div>
                       <div style={labelStyle}>Редактор выбранного модуля</div>
@@ -1184,7 +1184,7 @@ ${buildMainProductMarkdown(state)}
                     </button>
                   </div>
 
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7, paddingRight: 4 }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', gap: 7, paddingRight: 4 }}>
                     <div>
                       <div style={labelStyle}>Название модуля</div>
                       <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 13, fontWeight: 800, background: '#fff' }} minHeight={42} maxHeight={76} />
@@ -1208,12 +1208,12 @@ ${buildMainProductMarkdown(state)}
                   </div>
                 </div>
 
-                <div style={{ ...blockStyle, background: '#111', color: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ ...blockStyle, background: '#111', color: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', overscrollBehavior: 'contain' }}>
                   <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 4 }}>ИИ по продукту</div>
                   <div style={{ fontSize: 11, color: '#bbb', lineHeight: 1.4, marginBottom: 10 }}>
                     Можно дорабатывать выбранный модуль или всю программу сразу: удалить лишние модули, сократить до 6, добавить блоки, усилить логику и результат.
                   </div>
-                  <div style={{ flex: 1, minHeight: 90, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, minHeight: 90, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                     {productChatMessages.length === 0 && (
                       <div style={{ background: '#1f1f1f', borderRadius: 10, padding: 9, fontSize: 12, color: '#ddd', lineHeight: 1.4 }}>
                         Например: “Сократи программу до 6 модулей и пересобери логику так, чтобы клиент проходил путь без лишних шагов”.
