@@ -333,6 +333,18 @@ function compactText(value?: string, limit = 260): string {
   return cleaned.length > limit ? `${cleaned.slice(0, limit).trim()}...` : cleaned;
 }
 
+function limitWords(value: string, maxWords = 40): string {
+  const words = value.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (words.length <= maxWords) return words.join(' ');
+  return words.slice(0, maxWords).join(' ');
+}
+
+function normalizeTransformation(value: string, fallbackProduct?: ProductState): string {
+  const cleaned = cleanCodeFence(value).replace(/^["“”]+|["“”]+$/g, '').trim();
+  const source = cleaned || (fallbackProduct ? buildLocalTransformation(fallbackProduct) : '');
+  return limitWords(source, 40);
+}
+
 function buildCompactProductContext(product: ProductState): string {
   const modules = (product.modules?.length ? product.modules : DEFAULT_MODULES)
     .map((module, index) => [
@@ -365,21 +377,14 @@ function extractRequestedModuleCount(value: string): number | null {
 }
 
 function buildLocalTransformation(product: ProductState): string {
-  const modules = (product.modules ?? []).filter((module) =>
-    module.title.trim() || module.job.trim() || module.offer.trim() || module.result.trim(),
-  );
-  const moduleResults = modules
-    .map((module, index) => `${index + 1}. ${cleanModuleTitle(module.title, index)}: ${module.result || module.offer || module.job}`)
-    .filter((line) => line.replace(/\d+\.|:/g, '').trim())
-    .slice(0, 10)
-    .join('\n');
-
-  return [
-    product.offer ? `После прохождения продукта клиент получает главный результат: ${product.offer}` : '',
-    product.productDescription ? `Программа ведет клиента через понятный путь: ${product.productDescription}` : '',
-    moduleResults ? `По шагам клиент проходит такие изменения:\n${moduleResults}` : '',
-    'Итоговое продуктовое обещание: клиент выходит с понятной системой действий, снижает хаос в текущей ситуации и получает практический план, который можно применять сразу после завершения программы.',
-  ].filter(Boolean).join('\n\n');
+  const offer = compactText(product.offer || product.productDescription, 220);
+  const modules = (product.modules ?? []).filter((module) => module.result.trim() || module.offer.trim());
+  const lastModule = modules[modules.length - 1];
+  const lastResult = lastModule?.result || lastModule?.offer || '';
+  const source = offer
+    ? `Клиент проходит понятную программу и получает результат: ${offer}`
+    : `Клиент проходит программу шаг за шагом, убирает главную проблему, получает ясную систему действий и выходит с конкретным результатом, который можно применять сразу.`;
+  return limitWords(lastResult ? `${source} ${lastResult}` : source, 40);
 }
 
 async function downloadProductPresentationPdf(product: ProductState, projectName: string): Promise<void> {
@@ -819,7 +824,9 @@ ${context || 'Контекст пока не заполнен.'}
 ${buildCompactProductContext(next)}
 
 Сейчас создай только общий результат продукта / продуктовое обещание.
-Опиши итоговую трансформацию клиента после прохождения всей программы: что изменится в бизнесе/жизни, какие решения появятся, какой результат станет возможен.
+Опиши итоговую трансформацию клиента после прохождения всей программы одной сильной офферной фразой.
+Длина: 30-40 слов максимум.
+Без списка, без заголовков, без подробного описания модулей.
 
 Верни только текст общего результата без JSON и без markdown-блоков.`, 1400);
       } catch (err) {
@@ -829,7 +836,7 @@ ${buildCompactProductContext(next)}
 
       next = {
         ...next,
-        transformation: transformation.trim() || buildLocalTransformation(next),
+        transformation: normalizeTransformation(transformation, next),
       };
       persistState(next);
       toast.success('Основной продукт создан');
@@ -867,15 +874,16 @@ ${buildCompactProductContext(next)}
 ${buildCompactProductContext(state)}
 
 Сгенерируй только общий результат продукта / продуктовое обещание.
-Опиши итоговую трансформацию клиента после всей программы.
-Не повторяй дословно модули. Собери цельное обещание: из какой точки клиент приходит, через какие изменения проходит, что получает в итоге.
+Опиши итоговую трансформацию клиента после всей программы одной сильной офферной фразой.
+Длина: 30-40 слов максимум.
+Без списка, без заголовков, без подробного описания модулей.
 Верни только текст без JSON и без markdown-блоков.`, 1400);
 
-      patchState({ transformation: transformation.trim() || buildLocalTransformation(state) });
+      patchState({ transformation: normalizeTransformation(transformation, state) });
       toast.success('Общий результат заполнен');
     } catch (err) {
       console.error('[ProductMain transformation] AI error:', err);
-      patchState({ transformation: buildLocalTransformation(state) });
+      patchState({ transformation: normalizeTransformation('', state) });
       toast.success('Заполнил черновик общего результата');
     } finally {
       setLoading(false);
@@ -888,7 +896,7 @@ ${buildCompactProductContext(state)}
     const statePatch: Partial<ProductState> = {};
     if (patch.offer) statePatch.offer = aiText(patch.offer);
     if (patch.productDescription) statePatch.productDescription = aiText(patch.productDescription);
-    if (patch.transformation) statePatch.transformation = aiText(patch.transformation);
+    if (patch.transformation) statePatch.transformation = normalizeTransformation(aiText(patch.transformation), state);
     if (patch.nameOptions?.length) {
       statePatch.nameOptions = normalizeNameOptions(patch.nameOptions, state.name);
       statePatch.name = statePatch.nameOptions.find(Boolean) || state.name;
@@ -922,9 +930,12 @@ ${buildCompactProductContext(state)}
 Сделай новую программу строго из ${count} модулей.
 Важно:
 - сохрани главный смысл продукта и путь клиента;
-- убери лишние шаги;
-- перепиши все оставшиеся модули так, чтобы программа была цельной;
+- если модулей надо меньше — убери лишние шаги и перепиши оставшиеся;
+- если модулей надо больше — добавь недостающие шаги и перепиши всю программу;
+- перепиши все модули так, чтобы программа была цельной;
 - название каждого модуля пиши без слов "Модуль 1", "Модуль 2";
+- в массиве modules должно быть ровно ${count} элементов;
+- transformation должен быть одной офферной фразой на 30-40 слов максимум;
 - не меняй тарифы.
 
 Верни только JSON:
@@ -954,22 +965,12 @@ ${buildCompactProductContext(state)}
       applyProductChatPatch({
         ...parsed?.patch,
         modules: parsed?.patch?.modules?.slice(0, count),
-        transformation: parsed?.patch?.transformation || buildLocalTransformation({ ...state, modules: aiModules }),
+        transformation: normalizeTransformation(aiText(parsed?.patch?.transformation), { ...state, modules: aiModules }),
       });
       return parsed?.reply || `Пересобрал программу: теперь в ней ${count} модулей.`;
     }
 
-    const fallbackModules = (state.modules ?? DEFAULT_MODULES).slice(0, count).map((module, index) => ({
-      ...module,
-      title: cleanModuleTitle(module.title, index),
-    }));
-    patchState({
-      modules: fallbackModules,
-      format: `3 месяца / ${fallbackModules.length} модулей / еженедельно`,
-      transformation: state.transformation || buildLocalTransformation({ ...state, modules: fallbackModules }),
-    });
-    setActiveModuleIndex((current) => Math.min(current, fallbackModules.length - 1));
-    return `Сократил программу до ${count} модулей и сохранил текущую логику. ИИ не вернул структуру в нужном формате, поэтому я аккуратно убрал лишние модули и оставил блоки редактируемыми.`;
+    return `Не применил изменение: ИИ не вернул ровно ${count} модулей в нужном формате. Попробуйте ещё раз: “Пересобери программу строго в ${count} модулей и верни все модули полностью”.`;
   }
 
   async function handleProductChatSend() {
