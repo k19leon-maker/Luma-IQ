@@ -68,18 +68,31 @@ interface ProductChatMessage {
   content: string;
 }
 
-interface ProductChatPatch {
-  nameOptions?: string[];
-  offer?: AiTextValue;
-  productDescription?: AiTextValue;
+type ProductAssistantIntent =
+  | { type: 'change_module_count'; count: number }
+  | { type: 'rewrite_all_modules' }
+  | { type: 'improve_active_module' }
+  | { type: 'generate_transformation' }
+  | { type: 'improve_offer' }
+  | { type: 'improve_description' }
+  | { type: 'add_module' }
+  | { type: 'delete_active_module' }
+  | { type: 'unknown' };
+
+interface ProductAssistantModulesDraft {
+  reply?: string;
   modules?: MainProductAiModule[];
-  activeModule?: MainProductAiModule;
   transformation?: AiTextValue;
 }
 
-interface ProductChatAiDraft {
+interface ProductAssistantModuleDraft {
   reply?: string;
-  patch?: ProductChatPatch;
+  module?: MainProductAiModule;
+}
+
+interface ProductAssistantTextDraft {
+  reply?: string;
+  value?: AiTextValue;
 }
 
 const DEFAULT_MODULES: ModuleBlock[] = Array.from({ length: 10 }, (_, index) => ({
@@ -365,6 +378,24 @@ function buildCompactProductContext(product: ProductState): string {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildStructuredProductPayload(product: ProductState) {
+  return {
+    name: compactText(product.name || normalizeNameOptions(product.nameOptions, product.name).find(Boolean) || '', 180),
+    nameOptions: normalizeNameOptions(product.nameOptions, product.name).map((name) => compactText(name, 140)),
+    offer: compactText(product.offer, 500),
+    productDescription: compactText(product.productDescription, 700),
+    transformation: compactText(product.transformation, 220),
+    modules: (product.modules?.length ? product.modules : DEFAULT_MODULES).map((module, index) => ({
+      index: index + 1,
+      title: compactText(cleanModuleTitle(module.title, index), 160),
+      job: compactText(module.job, 280),
+      offer: compactText(module.offer, 280),
+      theses: compactText(module.theses, 420),
+      result: compactText(module.result, 280),
+    })),
+  };
+}
+
 function extractRequestedModuleCount(value: string): number | null {
   const normalized = value.toLowerCase().replace(/ё/g, 'е');
   const hasProgramCommand = /(остав|сократ|удал|убер|пересоб|модул)/i.test(normalized);
@@ -374,6 +405,42 @@ function extractRequestedModuleCount(value: string): number | null {
   if (!match) return null;
   const count = Number(match[1]);
   return count >= 1 && count <= 20 ? count : null;
+}
+
+function detectProductAssistantIntent(value: string, currentModuleCount: number): ProductAssistantIntent {
+  const normalized = value.toLowerCase().replace(/ё/g, 'е');
+  const count = extractRequestedModuleCount(normalized);
+  if (count) return { type: 'change_module_count', count };
+  if (/(добав|созда).*модул/.test(normalized)) return { type: 'add_module' };
+  if (/(удал|убер).*модул/.test(normalized)) return { type: 'delete_active_module' };
+  if (/(пересоб|перепиш|передел|логик).*модул|все\s+модул|всю\s+программ/.test(normalized)) {
+    return { type: 'change_module_count', count: currentModuleCount };
+  }
+  if (/(общ.*результ|продуктов.*обещ|трансформац)/.test(normalized)) return { type: 'generate_transformation' };
+  if (/(оффер|предложени)/.test(normalized) && !/модул/.test(normalized)) return { type: 'improve_offer' };
+  if (/(описани|аннотац)/.test(normalized) && !/модул/.test(normalized)) return { type: 'improve_description' };
+  if (/(выбран|текущ|этот|данн|улучш|усиль|упрост|сделай|перепиш|доработ)/.test(normalized)) {
+    return { type: 'improve_active_module' };
+  }
+  return { type: 'unknown' };
+}
+
+function validateModulesPatch(modules: ModuleBlock[], expectedCount: number): string | null {
+  if (modules.length !== expectedCount) return `ожидалось ${expectedCount} модулей, пришло ${modules.length}`;
+  const invalidIndex = modules.findIndex((module) =>
+    !module.title.trim() || !module.job.trim() || !module.offer.trim() || !module.theses.trim() || !module.result.trim(),
+  );
+  if (invalidIndex !== -1) return `модуль ${invalidIndex + 1} заполнен не полностью`;
+  return null;
+}
+
+function validateModulePatch(module: Partial<ModuleBlock>): string | null {
+  if (!module.title?.trim()) return 'нет названия модуля';
+  if (!module.job?.trim()) return 'нет job клиента';
+  if (!module.offer?.trim()) return 'нет оффера модуля';
+  if (!module.theses?.trim()) return 'нет тезисов/содержания';
+  if (!module.result?.trim()) return 'нет результата модуля';
+  return null;
 }
 
 function buildLocalTransformation(product: ProductState): string {
@@ -891,41 +958,23 @@ ${buildCompactProductContext(state)}
     }
   }
 
-  function applyProductChatPatch(patch?: ProductChatPatch) {
-    if (!patch) return;
-    const statePatch: Partial<ProductState> = {};
-    if (patch.offer) statePatch.offer = aiText(patch.offer);
-    if (patch.productDescription) statePatch.productDescription = aiText(patch.productDescription);
-    if (patch.transformation) statePatch.transformation = normalizeTransformation(aiText(patch.transformation), state);
-    if (patch.nameOptions?.length) {
-      statePatch.nameOptions = normalizeNameOptions(patch.nameOptions, state.name);
-      statePatch.name = statePatch.nameOptions.find(Boolean) || state.name;
-    }
-    if (patch.modules?.length) {
-      statePatch.modules = normalizeAiModules(patch.modules);
-      statePatch.format = `3 месяца / ${statePatch.modules.length} модулей / еженедельно`;
-      setActiveModuleIndex((current) => Math.min(current, statePatch.modules!.length - 1));
-    }
-    if (Object.keys(statePatch).length) {
-      patchState(statePatch);
-    }
-
-    const activePatch = cleanModulePatch(patch.activeModule);
-    if (Object.values(activePatch).some(Boolean) && !patch.modules?.length) {
-      patchModule(activeModuleIndex, activePatch);
-    }
+  function applyModulesPatch(modules: ModuleBlock[], transformation?: string) {
+    patchState({
+      modules,
+      format: `3 месяца / ${modules.length} модулей / еженедельно`,
+      transformation: transformation ? normalizeTransformation(transformation, { ...state, modules }) : state.transformation,
+    });
+    setActiveModuleIndex((current) => Math.min(current, modules.length - 1));
   }
 
-  async function handleModuleCountCommand(text: string, count: number): Promise<string> {
-    let raw = '';
-    try {
-      raw = await requestProductAiRaw(`${buildProductBaseContext()}
+  async function runModulesEditor(text: string, count: number): Promise<string> {
+    const raw = await requestProductAiRaw(`${buildProductBaseContext()}
 
 Пользователь просит пересобрать программу по модулям.
 Команда пользователя: ${text}
 
-Текущий продукт:
-${buildCompactProductContext(state)}
+Текущий продукт в JSON:
+${JSON.stringify(buildStructuredProductPayload(state), null, 2)}
 
 Сделай новую программу строго из ${count} модулей.
 Важно:
@@ -941,36 +990,142 @@ ${buildCompactProductContext(state)}
 Верни только JSON:
 {
   "reply": "коротко что изменил",
-  "patch": {
-    "modules": [
-      {
-        "title": "название модуля",
-        "job": "job клиента",
-        "offer": "оффер модуля",
-        "theses": ["тезис 1", "тезис 2", "тезис 3", "тезис 4"],
-        "result": "результат модуля"
-      }
-    ],
-    "transformation": "обновленное продуктовое обещание под новую программу"
-  }
+  "modules": [
+    {
+      "title": "название модуля",
+      "job": "job клиента",
+      "offer": "оффер модуля",
+      "theses": ["тезис 1", "тезис 2", "тезис 3", "тезис 4"],
+      "result": "результат модуля"
+    }
+  ],
+  "transformation": "обновленное продуктовое обещание под новую программу"
 }`, 8000);
-    } catch (err) {
-      console.error('[ProductMain module count] AI error:', err);
+
+    const parsed = tryParseAiJson<ProductAssistantModulesDraft>(raw);
+    const aiModules = parsed?.modules?.length ? normalizeAiModules(parsed.modules) : [];
+    const validationError = validateModulesPatch(aiModules, count);
+
+    if (validationError) {
+      return `Не применил изменение: ИИ вернул некорректную структуру (${validationError}). Данные продукта не изменены.`;
     }
 
-    const parsed = tryParseAiJson<ProductChatAiDraft>(raw);
-    const aiModules = parsed?.patch?.modules?.length ? normalizeAiModules(parsed.patch.modules).slice(0, count) : [];
+    applyModulesPatch(aiModules, aiText(parsed?.transformation));
+    return parsed?.reply || `Пересобрал программу: теперь в ней ${count} модулей.`;
+  }
 
-    if (aiModules.length === count) {
-      applyProductChatPatch({
-        ...parsed?.patch,
-        modules: parsed?.patch?.modules?.slice(0, count),
-        transformation: normalizeTransformation(aiText(parsed?.patch?.transformation), { ...state, modules: aiModules }),
-      });
-      return parsed?.reply || `Пересобрал программу: теперь в ней ${count} модулей.`;
+  async function runActiveModuleEditor(text: string, activeModule: ModuleBlock): Promise<string> {
+    const raw = await requestProductAiRaw(`${buildProductBaseContext()}
+
+Пользователь просит доработать выбранный модуль.
+Команда пользователя: ${text}
+
+Текущий продукт в JSON:
+${JSON.stringify(buildStructuredProductPayload(state), null, 2)}
+
+Выбранный модуль ${activeModuleIndex + 1}:
+${JSON.stringify({
+  title: activeModule.title,
+  job: activeModule.job,
+  offer: activeModule.offer,
+  theses: activeModule.theses,
+  result: activeModule.result,
+}, null, 2)}
+
+Перепиши только выбранный модуль. Верни полный модуль, а не частичный патч.
+Не меняй другие модули, тарифы, оффер продукта и описание продукта.
+
+Верни только JSON:
+{
+  "reply": "коротко что изменил",
+  "module": {
+    "title": "название модуля без слов Модуль 1 / Модуль 2",
+    "job": "job клиента",
+    "offer": "оффер модуля",
+    "theses": ["тезис 1", "тезис 2", "тезис 3", "тезис 4"],
+    "result": "результат модуля"
+  }
+}`, 3000);
+
+    const parsed = tryParseAiJson<ProductAssistantModuleDraft>(raw);
+    const modulePatch = cleanModulePatch(parsed?.module);
+    const validationError = validateModulePatch(modulePatch);
+    if (validationError) {
+      return `Не применил изменение: ИИ вернул неполный модуль (${validationError}). Данные продукта не изменены.`;
     }
 
-    return `Не применил изменение: ИИ не вернул ровно ${count} модулей в нужном формате. Попробуйте ещё раз: “Пересобери программу строго в ${count} модулей и верни все модули полностью”.`;
+    patchModule(activeModuleIndex, modulePatch as ModuleBlock);
+    return parsed?.reply || `Доработал модуль ${activeModuleIndex + 1}.`;
+  }
+
+  async function runTextFieldEditor(text: string, field: 'offer' | 'productDescription' | 'transformation'): Promise<string> {
+    const fieldLabel = field === 'offer'
+      ? 'главный оффер продукта'
+      : field === 'productDescription'
+        ? 'описание продукта'
+        : 'общий результат продукта / продуктовое обещание';
+    const extraRules = field === 'transformation'
+      ? '- value должен быть одной офферной фразой на 30-40 слов максимум, без списка и markdown.'
+      : '- value должен быть готовым текстом для вставки в поле.';
+
+    const raw = await requestProductAiRaw(`${buildProductBaseContext()}
+
+Пользователь просит доработать поле: ${fieldLabel}.
+Команда пользователя: ${text}
+
+Текущий продукт в JSON:
+${JSON.stringify(buildStructuredProductPayload(state), null, 2)}
+
+Правила:
+${extraRules}
+- Не меняй модули и тарифы.
+
+Верни только JSON:
+{
+  "reply": "коротко что изменил",
+  "value": "новый текст поля"
+}`, 1800);
+
+    const parsed = tryParseAiJson<ProductAssistantTextDraft>(raw);
+    const value = aiText(parsed?.value);
+    if (!value.trim()) {
+      return `Не применил изменение: ИИ не вернул новый текст для поля "${fieldLabel}". Данные продукта не изменены.`;
+    }
+
+    if (field === 'transformation') {
+      patchState({ transformation: normalizeTransformation(value, state) });
+    } else if (field === 'offer') {
+      patchState({ offer: value.trim() });
+    } else {
+      patchState({ productDescription: value.trim() });
+    }
+    return parsed?.reply || `Обновил ${fieldLabel}.`;
+  }
+
+  async function handleProductAssistantIntent(text: string, intent: ProductAssistantIntent, activeModule: ModuleBlock): Promise<string> {
+    switch (intent.type) {
+      case 'change_module_count':
+        return runModulesEditor(text, intent.count);
+      case 'rewrite_all_modules':
+        return runModulesEditor(text, state.modules?.length || DEFAULT_MODULES.length);
+      case 'improve_active_module':
+        return runActiveModuleEditor(text, activeModule);
+      case 'generate_transformation':
+        return runTextFieldEditor(text, 'transformation');
+      case 'improve_offer':
+        return runTextFieldEditor(text, 'offer');
+      case 'improve_description':
+        return runTextFieldEditor(text, 'productDescription');
+      case 'add_module':
+        return runModulesEditor(text, (state.modules?.length || DEFAULT_MODULES.length) + 1);
+      case 'delete_active_module': {
+        const currentCount = state.modules?.length || DEFAULT_MODULES.length;
+        if (currentCount <= 1) return 'Не удалил модуль: в продукте должен остаться хотя бы один модуль.';
+        return runModulesEditor(text, currentCount - 1);
+      }
+      default:
+        return 'Я могу доработать выбранный модуль, пересобрать все модули, изменить количество модулей, улучшить оффер, описание или общий результат. Сформулируйте действие конкретно, например: “Пересобери программу в 8 модулей”.';
+    }
   }
 
   async function handleProductChatSend() {
@@ -984,73 +1139,11 @@ ${buildCompactProductContext(state)}
     setProductChatLoading(true);
 
     try {
-      const requestedModuleCount = extractRequestedModuleCount(text);
-      if (requestedModuleCount) {
-        const reply = await handleModuleCountCommand(text, requestedModuleCount);
-        setProductChatMessages((current) => [...current, { role: 'assistant', content: reply }]);
-        return;
-      }
-
-      const raw = await requestProductAiRaw(`${buildProductBaseContext()}
-
-Ты работаешь как продуктовый методолог внутри конструктора основного продукта.
-Ты можешь помогать и по выбранному модулю, и по всей программе сразу.
-Если пользователь просит удалить лишние модули, сократить программу до 6 модулей, добавить модуль, пересобрать структуру, доработать все модули — выполни это в patch.modules.
-Если пользователь просит доработать только выбранный модуль — выполни это в patch.activeModule.
-Не отказывайся от комплексных правок. Делай их аккуратно и сохраняй смысл продукта.
-
-Сейчас выбран модуль ${activeModuleIndex + 1}.
-
-Текущий продукт:
-${buildCompactProductContext(state)}
-
-Текущий модуль:
-Название: ${activeModule.title}
-Job клиента: ${activeModule.job}
-Оффер модуля: ${activeModule.offer}
-Тезисы / содержание:
-${activeModule.theses}
-Результат модуля: ${activeModule.result}
-
-История диалога по этому модулю:
-${nextMessages.map((msg) => `${msg.role === 'user' ? 'Пользователь' : 'ИИ'}: ${msg.content}`).join('\n')}
-
-Ответь пользователю коротко и по делу.
-
-Верни только JSON:
-{
-  "reply": "короткий ответ пользователю, что именно предлагаешь или что изменил",
-  "patch": {
-    "offer": "новый общий оффер продукта, если нужно",
-    "productDescription": "новое описание продукта, если нужно",
-    "transformation": "новый общий результат продукта, если нужно",
-    "activeModule": {
-      "title": "новое название выбранного модуля, если нужно",
-      "job": "новая job клиента, если нужно",
-      "offer": "новый оффер модуля, если нужно",
-      "theses": ["новый тезис 1", "новый тезис 2"],
-      "result": "новый результат модуля, если нужно"
-    },
-    "modules": [
-      {
-        "title": "название модуля без слов Модуль 1 / Модуль 2",
-        "job": "job клиента",
-        "offer": "оффер модуля",
-        "theses": ["тезис 1", "тезис 2", "тезис 3"],
-        "result": "результат модуля"
-      }
-    ]
-  }
-}`, 4200);
-
-      const resp = tryParseAiJson<ProductChatAiDraft>(raw);
-      if (resp?.patch) {
-        applyProductChatPatch(resp.patch);
-      }
-
+      const intent = detectProductAssistantIntent(text, state.modules?.length || DEFAULT_MODULES.length);
+      const reply = await handleProductAssistantIntent(text, intent, activeModule);
       setProductChatMessages((current) => [
         ...current,
-        { role: 'assistant', content: resp?.reply || cleanCodeFence(raw) || 'Предложил правку для выбранного модуля.' },
+        { role: 'assistant', content: reply },
       ]);
     } catch (err) {
       console.error('[ProductMain chat] AI error:', err);
