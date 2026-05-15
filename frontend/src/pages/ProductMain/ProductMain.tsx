@@ -961,8 +961,8 @@ ${buildMainProductMarkdown(state)}
     color: '#fff',
     border: 'none',
     borderRadius: 8,
-    padding: '10px 20px',
-    fontSize: 14,
+    padding: '9px 16px',
+    fontSize: 13,
     cursor: loading ? 'not-allowed' : 'pointer',
     fontWeight: 500,
   };
@@ -972,8 +972,8 @@ ${buildMainProductMarkdown(state)}
     border: '1px solid #E5E3DC',
     color: '#555',
     borderRadius: 8,
-    padding: '10px 20px',
-    fontSize: 14,
+    padding: '9px 16px',
+    fontSize: 13,
     cursor: 'pointer',
     fontWeight: 500,
   };
@@ -982,7 +982,7 @@ ${buildMainProductMarkdown(state)}
     background: '#F8F7F3',
     border: '1.5px solid #D8D4C8',
     borderRadius: 12,
-    padding: 18,
+    padding: 14,
     boxShadow: '0 8px 22px rgba(25, 24, 20, 0.04)',
   };
   const labelStyle: React.CSSProperties = {
@@ -997,8 +997,8 @@ ${buildMainProductMarkdown(state)}
     width: '100%',
     border: '1px solid #E5E3DC',
     borderRadius: 8,
-    padding: '10px 12px',
-    fontSize: 14,
+    padding: '8px 10px',
+    fontSize: 13,
     color: '#1a1a1a',
     fontFamily: 'inherit',
     boxSizing: 'border-box',
@@ -1015,7 +1015,7 @@ ${buildMainProductMarkdown(state)}
     color: '#fff',
     borderRadius: 8,
     padding: '8px 12px',
-    fontSize: 13,
+    fontSize: 12,
     cursor: 'pointer',
     fontWeight: 700,
   };
@@ -1025,19 +1025,21 @@ ${buildMainProductMarkdown(state)}
     color: '#7A2727',
     borderRadius: 8,
     padding: '7px 10px',
-    fontSize: 12,
+    fontSize: 11,
     cursor: 'pointer',
     fontWeight: 700,
   };
   const modules = state.modules ?? DEFAULT_MODULES;
   const activeModule = modules[activeModuleIndex] ?? modules[0] ?? createEmptyModule(0);
+  const stickyTop = 76;
+  const stickyHeight = `calc(100vh - ${stickyTop + 14}px)`;
 
   return (
     <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 500, color: '#1a1a1a', marginBottom: 8, marginTop: 0 }}>
+      <h1 style={{ fontSize: 19, fontWeight: 600, color: '#1a1a1a', marginBottom: 6, marginTop: 0 }}>
         Основной продукт
       </h1>
-      <p style={{ color: '#888', fontSize: 13, marginBottom: 32, marginTop: 0 }}>
+      <p style={{ color: '#888', fontSize: 12, marginBottom: 24, marginTop: 0 }}>
         Блочный конструктор флагманской программы: оффер, 10 модулей, результат продукта и тарифы
       </p>
 
@@ -1122,8 +1124,8 @@ ${buildMainProductMarkdown(state)}
               </div>
               <button style={subtleButton} onClick={addModule}>+ Добавить модуль</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
-              <div style={{ ...blockStyle, padding: 10, position: 'sticky', top: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 320px) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+              <div style={{ ...blockStyle, padding: 10, position: 'sticky', top: stickyTop, maxHeight: stickyHeight, overflowY: 'auto' }}>
                 {modules.map((module, index) => {
                   const filledFields = [module.title, module.job, module.offer, module.theses, module.result].filter((value) => value?.trim()).length;
                   const isActive = index === activeModuleIndex;
@@ -1137,23 +1139,23 @@ ${buildMainProductMarkdown(state)}
                         border: isActive ? '1.5px solid #D4A847' : '1px solid #E5E3DC',
                         background: isActive ? '#FFF8E8' : '#fff',
                         borderRadius: 10,
-                        padding: 12,
-                        marginBottom: 8,
+                        padding: 10,
+                        marginBottom: 7,
                         cursor: 'pointer',
                         color: '#1a1a1a',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 900 }}>Модуль {index + 1}</span>
+                        <span style={{ fontSize: 11, fontWeight: 900 }}>Модуль {index + 1}</span>
                         <span style={{ fontSize: 11, color: filledFields >= 5 ? '#3B6D11' : '#9A6A00', fontWeight: 800 }}>
                           {filledFields >= 5 ? 'заполнен' : `${filledFields}/5`}
                         </span>
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.35, marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.35, marginBottom: 5 }}>
                         {cleanModuleTitle(module.title, index)}
                       </div>
                       {module.result && (
-                        <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: 11, color: '#666', lineHeight: 1.4 }}>
                           {module.result.slice(0, 120)}{module.result.length > 120 ? '...' : ''}
                         </div>
                       )}
@@ -1162,12 +1164,12 @@ ${buildMainProductMarkdown(state)}
                 })}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16, alignItems: 'start', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflowY: 'auto' }}>
-                <div style={{ ...blockStyle, background: '#fff' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(300px, 0.75fr)', gap: 14, alignItems: 'stretch', position: 'sticky', top: stickyTop, height: stickyHeight, overflow: 'hidden' }}>
+                <div style={{ ...blockStyle, background: '#fff', height: '100%', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
                     <div>
                       <div style={labelStyle}>Редактор выбранного модуля</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>Модуль {activeModuleIndex + 1}</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Модуль {activeModuleIndex + 1}</div>
                     </div>
                     <button
                       style={{ ...dangerButton, opacity: modules.length <= 1 ? 0.45 : 1 }}
@@ -1178,38 +1180,38 @@ ${buildMainProductMarkdown(state)}
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                     <div>
                       <div style={labelStyle}>Название модуля</div>
-                      <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 16, fontWeight: 800, background: '#fff' }} minHeight={52} />
+                      <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 14, fontWeight: 800, background: '#fff' }} minHeight={48} />
                     </div>
                     <div>
                       <div style={labelStyle}>Job клиента</div>
-                      <AutoTextarea value={activeModule.job} onChange={(value) => patchModule(activeModuleIndex, { job: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={82} />
+                      <AutoTextarea value={activeModule.job} onChange={(value) => patchModule(activeModuleIndex, { job: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={64} />
                     </div>
                     <div>
                       <div style={labelStyle}>Оффер модуля</div>
-                      <AutoTextarea value={activeModule.offer} onChange={(value) => patchModule(activeModuleIndex, { offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={82} />
+                      <AutoTextarea value={activeModule.offer} onChange={(value) => patchModule(activeModuleIndex, { offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={64} />
                     </div>
                     <div>
                       <div style={labelStyle}>Тезисы / содержание</div>
-                      <AutoTextarea value={activeModule.theses} onChange={(value) => patchModule(activeModuleIndex, { theses: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={130} />
+                      <AutoTextarea value={activeModule.theses} onChange={(value) => patchModule(activeModuleIndex, { theses: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={96} />
                     </div>
-                    <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 10 }}>
+                    <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 9 }}>
                       <div style={labelStyle}>Результат модуля</div>
-                      <AutoTextarea value={activeModule.result} onChange={(value) => patchModule(activeModuleIndex, { result: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={90} />
+                      <AutoTextarea value={activeModule.result} onChange={(value) => patchModule(activeModuleIndex, { result: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={68} />
                     </div>
                   </div>
                 </div>
 
-                <div style={{ ...blockStyle, background: '#111', color: '#fff' }}>
+                <div style={{ ...blockStyle, background: '#111', color: '#fff', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 4 }}>ИИ по продукту</div>
-                  <div style={{ fontSize: 12, color: '#bbb', lineHeight: 1.45, marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: '#bbb', lineHeight: 1.4, marginBottom: 10 }}>
                     Можно дорабатывать выбранный модуль или всю программу сразу: удалить лишние модули, сократить до 6, добавить блоки, усилить логику и результат.
                   </div>
-                  <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                  <div style={{ flex: 1, minHeight: 90, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                     {productChatMessages.length === 0 && (
-                      <div style={{ background: '#1f1f1f', borderRadius: 10, padding: 10, fontSize: 13, color: '#ddd', lineHeight: 1.45 }}>
+                      <div style={{ background: '#1f1f1f', borderRadius: 10, padding: 9, fontSize: 12, color: '#ddd', lineHeight: 1.4 }}>
                         Например: “Сократи программу до 6 модулей и пересобери логику так, чтобы клиент проходил путь без лишних шагов”.
                       </div>
                     )}
@@ -1222,9 +1224,9 @@ ${buildMainProductMarkdown(state)}
                           background: message.role === 'user' ? '#D4A847' : '#252525',
                           color: message.role === 'user' ? '#111' : '#fff',
                           borderRadius: 10,
-                          padding: '9px 10px',
-                          fontSize: 13,
-                          lineHeight: 1.45,
+                          padding: '8px 9px',
+                          fontSize: 12,
+                          lineHeight: 1.4,
                           whiteSpace: 'pre-wrap',
                         }}
                       >
@@ -1232,14 +1234,14 @@ ${buildMainProductMarkdown(state)}
                       </div>
                     ))}
                     {productChatLoading && (
-                      <div style={{ fontSize: 13, color: '#bbb' }}>ИИ думает...</div>
+                      <div style={{ fontSize: 12, color: '#bbb' }}>ИИ думает...</div>
                     )}
                   </div>
                   <AutoTextarea
                     value={productChatInput}
                     onChange={setProductChatInput}
                     style={{ ...textareaStyle, background: '#fff', color: '#1a1a1a', border: 'none', marginBottom: 10 }}
-                    minHeight={80}
+                    minHeight={58}
                   />
                   <button
                     style={{ ...btnGold, width: '100%', opacity: productChatLoading || !productChatInput.trim() ? 0.6 : 1 }}
@@ -1252,7 +1254,7 @@ ${buildMainProductMarkdown(state)}
                     {['Усиль выбранный модуль', 'Сократи программу до 6 модулей', 'Пересобери логику всех модулей'].map((quickPrompt) => (
                       <button
                         key={quickPrompt}
-                        style={{ ...btnOutlined, padding: '8px 10px', fontSize: 12, background: '#1f1f1f', color: '#fff', borderColor: '#333' }}
+                        style={{ ...btnOutlined, padding: '7px 9px', fontSize: 11, background: '#1f1f1f', color: '#fff', borderColor: '#333' }}
                         onClick={() => setProductChatInput(quickPrompt)}
                       >
                         {quickPrompt}
