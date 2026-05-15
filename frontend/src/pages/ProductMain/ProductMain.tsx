@@ -161,6 +161,14 @@ function parseAiJson<T>(value: string): T {
   return JSON.parse(extractJsonObject(value)) as T;
 }
 
+function tryParseAiJson<T>(value: string): T | null {
+  try {
+    return parseAiJson<T>(value);
+  } catch {
+    return null;
+  }
+}
+
 function aiText(value: AiTextValue): string {
   if (Array.isArray(value)) return value.filter(Boolean).map(String).join('\n');
   return typeof value === 'string' ? value : '';
@@ -317,6 +325,60 @@ function buildMainProductMarkdown(product: ProductState): string {
     `## Программа\n${modules}`,
     product.transformation ? `## Общий результат продукта\n${product.transformation}` : '',
     `## Тарифы\n${tariffs}`,
+  ].filter(Boolean).join('\n\n');
+}
+
+function compactText(value?: string, limit = 260): string {
+  const cleaned = (value || '').replace(/\s+/g, ' ').trim();
+  return cleaned.length > limit ? `${cleaned.slice(0, limit).trim()}...` : cleaned;
+}
+
+function buildCompactProductContext(product: ProductState): string {
+  const modules = (product.modules?.length ? product.modules : DEFAULT_MODULES)
+    .map((module, index) => [
+      `Модуль ${index + 1}: ${cleanModuleTitle(module.title, index)}`,
+      module.job ? `Job: ${compactText(module.job, 180)}` : '',
+      module.offer ? `Оффер: ${compactText(module.offer, 180)}` : '',
+      module.theses ? `Содержание: ${compactText(module.theses, 260)}` : '',
+      module.result ? `Результат: ${compactText(module.result, 180)}` : '',
+    ].filter(Boolean).join('\n'))
+    .join('\n\n');
+
+  return [
+    `Название: ${product.name || normalizeNameOptions(product.nameOptions, product.name).find(Boolean) || 'Основной продукт'}`,
+    product.offer ? `Оффер: ${compactText(product.offer, 320)}` : '',
+    product.productDescription ? `Описание: ${compactText(product.productDescription, 420)}` : '',
+    `Модули:\n${modules}`,
+    product.transformation ? `Общий результат: ${compactText(product.transformation, 320)}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+function extractRequestedModuleCount(value: string): number | null {
+  const normalized = value.toLowerCase().replace(/ё/g, 'е');
+  const hasProgramCommand = /(остав|сократ|удал|убер|пересоб|модул)/i.test(normalized);
+  if (!hasProgramCommand) return null;
+  const match = normalized.match(/(?:до|в|из|остав(?:ь|ить)?|сократ(?:и|ить)?|убер(?:и|ать)?|удал(?:и|ить)?)[^\d]{0,32}(\d{1,2})\s*модул/i)
+    || normalized.match(/(\d{1,2})\s*модул/i);
+  if (!match) return null;
+  const count = Number(match[1]);
+  return count >= 1 && count <= 20 ? count : null;
+}
+
+function buildLocalTransformation(product: ProductState): string {
+  const modules = (product.modules ?? []).filter((module) =>
+    module.title.trim() || module.job.trim() || module.offer.trim() || module.result.trim(),
+  );
+  const moduleResults = modules
+    .map((module, index) => `${index + 1}. ${cleanModuleTitle(module.title, index)}: ${module.result || module.offer || module.job}`)
+    .filter((line) => line.replace(/\d+\.|:/g, '').trim())
+    .slice(0, 10)
+    .join('\n');
+
+  return [
+    product.offer ? `После прохождения продукта клиент получает главный результат: ${product.offer}` : '',
+    product.productDescription ? `Программа ведет клиента через понятный путь: ${product.productDescription}` : '',
+    moduleResults ? `По шагам клиент проходит такие изменения:\n${moduleResults}` : '',
+    'Итоговое продуктовое обещание: клиент выходит с понятной системой действий, снижает хаос в текущей ситуации и получает практический план, который можно применять сразу после завершения программы.',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -622,7 +684,7 @@ export default function ProductMain() {
     patchState({ tariffs });
   }
 
-  async function requestProductAiJson<T>(message: string, maxTokens = 2200): Promise<T> {
+  async function requestProductAiRaw(message: string, maxTokens = 2200): Promise<string> {
     const settings = getSettings('product-main');
     const resp = await aiApi.chat({
       model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
@@ -634,22 +696,15 @@ export default function ProductMain() {
       unpackingProfile:    mergedProfile as Record<string, string>,
       maxTokens,
     });
-    return parseAiJson<T>(resp.content);
+    return resp.content;
+  }
+
+  async function requestProductAiJson<T>(message: string, maxTokens = 2200): Promise<T> {
+    return parseAiJson<T>(await requestProductAiRaw(message, maxTokens));
   }
 
   async function requestProductAiText(message: string, maxTokens = 1600): Promise<string> {
-    const settings = getSettings('product-main');
-    const resp = await aiApi.chat({
-      model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-      claudeModel:         settings.claudeModel,
-      section:             'product-main',
-      message,
-      conversationHistory: [],
-      projectName,
-      unpackingProfile:    mergedProfile as Record<string, string>,
-      maxTokens,
-    });
-    return cleanCodeFence(resp.content);
+    return cleanCodeFence(await requestProductAiRaw(message, maxTokens));
   }
 
   function buildProductBaseContext() {
@@ -756,24 +811,33 @@ ${context || 'Контекст пока не заполнен.'}
       }
 
       setLoadingStep('Генерирую общий результат продукта...');
-      const transformation = await requestProductAiText(`${baseContext}
+      let transformation = '';
+      try {
+        transformation = await requestProductAiText(`${baseContext}
 
 Уже создан продукт:
-${buildMainProductMarkdown(next)}
+${buildCompactProductContext(next)}
 
 Сейчас создай только общий результат продукта / продуктовое обещание.
 Опиши итоговую трансформацию клиента после прохождения всей программы: что изменится в бизнесе/жизни, какие решения появятся, какой результат станет возможен.
 
 Верни только текст общего результата без JSON и без markdown-блоков.`, 1400);
+      } catch (err) {
+        console.error('[ProductMain create transformation] AI error:', err);
+        transformation = buildLocalTransformation(next);
+      }
 
       next = {
         ...next,
-        transformation,
+        transformation: transformation.trim() || buildLocalTransformation(next),
       };
       persistState(next);
       toast.success('Основной продукт создан');
     } catch (err) {
       console.error('[ProductMain] AI error:', err);
+      if (state.generated && !state.transformation) {
+        patchState({ transformation: buildLocalTransformation(state) });
+      }
       toast.error('Не удалось завершить генерацию продукта. Уже созданные блоки сохранены, попробуйте ещё раз.');
     } finally {
       setLoading(false);
@@ -800,21 +864,112 @@ ${buildMainProductMarkdown(next)}
       const transformation = await requestProductAiText(`${buildProductBaseContext()}
 
 Текущий продукт:
-${buildMainProductMarkdown(state)}
+${buildCompactProductContext(state)}
 
 Сгенерируй только общий результат продукта / продуктовое обещание.
 Опиши итоговую трансформацию клиента после всей программы.
+Не повторяй дословно модули. Собери цельное обещание: из какой точки клиент приходит, через какие изменения проходит, что получает в итоге.
 Верни только текст без JSON и без markdown-блоков.`, 1400);
 
-      patchState({ transformation });
+      patchState({ transformation: transformation.trim() || buildLocalTransformation(state) });
       toast.success('Общий результат заполнен');
     } catch (err) {
       console.error('[ProductMain transformation] AI error:', err);
-      toast.error('Не удалось дозаполнить общий результат');
+      patchState({ transformation: buildLocalTransformation(state) });
+      toast.success('Заполнил черновик общего результата');
     } finally {
       setLoading(false);
       setLoadingStep('');
     }
+  }
+
+  function applyProductChatPatch(patch?: ProductChatPatch) {
+    if (!patch) return;
+    const statePatch: Partial<ProductState> = {};
+    if (patch.offer) statePatch.offer = aiText(patch.offer);
+    if (patch.productDescription) statePatch.productDescription = aiText(patch.productDescription);
+    if (patch.transformation) statePatch.transformation = aiText(patch.transformation);
+    if (patch.nameOptions?.length) {
+      statePatch.nameOptions = normalizeNameOptions(patch.nameOptions, state.name);
+      statePatch.name = statePatch.nameOptions.find(Boolean) || state.name;
+    }
+    if (patch.modules?.length) {
+      statePatch.modules = normalizeAiModules(patch.modules);
+      statePatch.format = `3 месяца / ${statePatch.modules.length} модулей / еженедельно`;
+      setActiveModuleIndex((current) => Math.min(current, statePatch.modules!.length - 1));
+    }
+    if (Object.keys(statePatch).length) {
+      patchState(statePatch);
+    }
+
+    const activePatch = cleanModulePatch(patch.activeModule);
+    if (Object.values(activePatch).some(Boolean) && !patch.modules?.length) {
+      patchModule(activeModuleIndex, activePatch);
+    }
+  }
+
+  async function handleModuleCountCommand(text: string, count: number): Promise<string> {
+    let raw = '';
+    try {
+      raw = await requestProductAiRaw(`${buildProductBaseContext()}
+
+Пользователь просит пересобрать программу по модулям.
+Команда пользователя: ${text}
+
+Текущий продукт:
+${buildCompactProductContext(state)}
+
+Сделай новую программу строго из ${count} модулей.
+Важно:
+- сохрани главный смысл продукта и путь клиента;
+- убери лишние шаги;
+- перепиши все оставшиеся модули так, чтобы программа была цельной;
+- название каждого модуля пиши без слов "Модуль 1", "Модуль 2";
+- не меняй тарифы.
+
+Верни только JSON:
+{
+  "reply": "коротко что изменил",
+  "patch": {
+    "modules": [
+      {
+        "title": "название модуля",
+        "job": "job клиента",
+        "offer": "оффер модуля",
+        "theses": ["тезис 1", "тезис 2", "тезис 3", "тезис 4"],
+        "result": "результат модуля"
+      }
+    ],
+    "transformation": "обновленное продуктовое обещание под новую программу"
+  }
+}`, 8000);
+    } catch (err) {
+      console.error('[ProductMain module count] AI error:', err);
+    }
+
+    const parsed = tryParseAiJson<ProductChatAiDraft>(raw);
+    const aiModules = parsed?.patch?.modules?.length ? normalizeAiModules(parsed.patch.modules).slice(0, count) : [];
+
+    if (aiModules.length === count) {
+      applyProductChatPatch({
+        ...parsed?.patch,
+        modules: parsed?.patch?.modules?.slice(0, count),
+        transformation: parsed?.patch?.transformation || buildLocalTransformation({ ...state, modules: aiModules }),
+      });
+      return parsed?.reply || `Пересобрал программу: теперь в ней ${count} модулей.`;
+    }
+
+    const fallbackModules = (state.modules ?? DEFAULT_MODULES).slice(0, count).map((module, index) => ({
+      ...module,
+      title: cleanModuleTitle(module.title, index),
+    }));
+    patchState({
+      modules: fallbackModules,
+      format: `3 месяца / ${fallbackModules.length} модулей / еженедельно`,
+      transformation: state.transformation || buildLocalTransformation({ ...state, modules: fallbackModules }),
+    });
+    setActiveModuleIndex((current) => Math.min(current, fallbackModules.length - 1));
+    return `Сократил программу до ${count} модулей и сохранил текущую логику. ИИ не вернул структуру в нужном формате, поэтому я аккуратно убрал лишние модули и оставил блоки редактируемыми.`;
   }
 
   async function handleProductChatSend() {
@@ -828,7 +983,14 @@ ${buildMainProductMarkdown(state)}
     setProductChatLoading(true);
 
     try {
-      const resp = await requestProductAiJson<ProductChatAiDraft>(`${buildProductBaseContext()}
+      const requestedModuleCount = extractRequestedModuleCount(text);
+      if (requestedModuleCount) {
+        const reply = await handleModuleCountCommand(text, requestedModuleCount);
+        setProductChatMessages((current) => [...current, { role: 'assistant', content: reply }]);
+        return;
+      }
+
+      const raw = await requestProductAiRaw(`${buildProductBaseContext()}
 
 Ты работаешь как продуктовый методолог внутри конструктора основного продукта.
 Ты можешь помогать и по выбранному модулю, и по всей программе сразу.
@@ -839,7 +1001,7 @@ ${buildMainProductMarkdown(state)}
 Сейчас выбран модуль ${activeModuleIndex + 1}.
 
 Текущий продукт:
-${buildMainProductMarkdown(state)}
+${buildCompactProductContext(state)}
 
 Текущий модуль:
 Название: ${activeModule.title}
@@ -880,40 +1042,20 @@ ${nextMessages.map((msg) => `${msg.role === 'user' ? 'Пользователь' 
   }
 }`, 4200);
 
-      const patch = resp.patch;
-      if (patch) {
-        const statePatch: Partial<ProductState> = {};
-        if (patch.offer) statePatch.offer = aiText(patch.offer);
-        if (patch.productDescription) statePatch.productDescription = aiText(patch.productDescription);
-        if (patch.transformation) statePatch.transformation = aiText(patch.transformation);
-        if (patch.nameOptions?.length) {
-          statePatch.nameOptions = normalizeNameOptions(patch.nameOptions, state.name);
-          statePatch.name = statePatch.nameOptions.find(Boolean) || state.name;
-        }
-        if (patch.modules?.length) {
-          statePatch.modules = normalizeAiModules(patch.modules);
-          statePatch.format = `3 месяца / ${statePatch.modules.length} модулей / еженедельно`;
-          setActiveModuleIndex((current) => Math.min(current, statePatch.modules!.length - 1));
-        }
-        if (Object.keys(statePatch).length) {
-          patchState(statePatch);
-        }
-
-        const activePatch = cleanModulePatch(patch.activeModule);
-        if (Object.values(activePatch).some(Boolean) && !patch.modules?.length) {
-          patchModule(activeModuleIndex, activePatch);
-        }
+      const resp = tryParseAiJson<ProductChatAiDraft>(raw);
+      if (resp?.patch) {
+        applyProductChatPatch(resp.patch);
       }
 
       setProductChatMessages((current) => [
         ...current,
-        { role: 'assistant', content: resp.reply || 'Предложил правку для выбранного модуля.' },
+        { role: 'assistant', content: resp?.reply || cleanCodeFence(raw) || 'Предложил правку для выбранного модуля.' },
       ]);
     } catch (err) {
       console.error('[ProductMain chat] AI error:', err);
       setProductChatMessages((current) => [
         ...current,
-        { role: 'assistant', content: 'Не получилось обработать запрос. Попробуйте сформулировать короче.' },
+        { role: 'assistant', content: 'ИИ сейчас не смог применить правку автоматически. Попробуйте отправить команду ещё раз или используйте быстрые кнопки ниже.' },
       ]);
     } finally {
       setProductChatLoading(false);
