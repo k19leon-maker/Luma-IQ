@@ -1,3 +1,5 @@
+import html2pdf from 'html2pdf.js';
+
 const sections = [
   { key: 'segments', label: '10 сегментов целевой аудитории' },
   { key: 'top3segments', label: 'ТОП 3 сегмента' },
@@ -242,8 +244,6 @@ export const downloadStrategyPdf = async (
       jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] },
     } as Record<string, unknown>;
-    const { default: html2pdf } = await import('html2pdf.js');
-
     await (html2pdf() as {
       set: (opts: Record<string, unknown>) => {
         from: (el: HTMLElement) => { save: () => Promise<void> };
