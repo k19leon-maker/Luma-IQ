@@ -9,6 +9,7 @@ import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import html2pdf from 'html2pdf.js';
+import type { AxiosError } from 'axios';
 
 type StepStatus = 'idle' | 'running' | 'done';
 
@@ -140,6 +141,20 @@ function stripMarkdown(value: string): string {
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .trim();
+}
+
+function extractMarkdownSection(markdown: string, titlePattern: RegExp): string {
+  const lines = markdown.split('\n');
+  const start = lines.findIndex((line) => titlePattern.test(line.trim()));
+  if (start === -1) return '';
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^##\s+/.test(line.trim()));
+  return (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
+}
+
+function getRequestErrorMessage(err: unknown): string {
+  const error = err as AxiosError<{ error?: string }>;
+  return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
 }
 
 function escapeHtml(value: string): string {
@@ -287,7 +302,10 @@ export default function ProductMain() {
     const savedProduct = normalizeProduct(savedData.productMain);
     setState(savedProduct);
     if (activeProjectId && savedProduct.generated) {
-      upsertMaterial(activeProjectId, buildProductMaterial('product-main', 'Основной продукт', savedProduct));
+      upsertMaterial(activeProjectId, {
+        ...buildProductMaterial('product-main', 'Основной продукт', savedProduct),
+        summaryStatus: 'fresh',
+      });
     }
   }, [activeProjectId, savedData.productMain, upsertMaterial]);
 
@@ -295,12 +313,17 @@ export default function ProductMain() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chatMessages?.length, loading]);
 
-  function persistState(next: ProductState) {
+  function persistState(next: ProductState, opts: { syncMaterial?: boolean } = {}) {
     const withMarkdown = { ...next, description: buildMainProductMarkdown(next) };
     setState(withMarkdown);
     if (activeProjectId) {
       saveProductMain(activeProjectId, withMarkdown as ProductDraft);
-      upsertMaterial(activeProjectId, buildProductMaterial('product-main', 'Основной продукт', withMarkdown as ProductDraft));
+      if (opts.syncMaterial !== false && withMarkdown.generated) {
+        upsertMaterial(activeProjectId, {
+          ...buildProductMaterial('product-main', 'Основной продукт', withMarkdown as ProductDraft),
+          summaryStatus: 'fresh',
+        });
+      }
     }
     if (withMarkdown.generated) completeProductMain();
   }
@@ -311,17 +334,21 @@ export default function ProductMain() {
 
   async function requestAi(message: string, maxTokens = 2200): Promise<string> {
     const settings = getSettings('product-main');
-    const resp = await aiApi.chat({
-      model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-      claudeModel: settings.claudeModel,
-      section: 'product-main',
-      message,
-      conversationHistory: [],
-      projectName,
-      unpackingProfile: mergedProfile as Record<string, string>,
-      maxTokens,
-    });
-    return cleanCodeFence(resp.content);
+    try {
+      const resp = await aiApi.chat({
+        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        section: 'product-main',
+        message,
+        conversationHistory: [],
+        projectName,
+        unpackingProfile: mergedProfile as Record<string, string>,
+        maxTokens,
+      });
+      return cleanCodeFence(resp.content);
+    } catch (err) {
+      throw new Error(getRequestErrorMessage(err));
+    }
   }
 
   function basePrompt() {
@@ -413,40 +440,101 @@ ${currentProduct}
       chatMessages: [],
       stepStatuses: { ...EMPTY_STATUSES },
     };
-    persistState(next);
+    persistState(next, { syncMaterial: false });
 
     try {
-      for (const step of PRODUCT_STEPS) {
-        next = {
-          ...next,
-          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' },
-        };
-        persistState(next);
+      const firstSteps = PRODUCT_STEPS.slice(0, 3);
+      next = {
+        ...next,
+        stepStatuses: {
+          ...(next.stepStatuses ?? EMPTY_STATUSES),
+          names: 'running',
+          offer: 'running',
+          description: 'running',
+        },
+      };
+      persistState(next, { syncMaterial: false });
 
-        const content = await requestAi(buildStepPrompt(step, next), step.id === 'modules' ? 5200 : 2200);
-        if (step.id === 'names') {
-          const lines = stripMarkdown(content).split('\n').filter(Boolean).slice(0, 3);
-          next.nameOptions = lines;
-          next.name = lines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт';
-        }
-        if (step.id === 'offer') next.offer = content;
-        if (step.id === 'description') next.productDescription = content;
-        if (step.id === 'modules') next.modulesText = content;
-        if (step.id === 'promise') next.transformation = content;
+      const introContent = await requestAi(`${basePrompt()}
 
-        next = withMessage(
-          {
-            ...next,
-            stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'done' },
-          },
-          { role: 'assistant', content, stepId: step.id, stepTitle: step.label },
-        );
-        persistState(next);
+Сейчас сформируй первые 3 блока основного продукта одним ответом.
+Верни строго markdown с такими заголовками:
+
+## Варианты названия
+1. **Название** — коротко почему подходит
+2. **Название** — коротко почему подходит
+3. **Название** — коротко почему подходит
+
+## Оффер
+2-3 варианта главного оффера и в конце рекомендуемый вариант.
+
+## Описание продукта
+2-4 коротких абзаца: для кого продукт, какую проблему решает, как устроен путь, какой результат получает клиент.`, 4200);
+
+      const namesContent = extractMarkdownSection(introContent, /^##\s+варианты\s+названия/i) || introContent;
+      const offerContent = extractMarkdownSection(introContent, /^##\s+оффер/i);
+      const descriptionContent = extractMarkdownSection(introContent, /^##\s+описание/i);
+      const nameLines = stripMarkdown(namesContent).split('\n').filter(Boolean).slice(0, 3);
+      next = {
+        ...next,
+        nameOptions: nameLines,
+        name: nameLines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт',
+        offer: offerContent,
+        productDescription: descriptionContent,
+        stepStatuses: {
+          ...(next.stepStatuses ?? EMPTY_STATUSES),
+          names: 'done',
+          offer: 'done',
+          description: 'done',
+        },
+      };
+      for (const step of firstSteps) {
+        const content = step.id === 'names'
+          ? namesContent
+          : step.id === 'offer'
+            ? offerContent
+            : descriptionContent;
+        next = withMessage(next, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
       }
+      persistState(next, { syncMaterial: false });
+
+      const moduleStep = PRODUCT_STEPS.find((step) => step.id === 'modules')!;
+      next = {
+        ...next,
+        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'running' },
+      };
+      persistState(next, { syncMaterial: false });
+      const modulesContent = await requestAi(buildStepPrompt(moduleStep, next), 5200);
+      next = withMessage({
+        ...next,
+        modulesText: modulesContent,
+        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'done' },
+      }, { role: 'assistant', content: modulesContent, stepId: moduleStep.id, stepTitle: moduleStep.label });
+      persistState(next, { syncMaterial: false });
+
+      const promiseStep = PRODUCT_STEPS.find((step) => step.id === 'promise')!;
+      next = {
+        ...next,
+        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'running' },
+      };
+      persistState(next, { syncMaterial: false });
+      const promiseContent = await requestAi(buildStepPrompt(promiseStep, next), 1600);
+      next = withMessage({
+        ...next,
+        transformation: promiseContent,
+        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'done' },
+      }, { role: 'assistant', content: promiseContent, stepId: promiseStep.id, stepTitle: promiseStep.label });
+      persistState(next);
       toast.success('Основной продукт создан');
     } catch (err) {
       console.error('[ProductMain create] AI error:', err);
-      toast.error('Не удалось завершить создание продукта. Уже созданные шаги сохранены.');
+      const message = getRequestErrorMessage(err);
+      persistState(withMessage(next, {
+        role: 'assistant',
+        content: `Не удалось продолжить создание продукта: ${message}`,
+        stepTitle: 'Ошибка создания',
+      }), { syncMaterial: false });
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -53,7 +53,17 @@ function makeSummary(content: string): string {
 function syncMaterials(projectId: string, materials: ProjectMaterial[]) {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    projectsApi.saveStrategy(projectId, { materialsData: materials }).catch(() => {});
+    const compactMaterials = materials.map((item) => ({
+      ...item,
+      content: item.content.slice(0, 30000),
+      summary: item.summary.slice(0, 1800),
+      versions: (item.versions ?? []).slice(0, 3).map((version) => ({
+        ...version,
+        content: version.content.slice(0, 5000),
+        summary: version.summary.slice(0, 1200),
+      })),
+    }));
+    projectsApi.saveStrategy(projectId, { materialsData: compactMaterials }).catch(() => {});
   }, 600);
 }
 
@@ -131,11 +141,12 @@ export const useMaterialsStore = create<MaterialsState>()(
               ...(existing!.versions ?? []),
             ].slice(0, 10)
             : (material.versions ?? existing?.versions ?? []);
+          const shouldRefreshSummary = (contentChanged || !existing?.summary) && material.summaryStatus !== 'fresh';
           const nextMaterial: ProjectMaterial = {
             ...(existing ?? {}),
             ...material,
             summary: contentChanged ? makeSummary(material.content) : (material.summary || existing?.summary || makeSummary(material.content)),
-            summaryStatus: contentChanged || !existing?.summary ? 'pending' : (material.summaryStatus ?? existing?.summaryStatus ?? 'fresh'),
+            summaryStatus: shouldRefreshSummary ? 'pending' : (material.summaryStatus ?? existing?.summaryStatus ?? 'fresh'),
             linkedMaterialIds: material.linkedMaterialIds ?? existing?.linkedMaterialIds ?? [],
             versions,
             updatedAt: material.updatedAt ?? new Date().toISOString(),
