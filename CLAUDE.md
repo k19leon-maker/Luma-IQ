@@ -174,6 +174,13 @@ Legacy routes `/strategy/product-main`, `/strategy/product-mini`, `/strategy/lea
 
 Основная стратегия зафиксирована в `docs/PROMPT_STRATEGY.md`, аудит текущих промптов — в `docs/PROMPTS_AUDIT.md`.
 
+Глобальный системный слой:
+
+- `GLOBAL_AI_BEHAVIOR_PROMPT` находится в `backend/src/config/system-prompt.ts`.
+- Он добавляется ко всем AI-разделам через `withGlobalAiBehaviorPrompt()` в `backend/src/controllers/ai.controller.ts`.
+- Задает язык ответа, анти-галлюцинации, учет контекста, структуру ROLE / TL;DR / ANSWER / FOLLOW-UP для открытых вопросов и правила качества.
+- Важное исключение: если локальный раздел просит строгий JSON, конкретную схему, короткий ответ, готовый маркетинговый текст или “без markdown”, локальный формат важнее общего слоя.
+
 Ключевая логика ролей:
 
 - `ai-dialog` — бизнес-стратег / маркетинг-стратег, смотрит на проект как на бизнес и помогает повышать прибыльность при минимальных лишних действиях.

@@ -8,6 +8,7 @@ import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
 import { aiAccessService, AiAccessError } from '../services/ai-access.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
+import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(16000),
@@ -79,6 +80,9 @@ export const aiController = {
       if (fileContext?.trim()) {
         systemPrompt += `\n\nДополнительный контекст от эксперта:\n${fileContext.trim()}`;
       }
+    }
+    if (systemPrompt) {
+      systemPrompt = withGlobalAiBehaviorPrompt(systemPrompt);
     }
 
     try {
