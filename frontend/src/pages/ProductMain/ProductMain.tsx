@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
@@ -71,9 +71,22 @@ interface ProductModulesAiDraft {
   modules?: MainProductAiModule[];
 }
 
-interface ProductFinalAiDraft {
+interface ProductTransformationAiDraft {
   transformation?: string;
+}
+
+interface ProductTariffsAiDraft {
   tariffs?: MainProductAiTariff[];
+}
+
+interface ProductChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface ProductChatAiDraft {
+  reply?: string;
+  patch?: Partial<ModuleBlock>;
 }
 
 const DEFAULT_MODULES: ModuleBlock[] = Array.from({ length: 10 }, (_, index) => ({
@@ -160,6 +173,36 @@ function aiText(value: AiTextValue): string {
   return typeof value === 'string' ? value : '';
 }
 
+function AutoTextarea({
+  value,
+  onChange,
+  style,
+  minHeight = 84,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  style?: React.CSSProperties;
+  minHeight?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
+  }, [value, minHeight]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ ...style, minHeight, overflow: 'hidden' }}
+    />
+  );
+}
+
 function normalizeProduct(saved?: ProductDraft): ProductState {
   if (!saved) return EMPTY_PRODUCT;
   const raw = saved as ProductState;
@@ -218,6 +261,13 @@ function normalizeAiTariffs(tariffs?: MainProductAiTariff[]): TariffBlock[] {
   );
 }
 
+function cleanModulePatch(patch?: Partial<ModuleBlock>): Partial<ModuleBlock> {
+  if (!patch) return {};
+  return Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => typeof value === 'string' && value.trim()),
+  ) as Partial<ModuleBlock>;
+}
+
 function buildMainProductMarkdown(product: ProductState): string {
   const nameOptions = normalizeNameOptions(product.nameOptions, product.name);
   const primaryName = product.name || nameOptions.find(Boolean) || '';
@@ -267,6 +317,10 @@ export default function ProductMain() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [activeModuleIndex, setActiveModuleIndex] = useState(0);
+  const [productChatMessages, setProductChatMessages] = useState<ProductChatMessage[]>([]);
+  const [productChatInput, setProductChatInput] = useState('');
+  const [productChatLoading, setProductChatLoading] = useState(false);
   const [materialStatus, setMaterialStatus] = useState('');
 
   useEffect(() => {
@@ -276,6 +330,13 @@ export default function ProductMain() {
       upsertMaterial(activeProjectId, buildProductMaterial('product-main', 'Основной продукт', savedProduct));
     }
   }, [activeProjectId, savedData.productMain, upsertMaterial]);
+
+  useEffect(() => {
+    const modulesLength = state.modules?.length ?? 0;
+    if (modulesLength && activeModuleIndex >= modulesLength) {
+      setActiveModuleIndex(modulesLength - 1);
+    }
+  }, [activeModuleIndex, state.modules?.length]);
 
   function persistState(next: ProductState) {
     const withMarkdown = { ...next, description: next.generated ? buildMainProductMarkdown(next) : next.description };
@@ -312,6 +373,7 @@ export default function ProductMain() {
       return;
     }
     modules.splice(index, 1);
+    setActiveModuleIndex((current) => Math.min(current, modules.length - 1));
     patchState({ modules, format: `3 месяца / ${modules.length} модулей / еженедельно` });
   }
 
@@ -329,27 +391,23 @@ export default function ProductMain() {
     patchState({ tariffs });
   }
 
-  async function handleCreate() {
-    if (loading) return;
-    setLoading(true);
-    setLoadingStep('Готовлю структуру продукта...');
-    try {
-      const settings = getSettings('product-main');
-      const requestAiJson = async <T,>(message: string, maxTokens = 2200): Promise<T> => {
-        const resp = await aiApi.chat({
-          model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-          claudeModel:         settings.claudeModel,
-          section:             'product-main',
-          message,
-          conversationHistory: [],
-          projectName,
-          unpackingProfile:    mergedProfile as Record<string, string>,
-          maxTokens,
-        });
-        return parseAiJson<T>(resp.content);
-      };
+  async function requestProductAiJson<T>(message: string, maxTokens = 2200): Promise<T> {
+    const settings = getSettings('product-main');
+    const resp = await aiApi.chat({
+      model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
+      claudeModel:         settings.claudeModel,
+      section:             'product-main',
+      message,
+      conversationHistory: [],
+      projectName,
+      unpackingProfile:    mergedProfile as Record<string, string>,
+      maxTokens,
+    });
+    return parseAiJson<T>(resp.content);
+  }
 
-      const baseContext = `Ты продуктовый маркетолог и методолог экспертных продуктов с большим опытом в нише пользователя.
+  function buildProductBaseContext() {
+    return `Ты продуктовый маркетолог и методолог экспертных продуктов с большим опытом в нише пользователя.
 Создаёшь флагманский ОСНОВНОЙ ПРОДУКТ эксперта.
 
 Контекст проекта:
@@ -371,9 +429,17 @@ ${context || 'Контекст пока не заполнен.'}
 - Пиши конкретно, как рабочий черновик, который эксперт сможет редактировать руками.
 - Верни валидный JSON. Без markdown, без комментариев, без текста до или после JSON.
 - Для списков используй массивы строк, а не текст с переносами внутри строки.`;
+  }
+
+  async function handleCreate() {
+    if (loading) return;
+    setLoading(true);
+    setLoadingStep('Готовлю структуру продукта...');
+    try {
+      const baseContext = buildProductBaseContext();
 
       setLoadingStep('Генерирую названия, оффер и описание...');
-      const intro = await requestAiJson<ProductIntroAiDraft>(`${baseContext}
+      const intro = await requestProductAiJson<ProductIntroAiDraft>(`${baseContext}
 
 Сейчас создай только верхнюю часть продукта: 3 варианта названия, главный оффер и описание продукта.
 
@@ -415,7 +481,7 @@ ${context || 'Контекст пока не заполнен.'}
 
       for (const range of moduleRanges) {
         setLoadingStep(`Генерирую модули ${range.start}-${range.end}...`);
-        const modulesDraft = await requestAiJson<ProductModulesAiDraft>(`${baseContext}
+        const modulesDraft = await requestProductAiJson<ProductModulesAiDraft>(`${baseContext}
 
 Уже создана верхняя часть продукта:
 Название: ${next.name}
@@ -448,17 +514,36 @@ ${context || 'Контекст пока не заполнен.'}
         persistState(next);
       }
 
-      setLoadingStep('Генерирую общий результат и тарифы...');
-      const finalDraft = await requestAiJson<ProductFinalAiDraft>(`${baseContext}
+      setLoadingStep('Генерирую общий результат продукта...');
+      const resultDraft = await requestProductAiJson<ProductTransformationAiDraft>(`${baseContext}
 
 Уже создан продукт:
 ${buildMainProductMarkdown(next)}
 
-Сейчас создай только общий результат продукта и 3 тарифа.
+Сейчас создай только общий результат продукта / продуктовое обещание.
+Опиши итоговую трансформацию клиента после прохождения всей программы: что изменится в бизнесе/жизни, какие решения появятся, какой результат станет возможен.
 
 Верни только JSON без markdown-блоков:
 {
-  "transformation": "общий результат продукта / продуктовое обещание",
+  "transformation": "общий результат продукта / продуктовое обещание"
+}`, 1600);
+
+      next = {
+        ...next,
+        transformation: resultDraft.transformation ?? '',
+      };
+      persistState(next);
+
+      setLoadingStep('Генерирую тарифы...');
+      const tariffsDraft = await requestProductAiJson<ProductTariffsAiDraft>(`${baseContext}
+
+Уже создан продукт:
+${buildMainProductMarkdown(next)}
+
+Сейчас создай только 3 тарифа.
+
+Верни только JSON без markdown-блоков:
+{
   "tariffs": [
     {
       "name": "Эконом",
@@ -470,12 +555,11 @@ ${buildMainProductMarkdown(next)}
   ]
 }
 
-В tariffs должно быть строго 3 элемента: Эконом, Стандарт, VIP.`, 2600);
+В tariffs должно быть строго 3 элемента: Эконом, Стандарт, VIP.`, 1800);
 
       next = {
         ...next,
-        transformation: finalDraft.transformation ?? '',
-        tariffs: normalizeAiTariffs(finalDraft.tariffs),
+        tariffs: normalizeAiTariffs(tariffsDraft.tariffs),
       };
       persistState(next);
       toast.success('Основной продукт создан');
@@ -498,6 +582,97 @@ ${buildMainProductMarkdown(next)}
     if (!state.generated) return;
     const fileName = state.name || state.nameOptions?.find(Boolean) || 'Основной продукт';
     void exportToDocx(fileName, buildMainProductMarkdown(state), fileName || 'product-main');
+  }
+
+  async function handleGenerateTransformation() {
+    if (!state.generated || loading) return;
+    setLoading(true);
+    setLoadingStep('Дозаполняю общий результат продукта...');
+    try {
+      const resultDraft = await requestProductAiJson<ProductTransformationAiDraft>(`${buildProductBaseContext()}
+
+Текущий продукт:
+${buildMainProductMarkdown(state)}
+
+Сгенерируй только общий результат продукта / продуктовое обещание.
+Верни только JSON:
+{
+  "transformation": "итоговая трансформация клиента после всей программы"
+}`, 1600);
+
+      patchState({ transformation: resultDraft.transformation ?? '' });
+      toast.success('Общий результат заполнен');
+    } catch (err) {
+      console.error('[ProductMain transformation] AI error:', err);
+      toast.error('Не удалось дозаполнить общий результат');
+    } finally {
+      setLoading(false);
+      setLoadingStep('');
+    }
+  }
+
+  async function handleProductChatSend() {
+    const text = productChatInput.trim();
+    const activeModule = state.modules?.[activeModuleIndex];
+    if (!text || productChatLoading || !activeModule) return;
+
+    const nextMessages: ProductChatMessage[] = [...productChatMessages, { role: 'user', content: text }];
+    setProductChatMessages(nextMessages);
+    setProductChatInput('');
+    setProductChatLoading(true);
+
+    try {
+      const resp = await requestProductAiJson<ProductChatAiDraft>(`${buildProductBaseContext()}
+
+Ты работаешь как продуктовый методолог внутри редактора модуля.
+Пользователь редактирует модуль ${activeModuleIndex + 1}.
+
+Текущий продукт:
+${buildMainProductMarkdown(state)}
+
+Текущий модуль:
+Название: ${activeModule.title}
+Job клиента: ${activeModule.job}
+Оффер модуля: ${activeModule.offer}
+Тезисы / содержание:
+${activeModule.theses}
+Результат модуля: ${activeModule.result}
+
+История диалога по этому модулю:
+${nextMessages.map((msg) => `${msg.role === 'user' ? 'Пользователь' : 'ИИ'}: ${msg.content}`).join('\n')}
+
+Ответь пользователю коротко и по делу. Если пользователь просит улучшить, переписать, усилить или применить идею к модулю, верни patch только для полей, которые нужно изменить.
+
+Верни только JSON:
+{
+  "reply": "короткий ответ пользователю, что именно предлагаешь или что изменил",
+  "patch": {
+    "title": "новое название модуля, если нужно",
+    "job": "новая job клиента, если нужно",
+    "offer": "новый оффер модуля, если нужно",
+    "theses": "новые тезисы через переносы строк, если нужно",
+    "result": "новый результат модуля, если нужно"
+  }
+}`, 2200);
+
+      const patch = cleanModulePatch(resp.patch);
+      if (Object.values(patch).some(Boolean)) {
+        patchModule(activeModuleIndex, patch);
+      }
+
+      setProductChatMessages((current) => [
+        ...current,
+        { role: 'assistant', content: resp.reply || 'Предложил правку для выбранного модуля.' },
+      ]);
+    } catch (err) {
+      console.error('[ProductMain chat] AI error:', err);
+      setProductChatMessages((current) => [
+        ...current,
+        { role: 'assistant', content: 'Не получилось обработать запрос. Попробуйте сформулировать короче.' },
+      ]);
+    } finally {
+      setProductChatLoading(false);
+    }
   }
 
   async function handleAiReview() {
@@ -613,6 +788,8 @@ ${buildMainProductMarkdown(state)}
     cursor: 'pointer',
     fontWeight: 700,
   };
+  const modules = state.modules ?? DEFAULT_MODULES;
+  const activeModule = modules[activeModuleIndex] ?? modules[0] ?? createEmptyModule(0);
 
   return (
     <div style={{ background: '#fff', minHeight: '100%', maxWidth: 1320, margin: '0 auto' }}>
@@ -703,50 +880,156 @@ ${buildMainProductMarkdown(state)}
               </div>
               <button style={subtleButton} onClick={addModule}>+ Добавить модуль</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 14 }}>
-              {(state.modules ?? DEFAULT_MODULES).map((module, index) => (
-                <div key={index} style={{ ...blockStyle, padding: 0, overflow: 'hidden', background: '#F8F7F3' }}>
-                  <div style={{ background: '#E7E1D4', borderBottom: '1.5px solid #D8D4C8', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: '#1a1a1a', minWidth: 78 }}>Модуль {index + 1}</div>
-                    <input
-                      value={module.title}
-                      onChange={(e) => patchModule(index, { title: e.target.value })}
-                      style={{ ...inputStyle, padding: '7px 9px', fontWeight: 800, background: '#fff', borderColor: '#CEC8B8' }}
-                    />
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+              <div style={{ ...blockStyle, padding: 10, position: 'sticky', top: 12 }}>
+                {modules.map((module, index) => {
+                  const filledFields = [module.title, module.job, module.offer, module.theses, module.result].filter((value) => value?.trim()).length;
+                  const isActive = index === activeModuleIndex;
+                  return (
                     <button
-                      style={{ ...dangerButton, opacity: (state.modules?.length ?? DEFAULT_MODULES.length) <= 1 ? 0.45 : 1 }}
-                      onClick={() => removeModule(index)}
-                      disabled={(state.modules?.length ?? DEFAULT_MODULES.length) <= 1}
+                      key={index}
+                      onClick={() => setActiveModuleIndex(index)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        border: isActive ? '1.5px solid #D4A847' : '1px solid #E5E3DC',
+                        background: isActive ? '#FFF8E8' : '#fff',
+                        borderRadius: 10,
+                        padding: 12,
+                        marginBottom: 8,
+                        cursor: 'pointer',
+                        color: '#1a1a1a',
+                      }}
                     >
-                      Удалить
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 900 }}>Модуль {index + 1}</span>
+                        <span style={{ fontSize: 11, color: filledFields >= 5 ? '#3B6D11' : '#9A6A00', fontWeight: 800 }}>
+                          {filledFields >= 5 ? 'заполнен' : `${filledFields}/5`}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.35, marginBottom: 6 }}>
+                        {module.title || `Модуль ${index + 1}`}
+                      </div>
+                      {module.result && (
+                        <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4 }}>
+                          {module.result.slice(0, 120)}{module.result.length > 120 ? '...' : ''}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16, alignItems: 'start' }}>
+                <div style={{ ...blockStyle, background: '#fff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                    <div>
+                      <div style={labelStyle}>Редактор выбранного модуля</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>Модуль {activeModuleIndex + 1}</div>
+                    </div>
+                    <button
+                      style={{ ...dangerButton, opacity: modules.length <= 1 ? 0.45 : 1 }}
+                      onClick={() => removeModule(activeModuleIndex)}
+                      disabled={modules.length <= 1}
+                    >
+                      Удалить модуль
                     </button>
                   </div>
-                  <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={labelStyle}>Название модуля</div>
+                      <AutoTextarea value={activeModule.title} onChange={(value) => patchModule(activeModuleIndex, { title: value })} style={{ ...textareaStyle, fontSize: 16, fontWeight: 800, background: '#fff' }} minHeight={52} />
+                    </div>
                     <div>
                       <div style={labelStyle}>Job клиента</div>
-                      <textarea value={module.job} onChange={(e) => patchModule(index, { job: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
+                      <AutoTextarea value={activeModule.job} onChange={(value) => patchModule(activeModuleIndex, { job: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={82} />
                     </div>
                     <div>
                       <div style={labelStyle}>Оффер модуля</div>
-                      <textarea value={module.offer} onChange={(e) => patchModule(index, { offer: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
+                      <AutoTextarea value={activeModule.offer} onChange={(value) => patchModule(activeModuleIndex, { offer: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={82} />
                     </div>
                     <div>
                       <div style={labelStyle}>Тезисы / содержание</div>
-                      <textarea value={module.theses} onChange={(e) => patchModule(index, { theses: e.target.value })} style={{ ...textareaStyle, minHeight: 120, background: '#fff' }} />
+                      <AutoTextarea value={activeModule.theses} onChange={(value) => patchModule(activeModuleIndex, { theses: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={130} />
                     </div>
                     <div style={{ background: '#F1EFE8', border: '1.5px solid #D8D4C8', borderRadius: 8, padding: 10 }}>
                       <div style={labelStyle}>Результат модуля</div>
-                      <textarea value={module.result} onChange={(e) => patchModule(index, { result: e.target.value })} style={{ ...textareaStyle, background: '#fff' }} />
+                      <AutoTextarea value={activeModule.result} onChange={(value) => patchModule(activeModuleIndex, { result: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={90} />
                     </div>
                   </div>
                 </div>
-              ))}
+
+                <div style={{ ...blockStyle, background: '#111', color: '#fff', position: 'sticky', top: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 4 }}>ИИ по модулю {activeModuleIndex + 1}</div>
+                  <div style={{ fontSize: 12, color: '#bbb', lineHeight: 1.45, marginBottom: 14 }}>
+                    Обсуждайте модуль, просите усилить оффер, упростить язык или добавить содержание. Если ИИ предложит правку, она применится к выбранному модулю.
+                  </div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                    {productChatMessages.length === 0 && (
+                      <div style={{ background: '#1f1f1f', borderRadius: 10, padding: 10, fontSize: 13, color: '#ddd', lineHeight: 1.45 }}>
+                        Например: “Усиль результат модуля и сделай его конкретнее для клиента”.
+                      </div>
+                    )}
+                    {productChatMessages.map((message, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                          maxWidth: '92%',
+                          background: message.role === 'user' ? '#D4A847' : '#252525',
+                          color: message.role === 'user' ? '#111' : '#fff',
+                          borderRadius: 10,
+                          padding: '9px 10px',
+                          fontSize: 13,
+                          lineHeight: 1.45,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {message.content}
+                      </div>
+                    ))}
+                    {productChatLoading && (
+                      <div style={{ fontSize: 13, color: '#bbb' }}>ИИ думает...</div>
+                    )}
+                  </div>
+                  <AutoTextarea
+                    value={productChatInput}
+                    onChange={setProductChatInput}
+                    style={{ ...textareaStyle, background: '#fff', color: '#1a1a1a', border: 'none', marginBottom: 10 }}
+                    minHeight={80}
+                  />
+                  <button
+                    style={{ ...btnGold, width: '100%', opacity: productChatLoading || !productChatInput.trim() ? 0.6 : 1 }}
+                    onClick={() => void handleProductChatSend()}
+                    disabled={productChatLoading || !productChatInput.trim()}
+                  >
+                    {productChatLoading ? 'Отправляю...' : 'Отправить ИИ'}
+                  </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 10 }}>
+                    {['Усиль оффер модуля', 'Сделай результат конкретнее', 'Упрости язык для клиента'].map((quickPrompt) => (
+                      <button
+                        key={quickPrompt}
+                        style={{ ...btnOutlined, padding: '8px 10px', fontSize: 12, background: '#1f1f1f', color: '#fff', borderColor: '#333' }}
+                        onClick={() => setProductChatInput(quickPrompt)}
+                      >
+                        {quickPrompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <div style={{ ...blockStyle, background: '#EAF2FF', borderColor: '#BFD4F4' }}>
-            <div style={{ ...labelStyle, color: '#2F5F9F' }}>Общий результат продукта / продуктовое обещание</div>
-            <textarea value={state.transformation ?? ''} onChange={(e) => patchState({ transformation: e.target.value })} style={{ ...textareaStyle, minHeight: 120, background: '#fff' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ ...labelStyle, color: '#2F5F9F', marginBottom: 0 }}>Общий результат продукта / продуктовое обещание</div>
+              <button style={btnOutlined} onClick={() => void handleGenerateTransformation()} disabled={loading}>
+                {state.transformation ? 'Пересобрать с ИИ' : 'Дозаполнить с ИИ'}
+              </button>
+            </div>
+            <AutoTextarea value={state.transformation ?? ''} onChange={(value) => patchState({ transformation: value })} style={{ ...textareaStyle, background: '#fff' }} minHeight={120} />
           </div>
 
           <div>
