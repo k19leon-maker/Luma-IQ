@@ -67,10 +67,14 @@ const FORMAT_LABELS: Record<LeadMagnetFormat, string> = {
 const STEPS_BY_FORMAT: Record<LeadMagnetFormat, LeadMagnetStep[]> = {
   'sales-longread': [
     { id: 'titles', label: 'Заголовки и карта' },
-    { id: 'intro', label: 'Лид и экспертность' },
-    { id: 'problem', label: 'Проблема и старые способы' },
-    { id: 'method', label: 'Метод и демонстрация' },
-    { id: 'cta', label: 'Следующий шаг и возражения' },
+    { id: 'lead', label: 'Подзаголовок и лид' },
+    { id: 'expert', label: 'Экспертность' },
+    { id: 'problem', label: 'Проблема и разворот' },
+    { id: 'oldWays', label: 'Старые способы' },
+    { id: 'method', label: 'Метод эксперта' },
+    { id: 'demo', label: 'Демонстрация и нюансы' },
+    { id: 'cta', label: 'Следующий шаг' },
+    { id: 'objections', label: 'Возражения и P.S.' },
   ],
   'video-lesson': [
     { id: 'concept', label: 'Тема и обещание' },
@@ -109,6 +113,19 @@ const EMPTY_LEAD_MAGNET: LeadMagnetState = {
 
 function cleanCodeFence(value: string): string {
   return value.replace(/```(?:json|markdown|md)?/gi, '').replace(/```/g, '').trim();
+}
+
+function limitText(value: string | undefined, max = 1200): string {
+  const text = value?.trim() ?? '';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trim()}\n...`;
+}
+
+function fitAiMessage(value: string, max = 15500): string {
+  if (value.length <= max) return value;
+  const head = value.slice(0, Math.floor(max * 0.72)).trim();
+  const tail = value.slice(-Math.floor(max * 0.2)).trim();
+  return `${head}\n\n...[часть контекста сокращена, чтобы запрос прошёл лимит API]...\n\n${tail}`;
 }
 
 function stripMarkdown(value: string): string {
@@ -159,6 +176,24 @@ function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
     '# Лид-магнит',
     `## Формат\n${formatTitle}`,
     assistantContent,
+  ].filter(Boolean).join('\n\n');
+}
+
+function buildLeadMagnetBrief(state: LeadMagnetState): string {
+  const formatTitle = state.selectedFormat ? FORMAT_LABELS[state.selectedFormat] : 'Лид-магнит';
+  const assistantBlocks = (state.chatMessages ?? [])
+    .filter((message) => message.role === 'assistant')
+    .map((message) => {
+      const title = message.stepTitle ? `## ${message.stepTitle}` : '';
+      return [title, limitText(message.content, 1400)].filter(Boolean).join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  return [
+    '# Лид-магнит',
+    `## Формат\n${formatTitle}`,
+    assistantBlocks,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -393,7 +428,7 @@ export default function LeadMagnet() {
         model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
         section: 'lead-magnet',
-        message,
+        message: fitAiMessage(message),
         conversationHistory: [],
         projectName,
         unpackingProfile: mergedProfile as Record<string, string>,
@@ -411,7 +446,7 @@ export default function LeadMagnet() {
 Формат лид-магнита: ${FORMAT_LABELS[format]}.
 
 Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
+${limitText(context || 'Контекст пока не заполнен.', 6200)}
 
 Общие правила:
 - Используй только данные проекта. Не выдумывай факты об эксперте, опыте, кейсах, цене, формате или аудитории.
@@ -447,10 +482,10 @@ ${currentMarkdown || 'Пока пусто.'}`;
 
 ## Карта лонгрида
 Короткая карта будущей статьи по блокам: что будет раскрыто и к какому следующему шагу ведём.`;
-      case 'intro':
+      case 'lead':
         return `${base}
 
-Напиши следующие блоки лонгрида.
+Напиши вводные блоки лонгрида.
 Верни markdown строго по структуре:
 
 ## Подзаголовок
@@ -460,32 +495,49 @@ ${currentMarkdown || 'Пока пусто.'}`;
 200-350 слов: проблема, core job клиента, внутренний конфликт, почему старые попытки могли не сработать, что будет фокусом статьи.
 
 ## Что разберём в статье
-Буллеты через задачи клиента: понять, разобраться, увидеть, найти, выбрать.
+Буллеты через задачи клиента: понять, разобраться, увидеть, найти, выбрать.`;
+      case 'expert':
+        return `${base}
+
+Напиши ранний блок доверия к эксперту.
+Верни markdown строго по структуре:
 
 ## Представление эксперта
 Ранний блок доверия. Не сухая биография: каждый факт должен отвечать, почему эксперту можно доверять именно в этой проблеме.`;
       case 'problem':
         return `${base}
 
-Напиши блоки про проблему.
+Напиши блок про понимание проблемы.
 Верни markdown строго по структуре:
 
 ## Главная ошибка в понимании проблемы
 Покажи поверхностное объяснение клиента и экспертный разворот.
 
-## Почему старые способы не работают
-Разбери 5-8 старых решений. Для каждого: что человек делает, почему, почему это может не работать, какой эффект получает, какой вывод.
-
 ## Главный смысловой разворот
 Одна сильная мысль по формуле: "Задача не в том, чтобы..., а в том, чтобы...".`;
+      case 'oldWays':
+        return `${base}
+
+Напиши блок про старые способы решения.
+Верни markdown строго по структуре:
+
+## Почему старые способы не работают
+Разбери 4-6 старых решений. Для каждого: что человек делает, почему он так делает, почему это может не работать, какой эффект получает, какой вывод.
+
+Важно: снимай вину. Пиши, что человек действует из нормального желания помочь, защитить, разобраться или получить результат.`;
       case 'method':
         return `${base}
 
-Напиши полезную и доказательную часть лонгрида.
+Напиши блок метода эксперта.
 Верни markdown строго по структуре:
 
 ## Метод / модель эксперта
-3-5 опор. Для каждой: название, простое объяснение, почему важно, что обычно делают не так, что делать иначе, какой результат дает.
+3-5 опор. Для каждой: название, простое объяснение, почему важно, что обычно делают не так, что делать иначе, какой результат дает.`;
+      case 'demo':
+        return `${base}
+
+Напиши прикладной блок.
+Верни markdown строго по структуре:
 
 ## Конкретная демонстрация
 Добавь таблицу:
@@ -497,11 +549,16 @@ ${currentMarkdown || 'Пока пусто.'}`;
       case 'cta':
         return `${base}
 
-Напиши продающий финал лонгрида.
+Напиши блок продажи следующего шага.
 Верни markdown строго по структуре:
 
 ## Продажа следующего шага
-Сделай следующий шаг отдельным оффером: заголовок, подзаголовок, что это, для кого, зачем прийти, что будет внутри, что человек получит, кому подойдет, почему это безопасный первый шаг, CTA.
+Сделай следующий шаг отдельным оффером: заголовок, подзаголовок, что это, для кого, зачем прийти, что будет внутри, что человек получит, кому подойдет, почему это безопасный первый шаг, CTA.`;
+      case 'objections':
+        return `${base}
+
+Напиши финальные блоки лонгрида.
+Верни markdown строго по структуре:
 
 ## Отработка возражений
 Разбери основные возражения из контекста. Каждое возражение отдельным мини-блоком: признать, объяснить, снизить риск, показать действие, повторить CTA.
@@ -656,7 +713,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
   }
 
   function buildStepPrompt(format: LeadMagnetFormat, step: LeadMagnetStep, current: LeadMagnetState): string {
-    const markdown = buildLeadMagnetMarkdown(current);
+    const markdown = buildLeadMagnetBrief(current);
     if (format === 'sales-longread') return salesLongreadPrompt(step, markdown);
     if (format === 'video-lesson') return videoLessonPrompt(step, markdown);
     return pdfGuidePrompt(step, markdown);
@@ -754,7 +811,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
 ${text}
 
 Текущая версия:
-${buildLeadMagnetMarkdown(stateWithUser)}
+${buildLeadMagnetBrief(stateWithUser)}
 
 Задача:
 - Выполни правку по запросу пользователя.
