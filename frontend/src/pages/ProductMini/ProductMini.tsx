@@ -34,19 +34,39 @@ interface MiniProductState extends ProductDraft {
 }
 
 interface ProductStep {
-  id: 'names' | 'offer' | 'description' | 'lesson1' | 'lesson2' | 'lesson3' | 'bonuses' | 'promise';
+  id:
+    | 'bestName'
+    | 'mainOffer'
+    | 'shortDescription'
+    | 'lesson1'
+    | 'lesson2'
+    | 'lesson3'
+    | 'sevenDaySchedule'
+    | 'mainResult'
+    | 'fit'
+    | 'bonuses'
+    | 'objections'
+    | 'landingBlock'
+    | 'telegramPosts'
+    | 'nextProductBridge';
   label: string;
 }
 
 const PRODUCT_STEPS: ProductStep[] = [
-  { id: 'names', label: 'Название мини-продукта' },
-  { id: 'offer', label: 'Оффер' },
-  { id: 'description', label: 'Описание мини-продукта' },
-  { id: 'lesson1', label: 'Занятие 1' },
-  { id: 'lesson2', label: 'Занятие 2' },
-  { id: 'lesson3', label: 'Занятие 3' },
+  { id: 'bestName', label: 'Лучшее название мини-продукта' },
+  { id: 'mainOffer', label: 'Главный оффер' },
+  { id: 'shortDescription', label: 'Краткое описание продукта' },
+  { id: 'lesson1', label: '1 занятие' },
+  { id: 'lesson2', label: '2 занятие' },
+  { id: 'lesson3', label: '3 занятие' },
+  { id: 'sevenDaySchedule', label: 'Расписание на 7 дней' },
+  { id: 'mainResult', label: 'Главный результат' },
+  { id: 'fit', label: 'Для кого / не для кого' },
   { id: 'bonuses', label: 'Бонусы' },
-  { id: 'promise', label: 'Продуктовое обещание' },
+  { id: 'objections', label: 'Возражения и ответы' },
+  { id: 'landingBlock', label: 'Продающий блок для лендинга' },
+  { id: 'telegramPosts', label: '3 Telegram-поста' },
+  { id: 'nextProductBridge', label: 'Мост к следующему продукту' },
 ];
 
 const EMPTY_STATUSES = PRODUCT_STEPS.reduce<Record<string, StepStatus>>((acc, step) => {
@@ -120,14 +140,15 @@ function normalizeProduct(saved?: ProductDraft): MiniProductState {
   if (raw.name || raw.offer || raw.productDescription || raw.lesson1 || raw.lesson2 || raw.lesson3 || raw.bonuses || raw.transformation || raw.description) {
     for (const step of PRODUCT_STEPS) {
       const hasValue =
-        (step.id === 'names' && (raw.name || raw.nameOptions?.some(Boolean))) ||
-        (step.id === 'offer' && raw.offer) ||
-        (step.id === 'description' && raw.productDescription) ||
+        (step.id === 'bestName' && (raw.name || raw.nameOptions?.some(Boolean))) ||
+        (step.id === 'mainOffer' && raw.offer) ||
+        (step.id === 'shortDescription' && raw.productDescription) ||
         (step.id === 'lesson1' && raw.lesson1) ||
         (step.id === 'lesson2' && raw.lesson2) ||
         (step.id === 'lesson3' && raw.lesson3) ||
         (step.id === 'bonuses' && raw.bonuses) ||
-        (step.id === 'promise' && raw.transformation);
+        (step.id === 'mainResult' && raw.transformation) ||
+        (raw.chatMessages ?? []).some((message) => message.stepId === step.id);
       if (hasValue && stepStatuses[step.id] === 'idle') stepStatuses[step.id] = 'done';
     }
   }
@@ -145,6 +166,16 @@ function normalizeProduct(saved?: ProductDraft): MiniProductState {
 }
 
 function buildMiniProductMarkdown(product: MiniProductState): string {
+  const assistantContent = (product.chatMessages ?? [])
+    .filter((message) => message.role === 'assistant' && !message.stepTitle?.toLowerCase().includes('ошибка'))
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (assistantContent) {
+    return ['# Мини-продукт', assistantContent].join('\n\n');
+  }
+
   const hasStructuredData = Boolean(
     product.nameOptions?.some(Boolean) ||
     product.offer ||
@@ -176,6 +207,19 @@ function buildMiniProductMarkdown(product: MiniProductState): string {
 }
 
 function buildMiniProductBrief(product: MiniProductState): string {
+  const assistantBlocks = (product.chatMessages ?? [])
+    .filter((message) => message.role === 'assistant' && !message.stepTitle?.toLowerCase().includes('ошибка'))
+    .map((message) => {
+      const title = message.stepTitle ? `## ${message.stepTitle}` : '';
+      return [title, limitText(message.content, 1100)].filter(Boolean).join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (assistantBlocks) {
+    return ['# Мини-продукт', assistantBlocks].join('\n\n');
+  }
+
   return [
     '# Мини-продукт',
     product.nameOptions?.filter(Boolean).length
@@ -399,8 +443,9 @@ export default function ProductMini() {
   }
 
   function basePrompt() {
-    return `Ты продуктовый маркетолог и методолог экспертных продуктов.
-Работай как стратег по коротким платным продуктам в нише пользователя.
+    return `Ты продуктовый методолог, маркетолог-стратег и эксперт по упаковке мини-продуктов для экспертного бизнеса, психологии, образования и консалтинга.
+
+Твоя задача — на основе данных проекта разработать мини-продукт на 1 неделю из 3 занятий.
 
 Контекст проекта:
 ${limitText(context || 'Контекст пока не заполнен.', 6200)}
@@ -410,9 +455,14 @@ ${limitText(context || 'Контекст пока не заполнен.', 6200)
 - Когда нужно понять экспертную логику — подключай роль самого пользователя: эксперт с 25-летним опытом, большой клиентской базой и практическим пониманием клиентов.
 
 Правила:
-- Мини-продукт — короткий продукт на 1–2 недели, который даёт первый ощутимый результат и ведёт к следующему шагу.
+- Мини-продукт длится 7 дней и состоит ровно из 3 занятий.
+- Между занятиями должны быть практические задания.
+- Продукт должен решать узкую и острую задачу конкретного сегмента.
+- Мини-продукт продаёт первый управляемый результат, а не полное решение большой системной проблемы.
+- Каждый блок должен давать конкретику: действия, упражнения, шаблоны, фразы, разборы, артефакты.
+- У каждого занятия должен быть выход: карта, список, фразы, алгоритм, упражнение, сценарий, план, договорённость, чек-лист или стратегия.
 - Не делай флагман, длинную программу или 10 модулей.
-- Должно быть ровно 3 занятия и ровно 5 бонусов.
+- Не обещай невозможного и не придумывай неподтверждённые факты об эксперте, кейсах, регалиях, результатах и опыте.
 - Не подставляй психологию или другую нишу, если её нет в контексте.
 - Пиши конкретно, как рабочий черновик для эксперта.
 - Отвечай только на русском языке.`;
@@ -421,6 +471,54 @@ ${limitText(context || 'Контекст пока не заполнен.', 6200)
   function buildStepPrompt(step: ProductStep, current: MiniProductState) {
     const currentProduct = buildMiniProductBrief(current);
     switch (step.id) {
+      case 'bestName':
+        return `${basePrompt()}
+
+Проработай только пункт 1: лучшее название мини-продукта.
+
+Перед разработкой учти: целевая аудитория, выбранный сегмент, главная боль, главный запрос, core job клиента, что человек уже пробовал, первый быстрый результат и следующий шаг воронки.
+
+Верни markdown строго по структуре:
+
+## Лучшее название мини-продукта
+Дай 10 вариантов названия.
+
+Название должно быть конкретным, связанным с болью и желаемым первым результатом, без пустого инфобизнеса.
+
+## Рекомендуемый вариант
+Выбери лучший вариант и объясни, почему он сильнее остальных.`;
+      case 'mainOffer':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 2: главный оффер.
+Верни markdown строго по структуре:
+
+## Главный оффер
+Сформулируй 5 вариантов оффера.
+
+Оффер должен отвечать: для кого продукт, какую проблему решает, какой первый результат даёт за 7 дней, без какого старого болезненного способа.
+
+Формула: "За 7 дней на 3 практических занятиях вы [получите конкретный первый результат], чтобы [желаемое состояние/выгода], без [старый болезненный способ]."
+
+## Рекомендуемый оффер
+Выбери один лучший вариант.`;
+      case 'shortDescription':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 3: краткое описание продукта.
+Верни markdown строго по структуре:
+
+## Краткое описание продукта
+Опиши мини-продукт в 2-4 коротких абзацах: для кого, какая узкая задача, почему это можно проработать за 7 дней, какой первый управляемый результат участник получит.
+
+## Важная граница результата
+Отдельно сформулируй, что мини-продукт не обещает полного решения большой проблемы, а даёт первый управляемый сдвиг.`;
       case 'lesson1':
       case 'lesson2':
       case 'lesson3': {
@@ -430,16 +528,203 @@ ${limitText(context || 'Контекст пока не заполнен.', 6200)
 Уже есть:
 ${currentProduct}
 
-Сформируй только занятие ${number} мини-продукта.
-Для занятия укажи:
-- название занятия;
-- задача клиента / job;
-- что разбираем;
-- практика или задание;
-- результат занятия.
+Проработай только пункт ${Number(number) + 3}: ${number} занятие.
 
-Занятие должно вести к быстрому первому результату.`;
+Логика 3 занятий:
+- занятие 1 — диагностика и разворот мышления;
+- занятие 2 — новый инструмент/метод и практика;
+- занятие 3 — сборка системы, закрепление и следующий шаг.
+
+Если для проекта лучше подходит другая логика, адаптируй, но занятия должны быть одной цепочкой.
+
+Верни markdown строго по структуре:
+
+## Занятие ${number}. [Название]
+
+**Главная задача:**  
+...
+
+**Почему это важно:**  
+...
+
+**Что разберём:**  
+- ...
+- ...
+- ...
+
+**Практика на занятии:**  
+...
+
+**Домашнее задание:**  
+...
+
+**Артефакт:**  
+...
+
+**Результат после занятия:**  
+...
+
+**Переход к следующему шагу:**  
+...`;
       }
+      case 'sevenDaySchedule':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 7: расписание на 7 дней.
+Верни markdown строго по структуре:
+
+## Расписание на 7 дней
+Для каждого дня укажи:
+- задача дня;
+- что сделать;
+- сколько времени займёт;
+- что получится на выходе.
+
+Логика:
+День 1 — занятие 1.
+День 2 — задание/наблюдение/упражнение.
+День 3 — занятие 2.
+День 4 — внедрение.
+День 5 — задание/мини-эксперимент.
+День 6 — занятие 3.
+День 7 — закрепление/рефлексия/план следующего шага.`;
+      case 'mainResult':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 8: главный результат.
+Верни markdown строго по структуре:
+
+## Главный результат
+Сформулируй реалистичный первый результат мини-продукта.
+
+Формула: "За 7 дней вы не решите всю проблему целиком, но получите [конкретный первый результат], чтобы перестать [текущая боль] и начать [желательное направление]."
+
+## Продуктовое обещание
+Одна главная фраза: "К концу недели у вас будет [конкретный артефакт/навык/план/понимание], который поможет [первое изменение в жизни клиента]."
+
+## Быстрые победы
+5-7 быстрых побед, которые человек может получить в процессе.`;
+      case 'fit':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 9: для кого / не для кого.
+Верни markdown строго по структуре:
+
+## Для кого мини-продукт
+Минимум 8-12 буллетов через реальные ситуации клиента. Начинай смыслом "Этот мини-продукт для вас, если..."
+
+## Кому мини-продукт не подойдёт
+Минимум 5-7 буллетов. Это должно повышать доверие и задавать честные границы.`;
+      case 'bonuses':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 10: бонусы.
+Верни markdown строго по структуре:
+
+## Бонусы
+Предложи 3-5 бонусов. Каждый бонус должен закрывать конкретное возражение или усиливать результат.
+
+Для каждого бонуса укажи:
+- название;
+- что внутри;
+- какую проблему закрывает;
+- почему полезен;
+- какой быстрый результат даёт.
+
+Бонусы должны быть практичными: чек-лист, фразы, шаблон, диагностика, карта ошибок, скрипт, инструкция, разбор, памятка.`;
+      case 'objections':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 11: возражения и ответы.
+Верни markdown строго по структуре:
+
+## Возражения и ответы
+Опиши 10 ключевых возражений аудитории.
+
+Для каждого:
+1. Возражение.
+2. Что за ним стоит.
+3. Как его закрыть в тексте.
+4. Какой элемент продукта закрывает это возражение.`;
+      case 'landingBlock':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 12: продающий блок для лендинга.
+Верни markdown строго по структуре:
+
+## Продающий блок для лендинга
+Сформируй готовые блоки:
+1. Первый экран.
+2. Блок боли.
+3. Блок "вы уже пробовали".
+4. Блок "почему не работает".
+5. Блок "что будет иначе".
+6. Блок программы.
+7. Блок результата.
+8. Блок формата.
+9. Блок эксперта.
+10. Блок бонусов.
+11. Блок кому подходит.
+12. Блок кому не подходит.
+13. Блок FAQ.
+14. Финальный CTA.`;
+      case 'telegramPosts':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 13: 3 Telegram-поста.
+Верни markdown строго по структуре:
+
+## 3 Telegram-поста для продажи мини-продукта
+
+### Пост 1. Через боль и узнавание
+Хук, проблема, объяснение, переход к мини-продукту, CTA.
+
+### Пост 2. Через экспертный разворот
+Хук, проблема, объяснение, переход к мини-продукту, CTA.
+
+### Пост 3. Через оффер и приглашение
+Хук, проблема, объяснение, переход к мини-продукту, CTA.`;
+      case 'nextProductBridge':
+        return `${basePrompt()}
+
+Уже есть:
+${currentProduct}
+
+Проработай только пункт 14: мост к следующему продукту.
+Верни markdown строго по структуре:
+
+## Мост к следующему продукту
+Опиши, какой следующий шаг должен быть после мини-продукта: консультация, практикум, групповая программа, сопровождение, наставничество, терапия, диагностика, подписка, основной курс или другой формат из контекста.
+
+Сформулируй:
+- что участник уже получил;
+- что он понял;
+- где проявились более глубокие задачи;
+- почему логично идти дальше;
+- какой следующий продукт решает большую проблему.
+
+Не обесценивай мини-продукт: он должен честно давать результат, но показывать границы.`;
       default:
         return basePrompt();
     }
@@ -457,117 +742,33 @@ ${currentProduct}
     persistState(next, { syncMaterial: false });
 
     try {
-      next = {
-        ...next,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          names: 'running',
-          offer: 'running',
-          description: 'running',
-        },
-      };
-      persistState(next, { syncMaterial: false });
-
-      const introContent = await requestAi(`${basePrompt()}
-
-Сформируй первые 3 блока мини-продукта одним ответом.
-Верни строго markdown с такими заголовками:
-
-## Варианты названия
-1. **Название** — коротко почему подходит
-2. **Название** — коротко почему подходит
-3. **Название** — коротко почему подходит
-
-## Оффер
-2-3 варианта главного быстрого оффера. В конце выбери рекомендуемый.
-
-## Описание мини-продукта
-2-4 коротких абзаца: для кого мини-продукт, какой один запрос решает, как устроен путь за 1–2 недели, какой первый результат получает клиент.`, 4200);
-
-      const namesContent = extractMarkdownSection(introContent, /^##\s+варианты\s+названия/i) || introContent;
-      const offerContent = extractMarkdownSection(introContent, /^##\s+оффер/i);
-      const descriptionContent = extractMarkdownSection(introContent, /^##\s+описание/i);
-      const nameLines = stripMarkdown(namesContent).split('\n').filter(Boolean).slice(0, 3);
-      next = {
-        ...next,
-        nameOptions: nameLines,
-        name: nameLines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт',
-        price: 'Входной платный продукт',
-        format: '1–2 недели / 3 занятия / практика',
-        duration: '1–2 недели',
-        offer: offerContent,
-        productDescription: descriptionContent,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          names: 'done',
-          offer: 'done',
-          description: 'done',
-        },
-      };
-      for (const step of PRODUCT_STEPS.slice(0, 3)) {
-        const content = step.id === 'names'
-          ? namesContent
-          : step.id === 'offer'
-            ? offerContent
-            : descriptionContent;
-        next = withMessage(next, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
-      }
-      persistState(next, { syncMaterial: false });
-
-      for (const lessonStep of PRODUCT_STEPS.filter((step) => step.id.startsWith('lesson'))) {
-        next = { ...next, stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [lessonStep.id]: 'running' } };
+      for (const step of PRODUCT_STEPS) {
+        next = { ...next, stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' } };
         persistState(next, { syncMaterial: false });
-        const content = await requestAi(buildStepPrompt(lessonStep, next), 2400);
-        if (lessonStep.id === 'lesson1') next.lesson1 = content;
-        if (lessonStep.id === 'lesson2') next.lesson2 = content;
-        if (lessonStep.id === 'lesson3') next.lesson3 = content;
+
+        const maxTokens = step.id === 'landingBlock' || step.id === 'telegramPosts' ? 5200 : 3600;
+        const content = await requestAi(buildStepPrompt(step, next), maxTokens);
+        if (step.id === 'bestName') {
+          next.name = extractMarkdownSection(content, /^##\s+рекомендуемый/i)
+            ? stripMarkdown(extractMarkdownSection(content, /^##\s+рекомендуемый/i)).split('\n')[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт'
+            : 'Мини-продукт';
+        }
+        if (step.id === 'mainOffer') next.offer = content;
+        if (step.id === 'shortDescription') next.productDescription = content;
+        if (step.id === 'lesson1') next.lesson1 = content;
+        if (step.id === 'lesson2') next.lesson2 = content;
+        if (step.id === 'lesson3') next.lesson3 = content;
+        if (step.id === 'bonuses') next.bonuses = content;
+        if (step.id === 'mainResult') next.transformation = content;
         next = withMessage({
           ...next,
-          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [lessonStep.id]: 'done' },
-        }, { role: 'assistant', content, stepId: lessonStep.id, stepTitle: lessonStep.label });
+          price: 'Входной платный продукт',
+          format: '7 дней / 3 занятия / практика',
+          duration: '1 неделя',
+          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'done' },
+        }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
         persistState(next, { syncMaterial: false });
       }
-
-      next = {
-        ...next,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          bonuses: 'running',
-          promise: 'running',
-        },
-      };
-      persistState(next, { syncMaterial: false });
-      const finalContent = await requestAi(`${basePrompt()}
-
-Уже есть:
-${buildMiniProductBrief(next)}
-
-Сформируй финальные 2 блока мини-продукта.
-Верни строго markdown с такими заголовками:
-
-## Бонусы
-Ровно 5 бонусов. Для каждого:
-- название;
-- зачем нужен;
-- как помогает быстрее получить результат.
-
-## Продуктовое обещание
-Одна сильная офферная фраза на 30–40 слов максимум. Без списка и без пересказа занятий.`, 3200);
-
-      const bonusesContent = extractMarkdownSection(finalContent, /^##\s+бонус/i) || finalContent;
-      const promiseContent = extractMarkdownSection(finalContent, /^##\s+продуктовое\s+обещание/i);
-      next = {
-        ...next,
-        bonuses: bonusesContent,
-        transformation: promiseContent,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          bonuses: 'done',
-          promise: 'done',
-        },
-      };
-      next = withMessage(next, { role: 'assistant', content: bonusesContent, stepId: 'bonuses', stepTitle: 'Бонусы' });
-      next = withMessage(next, { role: 'assistant', content: promiseContent, stepId: 'promise', stepTitle: 'Продуктовое обещание' });
       persistState(next);
       toast.success('Мини-продукт создан');
     } catch (err) {
@@ -606,9 +807,9 @@ ${buildMiniProductBrief(stateWithUser)}
 Задача:
 - Выполни правку по запросу пользователя.
 - Верни только обновлённую полную версию мини-продукта в markdown.
-- Сохраняй структуру: # Мини-продукт, варианты названия, оффер, описание, занятие 1, занятие 2, занятие 3, бонусы, продуктовое обещание.
-- Должно остаться ровно 3 занятия и ровно 5 бонусов.
-- Продуктовое обещание держи коротким: 30-40 слов максимум.
+- Сохраняй структуру мини-продукта на 7 дней из 3 занятий.
+- В полной версии должны остаться: название, оффер, краткое описание, 3 занятия, расписание на 7 дней, главный результат, для кого/не для кого, бонусы, возражения, лендинг-блок, 3 Telegram-поста и мост к следующему продукту.
+- Не обещай полного решения большой системной проблемы за 7 дней.
 - Не добавляй служебные комментарии вроде “готово” или “я изменил”. Только обновлённый мини-продукт.`, 5200);
 
       const description = response.includes('# Мини-продукт') ? response : `# Мини-продукт\n\n${response}`;
