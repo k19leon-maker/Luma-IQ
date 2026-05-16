@@ -11,7 +11,7 @@ import { prisma } from '../lib/prisma';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 
 const chatSchema = z.object({
-  message: z.string().min(1).max(16000),
+  message: z.string().min(1).max(24000),
   model: z.enum(['chatgpt', 'claude']),
   claudeModel: z.string().optional(),
   section: z.string().optional(),

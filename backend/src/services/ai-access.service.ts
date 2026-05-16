@@ -16,7 +16,17 @@ function todayUtc(): string {
 
 export const aiAccessService = {
   async consume(userId: string): Promise<void> {
-    const subscription = await prisma.subscription.findUnique({ where: { userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        subscription: true,
+      },
+    });
+
+    if (user?.role === 'ADMIN') return;
+
+    const subscription = user?.subscription ?? null;
 
     if (subscription?.status === 'ACTIVE' && subscription.expiresAt && subscription.expiresAt < new Date()) {
       await prisma.subscription.update({ where: { userId }, data: { status: 'EXPIRED' } });

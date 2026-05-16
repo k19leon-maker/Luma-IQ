@@ -68,6 +68,19 @@ function cleanCodeFence(value: string): string {
   return value.replace(/```(?:json|markdown|md)?/gi, '').replace(/```/g, '').trim();
 }
 
+function limitText(value: string | undefined, max = 1200): string {
+  const text = value?.trim() ?? '';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trim()}\n...`;
+}
+
+function fitAiMessage(value: string, max = 15500): string {
+  if (value.length <= max) return value;
+  const head = value.slice(0, Math.floor(max * 0.72)).trim();
+  const tail = value.slice(-Math.floor(max * 0.2)).trim();
+  return `${head}\n\n...[часть контекста сокращена, чтобы запрос прошёл лимит API]...\n\n${tail}`;
+}
+
 function splitProductMarkdownToMessages(markdown: string): ProductChatMessage[] {
   const cleaned = cleanCodeFence(markdown);
   if (!cleaned.trim()) return [];
@@ -118,7 +131,15 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
 }
 
 function buildMainProductMarkdown(product: ProductState): string {
-  if (product.description?.trim() && product.description.includes('# Основной продукт')) {
+  const hasStructuredData = Boolean(
+    product.nameOptions?.some(Boolean) ||
+    product.offer ||
+    product.productDescription ||
+    product.modulesText ||
+    product.transformation,
+  );
+
+  if (!hasStructuredData && product.description?.trim() && product.description.includes('# Основной продукт')) {
     return product.description.trim();
   }
 
@@ -131,6 +152,19 @@ function buildMainProductMarkdown(product: ProductState): string {
     product.productDescription ? `## Описание продукта\n${product.productDescription}` : '',
     product.modulesText ? `## Модули программы\n${product.modulesText}` : '',
     product.transformation ? `## Продуктовое обещание\n${product.transformation}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+function buildMainProductBrief(product: ProductState): string {
+  return [
+    '# Основной продукт',
+    product.nameOptions?.filter(Boolean).length
+      ? `## Варианты названия\n${product.nameOptions.filter(Boolean).map((name, index) => `${index + 1}. ${limitText(name, 240)}`).join('\n')}`
+      : product.name ? `## Название\n${limitText(product.name, 240)}` : '',
+    product.offer ? `## Оффер\n${limitText(product.offer, 1200)}` : '',
+    product.productDescription ? `## Описание продукта\n${limitText(product.productDescription, 1200)}` : '',
+    product.modulesText ? `## Модули программы\n${limitText(product.modulesText, 5200)}` : '',
+    product.transformation ? `## Продуктовое обещание\n${limitText(product.transformation, 500)}` : '',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -339,7 +373,7 @@ export default function ProductMain() {
         model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
         section: 'product-main',
-        message,
+        message: fitAiMessage(message),
         conversationHistory: [],
         projectName,
         unpackingProfile: mergedProfile as Record<string, string>,
@@ -356,7 +390,7 @@ export default function ProductMain() {
 Работай как стратег по продуктовой линейке в нише пользователя.
 
 Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
+${limitText(context || 'Контекст пока не заполнен.', 6200)}
 
 Роли:
 - Когда оцениваешь рынок, спрос, модули и программу — ты продуктовый маркетолог.
@@ -371,7 +405,7 @@ ${context || 'Контекст пока не заполнен.'}
   }
 
   function buildStepPrompt(step: ProductStep, current: ProductState) {
-    const currentProduct = buildMainProductMarkdown(current);
+    const currentProduct = buildMainProductBrief(current);
     switch (step.id) {
       case 'names':
         return `${basePrompt()}
@@ -557,7 +591,7 @@ ${currentProduct}
 ${text}
 
 Текущая версия продукта:
-${buildMainProductMarkdown(stateWithUser)}
+${buildMainProductBrief(stateWithUser)}
 
 Задача:
 - Выполни правку по запросу пользователя.
