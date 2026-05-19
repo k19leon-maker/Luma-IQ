@@ -3,6 +3,7 @@ import { FeatureCode } from '../config/ai-economy';
 import { prisma } from '../lib/prisma';
 import { accessPolicyService } from './access-policy.service';
 import { aiCostService, TokenUsage } from './ai-cost.service';
+import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
 import { featurePricingService } from './feature-pricing.service';
 
@@ -26,6 +27,150 @@ export interface RunAIGenerationInput<T> {
 }
 
 export const aiGenerationService = {
+  async startAccounting(input: {
+    userId: string;
+    projectId?: string | null;
+    featureCode: FeatureCode;
+    provider: AIProvider;
+    model: string;
+    requestHash?: string;
+    promptVersion?: string;
+    contextVersion?: string;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    const [pricing, subscription] = await Promise.all([
+      featurePricingService.resolve(input.featureCode),
+      prisma.subscription.findUnique({ where: { userId: input.userId } }),
+    ]);
+    const billingPeriod = await billingPeriodService.getOrCreateCurrent(input.userId, subscription);
+
+    const projectId = input.projectId
+      ? await prisma.project.findFirst({
+        where: { id: input.projectId, userId: input.userId },
+        select: { id: true },
+      }).then((project) => project?.id ?? null)
+      : null;
+
+    const generation = await prisma.aIGeneration.create({
+      data: {
+        userId: input.userId,
+        projectId,
+        billingPeriodId: billingPeriod.id,
+        featureCode: input.featureCode,
+        featureGroup: pricing.featureGroup,
+        generationClass: pricing.generationClass,
+        provider: input.provider,
+        model: input.model,
+        status: 'RUNNING',
+        requestHash: input.requestHash ?? null,
+        promptVersion: input.promptVersion ?? null,
+        contextVersion: input.contextVersion ?? null,
+        metadata: input.metadata ?? undefined,
+        startedAt: new Date(),
+      },
+    });
+
+    await prisma.aIUsageEvent.create({
+      data: {
+        userId: input.userId,
+        projectId,
+        generationId: generation.id,
+        eventType: 'STARTED',
+        featureCode: input.featureCode,
+        provider: input.provider,
+        model: input.model,
+      },
+    });
+
+    return { generation, billingPeriod };
+  },
+
+  async markSucceeded(input: {
+    generationId: string;
+    userId: string;
+    projectId?: string | null;
+    featureCode: FeatureCode;
+    provider: AIProvider;
+    model: string;
+    startedAtMs: number;
+    isMock: boolean;
+    usage?: TokenUsage;
+  }): Promise<void> {
+    const usage = input.usage ?? { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
+    const totalTokens = usage.inputTokens + usage.outputTokens + (usage.cachedInputTokens ?? 0);
+    const cost = await aiCostService.calculate({ provider: input.provider, model: input.model, usage });
+
+    await prisma.aIGeneration.update({
+      where: { id: input.generationId },
+      data: {
+        provider: input.provider,
+        model: input.model,
+        status: 'SUCCEEDED',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens ?? 0,
+        totalTokens,
+        actualCostUsd: cost.actualCostUsd,
+        pricingSnapshot: cost.pricingSnapshot,
+        latencyMs: Date.now() - input.startedAtMs,
+        metadata: { isMock: input.isMock },
+        finishedAt: new Date(),
+      },
+    });
+
+    await prisma.aIUsageEvent.create({
+      data: {
+        userId: input.userId,
+        projectId: input.projectId ?? null,
+        generationId: input.generationId,
+        eventType: 'SUCCEEDED',
+        featureCode: input.featureCode,
+        provider: input.provider,
+        model: input.model,
+        costUsd: cost.actualCostUsd,
+        tokensInput: usage.inputTokens,
+        tokensOutput: usage.outputTokens,
+        metadata: { isMock: input.isMock },
+      },
+    });
+  },
+
+  async markFailed(input: {
+    generationId: string;
+    userId: string;
+    projectId?: string | null;
+    featureCode: FeatureCode;
+    provider: AIProvider;
+    model: string;
+    startedAtMs: number;
+    error: unknown;
+  }): Promise<void> {
+    const message = input.error instanceof Error ? input.error.message : 'unknown';
+
+    await prisma.aIGeneration.update({
+      where: { id: input.generationId },
+      data: {
+        status: 'FAILED',
+        errorMessage: message,
+        latencyMs: Date.now() - input.startedAtMs,
+        finishedAt: new Date(),
+      },
+    }).catch(() => {});
+
+    await prisma.aIUsageEvent.create({
+      data: {
+        userId: input.userId,
+        projectId: input.projectId ?? null,
+        generationId: input.generationId,
+        eventType: 'FAILED',
+        featureCode: input.featureCode,
+        provider: input.provider,
+        model: input.model,
+        metadata: { error: message },
+      },
+    }).catch(() => {});
+  },
+
   async run<T>(input: RunAIGenerationInput<T>): Promise<{ result: T; generationId: string; creditsCharged: number; actualCostUsd: string }> {
     const pricing = await featurePricingService.resolve(input.featureCode);
     const access = await accessPolicyService.assertCanUseFeature({

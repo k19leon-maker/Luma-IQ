@@ -1,14 +1,17 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import { AIProvider } from '@prisma/client';
 import { chat, resolveOpenAIModel } from '../services/ai.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
 import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
 import { aiAccessService, AiAccessError } from '../services/ai-access.service';
+import { aiGenerationService } from '../services/ai-generation.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
+import { FeatureCode } from '../config/ai-economy';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(24000),
@@ -33,6 +36,34 @@ const chatSchema = z.object({
   maxTokens: z.number().int().min(256).max(8000).optional(),
 });
 
+const SECTION_FEATURES: Record<string, FeatureCode> = {
+  'ai-dialog': 'ai_chat',
+  positioning: 'positioning',
+  audience: 'audience',
+  strategy: 'positioning',
+  utp: 'utp',
+  social: 'social',
+  'product-main': 'product_main',
+  'product-mini': 'product_mini',
+  'lead-magnet': 'lead_magnet',
+  posts: 'post',
+  reels: 'reel',
+  articles: 'article',
+  'video-scripts': 'video_script',
+  'chatbot-chains': 'chatbot_chain',
+  'content-plan': 'content_plan',
+  jtbd: 'jtbd',
+};
+
+function resolveFeatureCode(section?: string): FeatureCode {
+  if (!section) return 'ai_chat';
+  return SECTION_FEATURES[section] ?? 'ai_chat';
+}
+
+function toDbProvider(provider: 'openai' | 'anthropic'): AIProvider {
+  return provider === 'openai' ? 'OPENAI' : 'ANTHROPIC';
+}
+
 export const aiController = {
   async chat(req: AuthRequest, res: Response): Promise<void> {
     const parsed = chatSchema.safeParse(req.body);
@@ -56,6 +87,11 @@ export const aiController = {
     } = parsed.data;
 
     const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
+    const dbProvider = toDbProvider(provider);
+    const resolvedModel = provider === 'anthropic'
+      ? claudeModel ?? 'claude-haiku-4-5-20251001'
+      : resolveOpenAIModel(section, openaiModel);
+    const featureCode = resolveFeatureCode(section);
 
     const messages = [
       ...conversationHistory,
@@ -102,7 +138,29 @@ export const aiController = {
       systemPrompt = withGlobalAiBehaviorPrompt(systemPrompt);
     }
 
+    const accountingStartedAt = Date.now();
+    let generationId: string | null = null;
+    let accountingProjectId: string | null = null;
+
     try {
+      const accounting = await aiGenerationService.startAccounting({
+        userId: req.userId!,
+        projectId: projectId ?? null,
+        featureCode,
+        provider: dbProvider,
+        model: resolvedModel,
+        metadata: {
+          section: section ?? null,
+          requestModel: model,
+          hasProjectId: Boolean(projectId),
+        },
+      }).catch((err) => {
+        console.warn('[AI accounting] start failed:', err instanceof Error ? err.message : err);
+        return null;
+      });
+      generationId = accounting?.generation.id ?? null;
+      accountingProjectId = accounting?.generation.projectId ?? null;
+
       await aiAccessService.consume(req.userId!);
 
       const result = await chat({
@@ -116,12 +174,27 @@ export const aiController = {
         temperature: 0.7,
       });
 
+      if (generationId) {
+        void aiGenerationService.markSucceeded({
+          generationId,
+          userId: req.userId!,
+          projectId: accountingProjectId,
+          featureCode,
+          provider: dbProvider,
+          model: resolvedModel,
+          startedAtMs: accountingStartedAt,
+          isMock: result.mock,
+        }).catch((err) => {
+          console.warn('[AI accounting] success update failed:', err instanceof Error ? err.message : err);
+        });
+      }
+
       void prisma.aIRequestLog.create({
         data: {
           userId: req.userId!,
           provider,
           section: section ?? null,
-          model: provider === 'anthropic' ? claudeModel ?? null : resolveOpenAIModel(section, openaiModel),
+          model: resolvedModel,
           status: 'SUCCEEDED',
           isMock: result.mock,
         },
@@ -134,12 +207,26 @@ export const aiController = {
       res.json({ content: result.content, mock: result.mock });
     } catch (err) {
       console.error('[AI] Error:', err);
+      if (generationId) {
+        void aiGenerationService.markFailed({
+          generationId,
+          userId: req.userId!,
+          projectId: accountingProjectId,
+          featureCode,
+          provider: dbProvider,
+          model: resolvedModel,
+          startedAtMs: accountingStartedAt,
+          error: err,
+        }).catch((accountingErr) => {
+          console.warn('[AI accounting] failed update failed:', accountingErr instanceof Error ? accountingErr.message : accountingErr);
+        });
+      }
       void prisma.aIRequestLog.create({
         data: {
           userId: req.userId!,
           provider,
           section: section ?? null,
-          model: provider === 'anthropic' ? claudeModel ?? null : resolveOpenAIModel(section, openaiModel),
+          model: resolvedModel,
           status: 'FAILED',
           error: err instanceof Error ? err.message : 'unknown',
         },
