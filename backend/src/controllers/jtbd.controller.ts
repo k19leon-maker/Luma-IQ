@@ -16,6 +16,16 @@ async function assertProjectOwner(projectId: string, userId: string, res: Respon
   return true;
 }
 
+async function assertSessionOwner(sessionId: string, userId: string, res: Response): Promise<boolean> {
+  const session = await prisma.jTBDSession.findUnique({
+    where: { id: sessionId },
+    select: { project: { select: { userId: true } } },
+  });
+  if (!session) { res.status(404).json({ error: 'Сессия не найдена' }); return false; }
+  if (session.project.userId !== userId) { res.status(403).json({ error: 'Доступ запрещён' }); return false; }
+  return true;
+}
+
 // Публичное представление шагов — без buildPrompt
 const PUBLIC_STEPS = JTBD_FRAMEWORK.map(({ id, key, title, description, userQuestion }) => ({
   id,
@@ -65,6 +75,8 @@ export const jtbdController = {
       } catch (dbErr) {
         console.warn('[JTBD] Session getOrCreate failed (DB unavailable?):', (dbErr as Error).message);
       }
+    } else if (sessionId) {
+      if (!req.userId || !(await assertSessionOwner(sessionId, req.userId, res))) return;
     }
 
     // ── AI generation ─────────────────────────────────────────────────────────
