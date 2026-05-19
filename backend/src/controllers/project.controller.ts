@@ -243,35 +243,15 @@ export const projectController = {
       const existing = (project.strategyData as Record<string, unknown>) ?? {};
       const merged   = { ...existing, ...parsed.data } as Prisma.InputJsonValue;
       const { prisma } = await import('../lib/prisma');
-      if (parsed.data.expertProfileData) {
-        const projects = await prisma.project.findMany({
-          where: { userId: req.userId! },
-          select: { id: true, strategyData: true },
-        });
-        await prisma.$transaction(projects.map((item) => {
-          const existingStrategy = (item.strategyData as Record<string, unknown>) ?? {};
-          return prisma.project.update({
-            where: { id: item.id },
-            data: {
-              strategyData: {
-                ...existingStrategy,
-                expertProfileData: parsed.data.expertProfileData,
-              } as Prisma.InputJsonValue,
-            },
-          });
-        }));
-      } else {
-        await prisma.project.update({
-          where: { id: req.params.id as string },
-          data: { strategyData: merged },
-        });
-      }
+      await prisma.project.update({
+        where: { id: req.params.id as string },
+        data: { strategyData: merged },
+      });
       void eventService.track('strategy_saved', {
         userId: req.userId!,
         metadata: {
           projectId: req.params.id,
           keys: Object.keys(parsed.data),
-          syncedToAllProjects: Boolean(parsed.data.expertProfileData),
         },
       }).catch(() => {});
       res.json({ ok: true });

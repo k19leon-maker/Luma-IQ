@@ -155,9 +155,13 @@ export default function AboutExpert() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importSourceId, setImportSourceId] = useState('');
 
   const summary = useMemo(() => buildSummary(profile), [profile]);
   const canSave = Boolean(profile.name.trim() || profile.role.trim() || profile.niche.trim() || profile.uploadedFileText.trim());
+  const importableProjects = projects.filter((project) => project.id !== activeProjectId);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -202,6 +206,36 @@ export default function AboutExpert() {
     }
   }
 
+  async function importProfileFromProject() {
+    if (!importSourceId) {
+      toast.error('Выберите проект-источник');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const data = await projectsApi.getStrategy(importSourceId);
+      const imported = (data as Record<string, unknown> | null)?.['expertProfileData'] as Partial<ExpertProfileData> | undefined;
+      if (!imported || !buildSummary({ ...EMPTY_PROFILE, ...imported })) {
+        toast.error('В выбранном проекте раздел "О себе" еще не заполнен');
+        return;
+      }
+      setProfile({
+        ...EMPTY_PROFILE,
+        ...imported,
+        completed: false,
+        updatedAt: '',
+      });
+      setShowImport(false);
+      toast.success('Данные подтянуты. Проверьте и сохраните бриф');
+    } catch (err) {
+      console.error('[AboutExpert] import profile error:', err);
+      toast.error('Не удалось подтянуть данные');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function save(goNext: boolean) {
     if (!activeProjectId) {
       toast.error('Сначала создайте проект');
@@ -222,11 +256,9 @@ export default function AboutExpert() {
     setSaving(true);
     try {
       await projectsApi.saveStrategy(activeProjectId, { expertProfileData });
-      projects.forEach((project) => {
-        upsertMaterial(project.id, buildExpertProfileMaterial(expertProfileData));
-      });
+      upsertMaterial(activeProjectId, buildExpertProfileMaterial(expertProfileData));
       completeExpertProfile();
-      toast.success('Бриф сохранен для всех проектов');
+      toast.success('Бриф сохранен для текущего проекта');
       if (goNext) navigate('/strategy/positioning');
     } catch {
       toast.error('Не удалось сохранить бриф');
@@ -242,12 +274,21 @@ export default function AboutExpert() {
           <div>
             <h1 className={s.title}>О себе</h1>
             <p className={s.subtitle}>
-              Быстрый бриф с фактами об эксперте. Эти данные общие для всех ваших проектов и используются в позиционировании, ЦА, УТП, продуктах, контенте и диалоге с ИИ.
+              Быстрый бриф с фактами об эксперте. Эти данные относятся к текущему проекту и используются в позиционировании, ЦА, УТП, продуктах, контенте и диалоге с ИИ.
             </p>
           </div>
-          <button className={s.uploadButton} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? 'Загружаю...' : 'Загрузить файлы'}
-          </button>
+          <div className={s.headerActions}>
+            <button
+              className={`${s.uploadButton} ${s.importButton}`}
+              onClick={() => setShowImport((current) => !current)}
+              disabled={!importableProjects.length}
+            >
+              Подтянуть из другого проекта
+            </button>
+            <button className={s.uploadButton} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              {uploading ? 'Загружаю...' : 'Загрузить файлы'}
+            </button>
+          </div>
           <input
             ref={fileInputRef}
             className={s.fileInput}
@@ -263,6 +304,32 @@ export default function AboutExpert() {
         ) : (
           <div className={s.layout}>
             <main className={s.card}>
+              {showImport && (
+                <div className={s.importPanel}>
+                  <div>
+                    <div className={s.importTitle}>Подтянуть бриф из другого проекта</div>
+                    <div className={s.importText}>
+                      Данные подставятся в форму текущего проекта. Они сохранятся только после нажатия кнопки “Сохранить”.
+                    </div>
+                  </div>
+                  <div className={s.importControls}>
+                    <select
+                      className={s.select}
+                      value={importSourceId}
+                      onChange={(event) => setImportSourceId(event.target.value)}
+                    >
+                      <option value="">Выберите проект</option>
+                      {importableProjects.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </select>
+                    <button className={s.button} onClick={() => void importProfileFromProject()} disabled={importing || !importSourceId}>
+                      {importing ? 'Подтягиваю...' : 'Подтянуть'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className={s.fields}>
                 {fields.map((field) => (
                   <div className={s.field} key={field.key}>
