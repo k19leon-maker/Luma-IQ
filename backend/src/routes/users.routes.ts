@@ -8,6 +8,5 @@ router.get('/me',              requireAuth, usersController.getMe);
 router.patch('/me',            requireAuth, usersController.updateMe);
 router.post('/me/password',    requireAuth, usersController.changePassword);
 router.delete('/me',           requireAuth, usersController.deleteMe);
-router.post('/admin/manual-pro', usersController.manualPro);
 
 export default router;
