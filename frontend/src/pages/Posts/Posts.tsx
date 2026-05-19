@@ -271,11 +271,24 @@ export default function Posts() {
       ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Подсегмент: ${strat.chosenSubsegment?.split('\n')[0]?.slice(0, 80) ?? ''}.`
       : '';
     const typeLabels: Record<PostType, string> = {
-      pain: 'пост про боль клиента',
-      insight: 'пост-инсайт (озарение)',
-      story: 'пост-история (кейс)',
+      pain: 'пост про боль клиента и узнавание',
+      insight: 'пост-инсайт с новым взглядом',
+      story: 'пост-история или кейс',
     };
-    const prompt = `${segCtx} Придумай 5 конкретных тем для поста типа «${typeLabels[postType]}» для психолога на платформе ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. Темы должны цеплять за живое. Выведи только 5 тем нумерованным списком, без пояснений.`;
+    const prompt = `Придумай 5 конкретных тем для раздела “Посты” в Luma IQ.
+
+Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}
+Тип поста: ${typeLabels[postType]}
+${segCtx}
+
+Требования к темам:
+- темы должны быть привязаны к текущему проекту, эксперту, позиционированию и ЦА;
+- каждая тема должна цеплять за живую боль, инсайт, ошибку, желание или внутренний конфликт аудитории;
+- не используй generic-формулировки;
+- не привязывайся к нише психологии, если проект не про психологию;
+- формулируй темы так, чтобы по ним можно было сразу написать сильный пост.
+
+Формат ответа: только 5 тем нумерованным списком, без пояснений.`;
     try {
       const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
@@ -305,15 +318,33 @@ export default function Posts() {
       : '';
     const extraCtx = [
       keyword && `Ключевое слово/фраза: "${keyword}".`,
-      facture && `Дополнительный контекст от психолога: "${facture}".`,
+      facture && `Дополнительная фактура от эксперта: "${facture}".`,
       offer && `CTA в конце: призыв к ${offer === 'lead' ? 'лид-магниту' : offer === 'mini' ? 'мини-продукту' : 'основному продукту'}.`,
     ].filter(Boolean).join(' ');
     const typeLabels: Record<PostType, string> = {
-      pain: 'пост про боль/проблему клиента',
-      insight: 'пост-инсайт (озарение, неожиданный взгляд)',
-      story: 'короткий пост-история/кейс из практики',
+      pain: 'пост про боль/проблему клиента и эмоциональное узнавание',
+      insight: 'пост-инсайт с новым взглядом и механизмом решения',
+      story: 'пост-история/кейс из практики',
     };
-    const prompt = `Напиши ${typeLabels[postType]} на тему «${selectedTheme}» для психолога. Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. ${segCtx} ${extraCtx} Текст поста только, без заголовка файла. До 600 слов. Живой язык, без психологического жаргона.`;
+    const prompt = `Напиши готовый пост для раздела “Посты” в Luma IQ.
+
+Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}
+Тип поста: ${typeLabels[postType]}
+Тема: «${selectedTheme}»
+${segCtx}
+${extraCtx}
+
+Требования:
+- пост должен быть привязан к текущему проекту, эксперту, позиционированию, ЦА и продуктовой логике;
+- не используй нишу психологии, если текущий проект не про психологию;
+- первые 2 строки должны цеплять внимание;
+- текст должен давать узнавание, напряжение, новый взгляд и вести к CTA;
+- CTA должен быть нативным и логичным, без давления;
+- форматирование должно быть готово для публикации в ${platform === 'telegram' ? 'Telegram' : 'Instagram'}: короткие абзацы, визуальный ритм, читаемость с телефона;
+- используй **жирные акценты** только там, где они усиливают смысл;
+- не добавляй объяснения, комментарии или служебные подписи.
+
+Верни только готовый текст поста.`;
     let content: string;
     try {
       const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
