@@ -16,8 +16,11 @@ import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Platform = 'dzen' | 'vc' | 'telegraf' | 'site';
-type CtaType  = 'telegram' | 'leadmagnet';
+type Platform = 'vc' | 'dzen' | 'habr' | 'linkedin' | 'medium' | 'spark' | 'corporate' | 'seo' | 'telegram';
+type ArticleType = 'story' | 'case' | 'analytics' | 'opinion' | 'review' | 'instruction' | 'guide' | 'seoArticle' | 'trends' | 'mistakes' | 'framework' | 'listicle' | 'research' | 'comparison' | 'educational';
+type CtaType  = 'telegram' | 'leadmagnet' | 'consultation' | 'subscribe' | 'soft';
+type Tone = 'editorial' | 'analytical' | 'journalistic' | 'premium' | 'conversational' | 'provocative' | 'intellectual';
+type Depth = 'short' | 'medium' | 'deep' | 'pillar';
 type Phase    = 'step1' | 'step2-loading' | 'step2' | 'generating' | 'editor';
 
 interface StrategyData {
@@ -28,6 +31,9 @@ interface StrategyData {
 interface SavedArticle {
   id:            string;
   platform:      Platform;
+  articleType?:  ArticleType;
+  tone?:         Tone;
+  depth?:        Depth;
   ctaType:       CtaType;
   botKeyword:    string;
   content:       string;
@@ -43,26 +49,86 @@ interface ArticleItem extends SplitItem {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_OPTIONS: { key: Platform; emoji: string; label: string; desc: string }[] = [
-  { key: 'dzen',     emoji: '📰', label: 'Яндекс Дзен', desc: 'Личные истории, эмоции, широкая аудитория'             },
-  { key: 'vc',       emoji: '💼', label: 'VC.ru',        desc: 'Аналитика, кейсы, профессиональная аудитория'          },
-  { key: 'telegraf', emoji: '📄', label: 'Телеграф',     desc: 'Нейтральный лонгрид, без регистрации'                  },
-  { key: 'site',     emoji: '🌐', label: 'Свой сайт',    desc: 'SEO-оптимизированная статья для блога'                 },
+  { key: 'vc',        emoji: '💼', label: 'VC.ru',        desc: 'Аналитика, кейсы, цифры, business tone' },
+  { key: 'dzen',      emoji: '📰', label: 'Дзен',         desc: 'Storytelling, эмоциональное удержание, высокая читаемость' },
+  { key: 'habr',      emoji: '🧩', label: 'Habr',         desc: 'Системность, глубина, структура, экспертиза' },
+  { key: 'linkedin',  emoji: '💼', label: 'LinkedIn',     desc: 'Thought leadership, professional insights, authority' },
+  { key: 'medium',    emoji: '✍️', label: 'Medium',       desc: 'Editorial essays, storytelling, intellectual clarity' },
+  { key: 'spark',     emoji: '⚡', label: 'Spark',        desc: 'Бизнес-опыт, стартапы, выводы, дискуссии' },
+  { key: 'corporate', emoji: '🏢', label: 'Корп. блог',   desc: 'Экспертность бренда, доверие, evergreen-контент' },
+  { key: 'seo',       emoji: '🌐', label: 'SEO Blog',     desc: 'Поисковый трафик, структура, FAQ, long-tail запросы' },
+  { key: 'telegram',  emoji: '💬', label: 'Telegram',     desc: 'Telegram longread, сильный голос автора, удержание' },
 ];
 
 const PLATFORM_ICONS: Record<Platform, string> = {
-  dzen: '📰', vc: '💼', telegraf: '📄', site: '🌐',
+  vc: '💼', dzen: '📰', habr: '🧩', linkedin: '💼', medium: '✍️', spark: '⚡', corporate: '🏢', seo: '🌐', telegram: '💬',
 };
 
 const PLATFORM_LABELS: Record<Platform, string> = {
-  dzen: 'Яндекс Дзен', vc: 'VC.ru', telegraf: 'Телеграф', site: 'Свой сайт',
+  vc: 'VC.ru',
+  dzen: 'Дзен',
+  habr: 'Habr',
+  linkedin: 'LinkedIn Articles',
+  medium: 'Medium',
+  spark: 'Spark',
+  corporate: 'Корпоративный блог',
+  seo: 'SEO Blog',
+  telegram: 'Telegram longread',
 };
 
+const ARTICLE_TYPE_OPTIONS: { key: ArticleType; label: string }[] = [
+  { key: 'story', label: 'История' },
+  { key: 'case', label: 'Кейс' },
+  { key: 'analytics', label: 'Аналитика' },
+  { key: 'opinion', label: 'Opinion' },
+  { key: 'review', label: 'Разбор' },
+  { key: 'instruction', label: 'Инструкция' },
+  { key: 'guide', label: 'Гайд' },
+  { key: 'seoArticle', label: 'SEO-статья' },
+  { key: 'trends', label: 'Тренды' },
+  { key: 'mistakes', label: 'Ошибки' },
+  { key: 'framework', label: 'Framework' },
+  { key: 'listicle', label: 'Подборка' },
+  { key: 'research', label: 'Исследование' },
+  { key: 'comparison', label: 'Comparison' },
+  { key: 'educational', label: 'Educational' },
+];
+
+const ARTICLE_TYPE_LABELS: Record<ArticleType, string> = Object.fromEntries(
+  ARTICLE_TYPE_OPTIONS.map((item) => [item.key, item.label]),
+) as Record<ArticleType, string>;
+
+const TONE_OPTIONS: { key: Tone; label: string }[] = [
+  { key: 'editorial', label: 'Editorial' },
+  { key: 'analytical', label: 'Analytical' },
+  { key: 'journalistic', label: 'Journalistic' },
+  { key: 'premium', label: 'Premium' },
+  { key: 'conversational', label: 'Conversational' },
+  { key: 'provocative', label: 'Provocative' },
+  { key: 'intellectual', label: 'Intellectual' },
+];
+
+const DEPTH_OPTIONS: { key: Depth; label: string }[] = [
+  { key: 'short', label: 'Short' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'deep', label: 'Deep' },
+  { key: 'pillar', label: 'Pillar content' },
+];
+
+interface TopicOption {
+  id: string;
+  title: string;
+  details: string;
+  score: number;
+  saved: boolean;
+}
+
 const FACTURE_HINTS = [
-  '1. Есть ли реальный случай из практики по этой теме?',
-  '2. В чём главная причина этой проблемы по вашему опыту?',
-  '3. Какой метод или подход вы используете в работе?',
-  '4. Какой результат получают клиенты?',
-  '5. Что хотите чтобы читатель понял после прочтения?',
+  '1. Что вы видели на практике? Какие кейсы, ошибки и выводы были?',
+  '2. Что сейчас происходит у ЦА? Какие страхи, убеждения и ошибки мешают?',
+  '3. Какие тренды, конфликты или странности рынка вы замечаете?',
+  '4. С чем вы не согласны в рынке и какую авторскую позицию хотите показать?',
+  '5. Какой главный вывод и какое действие должны остаться после статьи?',
 ];
 
 // ─── Seed articles ────────────────────────────────────────────────────────────
@@ -324,12 +390,15 @@ export default function Articles() {
   );
 
   // Step 1
-  const [platform,   setPlatform]   = useState<Platform>('dzen');
-  const [ctaType,    setCtaType]    = useState<CtaType>('telegram');
-  const [botKeyword, setBotKeyword] = useState('');
+  const [platform,    setPlatform]    = useState<Platform>('vc');
+  const [articleType, setArticleType] = useState<ArticleType>('analytics');
+  const [tone,        setTone]        = useState<Tone>('editorial');
+  const [depth,       setDepth]       = useState<Depth>('deep');
+  const [ctaType,     setCtaType]     = useState<CtaType>('soft');
+  const [botKeyword,  setBotKeyword]  = useState('');
 
   // Step 2
-  const [themes,        setThemes]        = useState<string[]>([]);
+  const [topics,        setTopics]        = useState<TopicOption[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
@@ -345,17 +414,66 @@ export default function Articles() {
     persistArticles(activeProjectId, next);
   }, [activeProjectId]);
 
+  function parseTopics(content: string): TopicOption[] {
+    const chunks = content
+      .split(/\n(?=\s*(?:\d+[\).\]]|[-*])\s+)/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
+
+    const source = chunks.length >= 5 ? chunks : content.split('\n').map((line) => line.trim()).filter((line) => line.length > 20);
+
+    return source.slice(0, 30).map((chunk, index) => {
+      const clean = chunk.replace(/^\s*(?:[-*]|\d+[\).\]])\s*/, '').trim();
+      const [firstLine, ...rest] = clean.split('\n').map((line) => line.trim()).filter(Boolean);
+      const title = (firstLine || clean).replace(/\*\*/g, '').slice(0, 180);
+      return {
+        id: `topic-${Date.now()}-${index}`,
+        title,
+        details: rest.join('\n') || clean,
+        score: Math.max(58, 96 - Math.floor(index * 1.4)),
+        saved: false,
+      };
+    });
+  }
+
+  function updateTopic(id: string, patch: Partial<TopicOption>) {
+    setTopics((items) => items.map((topic) => (topic.id === id ? { ...topic, ...patch } : topic)));
+  }
+
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
     setPhase('step2-loading');
     try {
       const settings = getSettings('articles');
-      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
-      const prompt   = `Ты контент-стратег для психолога. Предложи 5 тем для статьи на платформе ${PLATFORM_LABELS[platform]}.
-Целевой сегмент: ${seg}
-Формат платформы: ${PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? ''}
+      const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
+      const prompt   = `Сгенерируй 20 сильных тем для Articles Engine в Luma IQ.
 
-Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
+Тип статьи: ${ARTICLE_TYPE_LABELS[articleType]}
+Площадка: ${PLATFORM_LABELS[platform]}
+Тон: ${tone}
+Глубина: ${depth}
+${seg ? `Целевой сегмент: ${seg}` : ''}
+Формат площадки: ${PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? ''}
+
+Требования:
+- темы должны быть привязаны к текущему проекту, эксперту, ЦА, позиционированию, продуктам и воронке;
+- не используй нишу психологии, если текущий проект не про психологию;
+- темы должны работать как editorial / SEO / PR материал, а не generic блог;
+- каждая тема должна иметь angle, SEO intent, pain point и curiosity gap;
+- отсортируй темы по потенциалу.
+
+Формат каждой темы:
+1. Заголовок: ...
+Подзаголовок: ...
+Angle: ...
+SEO intent: ...
+Для кого: ...
+Почему будут читать: ...
+Pain point: ...
+Curiosity gap: ...
+Scores: SEO / CTR / Authority / Share / Lead — [0-100]
+
+Не объясняй логику.`;
 
       const resp = await aiApi.chat({
         model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
@@ -367,18 +485,14 @@ export default function Articles() {
         unpackingProfile: mergedProfile as Record<string, string>,
       });
 
-      const lines = resp.content
-        .split('\n')
-        .map((l) => l.replace(/^\d+[\.\)]\s*/, '').trim())
-        .filter((l) => l.length > 10)
-        .slice(0, 5);
+      const parsed = parseTopics(resp.content);
 
-      if (lines.length === 0) {
+      if (parsed.length === 0) {
         toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
         return;
       }
-      setThemes(lines);
-      setSelectedTheme(lines[0] ?? '');
+      setTopics(parsed);
+      setSelectedTheme(parsed[0]?.title ?? '');
       setFacture('');
     } catch (err) {
       console.error('[Articles] themes AI error:', err);
@@ -395,24 +509,52 @@ export default function Articles() {
     try {
       const settings = getSettings('articles');
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
-      const ctaText  = ctaType === 'telegram'
-        ? 'Призыв: подписаться на Telegram-канал психолога'
-        : `Призыв: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
+      const selectedTopic = topics.find((topic) => topic.title === selectedTheme);
+      const ctaText  = {
+        telegram: 'CTA: мягко пригласить в Telegram',
+        leadmagnet: `CTA: получить лидмагнит, написав слово «${botKeyword || 'СТАРТ'}»`,
+        consultation: 'CTA: записаться на разбор / консультацию',
+        subscribe: 'CTA: подписаться на автора',
+        soft: 'CTA: мягкий editorial CTA без давления',
+      }[ctaType];
 
-      const prompt = `Ты — маркетолог-копирайтер психологов. Напиши полноценную SEO-статью для психолога на платформе ${PLATFORM_LABELS[platform]}.
+      const prompt = `Создай профессиональную экспертную статью для Articles Engine в Luma IQ.
 
+Тип статьи: ${ARTICLE_TYPE_LABELS[articleType]}
+Площадка: ${PLATFORM_LABELS[platform]}
+Тон: ${tone}
+Глубина: ${depth}
 Тема: ${selectedTheme}
+${selectedTopic?.details ? `Детали темы:\n${selectedTopic.details}` : ''}
 ${seg ? `Целевой сегмент: ${seg}` : ''}
-${facture.trim() ? `Материал из практики психолога: ${facture.trim()}` : ''}
+${facture.trim() ? `Фактура эксперта:\n${facture.trim()}` : ''}
 ${ctaText}
 
-Требования:
-- Длина: 1800–2500 слов
-- Структура: введение → несколько разделов с H2-подзаголовками → заключение → призыв
-- Язык клиента, не психологический жаргон
-- SEO: ключевые слова в подзаголовках органично
+Перед написанием оцени фактуру.
+Если фактуры недостаточно для сильной статьи, верни только блок “Нужна фактура” и 7 конкретных уточняющих вопросов.
 
-Напиши только текст статьи (в markdown), без вступлений и пояснений.`;
+Если фактуры достаточно, создай:
+1. Заголовок 20–30 слов
+2. Подзаголовок
+3. Лид-текст
+4. 3–5 вариантов outline / narrative arcs кратко
+5. Полную статью в markdown с H2/H3
+6. SEO block: primary keyword, secondary keywords, search intent, semantic entities, long-tail keywords
+7. Meta title, meta description, slug
+8. FAQ block
+9. Internal linking ideas / next content
+10. CTA
+11. Article scoring: readability, authority, SEO, emotional retention, editorial quality, CTR, share, lead potential
+
+Требования:
+- не используй нишу психологии, если текущий проект не про психологию;
+- статья должна быть редакционной, журналистской, экспертной и не похожей на AI;
+- органично используй SEO без keyword stuffing;
+- добавь фактуру, примеры, авторскую позицию, рыночный контекст и выводы;
+- адаптируй структуру под площадку ${PLATFORM_LABELS[platform]};
+- не пиши generic SEO-мусор, воду и инфоцыганскую подачу.
+
+Не объясняй логику. Сразу выдавай готовый результат.`;
 
       const resp = await aiApi.chat({
         model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
@@ -429,7 +571,7 @@ ${ctaText}
       const title = `${selectedTheme.slice(0, 50)}… · ${PLATFORM_LABELS[platform]}`;
       const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
       const newArticle: SavedArticle = {
-        id, platform, ctaType, botKeyword,
+        id, platform, articleType, tone, depth, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
       };
       const next = [newArticle, ...articles];
@@ -439,18 +581,8 @@ ${ctaText}
       void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
     } catch (err) {
       console.warn('[Articles] generate AI error:', err);
-      const content = buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
-      const id    = `art-${Date.now()}`;
-      const title = `${selectedTheme.slice(0, 50)}… · ${PLATFORM_LABELS[platform]}`;
-      const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-      const newArticle: SavedArticle = {
-        id, platform, ctaType, botKeyword,
-        content, editedContent: '', editedTitle: title, createdAt: now,
-      };
-      updateArticles([newArticle, ...articles]);
-      setSelectedId(id);
-      setPhase('editor');
-      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
+      toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
+      setPhase('step2');
     } finally {
       finishGenerationTask(activeProjectId, 'articles');
     }
@@ -511,7 +643,14 @@ ${ctaText}
   }
 
   function goToStep1() {
-    setPlatform('dzen'); setCtaType('telegram'); setBotKeyword('');
+    setPlatform('vc');
+    setArticleType('analytics');
+    setTone('editorial');
+    setDepth('deep');
+    setCtaType('soft');
+    setBotKeyword('');
+    setTopics([]);
+    setSelectedTheme('');
     setPhase('step1');
   }
 
@@ -581,7 +720,7 @@ ${ctaText}
     return (
       <div className={s.loadingScreen}>
         <div className={s.loadingSpinner} />
-        <p className={s.loadingText}>Генерирую SEO-заголовки...</p>
+        <p className={s.loadingText}>Генерирую и оцениваю темы...</p>
       </div>
     );
   }
@@ -637,6 +776,21 @@ ${ctaText}
           </div>
         )}
 
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Тип статьи</div>
+          <div className={s.chipGroup}>
+            {ARTICLE_TYPE_OPTIONS.map(t => (
+              <button
+                key={t.key}
+                className={`${s.chip}${articleType === t.key ? ' ' + s.chipActive : ''}`}
+                onClick={() => setArticleType(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Platform */}
         <div className={s.section}>
           <div className={s.sectionTitle}>Площадка</div>
@@ -656,6 +810,36 @@ ${ctaText}
           </div>
         </div>
 
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Тон</div>
+          <div className={s.chipGroup}>
+            {TONE_OPTIONS.map(t => (
+              <button
+                key={t.key}
+                className={`${s.chip}${tone === t.key ? ' ' + s.chipActive : ''}`}
+                onClick={() => setTone(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Глубина статьи</div>
+          <div className={s.chipGroup}>
+            {DEPTH_OPTIONS.map(d => (
+              <button
+                key={d.key}
+                className={`${s.chip}${depth === d.key ? ' ' + s.chipActive : ''}`}
+                onClick={() => setDepth(d.key)}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* CTA */}
         <div className={s.section}>
           <div className={s.sectionTitle}>Призыв к действию</div>
@@ -671,6 +855,24 @@ ${ctaText}
               onClick={() => setCtaType('leadmagnet')}
             >
               🎁 Лид-магнит в боте
+            </button>
+            <button
+              className={`${s.chip}${ctaType === 'consultation' ? ' ' + s.chipActive : ''}`}
+              onClick={() => setCtaType('consultation')}
+            >
+              📞 Консультация
+            </button>
+            <button
+              className={`${s.chip}${ctaType === 'subscribe' ? ' ' + s.chipActive : ''}`}
+              onClick={() => setCtaType('subscribe')}
+            >
+              ✉️ Подписка
+            </button>
+            <button
+              className={`${s.chip}${ctaType === 'soft' ? ' ' + s.chipActive : ''}`}
+              onClick={() => setCtaType('soft')}
+            >
+              🧭 Soft CTA
             </button>
           </div>
           {ctaType === 'leadmagnet' && (
@@ -706,20 +908,29 @@ ${ctaText}
       <Stepper step={2} />
 
       <div className={s.section}>
-        <div className={s.sectionTitle}>Выберите SEO-заголовок</div>
+        <div className={s.sectionTitle}>Выберите тему статьи</div>
         <div className={s.sectionSub}>
-          ИИ предложил 5 заголовков для площадки «{PLATFORM_LABELS[platform]}»
+          ИИ предложил {topics.length} тем для «{PLATFORM_LABELS[platform]}» с angle, SEO intent и оценкой потенциала.
         </div>
         <div className={s.themeList}>
-          {themes.map((theme, i) => (
-            <button
-              key={i}
-              className={`${s.themeItem}${selectedTheme === theme ? ' ' + s.themeItemActive : ''}`}
-              onClick={() => setSelectedTheme(theme)}
-            >
-              <span className={s.themeRadio}>{selectedTheme === theme ? '◉' : '○'}</span>
-              <span className={s.themeText}>«{theme}»</span>
-            </button>
+          {topics.map((topic) => (
+            <div key={topic.id} className={`${s.themeItem}${selectedTheme === topic.title ? ' ' + s.themeItemActive : ''}`}>
+              <button className={s.themeRadio} onClick={() => setSelectedTheme(topic.title)}>
+                {selectedTheme === topic.title ? '◉' : '○'}
+              </button>
+              <button
+                className={s.themeText}
+                style={{ flex: 1, background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer' }}
+                onClick={() => setSelectedTheme(topic.title)}
+              >
+                <strong>{topic.title}</strong>
+                {topic.details && <span style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary)' }}>{topic.details.slice(0, 420)}</span>}
+              </button>
+              <span className={s.badge}>Score {topic.score}</span>
+              <button className={s.actionBtn} onClick={() => updateTopic(topic.id, { saved: !topic.saved })}>
+                {topic.saved ? 'Сохранена' : 'Сохранить'}
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -749,7 +960,7 @@ ${ctaText}
         {inputMode === 'text' ? (
           <textarea
             className={s.factureTextarea}
-            placeholder="Расскажите о своём опыте, случае из практики, методах работы..."
+            placeholder="Расскажите о практике, кейсах, ошибках аудитории, рыночном контексте, спорной позиции, цифрах, примерах и главном выводе статьи..."
             value={facture}
             onChange={e => setFacture(e.target.value)}
           />
