@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { aiController } from '../controllers/ai.controller';
+import { aiWorkflowController } from '../controllers/ai-workflow.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -17,5 +18,8 @@ const aiLimiter = rateLimit({
 const router = Router();
 
 router.post('/chat', requireAuth, aiLimiter, aiController.chat);
+router.get('/workflows/prompts', requireAuth, aiWorkflowController.listPrompts);
+router.post('/workflows/:workflow/start', requireAuth, aiLimiter, aiWorkflowController.start);
+router.post('/workflows/:workflow/step', requireAuth, aiLimiter, aiWorkflowController.step);
 
 export default router;

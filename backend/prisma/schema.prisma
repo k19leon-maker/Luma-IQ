@@ -35,6 +35,8 @@ model User {
   aiGenerations       AIGeneration[]
   aiUsageEvents       AIUsageEvent[]
   featureUsageDaily   FeatureUsageDaily[]
+  aiWorkflowRuns      AIWorkflowRun[]
+  aiArtifacts         AIArtifact[]
 
   @@map("users")
 }
@@ -235,6 +237,8 @@ model AIGeneration {
   userId            String
   projectId         String?
   billingPeriodId   String?
+  workflowRunId     String?
+  workflowStepId    String?
   featureCode       String
   featureGroup      String?
   generationClass   GenerationClass
@@ -269,11 +273,15 @@ model AIGeneration {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
   billingPeriod BillingPeriod? @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
+  workflowRun   AIWorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  workflowStep  AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   usageEvents   AIUsageEvent[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
   @@index([billingPeriodId])
+  @@index([workflowRunId])
+  @@index([workflowStepId])
   @@index([featureCode, createdAt])
   @@index([provider, model, createdAt])
   @@index([status, createdAt])
@@ -307,6 +315,89 @@ model AIUsageEvent {
   @@index([eventType, createdAt])
   @@index([featureCode, createdAt])
   @@map("ai_usage_events")
+}
+
+model AIWorkflowRun {
+  id          String    @id @default(uuid())
+  workflow    String
+  featureCode String?
+  projectId   String
+  userId      String
+  status      String    @default("RUNNING")
+  input       Json?
+  output      Json?
+  metadata    Json?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps       AIWorkflowStep[]
+  artifacts   AIArtifact[]
+  generations AIGeneration[]
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([workflow, status])
+  @@map("ai_workflow_runs")
+}
+
+model AIWorkflowStep {
+  id            String    @id @default(uuid())
+  workflowRunId String
+  step          String
+  status        String    @default("RUNNING")
+  input         Json?
+  output        Json?
+  error         String?
+  retryCount    Int       @default(0)
+  latencyMs     Int?
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workflowRun AIWorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  artifacts   AIArtifact[]
+  generations AIGeneration[]
+
+  @@index([workflowRunId, step])
+  @@index([status, createdAt])
+  @@map("ai_workflow_steps")
+}
+
+model AIArtifact {
+  id             String   @id @default(uuid())
+  type           String
+  workflow       String
+  step           String?
+  projectId      String
+  userId         String
+  workflowRunId  String?
+  workflowStepId String?
+  generationId   String?
+  title          String?
+  content        String
+  structured     Json?
+  metadata       Json?
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowRun  AIWorkflowRun?  @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  workflowStep AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([workflow, step])
+  @@index([type, createdAt])
+  @@index([workflowRunId])
+  @@index([workflowStepId])
+  @@map("ai_artifacts")
 }
 
 model FeatureUsageDaily {
@@ -384,6 +475,8 @@ model Project {
   aiGenerations       AIGeneration[]
   aiUsageEvents       AIUsageEvent[]
   featureUsageDaily   FeatureUsageDaily[]
+  aiWorkflowRuns      AIWorkflowRun[]
+  aiArtifacts         AIArtifact[]
 
   @@index([userId, createdAt])
   @@map("projects")

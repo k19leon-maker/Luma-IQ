@@ -10,6 +10,8 @@ import { featurePricingService } from './feature-pricing.service';
 export interface RunAIGenerationInput<T> {
   userId: string;
   projectId?: string | null;
+  workflowRunId?: string | null;
+  workflowStepId?: string | null;
   featureCode: FeatureCode;
   provider: AIProvider;
   model: string;
@@ -30,6 +32,8 @@ export const aiGenerationService = {
   async startAccounting(input: {
     userId: string;
     projectId?: string | null;
+    workflowRunId?: string | null;
+    workflowStepId?: string | null;
     featureCode: FeatureCode;
     provider: AIProvider;
     model: string;
@@ -56,6 +60,8 @@ export const aiGenerationService = {
         userId: input.userId,
         projectId,
         billingPeriodId: billingPeriod.id,
+        workflowRunId: input.workflowRunId ?? null,
+        workflowStepId: input.workflowStepId ?? null,
         featureCode: input.featureCode,
         featureGroup: pricing.featureGroup,
         generationClass: pricing.generationClass,
@@ -185,6 +191,8 @@ export const aiGenerationService = {
         userId: input.userId,
         projectId: input.projectId ?? null,
         billingPeriodId: access.billingPeriod.id,
+        workflowRunId: input.workflowRunId ?? null,
+        workflowStepId: input.workflowStepId ?? null,
         featureCode: input.featureCode,
         featureGroup: pricing.featureGroup,
         generationClass: pricing.generationClass,
