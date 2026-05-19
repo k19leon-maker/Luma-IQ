@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
-import { useModelStore } from '../../store/model.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { aiApi, type ConversationMessage } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
@@ -68,7 +67,6 @@ export default function Unpacking() {
   const completeUnpacking = useProgressStore((s) => s.completeUnpacking);
   const activeProjectId   = useProjectsStore((s) => s.activeProjectId) ?? '';
   const projectName       = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
-  const getSettings       = useModelStore((s) => s.getSettings);
 
   const switchProject  = useUnpackingStore((s) => s.switchProject);
   const loadFromDb     = useUnpackingStore((s) => s.loadFromDb);
@@ -143,10 +141,8 @@ export default function Unpacking() {
           content: m.text,
         }));
 
-      const settings = getSettings('unpacking');
       const resp = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
+        model:               'chatgpt',
         section:             'unpacking',
         message:             text,
         conversationHistory: history.slice(0, -1), // exclude current message
@@ -197,10 +193,8 @@ export default function Unpacking() {
     setUserMsgCount((c) => c + 1);
 
     try {
-      const settings = getSettings('unpacking');
       const resp = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
+        model:               'chatgpt',
         section:             'unpacking',
         message:             `Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}). Учти его при формировании стратегии.`,
         conversationHistory: [],

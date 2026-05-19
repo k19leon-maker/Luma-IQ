@@ -1,5 +1,8 @@
 export interface ProjectContext {
+  expertName: string;
+  expertProfileSummary: string;
   specialization: string;
+  niche:          string;
   typicalClient:  string;
   uniqueApproach: string;
   keyResult:      string;
@@ -12,7 +15,10 @@ export function buildProjectContext(
   projectName: string,
 ): ProjectContext {
   return {
+    expertName:     profile?.expertName || '',
+    expertProfileSummary: profile?.expertProfileSummary || '',
     specialization: profile?.specialization || projectName || 'эксперт',
+    niche:          profile?.niche || profile?.specialization || projectName || 'экспертная ниша',
     typicalClient:  profile?.typicalClient  || 'клиенты эксперта',
     uniqueApproach: profile?.uniqueApproach || 'авторский подход',
     keyResult:      profile?.keyResult      || 'измеримый результат',

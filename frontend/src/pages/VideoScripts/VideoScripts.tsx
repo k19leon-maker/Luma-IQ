@@ -7,10 +7,8 @@ import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
-import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
-import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './VideoScripts.module.css';
 
@@ -363,8 +361,7 @@ export default function VideoScripts() {
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
 
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
-  const getSettings = useModelStore((s) => s.getSettings);
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'video-scripts')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -407,7 +404,6 @@ export default function VideoScripts() {
   async function handleGenerateThemes() {
     setPhase('step2-loading');
     try {
-      const settings = getSettings('video-scripts');
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
       const prompt   = `Ты контент-стратег для психолога. Предложи 5 тем для YouTube-видео (~${duration} минут).
 Целевой сегмент: ${seg}
@@ -415,13 +411,12 @@ export default function VideoScripts() {
 Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
 
       const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
+        model: 'chatgpt',
         section: 'video-scripts',
         message: prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile: profileData as Record<string, string>,
+        unpackingProfile: mergedProfile as Record<string, string>,
       });
 
       const lines = resp.content
@@ -450,7 +445,6 @@ export default function VideoScripts() {
     startGenerationTask(activeProjectId, 'video-scripts', 'Пишу сценарий видео', selectedTheme || 'Формирую структуру сценария');
     setPhase('generating');
     try {
-      const settings = getSettings('video-scripts');
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
       const ctaText  = ctaType === 'telegram'
         ? 'CTA: подписаться на Telegram-канал психолога'
@@ -475,13 +469,12 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
 Для каждого блока укажи тайминг и текст «на камеру». Используй живой разговорный язык.`;
 
       const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
+        model: 'chatgpt',
         section: 'video-scripts',
         message: prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile: profileData as Record<string, string>,
+        unpackingProfile: mergedProfile as Record<string, string>,
       });
 
       const content = resp.content.trim() || buildScript(duration, selectedTheme, ctaType, botKeyword, facture);
@@ -829,7 +822,6 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
             <span className={s.factureCounterWarn}>(минимум 50)</span>
           )}
         </div>
-        <ModelBar section="video-scripts" />
       </div>
 
       <div className={s.btnRow}>

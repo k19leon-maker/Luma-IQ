@@ -35,6 +35,38 @@
   align-items: start;
 }
 
+.notice {
+  background: #fff;
+  border: 1px solid #e6e1d8;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.noticeTitle {
+  color: #25242a;
+  font-size: 14px;
+  font-weight: 750;
+  margin-bottom: 5px;
+}
+
+.noticeText {
+  color: #6f6d75;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.linkButton {
+  margin-top: 10px;
+  border: none;
+  background: transparent;
+  color: #a77b1f;
+  font-weight: 750;
+  padding: 0;
+  cursor: pointer;
+}
+
 .card {
   background: #fff;
   border: 1px solid #e6e1d8;

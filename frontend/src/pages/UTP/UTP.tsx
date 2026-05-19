@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
@@ -12,7 +11,6 @@ import FormattedText from '../../components/FormattedText/FormattedText';
 
 export default function UTP() {
   const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
-  const getSettings  = useModelStore((s) => s.getSettings);
   const savedData    = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveUtp      = useGeneratedStore((s) => s.setUtp);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -46,7 +44,6 @@ export default function UTP() {
     if (loading) return;
     setLoading(true);
     try {
-      const settings = getSettings('utp');
       const prompt   = `Ты маркетолог-стратег. Создай УТП (уникальное торговое предложение) для проекта в 2–3 предложениях.
 Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
 
@@ -58,8 +55,7 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
 Напиши только текст УТП, без заголовков и пояснений.`;
 
       const resp = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
+        model: 'chatgpt',
         section:             'utp',
         message:             prompt,
         conversationHistory: [],
@@ -79,7 +75,6 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
     if (!utpText || loading) return;
     setLoading(true);
     try {
-      const settings = getSettings('utp');
       const prompt   = `Улучши это УТП проекта — сделай его более конкретным, убедительным и привязанным к контексту.
 Не меняй нишу и не подставляй психологию, если ее нет в контексте.
 
@@ -92,8 +87,7 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
 Напиши только улучшенный текст УТП, без пояснений.`;
 
       const resp = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
+        model: 'chatgpt',
         section:             'utp',
         message:             prompt,
         conversationHistory: [],

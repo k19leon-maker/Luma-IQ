@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
-import { chat } from '../services/ai.service';
+import { chat, resolveOpenAIModel } from '../services/ai.service';
 import { jtbdSessionService } from '../services/jtbd-session.service';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -82,6 +82,7 @@ export const jtbdController = {
         const result = await chat({
           provider,
           messages: [{ role: 'user', content: prompt }],
+          section: 'audience',
           maxTokens: 2048,
           temperature: 0.7,
         });
@@ -92,6 +93,7 @@ export const jtbdController = {
             userId: req.userId!,
             provider,
             section: 'jtbd',
+            model: provider === 'openai' ? resolveOpenAIModel('audience') : null,
             status: 'SUCCEEDED',
             isMock: result.mock,
           },
@@ -107,6 +109,7 @@ export const jtbdController = {
             userId: req.userId!,
             provider,
             section: 'jtbd',
+            model: provider === 'openai' ? resolveOpenAIModel('audience') : null,
             status: 'FAILED',
             error: err instanceof Error ? err.message : 'unknown',
           },

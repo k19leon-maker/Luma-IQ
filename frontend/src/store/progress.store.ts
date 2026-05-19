@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 // ── Per-project flags ──────────────────────────────────────────────────────────
 
 export interface ProgressFlags {
+  expertProfileCompleted: boolean;
   positioningCompleted:  boolean;
   unpackingCompleted:    boolean;
   audienceCompleted:     boolean;
@@ -16,6 +17,7 @@ export interface ProgressFlags {
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
+  expertProfileCompleted: false,
   positioningCompleted:  false,
   unpackingCompleted:    false,
   audienceCompleted:     false,
@@ -39,6 +41,7 @@ interface ProgressState extends ProgressFlags {
 
   // Actions (use currentProjectId internally — backwards compat for all callers)
   completePositioning: () => void;
+  completeExpertProfile: () => void;
   completeUnpacking:   () => void;
   completeAudience:    () => void;
   completeUtp:         () => void;
@@ -53,7 +56,7 @@ interface ProgressState extends ProgressFlags {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getFlags(state: ProgressState): ProgressFlags {
-  return state.projectFlags[state.currentProjectId] ?? { ...DEFAULT_FLAGS };
+  return { ...DEFAULT_FLAGS, ...(state.projectFlags[state.currentProjectId] ?? {}) };
 }
 
 function setFlag(
@@ -82,11 +85,12 @@ export const useProgressStore = create<ProgressState>()(
 
       switchProject: (projectId: string) => {
         set((s) => {
-          const flags = s.projectFlags[projectId] ?? { ...DEFAULT_FLAGS };
+          const flags = { ...DEFAULT_FLAGS, ...(s.projectFlags[projectId] ?? {}) };
           return { currentProjectId: projectId, ...flags };
         });
       },
 
+      completeExpertProfile: () => setFlag(set, 'expertProfileCompleted'),
       completePositioning: () => setFlag(set, 'positioningCompleted'),
       completeUnpacking:   () => setFlag(set, 'unpackingCompleted'),
       completeAudience:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
@@ -117,7 +121,7 @@ export const useProgressStore = create<ProgressState>()(
       // On rehydrate, restore flat flags from currentProjectId
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const flags = state.projectFlags[state.currentProjectId] ?? { ...DEFAULT_FLAGS };
+        const flags = { ...DEFAULT_FLAGS, ...(state.projectFlags[state.currentProjectId] ?? {}) };
         Object.assign(state, flags);
       },
     },

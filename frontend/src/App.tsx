@@ -14,6 +14,7 @@ import Pricing from './pages/Pricing/Pricing';
 import AIDialog from './pages/AIDialog/AIDialog';
 
 // Strategy
+import AboutExpert from './pages/AboutExpert/AboutExpert';
 import Positioning from './pages/Positioning/Positioning';
 import Strategy    from './pages/Strategy/Strategy';
 import UTP         from './pages/UTP/UTP';
@@ -84,6 +85,7 @@ export default function App() {
                   <Route path="/ai-dialog" element={<ErrorBoundary><AIDialog /></ErrorBoundary>} />
 
                   {/* Стратегия */}
+                  <Route path="/strategy/about"       element={<ErrorBoundary><AboutExpert /></ErrorBoundary>} />
                   <Route path="/strategy/positioning" element={<ErrorBoundary><Positioning /></ErrorBoundary>} />
                   <Route path="/strategy/audience"     element={<ErrorBoundary><Strategy /></ErrorBoundary>} />
                   <Route path="/strategy/utp"          element={<ErrorBoundary><UTP /></ErrorBoundary>} />
@@ -118,7 +120,7 @@ export default function App() {
                   <Route path="/admin"    element={<ErrorBoundary><AdminRoute><Admin /></AdminRoute></ErrorBoundary>} />
 
                   {/* Legacy redirects */}
-                  <Route path="/strategy"     element={<Navigate to="/strategy/positioning"  replace />} />
+                  <Route path="/strategy"     element={<Navigate to="/strategy/about"        replace />} />
                   <Route path="/strategy/unpacking" element={<Navigate to="/ai-dialog"       replace />} />
                   <Route path="/strategy/product-main" element={<Navigate to="/products/main"        replace />} />
                   <Route path="/strategy/product-mini" element={<Navigate to="/products/mini"        replace />} />

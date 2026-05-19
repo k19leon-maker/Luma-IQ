@@ -33,11 +33,11 @@ import { useProjectsStore } from '../../store/projects.store';
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: 1, label: 'Распаковка' },
-  { num: 2, label: 'Целевая аудитория' },
-  { num: 3, label: 'Создать УТП' },
-  { num: 4, label: 'Основной продукт' },
-  { num: 5, label: 'Контент-план' },
+  { num: 1, label: 'О себе' },
+  { num: 2, label: 'Позиционирование' },
+  { num: 3, label: 'Целевая аудитория' },
+  { num: 4, label: 'Создать УТП' },
+  { num: 5, label: 'Основной продукт' },
 ];
 
 // ─── MainContent ──────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
               cursor: 'pointer',
             }}
           >
-            Начать распаковку
+            Заполнить бриф
           </button>
         </div>
       </header>

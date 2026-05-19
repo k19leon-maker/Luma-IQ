@@ -11,6 +11,8 @@ import DashboardComplete   from '../../components/LumaIQ/DashboardComplete';
 // ── Next-step logic ───────────────────────────────────────────────────────────
 
 export interface SectionFlags {
+  about:     boolean;
+  positioning: boolean;
   unpacking: boolean;
   audience:  boolean;
   utp:       boolean;
@@ -28,9 +30,10 @@ export interface NextStep {
 }
 
 export function getNextStep(f: SectionFlags): NextStep {
-  if (!f.unpacking) return { route: '/strategy/unpacking',    label: 'Распаковку',          hint: 'Расскажите об экспертизе — AI создаст профиль эксперта',          btnText: 'Начать распаковку →'   };
+  if (!f.about)     return { route: '/strategy/about',        label: 'О себе',              hint: 'Заполните короткий бриф об эксперте: роль, опыт, продукты, регалии и ограничения', btnText: 'Заполнить бриф →' };
+  if (!f.positioning) return { route: '/strategy/positioning', label: 'Позиционирование',    hint: 'Выберите стратегический вектор упаковки на базе брифа',            btnText: 'Выбрать вектор →' };
   if (!f.audience)  return { route: '/strategy/audience',     label: 'Целевую аудиторию',   hint: 'AI проанализирует и определит идеальный сегмент клиентов',         btnText: 'Анализировать ЦА →'    };
-  if (!f.utp)       return { route: '/strategy/utp',          label: 'УТП',                 hint: 'На основе распаковки AI создаст уникальное торговое предложение',   btnText: 'Создать УТП →'         };
+  if (!f.utp)       return { route: '/strategy/utp',          label: 'УТП',                 hint: 'На основе брифа, позиционирования и ЦА AI создаст УТП',             btnText: 'Создать УТП →'         };
   if (!f.social)    return { route: '/strategy/social',       label: 'Оформление соцсетей', hint: 'AI создаст описания профиля для Instagram, Telegram и ВКонтакте',   btnText: 'Оформить соцсети →'    };
   if (!f.main)      return { route: '/products/main', label: 'Основной продукт',    hint: 'Опишите флагманскую программу — самый важный продукт в линейке',    btnText: 'Создать продукт →'     };
   if (!f.mini)      return { route: '/products/mini', label: 'Мини-продукт',        hint: 'Создайте входной продукт по доступной цене',                        btnText: 'Создать мини-продукт →'};
@@ -52,6 +55,8 @@ export default function Dashboard() {
   }, [activeProjectId]);
 
   // Read 4 strategy flags individually (no object selector → no infinite loop)
+  const about     = useProgressStore((s) => s.expertProfileCompleted);
+  const positioning = useProgressStore((s) => s.positioningCompleted);
   const unpacking = useProgressStore((s) => s.unpackingCompleted);
   const audience  = useProgressStore((s) => s.audienceCompleted);
   const utp       = useProgressStore((s) => s.utpCompleted);
@@ -62,17 +67,17 @@ export default function Dashboard() {
   const hasMini = products.some((p) => p.type === 'MINI');
   const hasFree = products.some((p) => p.type === 'FREE');
 
-  const flags: SectionFlags = { unpacking, audience, utp, social, main: hasMain, mini: hasMini, free: hasFree };
+  const flags: SectionFlags = { about: about || unpacking, positioning, unpacking, audience, utp, social, main: hasMain, mini: hasMini, free: hasFree };
 
-  const completedCount  = Object.values(flags).filter(Boolean).length; // 0–7
-  const completionPct   = Math.round(completedCount / 7 * 100);
+  const completedCount  = Object.entries(flags).filter(([key, value]) => key !== 'unpacking' && value).length; // 0–8
+  const completionPct   = Math.round(completedCount / 8 * 100);
 
   const nextStep = getNextStep(flags);
 
   if (completedCount === 0) {
     return (
       <DashboardEmpty
-        onStartUnpacking={() => navigate('/strategy/unpacking')}
+        onStartUnpacking={() => navigate('/strategy/about')}
       />
     );
   }

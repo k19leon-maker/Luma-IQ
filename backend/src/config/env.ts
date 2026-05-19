@@ -50,7 +50,7 @@ export const env = {
 
   // AI APIs
   OPENAI_API_KEY: get('OPENAI_API_KEY', ''),
-  OPENAI_MODEL: get('OPENAI_MODEL', 'gpt-4o'),
+  OPENAI_MODEL: get('OPENAI_MODEL', 'gpt-5.4'),
   ANTHROPIC_API_KEY: get('ANTHROPIC_API_KEY', ''),
   ANTHROPIC_MODEL: get('ANTHROPIC_MODEL', 'claude-opus-4-6'),
   GEMINI_API_KEY: get('GEMINI_API_KEY', ''),

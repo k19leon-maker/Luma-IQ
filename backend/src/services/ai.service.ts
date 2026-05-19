@@ -17,6 +17,7 @@ export interface AIRequest {
   messages: Message[];
   systemPrompt?: string;
   section?: string;
+  openaiModel?: string;
   claudeModel?: string;
   maxTokens?: number;
   temperature?: number;
@@ -26,6 +27,26 @@ export interface AIResponse {
   content: string;
   provider: AIProvider;
   mock: boolean;
+}
+
+const OPENAI_SECTION_MODELS: Record<string, string> = {
+  'ai-dialog': 'gpt-5.4',
+  unpacking: 'gpt-5.5',
+  audience: 'gpt-5.5',
+  strategy: 'gpt-5.5',
+  utp: 'gpt-5.5',
+  'product-main': 'gpt-5.5',
+  'product-mini': 'gpt-5.5',
+  'lead-magnet': 'gpt-5.5',
+  posts: 'gpt-5.4',
+  reels: 'gpt-5.4',
+  'video-scripts': 'gpt-5.4',
+};
+
+export function resolveOpenAIModel(section?: string, requestedModel?: string): string {
+  if (requestedModel) return requestedModel;
+  if (section && OPENAI_SECTION_MODELS[section]) return OPENAI_SECTION_MODELS[section];
+  return env.OPENAI_MODEL;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,6 +153,7 @@ async function mockAnthropic(messages: Message[]): Promise<AIResponse> {
 async function callOpenAI(req: AIRequest): Promise<AIResponse> {
   const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const model = resolveOpenAIModel(req.section, req.openaiModel);
 
   const systemContent = req.systemPrompt ?? SYSTEM_PROMPT;
   const messages = [
@@ -139,12 +161,20 @@ async function callOpenAI(req: AIRequest): Promise<AIResponse> {
     ...req.messages.filter((m) => m.role !== 'system'),
   ];
 
-  const completion = await client.chat.completions.create({
-    model: env.OPENAI_MODEL,
+  console.log(`🤖 OpenAI model: ${model}${req.section ? ` (${req.section})` : ''}`);
+
+  const params: Record<string, unknown> = {
+    model,
     messages,
-    max_tokens: req.maxTokens ?? 1024,
-    temperature: req.temperature ?? 0.7,
-  });
+  };
+  if (model.startsWith('gpt-5')) {
+    params.max_completion_tokens = req.maxTokens ?? 1024;
+  } else {
+    params.max_tokens = req.maxTokens ?? 1024;
+    params.temperature = req.temperature ?? 0.7;
+  }
+
+  const completion = await client.chat.completions.create(params as never);
 
   return {
     content: completion.choices[0]?.message?.content ?? '',

@@ -6,7 +6,6 @@ import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
-import { useModelStore } from '../../store/model.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { aiApi } from '../../api/ai';
 import { downloadStrategyPdf } from '../../api/strategy.api';
@@ -426,9 +425,7 @@ export default function Strategy() {
   const audienceSave  = useAudienceStore((st) => st.save);
   const audienceReset = useAudienceStore((st) => st.reset);
   const audienceGet   = useAudienceStore((st) => st.get);
-  const audienceModel = useModelStore((st) => st.getSettings('audience').claudeModel);
   const upsertMaterial = useMaterialsStore((st) => st.upsertMaterial);
-  const isHaiku = audienceModel === 'claude-haiku-4-5-20251001';
 
   const [stepStatuses,  setStepStatuses]  = useState<StepStatus[]>(() => STEPS.map(() => 'idle'));
   const [docEntries,    setDocEntries]    = useState<DocEntry[]>([]);
@@ -726,8 +723,6 @@ export default function Strategy() {
 
     const { projectContext, mergedProfile } = buildRuntimeContext();
 
-    const claudeModel = useModelStore.getState().getSettings('audience').claudeModel;
-
     for (const step of STEPS) {
       if (abort.aborted) break;
       if (step.id < fromStepId) continue;
@@ -740,8 +735,7 @@ export default function Strategy() {
         try {
           const prompt = buildStepPrompt(step.id, answers, projectContext);
           const resp = await aiApi.chat({
-            model: 'claude',
-            claudeModel,
+            model: 'chatgpt',
             section: 'audience',
             message: prompt,
             conversationHistory: [],
@@ -792,8 +786,7 @@ export default function Strategy() {
               const sourceStepId = step.id === 3 ? 2 : step.id === 5 ? 4 : 8;
               const strictPrompt = buildStepPrompt(sourceStepId, answers, projectContext, true);
               const retryResp = await aiApi.chat({
-                model: 'claude',
-                claudeModel,
+                model: 'chatgpt',
                 section: 'audience',
                 message: strictPrompt,
                 conversationHistory: [],
@@ -1023,8 +1016,7 @@ export default function Strategy() {
 
     try {
       const resp = await aiApi.chat({
-        model: 'claude',
-        claudeModel: audienceModel,
+        model: 'chatgpt',
         section: 'audience',
         message: [
           `Контекст проекта:\n${projectContext}`,
@@ -1233,16 +1225,6 @@ export default function Strategy() {
 
         {/* Chat body */}
         <div ref={docColRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minHeight: 0 }}>
-          {isHaiku && (
-            <div style={{
-              background: 'rgba(212,168,71,0.08)', border: '1px solid rgba(212,168,71,0.3)',
-              borderRadius: 8, padding: '8px 14px', marginBottom: 16,
-              fontSize: 12, color: '#9a7020', display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              ⚠️ Для анализа ЦА рекомендуется Sonnet или Opus — Haiku может не справиться с длинным контекстом
-            </div>
-          )}
-
           {docEntries.length === 0 ? (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

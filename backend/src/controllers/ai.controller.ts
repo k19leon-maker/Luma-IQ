@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { chat } from '../services/ai.service';
+import { chat, resolveOpenAIModel } from '../services/ai.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
@@ -13,6 +13,7 @@ import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 const chatSchema = z.object({
   message: z.string().min(1).max(24000),
   model: z.enum(['chatgpt', 'claude']),
+  openaiModel: z.string().optional(),
   claudeModel: z.string().optional(),
   section: z.string().optional(),
   conversationHistory: z
@@ -43,6 +44,7 @@ export const aiController = {
     const {
       message,
       model,
+      openaiModel,
       claudeModel,
       section,
       conversationHistory,
@@ -63,14 +65,29 @@ export const aiController = {
     // Build system prompt: dynamic if profile provided, static from SYSTEM_PROMPTS otherwise
     let systemPrompt: string | undefined;
     if (section === 'ai-dialog' && projectId) {
-      const prompt = await buildAiDialogSystemPrompt(req.userId!, projectId);
-      if (!prompt) {
-        res.status(404).json({ error: 'Проект не найден' });
-        return;
+      try {
+        const prompt = await buildAiDialogSystemPrompt(req.userId!, projectId);
+        if (!prompt) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[AI dialog] Project context unavailable in dev, using generic prompt');
+          } else {
+            res.status(404).json({ error: 'Проект не найден' });
+            return;
+          }
+        } else {
+          systemPrompt = prompt;
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[AI dialog] DB context unavailable in dev, using generic prompt:', (err as Error).message);
+        } else {
+          throw err;
+        }
       }
-      systemPrompt = prompt;
       if (fileContext?.trim()) {
-        systemPrompt += `\n\nДополнительный контекст от пользователя:\n${fileContext.trim()}`;
+        systemPrompt = [systemPrompt, `Дополнительный контекст от пользователя:\n${fileContext.trim()}`]
+          .filter(Boolean)
+          .join('\n\n');
       }
     } else if (section) {
       const ctx = buildProjectContext(unpackingProfile ?? null, projectName ?? '');
@@ -92,6 +109,7 @@ export const aiController = {
         provider,
         messages,
         section,
+        openaiModel,
         claudeModel,
         systemPrompt,
         maxTokens: maxTokens ?? (section === 'product-main' ? 6000 : 2048),
@@ -103,7 +121,7 @@ export const aiController = {
           userId: req.userId!,
           provider,
           section: section ?? null,
-          model: provider === 'anthropic' ? claudeModel ?? null : null,
+          model: provider === 'anthropic' ? claudeModel ?? null : resolveOpenAIModel(section, openaiModel),
           status: 'SUCCEEDED',
           isMock: result.mock,
         },
@@ -121,7 +139,7 @@ export const aiController = {
           userId: req.userId!,
           provider,
           section: section ?? null,
-          model: provider === 'anthropic' ? claudeModel ?? null : null,
+          model: provider === 'anthropic' ? claudeModel ?? null : resolveOpenAIModel(section, openaiModel),
           status: 'FAILED',
           error: err instanceof Error ? err.message : 'unknown',
         },

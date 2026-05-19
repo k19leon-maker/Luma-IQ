@@ -25,7 +25,10 @@ export const buildAudiencePrompt = (ctx: ProjectContext) => `
 Ты опытный маркетолог, который помогает эксперту найти и описать целевую аудиторию.
 
 КОНТЕКСТ ЭКСПЕРТА:
+- Имя эксперта: ${ctx.expertName || 'не указано'}
+- Бриф "О себе": ${ctx.expertProfileSummary || 'не заполнен'}
 - Специализация: ${ctx.specialization}
+- Ниша: ${ctx.niche}
 - Типичный клиент: ${ctx.typicalClient}
 - Уникальный подход: ${ctx.uniqueApproach}
 - Ключевой результат: ${ctx.keyResult}
@@ -39,6 +42,7 @@ ${ctx.specialization.toLowerCase().includes('психолог') ? '' : 'НЕ у�
 
 export const buildUTPPrompt = (ctx: ProjectContext) => `
 Ты маркетолог-копирайтер. Помогаешь эксперту по теме "${ctx.specialization}" сформулировать уникальное торговое предложение.
+Бриф эксперта: ${ctx.expertProfileSummary || 'не заполнен'}
 Клиенты эксперта: ${ctx.typicalClient}
 Ключевой результат который даёт эксперт: ${ctx.keyResult}
 Позиционирование: ${ctx.positioning}
@@ -47,6 +51,7 @@ export const buildUTPPrompt = (ctx: ProjectContext) => `
 
 export const buildPostsPrompt = (ctx: ProjectContext) => `
 Ты контент-маркетолог. Создаёшь посты для эксперта по теме "${ctx.specialization}".
+Бриф эксперта: ${ctx.expertProfileSummary || 'не заполнен'}
 Аудитория: ${ctx.typicalClient}
 Позиционирование: ${ctx.positioning}
 Пиши в экспертном стиле, живым языком целевой аудитории. Только на русском языке.
@@ -54,6 +59,7 @@ export const buildPostsPrompt = (ctx: ProjectContext) => `
 
 export const buildReelsPrompt = (ctx: ProjectContext) => `
 Ты сценарист коротких видео. Создаёшь сценарии Reels для эксперта по теме "${ctx.specialization}".
+Бриф эксперта: ${ctx.expertProfileSummary || 'не заполнен'}
 Аудитория: ${ctx.typicalClient}
 Делай цепляющие крюки и конкретные примеры из ниши. Только на русском языке.
 `.trim();
@@ -80,6 +86,7 @@ export const buildChatbotPrompt = (ctx: ProjectContext) => `
 
 export const buildLeadMagnetPrompt = (ctx: ProjectContext) => `
 Ты создаёшь лид-магнит для эксперта по теме "${ctx.specialization}".
+Бриф эксперта: ${ctx.expertProfileSummary || 'не заполнен'}
 Аудитория: ${ctx.typicalClient}
 Ключевой результат: ${ctx.keyResult}
 Только на русском языке.
@@ -88,6 +95,7 @@ export const buildLeadMagnetPrompt = (ctx: ProjectContext) => `
 export const buildMainProductPrompt = (ctx: ProjectContext) => `
 Ты продуктовый маркетолог и методолог экспертных продуктов.
 Помогаешь эксперту по теме "${ctx.specialization}" собрать флагманский продукт.
+Бриф эксперта: ${ctx.expertProfileSummary || 'не заполнен'}
 Аудитория: ${ctx.typicalClient}
 Ключевой результат клиентов: ${ctx.keyResult}
 Позиционирование: ${ctx.positioning}

@@ -10,6 +10,7 @@ export interface ConversationMessage {
 export interface ChatRequest {
   message:             string;
   model:               ChatModel;
+  openaiModel?:        string;
   claudeModel?:        string;
   section?:            string;
   conversationHistory: ConversationMessage[];

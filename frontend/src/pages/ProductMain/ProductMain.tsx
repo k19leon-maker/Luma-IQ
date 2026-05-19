@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
@@ -320,7 +319,6 @@ async function downloadProductPresentationPdf(product: ProductState, projectName
 
 export default function ProductMain() {
   const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
-  const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveProductMain = useGeneratedStore((s) => s.setProductMain);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -367,11 +365,9 @@ export default function ProductMain() {
   }
 
   async function requestAi(message: string, maxTokens = 2200): Promise<string> {
-    const settings = getSettings('product-main');
     try {
       const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
+        model: 'chatgpt',
         section: 'product-main',
         message: fitAiMessage(message),
         conversationHistory: [],

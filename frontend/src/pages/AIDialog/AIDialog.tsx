@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { aiApi, ConversationMessage } from '../../api/ai';
-import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import s from './AIDialog.module.css';
@@ -31,7 +30,6 @@ const suggestions = [
 export default function AIDialog() {
   const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const projectName = useProjectsStore((st) => st.projects.find((p) => p.id === st.activeProjectId)?.name ?? 'Проект');
-  const getSettings = useModelStore((st) => st.getSettings);
 
   const welcome = useMemo<DialogMessage>(() => ({
     role: 'assistant',
@@ -87,10 +85,8 @@ export default function AIDialog() {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
       }));
-      const settings = getSettings('unpacking');
       const response = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
+        model: 'chatgpt',
         section: 'ai-dialog',
         projectId: activeProjectId,
         projectName,

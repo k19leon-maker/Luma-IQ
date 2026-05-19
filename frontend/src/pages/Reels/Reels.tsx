@@ -4,12 +4,11 @@ import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
-import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from '../Posts/Posts.module.css';
 
@@ -152,7 +151,7 @@ export default function Reels() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'reels')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -195,14 +194,13 @@ export default function Reels() {
 
   async function handleGenerateThemes() {
     setPhase('step2-loading');
-    const claudeModel = localStorage.getItem('selectedModel_reels') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}.` : '';
     const typeLabels: Record<ReelType, string> = {
       tips: 'рилс с практическими советами', story: 'рилс-история из практики', myth: 'рилс-разрушение мифа',
     };
     const prompt = `${segCtx} Придумай 5 конкретных тем для рилса типа «${typeLabels[reelType]}» для психолога. Выведи только 5 тем нумерованным списком.`;
     try {
-      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const resp = await aiApi.chat({ model: 'chatgpt', section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
       if (lines.length === 0) {
         toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -223,7 +221,6 @@ export default function Reels() {
   async function handleGenerateReel() {
     startGenerationTask(activeProjectId, 'reels', 'Пишу сценарий рилса', selectedTheme || 'Собираю сценарий');
     setPhase('generating');
-    const claudeModel = localStorage.getItem('selectedModel_reels') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}.` : '';
     const extraCtx = [keyword && `Ключевое слово: "${keyword}".`, facture && `Контекст: "${facture}".`].filter(Boolean).join(' ');
     const typeLabels: Record<ReelType, string> = {
@@ -232,7 +229,7 @@ export default function Reels() {
     const prompt = `Напиши сценарий ${typeLabels[reelType]} на тему «${selectedTheme}» для психолога. ${segCtx} ${extraCtx} Формат: заголовок + тезисы по слайдам + подпись с CTA. До 400 слов.`;
     let content: string;
     try {
-      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const resp = await aiApi.chat({ model: 'chatgpt', section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
       content = resp.content;
     } catch {
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -448,7 +445,6 @@ export default function Reels() {
           {facture.length} символов{' '}
           {facture.trim().length < 30 && <span className={s.factureCounterWarn}>(минимум 30)</span>}
         </div>
-        <ModelBar section="reels" />
       </div>
       <div className={s.btnRow}>
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>

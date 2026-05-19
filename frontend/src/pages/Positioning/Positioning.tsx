@@ -18,6 +18,13 @@ export interface PositioningData {
   updatedAt: string;
 }
 
+interface ExpertProfileData {
+  name?: string;
+  role?: string;
+  niche?: string;
+  summary?: string;
+}
+
 const examples = [
   'Я психолог для женщин после расставания, помогаю вернуть опору на себя и спокойно строить новые отношения.',
   'Я нутрициолог для женщин 35+, помогаю снижать вес без жестких диет и срывов.',
@@ -43,6 +50,7 @@ export default function Positioning() {
   const [audience, setAudience] = useState('');
   const [problem, setProblem] = useState('');
   const [result, setResult] = useState('');
+  const [expertProfile, setExpertProfile] = useState<ExpertProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,6 +66,12 @@ export default function Positioning() {
     projectsApi.getStrategy(activeProjectId)
       .then((data) => {
         const saved = (data as Record<string, unknown> | null)?.['positioningData'] as Partial<PositioningData> | undefined;
+        const expert = (data as Record<string, unknown> | null)?.['expertProfileData'] as ExpertProfileData | undefined;
+        setExpertProfile(expert ?? null);
+        if (!saved && expert) {
+          setRole([expert.role, expert.niche].filter(Boolean).join(', '));
+          return;
+        }
         if (!saved) return;
         setRole(saved.role ?? '');
         setAudience(saved.audience ?? '');
@@ -108,9 +122,22 @@ export default function Positioning() {
         <div className={s.header}>
           <h1 className={s.title}>Позиционирование</h1>
           <p className={s.subtitle}>
-            Зафиксируйте простой стартовый вектор: кто вы, для кого работаете, с какой темой помогаете и к какому результату ведете.
+            Выберите стартовый стратегический вектор на базе брифа «О себе»: для кого вы будете упаковываться, с какой темой и к какому результату.
           </p>
         </div>
+
+        {expertProfile ? (
+          <div className={s.notice}>
+            <div className={s.noticeTitle}>Бриф «О себе» подключен</div>
+            <div className={s.noticeText}>{expertProfile.summary || [expertProfile.name, expertProfile.role, expertProfile.niche].filter(Boolean).join(' · ')}</div>
+          </div>
+        ) : (
+          <div className={s.notice}>
+            <div className={s.noticeTitle}>Сначала лучше заполнить «О себе»</div>
+            <div className={s.noticeText}>Позиционирование станет точнее, если ИИ будет знать имя, роль, опыт, регалии, продукты и ограничения эксперта.</div>
+            <button className={s.linkButton} onClick={() => navigate('/strategy/about')}>Перейти к брифу</button>
+          </div>
+        )}
 
         <div className={s.layout}>
           <div className={s.card}>

@@ -4,12 +4,11 @@ import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
-import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './Posts.module.css';
 
@@ -212,7 +211,7 @@ export default function Posts() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'posts')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -268,7 +267,6 @@ export default function Posts() {
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
     setPhase('step2-loading');
-    const claudeModel = localStorage.getItem('selectedModel_posts') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment
       ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Подсегмент: ${strat.chosenSubsegment?.split('\n')[0]?.slice(0, 80) ?? ''}.`
       : '';
@@ -279,7 +277,7 @@ export default function Posts() {
     };
     const prompt = `${segCtx} Придумай 5 конкретных тем для поста типа «${typeLabels[postType]}» для психолога на платформе ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. Темы должны цеплять за живое. Выведи только 5 тем нумерованным списком, без пояснений.`;
     try {
-      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
       setThemes(lines);
       setSelectedTheme(lines[0] ?? '');
@@ -302,7 +300,6 @@ export default function Posts() {
   async function handleGeneratePost() {
     startGenerationTask(activeProjectId, 'posts', 'Пишу пост', selectedTheme || 'Собираю текст поста');
     setPhase('generating');
-    const claudeModel = localStorage.getItem('selectedModel_posts') ?? 'claude-haiku-4-5-20251001';
     const segCtx = strat.chosenSegment
       ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Боли: ${(strat.corePains ?? '').slice(0, 200)}.`
       : '';
@@ -319,7 +316,7 @@ export default function Posts() {
     const prompt = `Напиши ${typeLabels[postType]} на тему «${selectedTheme}» для психолога. Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}. ${segCtx} ${extraCtx} Текст поста только, без заголовка файла. До 600 слов. Живой язык, без психологического жаргона.`;
     let content: string;
     try {
-      const resp = await aiApi.chat({ model: 'claude', claudeModel, section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: profileData, projectName });
+      const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
       content = resp.content;
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : String(err);
@@ -693,7 +690,6 @@ export default function Posts() {
             <span className={s.factureCounterWarn}>(минимум 30)</span>
           )}
         </div>
-        <ModelBar section="posts" />
       </div>
 
       <div className={s.btnRow}>

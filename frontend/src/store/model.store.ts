@@ -13,9 +13,10 @@ export type ClaudeModelId = typeof CLAUDE_MODELS[number]['id'];
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 
 export const OPENAI_MODELS = [
-  { id: 'gpt-4o',      label: 'GPT-4o',      badge: 'Мощный'  },
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini', badge: 'Быстрый' },
-  { id: 'gpt-4.1',     label: 'GPT-4.1',     badge: 'Новый'   },
+  { id: 'gpt-5.5',     label: 'GPT-5.5',     badge: 'Максимум' },
+  { id: 'gpt-5.4',     label: 'GPT-5.4',     badge: 'Основной' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', badge: 'Быстрый' },
+  { id: 'gpt-4o',      label: 'GPT-4o',      badge: 'Legacy'   },
 ] as const;
 
 export type OpenAIModelId = typeof OPENAI_MODELS[number]['id'];
@@ -46,6 +47,20 @@ const SECTION_DEFAULTS: Record<string, ClaudeModelId> = {
   'video-scripts': 'claude-haiku-4-5-20251001',
   'chatbot-chains':'claude-haiku-4-5-20251001',
   'content-plan':  'claude-haiku-4-5-20251001',
+};
+
+const OPENAI_SECTION_DEFAULTS: Record<string, OpenAIModelId> = {
+  'ai-dialog':     'gpt-5.4',
+  unpacking:       'gpt-5.5',
+  audience:        'gpt-5.5',
+  strategy:        'gpt-5.5',
+  utp:             'gpt-5.5',
+  'product-main':  'gpt-5.5',
+  'product-mini':  'gpt-5.5',
+  'lead-magnet':   'gpt-5.5',
+  posts:           'gpt-5.4',
+  reels:           'gpt-5.4',
+  'video-scripts': 'gpt-5.4',
 };
 
 const SELECTOR_SECTIONS = new Set(Object.keys(SECTION_DEFAULTS));
@@ -118,9 +133,9 @@ interface ModelState {
 }
 
 const DEFAULT_SETTINGS: SectionSettings = {
-  provider:    'claude',
+  provider:    'chatgpt',
   claudeModel: 'claude-sonnet-4-6',
-  openaiModel: 'gpt-4o',
+  openaiModel: 'gpt-5.4',
 };
 
 export const useModelStore = create<ModelState>()((set, get) => ({
@@ -148,6 +163,7 @@ export const useModelStore = create<ModelState>()((set, get) => ({
     return {
       ...DEFAULT_SETTINGS,
       claudeModel: SECTION_DEFAULTS[section] ?? DEFAULT_SETTINGS.claudeModel,
+      openaiModel: OPENAI_SECTION_DEFAULTS[section] ?? DEFAULT_SETTINGS.openaiModel,
     };
   },
 

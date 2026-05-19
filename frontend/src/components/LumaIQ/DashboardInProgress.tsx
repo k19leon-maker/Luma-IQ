@@ -156,7 +156,7 @@ function MainContent({
   const productFree = products.find((p) => p.type === 'FREE');
   const productsCount = [productMain, productMini, productFree].filter(Boolean).length;
 
-  const strategyDone = [flags.unpacking, flags.audience, flags.utp, flags.social].filter(Boolean).length;
+  const strategyDone = [flags.about, flags.positioning, flags.audience, flags.utp, flags.social].filter(Boolean).length;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#fff', overflowY: 'auto' }}>
@@ -211,7 +211,7 @@ function MainContent({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Упаковка</h2>
             <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: '1px solid #D4A847', color: '#D4A847' }}>В процессе</span>
-            <button onClick={() => navigate('/strategy/unpacking')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={() => navigate('/strategy/about')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
               Открыть стратегию →
             </button>
           </div>
@@ -245,9 +245,9 @@ function MainContent({
               {/* Progress bar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#E5E3DC', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 3, backgroundColor: '#D4A847', width: `${Math.round(strategyDone / 4 * 100)}%`, transition: 'width 0.4s ease' }} />
+                  <div style={{ height: '100%', borderRadius: 3, backgroundColor: '#D4A847', width: `${Math.round(strategyDone / 5 * 100)}%`, transition: 'width 0.4s ease' }} />
                 </div>
-                <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{strategyDone} из 4</span>
+                <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{strategyDone} из 5</span>
               </div>
             </div>
 

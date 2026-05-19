@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import type { SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
 
 export class AiAccessError extends Error {
   status: number;
@@ -16,13 +17,30 @@ function todayUtc(): string {
 
 export const aiAccessService = {
   async consume(userId: string): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        role: true,
-        subscription: true,
-      },
-    });
+    let user: {
+      role: Role;
+      subscription: {
+        status: SubscriptionStatus;
+        plan: SubscriptionPlan;
+        expiresAt: Date | null;
+      } | null;
+    } | null;
+
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          role: true,
+          subscription: true,
+        },
+      });
+    } catch (err) {
+      if (env.isDev) {
+        console.warn('[AI access] DB unavailable in dev, skipping usage limit:', (err as Error).message);
+        return;
+      }
+      throw err;
+    }
 
     if (user?.role === 'ADMIN') return;
 

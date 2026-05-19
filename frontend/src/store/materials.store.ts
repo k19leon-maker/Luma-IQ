@@ -4,6 +4,7 @@ import { aiApi } from '../api/ai';
 import { projectsApi } from '../api/projects.api';
 
 export type MaterialKind =
+  | 'expert-profile'
   | 'positioning'
   | 'audience'
   | 'utp'

@@ -105,6 +105,7 @@ function gatherFiles(projectId: string, audienceAnswers?: Partial<AudienceAnswer
 }
 
 const MATERIAL_ICONS: Record<string, string> = {
+  'expert-profile': '👤',
   positioning: '🧭',
   audience: '🎯',
   utp: '💎',
@@ -116,6 +117,7 @@ const MATERIAL_ICONS: Record<string, string> = {
 };
 
 const MATERIAL_TYPES: Record<string, string> = {
+  'expert-profile': 'О себе',
   positioning: 'Позиционирование',
   audience: 'Целевая аудитория',
   utp: 'УТП',

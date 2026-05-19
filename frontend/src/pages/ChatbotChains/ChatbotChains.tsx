@@ -8,7 +8,7 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
-import { useUnpackingStore } from '../../store/unpacking.store';
+import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './ChatbotChains.module.css';
 
@@ -371,7 +371,7 @@ export default function ChatbotChains() {
 
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings = useModelStore((s) => s.getSettings);
-  const profileData = useUnpackingStore((s) => s.profileData);
+  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'chatbot-chains')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -442,7 +442,7 @@ export default function ChatbotChains() {
         message: prompt,
         conversationHistory: [],
         projectName,
-        unpackingProfile: profileData as Record<string, string>,
+        unpackingProfile: mergedProfile as Record<string, string>,
       });
 
       // Parse 13 messages from response

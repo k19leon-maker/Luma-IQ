@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { AxiosError } from 'axios';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useModelStore } from '../../store/model.store';
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
@@ -383,7 +382,6 @@ function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
 
 export default function LeadMagnet() {
   const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
-  const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -436,11 +434,9 @@ export default function LeadMagnet() {
   }
 
   async function requestAi(message: string, maxTokens = 2600): Promise<string> {
-    const settings = getSettings('lead-magnet');
     try {
       const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
+        model: 'chatgpt',
         section: 'lead-magnet',
         message: fitAiMessage(message),
         conversationHistory: [],

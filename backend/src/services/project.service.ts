@@ -38,8 +38,25 @@ export const projectService = {
   },
 
   async create(userId: string, data: { name: string; niche?: string; description?: string }) {
+    const sourceProject = await prisma.project.findFirst({
+      where: {
+        userId,
+        strategyData: { path: ['expertProfileData'], not: Prisma.JsonNull },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { strategyData: true },
+    });
+    const sourceStrategy = sourceProject?.strategyData as Record<string, unknown> | null;
+    const expertProfileData = sourceStrategy?.['expertProfileData'];
+
     return prisma.project.create({
-      data: { userId, ...data },
+      data: {
+        userId,
+        ...data,
+        ...(expertProfileData
+          ? { strategyData: { expertProfileData } as Prisma.InputJsonValue }
+          : {}),
+      },
     });
   },
 

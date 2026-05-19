@@ -10,6 +10,22 @@ interface PositioningData {
   statement?: string;
 }
 
+interface ExpertProfileData {
+  name?: string;
+  role?: string;
+  niche?: string;
+  experienceYears?: string;
+  workFormats?: string;
+  productsAndPrices?: string;
+  competencies?: string;
+  antiPreferences?: string;
+  values?: string;
+  credentials?: string;
+  achievements?: string;
+  uploadedFileText?: string;
+  summary?: string;
+}
+
 function section(title: string, value?: string): string {
   const text = value?.trim();
   return text ? `## ${title}\n${text}` : '';
@@ -17,6 +33,34 @@ function section(title: string, value?: string): string {
 
 export function summarizeMaterial(content: string): string {
   return content.replace(/\s+/g, ' ').trim().slice(0, 1200);
+}
+
+export function buildExpertProfileMaterial(data: ExpertProfileData): Omit<ProjectMaterial, 'updatedAt'> {
+  const content = [
+    '# О себе',
+    section('Краткое резюме для ИИ', data.summary),
+    section('Имя', data.name),
+    section('Профессия / роль эксперта', data.role),
+    section('Ниша / сфера деятельности', data.niche),
+    section('Опыт', data.experienceYears),
+    section('Форматы работы', data.workFormats),
+    section('Текущие продукты и цены', data.productsAndPrices),
+    section('Главные компетенции', data.competencies),
+    section('Что не подходит', data.antiPreferences),
+    section('Что важно в работе', data.values),
+    section('Образование и регалии', data.credentials),
+    section('Опыт, достижения, цифры', data.achievements),
+    section('Текст из загруженных файлов', data.uploadedFileText?.slice(0, 4000)),
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    id: 'expert-profile.md',
+    kind: 'expert-profile',
+    title: 'expert-profile.md',
+    content,
+    summary: summarizeMaterial(content),
+    linkedMaterialIds: ['positioning.md', 'audience.md', 'utp.md', 'social.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
+  };
 }
 
 export function buildPositioningMaterial(data: PositioningData): Omit<ProjectMaterial, 'updatedAt'> {
@@ -35,7 +79,7 @@ export function buildPositioningMaterial(data: PositioningData): Omit<ProjectMat
     title: 'positioning.md',
     content,
     summary: summarizeMaterial(content),
-    linkedMaterialIds: ['audience.md', 'utp.md'],
+    linkedMaterialIds: ['expert-profile.md', 'audience.md', 'utp.md'],
   };
 }
 
@@ -79,7 +123,7 @@ export function buildAudienceMaterial(answers: Partial<AudienceAnswers>): Omit<P
     title: 'audience.md',
     content,
     summary: summarizeMaterial(content),
-    linkedMaterialIds: ['positioning.md', 'utp.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
+    linkedMaterialIds: ['expert-profile.md', 'positioning.md', 'utp.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
   };
 }
 
@@ -91,7 +135,7 @@ export function buildUtpMaterial(value: string): Omit<ProjectMaterial, 'updatedA
     title: 'utp.md',
     content,
     summary: summarizeMaterial(content),
-    linkedMaterialIds: ['positioning.md', 'audience.md', 'social.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
+    linkedMaterialIds: ['expert-profile.md', 'positioning.md', 'audience.md', 'social.md', 'product-main.md', 'product-mini.md', 'lead-magnet.md'],
   };
 }
 
@@ -109,7 +153,7 @@ export function buildSocialMaterial(value: Partial<SocialDraft>): Omit<ProjectMa
     title: 'social.md',
     content,
     summary: summarizeMaterial(content),
-    linkedMaterialIds: ['positioning.md', 'audience.md', 'utp.md'],
+    linkedMaterialIds: ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md'],
   };
 }
 
@@ -129,10 +173,10 @@ export function buildProductMaterial(
   ].filter(Boolean).join('\n\n');
 
   const linkedMaterialIds = kind === 'product-main'
-    ? ['positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'lead-magnet.md']
+    ? ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'lead-magnet.md']
     : kind === 'product-mini'
-      ? ['positioning.md', 'audience.md', 'utp.md', 'product-main.md', 'lead-magnet.md']
-      : ['positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'product-main.md'];
+      ? ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-main.md', 'lead-magnet.md']
+      : ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'product-main.md'];
 
   return { id: fileName, kind, title: fileName, content, summary: summarizeMaterial(content), linkedMaterialIds };
 }

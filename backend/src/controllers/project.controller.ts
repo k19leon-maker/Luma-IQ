@@ -25,6 +25,23 @@ const completeStrategySchema = z.object({
 const saveStrategySchema = z.object({
   answers:   z.record(z.string()).optional(),
   completed: z.boolean().optional(),
+  expertProfileData: z.object({
+    name: z.string().optional(),
+    role: z.string().optional(),
+    niche: z.string().optional(),
+    experienceYears: z.string().optional(),
+    workFormats: z.string().optional(),
+    productsAndPrices: z.string().optional(),
+    competencies: z.string().optional(),
+    antiPreferences: z.string().optional(),
+    values: z.string().optional(),
+    credentials: z.string().optional(),
+    achievements: z.string().optional(),
+    uploadedFileText: z.string().optional(),
+    summary: z.string().optional(),
+    completed: z.boolean().optional(),
+    updatedAt: z.string().optional(),
+  }).passthrough().optional(),
   positioningData: z.object({
     role: z.string().optional(),
     audience: z.string().optional(),
@@ -226,13 +243,36 @@ export const projectController = {
       const existing = (project.strategyData as Record<string, unknown>) ?? {};
       const merged   = { ...existing, ...parsed.data } as Prisma.InputJsonValue;
       const { prisma } = await import('../lib/prisma');
-      await prisma.project.update({
-        where: { id: req.params.id as string },
-        data: { strategyData: merged },
-      });
+      if (parsed.data.expertProfileData) {
+        const projects = await prisma.project.findMany({
+          where: { userId: req.userId! },
+          select: { id: true, strategyData: true },
+        });
+        await prisma.$transaction(projects.map((item) => {
+          const existingStrategy = (item.strategyData as Record<string, unknown>) ?? {};
+          return prisma.project.update({
+            where: { id: item.id },
+            data: {
+              strategyData: {
+                ...existingStrategy,
+                expertProfileData: parsed.data.expertProfileData,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }));
+      } else {
+        await prisma.project.update({
+          where: { id: req.params.id as string },
+          data: { strategyData: merged },
+        });
+      }
       void eventService.track('strategy_saved', {
         userId: req.userId!,
-        metadata: { projectId: req.params.id, keys: Object.keys(parsed.data) },
+        metadata: {
+          projectId: req.params.id,
+          keys: Object.keys(parsed.data),
+          syncedToAllProjects: Boolean(parsed.data.expertProfileData),
+        },
       }).catch(() => {});
       res.json({ ok: true });
     } catch (err) {

@@ -168,7 +168,7 @@ function MainContent({ products, onGenerateContent }: { products: ApiProduct[]; 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Упаковка</h2>
             <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>Готово</span>
-            <button onClick={() => navigate('/strategy/unpacking')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={() => navigate('/strategy/about')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#D4A847', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
               Открыть стратегию →
             </button>
           </div>
