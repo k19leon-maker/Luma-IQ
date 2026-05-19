@@ -175,7 +175,7 @@ export const aiController = {
       });
 
       if (generationId) {
-        void aiGenerationService.markSucceeded({
+        await aiGenerationService.markSucceeded({
           generationId,
           userId: req.userId!,
           projectId: accountingProjectId,
@@ -208,7 +208,7 @@ export const aiController = {
     } catch (err) {
       console.error('[AI] Error:', err);
       if (generationId) {
-        void aiGenerationService.markFailed({
+        await aiGenerationService.markFailed({
           generationId,
           userId: req.userId!,
           projectId: accountingProjectId,
