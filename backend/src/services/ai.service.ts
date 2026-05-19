@@ -365,6 +365,9 @@ export async function chat(req: AIRequest): Promise<AIResponse> {
 
   if (provider === 'openai') {
     if (!env.OPENAI_API_KEY) {
+      if (env.isProd) {
+        throw new Error('OPENAI_API_KEY не настроен на сервере');
+      }
       console.log('[AIService] OPENAI_API_KEY not set — using mock');
       return mockOpenAI(req.messages);
     }
@@ -373,6 +376,9 @@ export async function chat(req: AIRequest): Promise<AIResponse> {
 
   if (provider === 'anthropic') {
     if (!env.ANTHROPIC_API_KEY) {
+      if (env.isProd) {
+        throw new Error('ANTHROPIC_API_KEY не настроен на сервере');
+      }
       console.log('[AIService] ANTHROPIC_API_KEY not set — using mock');
       return mockAnthropic(req.messages);
     }
