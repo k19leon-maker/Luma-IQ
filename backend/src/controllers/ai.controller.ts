@@ -64,6 +64,13 @@ function toDbProvider(provider: 'openai' | 'anthropic'): AIProvider {
   return provider === 'openai' ? 'OPENAI' : 'ANTHROPIC';
 }
 
+function responseProviderToDb(provider: 'openai' | 'anthropic' | 'gemini' | 'grok'): AIProvider {
+  if (provider === 'openai') return 'OPENAI';
+  if (provider === 'anthropic') return 'ANTHROPIC';
+  if (provider === 'gemini') return 'GEMINI';
+  return 'GROK';
+}
+
 export const aiController = {
   async chat(req: AuthRequest, res: Response): Promise<void> {
     const parsed = chatSchema.safeParse(req.body);
@@ -180,10 +187,11 @@ export const aiController = {
           userId: req.userId!,
           projectId: accountingProjectId,
           featureCode,
-          provider: dbProvider,
-          model: resolvedModel,
+          provider: responseProviderToDb(result.provider),
+          model: result.model,
           startedAtMs: accountingStartedAt,
           isMock: result.mock,
+          usage: result.usage,
         }).catch((err) => {
           console.warn('[AI accounting] success update failed:', err instanceof Error ? err.message : err);
         });
@@ -194,14 +202,14 @@ export const aiController = {
           userId: req.userId!,
           provider,
           section: section ?? null,
-          model: resolvedModel,
+          model: result.model,
           status: 'SUCCEEDED',
           isMock: result.mock,
         },
       }).catch(() => {});
       void eventService.track('ai_request_succeeded', {
         userId: req.userId!,
-        metadata: { provider, section, mock: result.mock },
+        metadata: { provider: result.provider, section, mock: result.mock, model: result.model, usage: result.usage },
       }).catch(() => {});
 
       res.json({ content: result.content, mock: result.mock });

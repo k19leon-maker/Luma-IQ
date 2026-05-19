@@ -26,8 +26,22 @@ export interface AIRequest {
 export interface AIResponse {
   content: string;
   provider: AIProvider;
+  model: string;
   mock: boolean;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens?: number;
+    totalTokens: number;
+  };
 }
+
+const ZERO_USAGE: AIResponse['usage'] = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cachedInputTokens: 0,
+  totalTokens: 0,
+};
 
 const OPENAI_SECTION_MODELS: Record<string, string> = {
   'ai-dialog': 'gpt-5.4',
@@ -137,13 +151,13 @@ const MOCK_ANTHROPIC: Record<1 | 2 | 3 | 4, string> = {
 async function mockOpenAI(messages: Message[]): Promise<AIResponse> {
   await mockDelay();
   const step = jtbdStep(messages);
-  return { content: MOCK_OPENAI[step], provider: 'openai', mock: true };
+  return { content: MOCK_OPENAI[step], provider: 'openai', model: 'mock-openai', mock: true, usage: ZERO_USAGE };
 }
 
 async function mockAnthropic(messages: Message[]): Promise<AIResponse> {
   await mockDelay();
   const step = jtbdStep(messages);
-  return { content: MOCK_ANTHROPIC[step], provider: 'anthropic', mock: true };
+  return { content: MOCK_ANTHROPIC[step], provider: 'anthropic', model: 'mock-anthropic', mock: true, usage: ZERO_USAGE };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,11 +189,20 @@ async function callOpenAI(req: AIRequest): Promise<AIResponse> {
   }
 
   const completion = await client.chat.completions.create(params as never);
+  const usage = completion.usage;
+  const cachedTokens = usage?.prompt_tokens_details?.cached_tokens ?? 0;
 
   return {
     content: completion.choices[0]?.message?.content ?? '',
     provider: 'openai',
+    model,
     mock: false,
+    usage: {
+      inputTokens: usage?.prompt_tokens ?? 0,
+      outputTokens: usage?.completion_tokens ?? 0,
+      cachedInputTokens: cachedTokens,
+      totalTokens: usage?.total_tokens ?? ((usage?.prompt_tokens ?? 0) + (usage?.completion_tokens ?? 0) + cachedTokens),
+    },
   };
 }
 
@@ -344,8 +367,21 @@ async function callAnthropic(req: AIRequest): Promise<AIResponse> {
 
     const block = response.content[0];
     const content = block.type === 'text' ? block.text : '';
+    const inputTokens = response.usage.input_tokens ?? 0;
+    const outputTokens = response.usage.output_tokens ?? 0;
 
-    return { content, provider: 'anthropic', mock: false };
+    return {
+      content,
+      provider: 'anthropic',
+      model,
+      mock: false,
+      usage: {
+        inputTokens,
+        outputTokens,
+        cachedInputTokens: 0,
+        totalTokens: inputTokens + outputTokens,
+      },
+    };
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
     console.error('[AIService] Anthropic error:', e.status, e.message);
@@ -390,7 +426,9 @@ export async function chat(req: AIRequest): Promise<AIResponse> {
   return {
     content: `Mock-ответ от провайдера "${provider}". Ключ не задан в .env.`,
     provider,
+    model: `mock-${provider}`,
     mock: true,
+    usage: ZERO_USAGE,
   };
 }
 
