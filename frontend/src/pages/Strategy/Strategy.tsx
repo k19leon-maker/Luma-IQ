@@ -2,11 +2,13 @@ import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { useMaterialsStore } from '../../store/materials.store';
+import { useModelStore } from '../../store/model.store';
 import { aiApi } from '../../api/ai';
 import { downloadStrategyPdf } from '../../api/strategy.api';
 import { projectsApi } from '../../api/projects.api';
@@ -420,6 +422,7 @@ export default function Strategy() {
   const activeProjectName = useProjectsStore(
     (st) => st.projects.find((p) => p.id === st.activeProjectId)?.name ?? 'Проект',
   );
+  const getSettings = useModelStore((st) => st.getSettings);
   const unpackingProfile = useUnpackingStore((st) => st.profileData);
 
   const audienceSave  = useAudienceStore((st) => st.save);
@@ -482,9 +485,12 @@ export default function Strategy() {
   }, [activeProjectName, positioningData, unpackingProfile]);
 
   async function runAudienceWorkflow(prompt: string, mergedProfile: Record<string, string>): Promise<string> {
+    const settings = getSettings('audience');
     const resp = await aiApi.startWorkflow('strategy.audience.generate', {
       projectId: activeProjectId,
-      provider: 'chatgpt',
+      provider: settings.provider,
+      openaiModel: settings.openaiModel,
+      claudeModel: settings.claudeModel,
       inputs: {
         prompt,
         activeProjectName,
@@ -1289,6 +1295,7 @@ export default function Strategy() {
                       {msg.role === 'assistant'
                         ? <FormattedText compact>{msg.content}</FormattedText>
                         : <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>}
+                      {msg.role === 'assistant' && <MessageActions content={msg.content} compact />}
                     </div>
                   </div>
                 ));
@@ -1321,6 +1328,7 @@ export default function Strategy() {
                           ) : (
                             <FormattedText compact>{entry.fullText}</FormattedText>
                           )}
+                          {!entry.isTyping && <MessageActions content={entry.fullText} compact />}
                         </div>
                       </div>
                       {renderStepChat}
@@ -1417,38 +1425,16 @@ export default function Strategy() {
               </button>
             </div>
           )}
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-            <textarea
+          <div style={{ maxWidth: 900, margin: '0 auto' }}>
+            <MessageInput
               value={stepChatInput}
-              onChange={(e) => setStepChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleStepChat();
-                }
-              }}
-              disabled={stepChatLoading}
+              onChange={setStepChatInput}
+              onSend={() => void handleStepChat()}
+              isLoading={stepChatLoading}
+              disabled={!activeStepEntry}
+              section="audience"
               placeholder={activeStepEntry ? `Спросите по шагу: ${activeStepTitle.toLowerCase()}...` : 'Сначала запустите анализ, затем можно будет уточнять каждый шаг...'}
-              rows={3}
-              style={{
-                flex: 1, minHeight: 76, resize: 'none', border: '1px solid #E5E3DC',
-                borderRadius: 8, padding: '12px 14px', fontSize: 14,
-                lineHeight: 1.5, fontFamily: 'inherit', outline: 'none',
-              }}
             />
-            <button
-              onClick={() => void handleStepChat()}
-              disabled={stepChatLoading || !stepChatInput.trim() || !activeStepEntry}
-              style={{
-                height: 44, border: 'none', borderRadius: 8,
-                background: stepChatLoading || !stepChatInput.trim() || !activeStepEntry ? '#F0EEE8' : '#D4A847',
-                color: stepChatLoading || !stepChatInput.trim() || !activeStepEntry ? '#bbb' : '#fff',
-                padding: '0 18px', fontSize: 13, fontWeight: 700,
-                cursor: stepChatLoading || !activeStepEntry ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {stepChatLoading ? 'Думаю...' : 'Отправить'}
-            </button>
           </div>
           <div style={{ maxWidth: 900, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
             Enter — отправить · Shift+Enter — перенос строки

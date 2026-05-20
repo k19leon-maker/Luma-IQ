@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { aiApi, ConversationMessage } from '../../api/ai';
-import { useProjectsStore } from '../../store/projects.store';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
+import { useModelStore } from '../../store/model.store';
+import { useProjectsStore } from '../../store/projects.store';
 import s from './AIDialog.module.css';
 
 interface DialogMessage {
@@ -30,6 +32,7 @@ const suggestions = [
 export default function AIDialog() {
   const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const projectName = useProjectsStore((st) => st.projects.find((p) => p.id === st.activeProjectId)?.name ?? 'Проект');
+  const getSettings = useModelStore((st) => st.getSettings);
 
   const welcome = useMemo<DialogMessage>(() => ({
     role: 'assistant',
@@ -40,7 +43,6 @@ export default function AIDialog() {
   const [messages, setMessages] = useState<DialogMessage[]>([welcome]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,8 +87,11 @@ export default function AIDialog() {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
       }));
+      const settings = getSettings('ai-dialog');
       const response = await aiApi.chat({
-        model: 'chatgpt',
+        model: settings.provider,
+        openaiModel: settings.openaiModel,
+        claudeModel: settings.claudeModel,
         section: 'ai-dialog',
         projectId: activeProjectId,
         projectName,
@@ -104,14 +109,6 @@ export default function AIDialog() {
       }]);
     } finally {
       setSending(false);
-      textareaRef.current?.focus();
-    }
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void send();
     }
   }
 
@@ -139,6 +136,7 @@ export default function AIDialog() {
                     ? <FormattedText compact>{message.content}</FormattedText>
                     : message.content}
                 </div>
+                {message.role === 'assistant' && <MessageActions content={message.content} compact />}
                 {message.time && <div className={s.time}>{message.time}</div>}
               </div>
             </div>
@@ -170,19 +168,14 @@ export default function AIDialog() {
 
       <div className={s.inputPanel}>
         <div className={s.inputInner}>
-          <textarea
-            ref={textareaRef}
-            className={s.textarea}
+          <MessageInput
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={sending}
-            rows={3}
+            onChange={setInput}
+            onSend={() => void send()}
+            isLoading={sending}
+            section="ai-dialog"
             placeholder="Спросите про стратегию, запуск, контент, продукт или следующий шаг..."
           />
-          <button className={s.sendBtn} onClick={() => void send()} disabled={!input.trim() || sending}>
-            Отправить
-          </button>
         </div>
         <div className={s.hint}>Enter — отправить · Shift+Enter — перенос строки</div>
       </div>

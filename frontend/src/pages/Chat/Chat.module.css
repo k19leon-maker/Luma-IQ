@@ -310,9 +310,7 @@
 /* ── Input area ───────────────────────────────────────────────────────────── */
 
 .inputArea {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  display: block;
   padding-top: 12px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;

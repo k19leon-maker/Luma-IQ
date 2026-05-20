@@ -6,6 +6,8 @@ import { useProjectsStore } from '../../store/projects.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import { aiApi } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
+import { useModelStore } from '../../store/model.store';
 
 // ─── Fallback replies ─────────────────────────────────────────────────────────
 
@@ -43,14 +45,6 @@ function formatBytes(bytes: number): string {
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-function SendIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function FileIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -67,6 +61,7 @@ export default function Unpacking() {
   const completeUnpacking = useProgressStore((s) => s.completeUnpacking);
   const activeProjectId   = useProjectsStore((s) => s.activeProjectId) ?? '';
   const projectName       = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
+  const getSettings       = useModelStore((s) => s.getSettings);
 
   const switchProject  = useUnpackingStore((s) => s.switchProject);
   const loadFromDb     = useUnpackingStore((s) => s.loadFromDb);
@@ -91,9 +86,12 @@ export default function Unpacking() {
       .filter((m) => m.text)
       .map((m) => `${m.role === 'ai' ? 'assistant' : 'user'}: ${m.text}`)
       .join('\n');
+    const settings = getSettings('unpacking');
     const resp = await aiApi.startWorkflow('strategy.positioning.generate', {
       projectId: activeProjectId,
-      provider: 'chatgpt',
+      provider: settings.provider,
+      openaiModel: settings.openaiModel,
+      claudeModel: settings.claudeModel,
       inputs: {
         prompt: [
           `Проект: ${projectName || 'Проект'}`,
@@ -130,16 +128,11 @@ export default function Unpacking() {
   }
 
   const chatEndRef   = useRef<HTMLDivElement>(null);
-  const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
-
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
 
   // ── Send text message ──────────────────────────────────────────────────────
 
@@ -174,13 +167,6 @@ export default function Unpacking() {
       toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
     } finally {
       setSending(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
     }
   }
 
@@ -329,6 +315,7 @@ export default function Unpacking() {
               {msg.time && (
                 <div style={{ fontSize: 11, color: '#aaa' }}>{msg.time}</div>
               )}
+              {msg.role === 'ai' && !msg.file && <MessageActions content={msg.text} compact />}
             </div>
           </div>
         ))}
@@ -423,54 +410,15 @@ export default function Unpacking() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-            <textarea
-              ref={textareaRef}
+          <div>
+            <MessageInput
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={setInputText}
+              onSend={() => void handleSend()}
+              isLoading={sending}
+              section="unpacking"
               placeholder="Напишите о своей практике..."
-              disabled={sending}
-              rows={3}
-              style={{
-                flex: 1,
-                padding: '12px 14px',
-                border: '1px solid #E5E3DC',
-                borderRadius: 8,
-                fontSize: 14,
-                lineHeight: 1.5,
-                resize: 'none',
-                outline: 'none',
-                backgroundColor: '#fff',
-                color: '#1a1a1a',
-                minHeight: 80,
-                fontFamily: 'inherit',
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => { (e.target as HTMLTextAreaElement).style.borderColor = '#D4A847'; }}
-              onBlur={(e)  => { (e.target as HTMLTextAreaElement).style.borderColor = '#E5E3DC'; }}
             />
-            <button
-              onClick={() => void handleSend()}
-              disabled={!inputText.trim() || sending}
-              style={{
-                padding: '10px 20px',
-                borderRadius: 8,
-                border: 'none',
-                backgroundColor: !inputText.trim() || sending ? '#F0EEE8' : '#D4A847',
-                color: !inputText.trim() || sending ? '#bbb' : '#fff',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 14, fontWeight: 500,
-                cursor: !inputText.trim() || sending ? 'not-allowed' : 'pointer',
-                flexShrink: 0,
-                alignSelf: 'flex-end',
-                transition: 'background-color 0.15s',
-                height: 44,
-              }}
-            >
-              <SendIcon />
-              Отправить
-            </button>
           </div>
 
           <div style={{ fontSize: 11, color: '#bbb', marginTop: 8, textAlign: 'right' }}>

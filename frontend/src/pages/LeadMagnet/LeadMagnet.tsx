@@ -5,9 +5,11 @@ import { useProjectMarketingContext } from '../../hooks/useProjectMarketingConte
 import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
+import { useModelStore } from '../../store/model.store';
 import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import html2pdf from 'html2pdf.js';
 
 type StepStatus = 'idle' | 'running' | 'done';
@@ -375,6 +377,7 @@ function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
 
 export default function LeadMagnet() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
+  const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -435,9 +438,12 @@ export default function LeadMagnet() {
       throw new Error('Сначала выберите проект');
     }
     try {
+      const settings = getSettings('lead-magnet');
       const resp = await aiApi.startWorkflow(`leadmagnet.${stepId}`, {
         projectId: activeProjectId,
-        provider: 'chatgpt',
+        provider: settings.provider,
+        openaiModel: settings.openaiModel,
+        claudeModel: settings.claudeModel,
         inputs: {
           format: selectedFormat ? FORMAT_LABELS[selectedFormat] : 'Лид-магнит',
           stepLabel: options.stepLabel ?? stepId,
@@ -1203,6 +1209,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
                     {message.role === 'assistant'
                       ? <FormattedText compact>{message.content}</FormattedText>
                       : <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
+                    {message.role === 'assistant' && <MessageActions content={message.content} compact />}
                   </div>
                 </div>
               ))}
@@ -1246,52 +1253,18 @@ ${currentMarkdown || 'Пока пусто.'}`;
           background: '#fff',
           padding: '16px 28px',
         }}>
-          <div style={{ maxWidth: 920, margin: '0 auto', display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-            <textarea
+          <div style={{ maxWidth: 920, margin: '0 auto' }}>
+            <MessageInput
               value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleChatSend();
-                }
-              }}
-              disabled={loading || !state.generated}
+              onChange={setChatInput}
+              onSend={() => void handleChatSend()}
+              isLoading={loading}
+              disabled={!state.generated}
+              section="lead-magnet"
               placeholder={state.generated
                 ? 'Напишите, что изменить: заголовок, CTA, структуру, сценарий, возражения...'
                 : 'Сначала создайте лид-магнит, затем здесь можно будет редактировать его через ИИ...'}
-              rows={3}
-              style={{
-                flex: 1,
-                minHeight: 76,
-                resize: 'none',
-                border: '1px solid #E5E3DC',
-                borderRadius: 8,
-                padding: '12px 14px',
-                fontSize: 14,
-                lineHeight: 1.5,
-                fontFamily: 'inherit',
-                outline: 'none',
-                background: state.generated ? '#fff' : '#F8F7F3',
-              }}
             />
-            <button
-              onClick={() => void handleChatSend()}
-              disabled={loading || !chatInput.trim() || !state.generated}
-              style={{
-                height: 44,
-                border: 'none',
-                borderRadius: 8,
-                background: loading || !chatInput.trim() || !state.generated ? '#F0EEE8' : '#D4A847',
-                color: loading || !chatInput.trim() || !state.generated ? '#bbb' : '#fff',
-                padding: '0 18px',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: loading || !state.generated ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading ? 'Думаю...' : 'Отправить'}
-            </button>
           </div>
           <div style={{ maxWidth: 920, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
             Enter — отправить · Shift+Enter — перенос строки

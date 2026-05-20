@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import s from './Chat.module.css';
 import { aiApi, ConversationMessage } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
+import { useModelStore } from '../../store/model.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type Model = 'chatgpt' | 'claude';
 
 interface Message {
   id: string;
@@ -38,30 +38,20 @@ function uid() {
 
 export default function Chat() {
   const [active, setActive] = useState(false);
-  const [model, setModel] = useState<Model>('chatgpt');
+  const getSettings = useModelStore((st) => st.getSettings);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<ConversationMessage[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [input, setInput] = useState('');
   const [userMsgCount, setUserMsgCount] = useState(0);
-  const [copied, setCopied] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Scroll to bottom on new content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
-  }, [input]);
 
   function startChat() {
     setActive(true);
@@ -87,9 +77,12 @@ export default function Chat() {
     ];
 
     try {
+      const settings = getSettings('strategy');
       const res = await aiApi.chat({
         message: trimmed,
-        model,
+        model: settings.provider,
+        openaiModel: settings.openaiModel,
+        claudeModel: settings.claudeModel,
         conversationHistory: history,
       });
 
@@ -101,19 +94,6 @@ export default function Chat() {
       setIsTyping(false);
       setCurrentStep((prev) => Math.min(prev + 1, JTBD_STEPS.length - 1));
     }
-  }
-
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
-  }
-
-  function handleCopy(text: string, id: string) {
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopied(id);
-    setTimeout(() => setCopied(null), 1500);
   }
 
   function handleNextStep() {
@@ -148,25 +128,6 @@ export default function Chat() {
 
   return (
     <div className={s.chat}>
-
-      {/* ── Header: model chips + settings ── */}
-      <div className={s.header}>
-        <div className={s.modelRow}>
-          {(['chatgpt', 'claude'] as Model[]).map((m) => (
-            <button
-              key={m}
-              className={`${s.modelChip} ${model === m ? s.modelActive : ''}`}
-              onClick={() => setModel(m)}
-            >
-              {m === 'chatgpt' ? 'ChatGPT' : 'Claude'}
-            </button>
-          ))}
-        </div>
-        <div className={s.settingsRow}>
-          <span className={s.settingChip}>Тон: Нейтральный</span>
-          <span className={s.settingChip}>Длина: Средняя</span>
-        </div>
-      </div>
 
       {/* ── JTBD step chips ── */}
       <div className={s.steps}>
@@ -205,28 +166,25 @@ export default function Chat() {
                 </div>
 
                 {msg.role === 'ai' && (
-                  <div className={s.msgActions}>
-                    <button
-                      className={s.actionBtn}
-                      onClick={handleNextStep}
-                      disabled={isTyping}
-                    >
-                      Следующий шаг →
-                    </button>
-                    <button
-                      className={s.actionBtn}
-                      onClick={() => handleCopy(msg.text, msg.id)}
-                    >
-                      {copied === msg.id ? 'Скопировано ✓' : 'Копировать'}
-                    </button>
-                    <button
-                      className={s.actionBtn}
-                      onClick={() => handleRewrite(msg.id, aiIndex)}
-                      disabled={isTyping}
-                    >
-                      Переписать
-                    </button>
-                  </div>
+                  <>
+                    <div className={s.msgActions}>
+                      <button
+                        className={s.actionBtn}
+                        onClick={handleNextStep}
+                        disabled={isTyping}
+                      >
+                        Следующий шаг →
+                      </button>
+                      <button
+                        className={s.actionBtn}
+                        onClick={() => handleRewrite(msg.id, aiIndex)}
+                        disabled={isTyping}
+                      >
+                        Переписать
+                      </button>
+                    </div>
+                    <MessageActions content={msg.text} compact />
+                  </>
                 )}
               </div>
             </div>
@@ -253,26 +211,14 @@ export default function Chat() {
 
       {/* ── Input ── */}
       <div className={s.inputArea}>
-        <textarea
-          ref={textareaRef}
-          className={s.textarea}
-          placeholder="Введите сообщение… (Enter — отправить, Shift+Enter — новая строка)"
+        <MessageInput
           value={input}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={1}
-          disabled={isTyping}
+          onChange={setInput}
+          onSend={() => void sendMessage(input)}
+          isLoading={isTyping}
+          section="strategy"
+          placeholder="Введите сообщение..."
         />
-        <button
-          className={s.sendBtn}
-          onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isTyping}
-          aria-label="Отправить"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M16 9L2 2l3 7-3 7 14-7z" fill="currentColor" />
-          </svg>
-        </button>
       </div>
     </div>
   );

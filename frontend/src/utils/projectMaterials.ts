@@ -8,6 +8,11 @@ interface PositioningData {
   problem?: string;
   result?: string;
   statement?: string;
+  selectedVariant?: string;
+  strategicAnalysis?: string;
+  marketGap?: string;
+  score?: string;
+  assets?: string;
 }
 
 interface ExpertProfileData {
@@ -67,10 +72,15 @@ export function buildPositioningMaterial(data: PositioningData): Omit<ProjectMat
   const content = [
     '# Позиционирование',
     section('Базовая формулировка', data.statement),
+    section('Выбранный стратегический вариант', data.selectedVariant),
     section('Роль / ниша эксперта', data.role),
     section('Широкая аудитория', data.audience),
     section('Главная проблема', data.problem),
     section('Желаемый результат', data.result),
+    section('AI Strategic Analysis', data.strategicAnalysis),
+    section('Market Gap Analysis', data.marketGap),
+    section('Positioning Score', data.score),
+    section('Positioning Assets', data.assets),
   ].filter(Boolean).join('\n\n');
 
   return {

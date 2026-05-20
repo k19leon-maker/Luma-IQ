@@ -1,8 +1,9 @@
 .inputWrapper {
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 18px;
   background: var(--input-bg);
-  overflow: hidden;
+  overflow: visible;
+  box-shadow: 0 8px 24px rgba(31, 29, 24, 0.06);
 }
 
 .textarea {
@@ -29,22 +30,33 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
+  gap: 8px;
+  padding: 6px 8px 8px;
   border-top: 1px solid var(--border-color);
+}
+
+.leftTools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 .providerGroup {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .providerBtn {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
   background: transparent;
   cursor: pointer;
@@ -58,8 +70,9 @@
 }
 
 .modelSelect {
-  padding: 4px 8px;
-  border-radius: 6px;
+  max-width: 154px;
+  padding: 5px 8px;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
   background: var(--bg-elevated, var(--input-bg));
   color: var(--text-primary);
@@ -73,9 +86,9 @@
 }
 
 .sendBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
   border: none;
   background: #D4A847;
   color: white;
@@ -86,6 +99,90 @@
   justify-content: center;
   flex-shrink: 0;
   transition: opacity 0.15s;
+}
+
+.iconBtn {
+  min-width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+  border-color: var(--border-color);
+}
+
+.attachWrap {
+  position: relative;
+}
+
+.attachMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 14px 34px rgba(31, 29, 24, 0.14);
+  z-index: 20;
+}
+
+.attachMenu button {
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.attachMenu button:hover {
+  background: var(--hover-bg);
+}
+
+.messageActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.messageActionsCompact {
+  margin-top: 6px;
+}
+
+.messageActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #6f6a72;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.messageActionBtn:hover {
+  color: #2c2930;
+  background: #fff;
 }
 
 .sendBtn:disabled {
@@ -118,4 +215,19 @@
   align-items: center;
   gap: 6px;
   padding: 6px 0 2px;
+}
+
+@media (max-width: 680px) {
+  .inputFooter {
+    flex-wrap: wrap;
+  }
+
+  .providerGroup {
+    width: 100%;
+  }
+
+  .modelSelect {
+    flex: 1;
+    max-width: none;
+  }
 }

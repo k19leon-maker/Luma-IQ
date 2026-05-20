@@ -541,6 +541,231 @@ ${contextAppendix(context)}`,
     validationRules: { minLength: step.minLength, structuredOutput: 'text' },
   })),
   {
+    id: 'positioning.analysis.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.analysis',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 4200,
+    artifactType: 'positioning_analysis',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Ты — senior strategic positioning consultant для экспертного бизнеса.
+
+Сделай AI Strategic Analysis на основе брифа “О себе” и project context.
+
+Проанализируй:
+- кто пользователь как эксперт;
+- strongest value;
+- strongest authority;
+- strongest differentiation;
+- premium potential;
+- strongest JTBD;
+- повторяющиеся темы;
+- сильные кейсы / доказательства;
+- слабые места текущей упаковки.
+
+Верни строго в формате:
+## Кто эксперт
+## Сильные стороны
+## Где самая высокая ценность
+## Где есть premium potential
+## Лучшие JTBD-векторы
+## Дифференциация
+## Что нужно уточнить
+
+Текущая гипотеза пользователя: ${value(inputs, 'currentHypothesis', 'нет')}
+
+${contextAppendix(context)}
+
+Не делай анкету. Не проси заново заполнить данные. Покажи, что AI уже изучил бизнес.`,
+    validationRules: { requiredIncludes: ['## Кто эксперт', '## Сильные стороны'], minLength: 700, structuredOutput: 'text' },
+  },
+  {
+    id: 'positioning.models.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.models',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 4200,
+    artifactType: 'positioning_models',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ context }) => `Ты — senior positioning strategist.
+
+Объясни пользователю, какие positioning models подходят именно этому проекту.
+
+Обязательно покрой модели:
+1. Niche-Based Positioning
+2. JTBD / Outcome Positioning
+3. Problem-Based Positioning
+4. Mechanism-Based Positioning
+5. Audience-Based Positioning
+6. Identity / Authority Positioning
+7. Transformation Positioning
+
+Для каждой модели дай:
+- короткое название на русском;
+- пример формулировки под проект;
+- когда работает лучше;
+- плюсы;
+- минусы;
+- где выше чек;
+- где выше конкуренция;
+- где проще продавать.
+
+${contextAppendix(context)}
+
+Верни структурированный стратегический обзор без служебных комментариев.`,
+    validationRules: { minLength: 1000, structuredOutput: 'text' },
+  },
+  {
+    id: 'positioning.variants.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.variants',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 5200,
+    artifactType: 'positioning_variants',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Ты — senior strategic positioning consultant.
+
+Сгенерируй 8 вариантов positioning angles на основе брифа и анализа.
+
+Для каждого варианта верни:
+### [Название варианта]
+Тип: mass-market / premium / JTBD / mechanism / transformation / audience / authority
+Формулировка: ...
+Для кого: ...
+Проблема: ...
+Результат: ...
+Механизм: ...
+Дифференциация: ...
+Почему может сработать: ...
+Риск: ...
+Рекомендуемый чек: low / medium / high / premium
+
+Дополнительный анализ, если есть:
+${value(inputs, 'analysis', 'нет')}
+
+${contextAppendix(context)}
+
+Варианты должны быть разными, не перефразировками одного и того же.`,
+    validationRules: { requiredIncludes: ['###'], minLength: 1500, structuredOutput: 'text' },
+  },
+  {
+    id: 'positioning.gap-analysis.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.gap-analysis',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 3600,
+    artifactType: 'positioning_gap_analysis',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Ты — market positioning analyst.
+
+Сделай Market Gap Analysis для вариантов позиционирования.
+
+Покажи:
+## Crowded zone
+Какие фразы и углы будут generic / перегретыми.
+
+## Differentiated zone
+Где есть шанс выделиться.
+
+## Premium angles
+Какие углы могут вести к более высокому чеку.
+
+## Weak phrases
+Какие формулировки лучше не использовать.
+
+## Recommended direction
+Какой стратегический вектор выбрать и почему.
+
+Варианты для анализа:
+${value(inputs, 'variants', 'нет')}
+
+${contextAppendix(context)}
+
+Пиши как стратег, без воды и без поверхностного “увеличу продажи”.`,
+    validationRules: { requiredIncludes: ['## Crowded zone', '## Recommended direction'], minLength: 800, structuredOutput: 'text' },
+  },
+  {
+    id: 'positioning.score.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.score',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.45,
+    maxTokens: 2200,
+    artifactType: 'positioning_score',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Ты — positioning quality evaluator.
+
+Оцени выбранное позиционирование.
+
+Позиционирование:
+${value(inputs, 'finalPositioning', 'нет')}
+
+Верни строго:
+Clarity: X/10
+Differentiation: X/10
+Trust: X/10
+Premium Potential: X/10
+Specificity: X/10
+Market Saturation: low / medium / high
+
+## Что сильное
+## Что ослабляет
+## Как усилить одной правкой
+
+${contextAppendix(context)}`,
+    validationRules: { requiredIncludes: ['Clarity:', 'Differentiation:', 'Market Saturation:'], minLength: 300, structuredOutput: 'text' },
+  },
+  {
+    id: 'positioning.assets.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'positioning.assets',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.58,
+    maxTokens: 3600,
+    artifactType: 'positioning_assets',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Ты — brand positioning copywriter.
+
+На основе финального позиционирования сгенерируй positioning assets.
+
+Финальное позиционирование:
+${value(inputs, 'finalPositioning', 'нет')}
+
+Верни:
+## Short positioning
+## Long positioning
+## Social bio
+## Headline
+## Authority statement
+## Elevator pitch
+## Website positioning
+## CTA
+## Expert description
+
+Тексты должны быть конкретными, без generic AI language.
+
+${contextAppendix(context)}
+
+Верни только готовые assets.`,
+    validationRules: { requiredIncludes: ['## Short positioning', '## CTA'], minLength: 700, structuredOutput: 'text' },
+  },
+  {
     id: 'strategy.audience.generate.v1',
     version: 'v1',
     feature: 'audience',

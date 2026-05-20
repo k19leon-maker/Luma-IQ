@@ -72,7 +72,9 @@ export function getSectionFromPath(pathname: string): string {
 
 // Sections that now have MessageInput (inline model selector) or no AI text input
 const INLINE_SELECTOR_SECTIONS = new Set([
+  'ai-dialog',      // MessageInput
   'unpacking',      // own inline selector
+  'audience',       // MessageInput
   'utp',            // MessageInput
   'posts',          // ModelBar below textarea
   'reels',          // ModelBar below textarea
