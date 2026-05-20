@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   DndContext,
@@ -14,13 +15,15 @@ import { useDraggable } from '@dnd-kit/core';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Category = 'strategy' | 'content' | 'products';
+type Category = 'strategy' | 'content' | 'products' | 'planning';
 type Priority = 'high' | 'medium' | 'low';
 type Column   = 'all' | 'today' | 'week' | 'done';
 
 interface Task {
   id:       string;
   title:    string;
+  description?: string;
+  link?: string;
   category: Category;
   dueLabel: string;
   priority: Priority;
@@ -34,6 +37,7 @@ const CATEGORY_STYLE: Record<Category, { bg: string; color: string; label: strin
   strategy: { bg: '#FDF3EF', color: '#C1502A', label: 'Стратегия'  },
   content:  { bg: '#E6F1FB', color: '#185FA5', label: 'Контент'    },
   products: { bg: '#EAF3DE', color: '#3B6D11', label: 'Продукты'   },
+  planning: { bg: '#F1ECFF', color: '#5B3EA6', label: 'Планирование' },
 };
 
 const PRIORITY_STYLE: Record<Priority, { color: string; label: string }> = {
@@ -52,17 +56,149 @@ const COLUMNS: { id: Column; label: string; dot: string }[] = [
 // ─── Initial tasks ────────────────────────────────────────────────────────────
 
 const INITIAL_TASKS: Task[] = [
-  { id: '1',  title: 'Создать УТП',                   category: 'strategy', dueLabel: '7 мая',   priority: 'high',   done: false, column: 'all'   },
-  { id: '2',  title: 'Создать мини-продукт',           category: 'products', dueLabel: '10 мая',  priority: 'medium', done: false, column: 'all'   },
-  { id: '3',  title: 'Запланировать контент на май',   category: 'content',  dueLabel: '9 мая',   priority: 'low',    done: false, column: 'all'   },
-  { id: '4',  title: 'Заполнить анкету распаковки',   category: 'strategy', dueLabel: 'Сегодня', priority: 'high',   done: false, column: 'today' },
-  { id: '5',  title: 'Написать 3 поста для Telegram', category: 'content',  dueLabel: 'Сегодня', priority: 'medium', done: false, column: 'today' },
-  { id: '6',  title: 'Выбрать целевую аудиторию',     category: 'strategy', dueLabel: '5 мая',   priority: 'high',   done: false, column: 'week'  },
-  { id: '7',  title: 'Создать основной продукт',      category: 'products', dueLabel: '8 мая',   priority: 'medium', done: false, column: 'week'  },
-  { id: '8',  title: 'Оформить профиль Instagram',    category: 'strategy', dueLabel: '2 мая',   priority: 'medium', done: true,  column: 'done'  },
-  { id: '9',  title: 'Создать лид-магнит',            category: 'products', dueLabel: '2 мая',   priority: 'low',    done: true,  column: 'done'  },
-  { id: '10', title: 'Снять рилс «Мой метод»',        category: 'content',  dueLabel: '1 мая',   priority: 'low',    done: true,  column: 'done'  },
-  { id: '11', title: 'Распаковка завершена',          category: 'strategy', dueLabel: '30 апр',  priority: 'high',   done: true,  column: 'done'  },
+  {
+    id: 'onboarding-1',
+    title: 'Заполнить раздел “О себе”',
+    description: 'Добавьте базовую информацию об эксперте: роль, нишу, опыт, продукты, компетенции, регалии и ограничения.',
+    category: 'strategy',
+    link: '/strategy/about',
+    dueLabel: 'Сегодня',
+    priority: 'high',
+    done: false,
+    column: 'today',
+  },
+  {
+    id: 'onboarding-2',
+    title: 'Собрать базовое позиционирование',
+    description: 'Определите, как эксперт должен звучать на рынке и какие стратегические векторы упаковки подходят проекту.',
+    category: 'strategy',
+    link: '/strategy/positioning',
+    dueLabel: 'Сегодня',
+    priority: 'high',
+    done: false,
+    column: 'today',
+  },
+  {
+    id: 'onboarding-3',
+    title: 'Выбрать целевую аудиторию и сегмент',
+    description: 'Пройдите анализ ЦА, выберите сегмент и подсегмент, на который будет собираться вся упаковка.',
+    category: 'strategy',
+    link: '/strategy/audience',
+    dueLabel: 'Следующий шаг',
+    priority: 'high',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-4',
+    title: 'Сформулировать УТП',
+    description: 'Соберите короткое обещание: кому помогаете, какую проблему решаете, какой результат даете и за счет чего.',
+    category: 'strategy',
+    link: '/strategy/utp',
+    dueLabel: 'После ЦА',
+    priority: 'high',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-5',
+    title: 'Подготовить описание соцсетей',
+    description: 'Сгенерируйте упаковку профиля для Instagram, Telegram и VK на основе стратегии и УТП.',
+    category: 'strategy',
+    link: '/strategy/social',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
+    column: 'week',
+  },
+  {
+    id: 'onboarding-6',
+    title: 'Собрать основной продукт',
+    description: 'Создайте флагманский продукт: название, оффер, описание, модули программы и продуктовое обещание.',
+    category: 'products',
+    link: '/products/main',
+    dueLabel: 'После стратегии',
+    priority: 'high',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-7',
+    title: 'Собрать мини-продукт',
+    description: 'Разработайте входной продукт на 7 дней / 3 занятия, который дает первый управляемый результат.',
+    category: 'products',
+    link: '/products/mini',
+    dueLabel: 'После основного',
+    priority: 'medium',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-8',
+    title: 'Создать лид-магнит',
+    description: 'Выберите формат и соберите материал, который ведет аудиторию к следующему шагу воронки.',
+    category: 'products',
+    link: '/products/lead-magnet',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
+    column: 'week',
+  },
+  {
+    id: 'onboarding-9',
+    title: 'Сгенерировать первые посты',
+    description: 'Создайте 3-5 постов для Telegram или Instagram: боль, инсайт, история, доверие и CTA.',
+    category: 'content',
+    link: '/posts',
+    dueLabel: 'После продуктов',
+    priority: 'medium',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-10',
+    title: 'Собрать Reels-сценарии',
+    description: 'Сгенерируйте хуки, выберите сильные варианты, добавьте фактуру и получите сценарии роликов.',
+    category: 'content',
+    link: '/reels',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
+    column: 'week',
+  },
+  {
+    id: 'onboarding-11',
+    title: 'Подготовить экспертную статью',
+    description: 'Создайте тему, структуру и статью для VC, Дзена, Habr, LinkedIn или блога.',
+    category: 'content',
+    link: '/articles',
+    dueLabel: 'Позже',
+    priority: 'low',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-12',
+    title: 'Собрать цепочку сообщений',
+    description: 'Сгенерируйте Telegram-цепочку, которая продает лидмагнит, следующий шаг и возвращает аудиторию.',
+    category: 'content',
+    link: '/chatbot-chains',
+    dueLabel: 'Позже',
+    priority: 'low',
+    done: false,
+    column: 'all',
+  },
+  {
+    id: 'onboarding-13',
+    title: 'Собрать контент-план',
+    description: 'Перенесите готовые посты, рилсы, статьи и сценарии в календарь публикаций.',
+    category: 'planning',
+    link: '/content-plan',
+    dueLabel: 'Финальный шаг',
+    priority: 'medium',
+    done: false,
+    column: 'all',
+  },
 ];
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -135,6 +271,7 @@ function AddModal({ column, onClose, onAdd }: {
               <option value="strategy">Стратегия</option>
               <option value="content">Контент</option>
               <option value="products">Продукты</option>
+              <option value="planning">Планирование</option>
             </select>
           </div>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -171,9 +308,10 @@ function AddModal({ column, onClose, onAdd }: {
 // ─── TaskCardInner ─────────────────────────────────────────────────────────────
 // Shared rendering for both draggable card and overlay ghost
 
-function TaskCardInner({ task, onToggle, isDragging = false }: {
+function TaskCardInner({ task, onToggle, onOpen, isDragging = false }: {
   task: Task;
   onToggle?: (id: string) => void;
+  onOpen?: (link: string) => void;
   isDragging?: boolean;
 }) {
   const cat     = CATEGORY_STYLE[task.category];
@@ -216,6 +354,12 @@ function TaskCardInner({ task, onToggle, isDragging = false }: {
         {task.title}
       </div>
 
+      {task.description && (
+        <div style={{ fontSize: 12, color: '#777', lineHeight: 1.45, marginBottom: 10 }}>
+          {task.description}
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, color: isToday ? '#C1502A' : '#aaa', display: 'flex', alignItems: 'center' }}>
           <CalendarIcon />
@@ -225,13 +369,23 @@ function TaskCardInner({ task, onToggle, isDragging = false }: {
           {pri.label}
         </span>
       </div>
+
+      {task.link && onOpen && !isDragging && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onOpen(task.link!); }}
+          style={{ marginTop: 10, border: 'none', background: 'transparent', color: '#D4A847', fontSize: 12, fontWeight: 600, padding: 0, cursor: 'pointer' }}
+        >
+          Открыть раздел
+        </button>
+      )}
     </div>
   );
 }
 
 // ─── DraggableTaskCard ────────────────────────────────────────────────────────
 
-function DraggableTaskCard({ task, onToggle }: { task: Task; onToggle: (id: string) => void }) {
+function DraggableTaskCard({ task, onToggle, onOpen }: { task: Task; onToggle: (id: string) => void; onOpen: (link: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
 
   return (
@@ -241,17 +395,18 @@ function DraggableTaskCard({ task, onToggle }: { task: Task; onToggle: (id: stri
       {...attributes}
       style={{ marginBottom: 8, opacity: isDragging ? 0.35 : 1, transition: 'opacity 0.15s' }}
     >
-      <TaskCardInner task={task} onToggle={onToggle} />
+      <TaskCardInner task={task} onToggle={onToggle} onOpen={onOpen} />
     </div>
   );
 }
 
 // ─── DroppableColumn ──────────────────────────────────────────────────────────
 
-function DroppableColumn({ col, tasks, onToggle, onAddClick }: {
+function DroppableColumn({ col, tasks, onToggle, onOpen, onAddClick }: {
   col: typeof COLUMNS[number];
   tasks: Task[];
   onToggle: (id: string) => void;
+  onOpen: (link: string) => void;
   onAddClick: (column: Column) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
@@ -295,7 +450,7 @@ function DroppableColumn({ col, tasks, onToggle, onAddClick }: {
         }}
       >
         {tasks.map((t) => (
-          <DraggableTaskCard key={t.id} task={t} onToggle={onToggle} />
+          <DraggableTaskCard key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
         ))}
 
         {tasks.length === 0 && !isOver && (
@@ -311,6 +466,7 @@ function DroppableColumn({ col, tasks, onToggle, onAddClick }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Tasks() {
+  const navigate = useNavigate();
   const [tasks,     setTasks]     = useState<Task[]>(INITIAL_TASKS);
   const [addColumn, setAddColumn] = useState<Column | null>(null);
   const [activeId,  setActiveId]  = useState<string | null>(null);
@@ -419,6 +575,7 @@ export default function Tasks() {
               col={col}
               tasks={tasksByColumn[col.id]}
               onToggle={handleToggle}
+              onOpen={navigate}
               onAddClick={setAddColumn}
             />
           ))}
