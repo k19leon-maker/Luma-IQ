@@ -548,7 +548,7 @@ ${contextAppendix(context)}`,
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.55,
-    maxTokens: 4200,
+    maxTokens: 2200,
     artifactType: 'positioning_analysis',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
     userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию для экспертного бизнеса.
@@ -590,7 +590,7 @@ ${contextAppendix(context)}
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.55,
-    maxTokens: 4200,
+    maxTokens: 2600,
     artifactType: 'positioning_models',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
     userPromptBuilder: ({ context }) => `Ты — senior стратег по позиционированию.
@@ -629,7 +629,7 @@ ${contextAppendix(context)}
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.65,
-    maxTokens: 5200,
+    maxTokens: 3800,
     artifactType: 'positioning_variants',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
     userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию.
@@ -665,7 +665,7 @@ ${contextAppendix(context)}
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.55,
-    maxTokens: 3600,
+    maxTokens: 2400,
     artifactType: 'positioning_gap_analysis',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
     userPromptBuilder: ({ inputs, context }) => `Ты — аналитик рынка и позиционирования.

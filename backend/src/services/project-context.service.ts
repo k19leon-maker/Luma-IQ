@@ -100,6 +100,10 @@ function contextBudgetFor(workflow: string, step?: string): number {
     if (step === 'edit' || step === 'content' || step === 'script') return 8000;
     return 6200;
   }
+  if (workflow.startsWith('positioning.')) {
+    if (workflow === 'positioning.variants') return 5200;
+    return 4200;
+  }
   return 8000;
 }
 
