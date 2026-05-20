@@ -14,6 +14,102 @@ import {
 import { contextAppendix, value } from './helpers';
 import { PromptConfig } from './types';
 
+const MAIN_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
+  {
+    step: 'names',
+    label: 'Название продукта',
+    maxTokens: 1800,
+    minLength: 220,
+    task: `Сформируй 3 варианта названия флагманского основного продукта.
+Название должно отражать результат клиента, а не просто тему.
+
+Формат:
+1. **Название** — коротко почему подходит
+2. **Название** — коротко почему подходит
+3. **Название** — коротко почему подходит`,
+  },
+  {
+    step: 'offer',
+    label: 'Оффер',
+    maxTokens: 2200,
+    minLength: 300,
+    task: `Сформулируй главный оффер основного продукта.
+Дай 2-3 варианта и в конце выбери рекомендуемый.
+Оффер должен быть понятен холодной аудитории и опираться на спрос из целевой аудитории.`,
+  },
+  {
+    step: 'description',
+    label: 'Описание продукта',
+    maxTokens: 2400,
+    minLength: 350,
+    task: `Сделай описание основного продукта: для кого, какую проблему решает, как устроен путь, какой результат получает клиент.
+Длина: 2-4 коротких абзаца.`,
+  },
+  {
+    step: 'modules',
+    label: 'Модули программы',
+    maxTokens: 5200,
+    minLength: 1000,
+    task: `Предложи оптимальное количество модулей для программы. Не фиксируйся на 10.
+Сделай программу по модулям.
+
+Для каждого модуля:
+- название модуля как job клиента;
+- что клиент делает/понимает;
+- оффер модуля;
+- ключевое содержание;
+- результат модуля.`,
+  },
+  {
+    step: 'promise',
+    label: 'Продуктовое обещание',
+    maxTokens: 1400,
+    minLength: 80,
+    task: `Сформулируй продуктовое обещание одной сильной офферной фразой.
+Длина: 30-40 слов максимум.
+Без списка, без markdown, без пересказа модулей.`,
+  },
+  {
+    step: 'edit',
+    label: 'Редактирование продукта',
+    maxTokens: 5200,
+    minLength: 800,
+    task: `Выполни правку основного продукта по запросу пользователя.
+Верни только обновлённую полную версию продукта в markdown.
+Сохраняй структуру: # Основной продукт, варианты названия, оффер, описание, модули программы, продуктовое обещание.`,
+  },
+];
+
+const MINI_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
+  { step: 'bestName', label: 'Лучшее название мини-продукта', maxTokens: 2600, minLength: 450, task: 'Дай 10 вариантов названия мини-продукта и выбери рекомендуемый вариант. Названия должны быть связаны с болью и первым результатом, без пустого инфобизнеса.' },
+  { step: 'mainOffer', label: 'Главный оффер', maxTokens: 2600, minLength: 450, task: 'Сформулируй 5 вариантов главного оффера мини-продукта и выбери рекомендуемый. Формула: за 7 дней / 3 занятия / конкретный первый результат / без старого болезненного способа.' },
+  { step: 'shortDescription', label: 'Краткое описание продукта', maxTokens: 2600, minLength: 450, task: 'Опиши мини-продукт в 2-4 коротких абзацах: для кого, какая узкая задача, почему это можно проработать за 7 дней, какой первый управляемый результат участник получит. Отдельно задай честную границу результата.' },
+  { step: 'lesson1', label: '1 занятие', maxTokens: 3400, minLength: 700, task: 'Проработай занятие 1: диагностика и разворот мышления. Верни название, главную задачу, почему важно, что разберём, практику, домашнее задание, артефакт и результат после занятия.' },
+  { step: 'lesson2', label: '2 занятие', maxTokens: 3400, minLength: 700, task: 'Проработай занятие 2: новый инструмент/метод и практика. Верни название, главную задачу, почему важно, что разберём, практику, домашнее задание, артефакт и результат после занятия.' },
+  { step: 'lesson3', label: '3 занятие', maxTokens: 3400, minLength: 700, task: 'Проработай занятие 3: сборка системы, закрепление и следующий шаг. Верни название, главную задачу, почему важно, что разберём, практику, домашнее задание, артефакт и результат после занятия.' },
+  { step: 'sevenDaySchedule', label: 'Расписание на 7 дней', maxTokens: 3200, minLength: 650, task: 'Собери расписание на 7 дней: задача дня, что сделать, сколько времени займёт, что получится на выходе. Дни 1/3/6 — занятия, остальные дни — внедрение и задания.' },
+  { step: 'mainResult', label: 'Главный результат', maxTokens: 2400, minLength: 420, task: 'Сформулируй реалистичный первый результат мини-продукта, продуктовое обещание и 5-7 быстрых побед. Не обещай полного решения большой системной проблемы за 7 дней.' },
+  { step: 'fit', label: 'Для кого / не для кого', maxTokens: 3000, minLength: 600, task: 'Опиши для кого мини-продукт и кому он не подойдёт через реальные ситуации клиента. Честные границы должны повышать доверие.' },
+  { step: 'bonuses', label: 'Бонусы', maxTokens: 3000, minLength: 600, task: 'Предложи 3-5 практичных бонусов. Для каждого: название, что внутри, какое возражение/проблему закрывает, почему полезен, какой быстрый результат даёт.' },
+  { step: 'objections', label: 'Возражения и ответы', maxTokens: 3600, minLength: 850, task: 'Опиши 10 ключевых возражений аудитории. Для каждого: возражение, что за ним стоит, как закрыть в тексте, какой элемент продукта закрывает.' },
+  { step: 'landingBlock', label: 'Продающий блок для лендинга', maxTokens: 5200, minLength: 1400, task: 'Сформируй продающий блок для лендинга: первый экран, боль, уже пробовали, почему не работает, что будет иначе, программа, результат, формат, эксперт, бонусы, кому подходит/не подходит, FAQ, финальный CTA.' },
+  { step: 'telegramPosts', label: '3 Telegram-поста', maxTokens: 5200, minLength: 1400, task: 'Напиши 3 Telegram-поста для продажи мини-продукта: через боль и узнавание, через экспертный разворот, через оффер и приглашение. Каждый пост должен быть готов к публикации.' },
+  { step: 'nextProductBridge', label: 'Мост к следующему продукту', maxTokens: 3200, minLength: 650, task: 'Опиши мост к следующему продукту: что участник уже получил, что понял, где проявились более глубокие задачи, почему логично идти дальше, какой следующий продукт решает большую проблему.' },
+  { step: 'edit', label: 'Редактирование мини-продукта', maxTokens: 5600, minLength: 1200, task: 'Выполни правку мини-продукта по запросу пользователя. Верни только обновлённую полную версию в markdown со всеми ключевыми блоками.' },
+];
+
+const LEAD_MAGNET_STEPS: Array<{ step: string; maxTokens: number; minLength: number }> = [
+  ...[
+    'headline', 'subheadline', 'leadText', 'articleMap', 'expertIntro', 'misunderstanding', 'problemCause',
+    'triedSolutions', 'failedSolutions', 'bigShift', 'methodModel', 'methodDemo', 'usefulConclusion',
+    'articleLimits', 'nextStepBridge', 'nextStepSale', 'firstCta', 'objections', 'extraFormat',
+    'urgency', 'finalSummary', 'finalPs', 'finalCta',
+  ].map((step) => ({ step, maxTokens: 4200, minLength: 350 })),
+  ...['concept', 'hook', 'script', 'practice', 'cta', 'structure', 'content', 'checklist']
+    .map((step) => ({ step, maxTokens: step === 'script' || step === 'content' ? 5200 : 3600, minLength: 450 })),
+  { step: 'edit', maxTokens: 6200, minLength: 900 },
+];
+
 export const CONTENT_WORKFLOW_PROMPTS: PromptConfig[] = [
   {
     id: 'posts.topic.generate.v1',
@@ -312,6 +408,38 @@ ${contextAppendix(context)}
 Ответь только по задаче пользователя. Без служебных комментариев.`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
+  ...MAIN_PRODUCT_STEPS.map<PromptConfig>((step) => ({
+    id: `product.main.${step.step}.v1`,
+    version: 'v1',
+    feature: 'product_main',
+    workflow: 'product.main',
+    step: step.step,
+    model: 'gpt-5.5',
+    temperature: 0.62,
+    maxTokens: step.maxTokens,
+    artifactType: `product_main_${step.step}`,
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор основного продукта.
+Шаг: ${step.label}.
+
+Текущий краткий черновик продукта:
+${value(inputs, 'currentProduct', 'Пока пусто.')}
+
+Запрос пользователя / правка:
+${value(inputs, 'userRequest', 'нет')}
+
+Задача:
+${step.task}
+
+Правила:
+- Не подтягивай лишний полный контекст, используй selective project context ниже.
+- Не подставляй психологию или другую нишу, если её нет в контексте.
+- Пиши конкретно, как рабочий продуктовый черновик.
+- Верни только результат шага, без служебных комментариев.
+
+${contextAppendix(context)}`,
+    validationRules: { minLength: step.minLength, structuredOutput: 'text' },
+  })),
   {
     id: 'product.mini.generate.v1',
     version: 'v1',
@@ -330,6 +458,38 @@ ${contextAppendix(context)}
 Ответь только по задаче пользователя. Без служебных комментариев.`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
+  ...MINI_PRODUCT_STEPS.map<PromptConfig>((step) => ({
+    id: `product.mini.${step.step}.v1`,
+    version: 'v1',
+    feature: 'product_mini',
+    workflow: 'product.mini',
+    step: step.step,
+    model: 'gpt-5.5',
+    temperature: 0.62,
+    maxTokens: step.maxTokens,
+    artifactType: `product_mini_${step.step}`,
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор мини-продукта.
+Шаг: ${step.label}.
+
+Текущий краткий черновик мини-продукта:
+${value(inputs, 'currentProduct', 'Пока пусто.')}
+
+Запрос пользователя / правка:
+${value(inputs, 'userRequest', 'нет')}
+
+Задача:
+${step.task}
+
+Правила:
+- Мини-продукт длится 7 дней и состоит из 3 занятий, если пользователь явно не указал другое.
+- Не обещай полного решения большой системной проблемы за 7 дней.
+- Используй selective project context ниже, не расползайся в generic.
+- Верни только результат шага, без служебных комментариев.
+
+${contextAppendix(context)}`,
+    validationRules: { minLength: step.minLength, structuredOutput: 'text' },
+  })),
   {
     id: 'leadmagnet.generate.v1',
     version: 'v1',
@@ -348,6 +508,38 @@ ${contextAppendix(context)}
 Ответь только по задаче пользователя. Без служебных комментариев.`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
+  ...LEAD_MAGNET_STEPS.map<PromptConfig>((step) => ({
+    id: `leadmagnet.${step.step}.v1`,
+    version: 'v1',
+    feature: 'lead_magnet',
+    workflow: 'leadmagnet',
+    step: step.step,
+    model: 'gpt-5.5',
+    temperature: 0.64,
+    maxTokens: step.maxTokens,
+    artifactType: `leadmagnet_${step.step}`,
+    systemPrompt: (context) => buildLeadMagnetPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор лид-магнита.
+Формат: ${value(inputs, 'format', 'лид-магнит')}
+Шаг: ${value(inputs, 'stepLabel', step.step)}
+
+Текущий краткий черновик лид-магнита:
+${value(inputs, 'currentLeadMagnet', 'Пока пусто.')}
+
+Запрос пользователя / правка:
+${value(inputs, 'userRequest', 'нет')}
+
+Задача шага:
+${value(inputs, 'stepTask', 'Сгенерируй качественный блок лид-магнита для текущего шага.')}
+
+Правила:
+- Работай только над указанным шагом, не переписывай весь материал без необходимости.
+- Используй selective project context ниже.
+- Верни только готовый блок в markdown, без служебных комментариев.
+
+${contextAppendix(context)}`,
+    validationRules: { minLength: step.minLength, structuredOutput: 'text' },
+  })),
   {
     id: 'strategy.audience.generate.v1',
     version: 'v1',

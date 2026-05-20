@@ -102,14 +102,6 @@ function limitText(value: string | undefined, max = 1200): string {
   return `${text.slice(0, max).trim()}\n...`;
 }
 
-function fitAiMessage(value: string, max = 15500): string {
-  if (value.length <= max) return value;
-  const head = value.slice(0, Math.floor(max * 0.72)).trim();
-  const tail = value.slice(-Math.floor(max * 0.2)).trim();
-  return `${head}\n\n...[часть контекста сокращена, чтобы запрос прошёл лимит API]...\n\n${tail}`;
-}
-
-
 function splitProductMarkdownToMessages(markdown: string): ProductChatMessage[] {
   const cleaned = cleanCodeFence(markdown);
   if (!cleaned.trim()) return [];
@@ -421,17 +413,21 @@ export default function ProductMini() {
     return { ...product, chatMessages: [...(product.chatMessages ?? []), message] };
   }
 
-  async function requestAi(message: string, maxTokens = 2200): Promise<string> {
+  async function requestProductStep(
+    stepId: ProductStep['id'] | 'edit',
+    current: MiniProductState,
+    userRequest = '',
+  ): Promise<string> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
     try {
-      const resp = await aiApi.startWorkflow('product.mini.generate', {
+      const resp = await aiApi.startWorkflow(`product.mini.${stepId}`, {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
-          prompt: fitAiMessage(message),
-          maxTokens,
+          currentProduct: buildMiniProductBrief(current),
+          userRequest,
         },
       });
       return cleanCodeFence(resp.content);
@@ -725,8 +721,9 @@ ${currentProduct}
 Не обесценивай мини-продукт: он должен честно давать результат, но показывать границы.`;
       default:
         return basePrompt();
-    }
+      }
   }
+  void buildStepPrompt;
 
   async function handleCreate() {
     if (loading) return;
@@ -744,8 +741,7 @@ ${currentProduct}
         next = { ...next, stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' } };
         persistState(next, { syncMaterial: false });
 
-        const maxTokens = step.id === 'landingBlock' || step.id === 'telegramPosts' ? 5200 : 3600;
-        const content = await requestAi(buildStepPrompt(step, next), maxTokens);
+        const content = await requestProductStep(step.id, next);
         if (step.id === 'bestName') {
           next.name = extractMarkdownSection(content, /^##\s+рекомендуемый/i)
             ? stripMarkdown(extractMarkdownSection(content, /^##\s+рекомендуемый/i)).split('\n')[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт'
@@ -793,22 +789,7 @@ ${currentProduct}
     setLoading(true);
 
     try {
-      const response = await requestAi(`${basePrompt()}
-
-Пользователь хочет отредактировать мини-продукт через чат.
-Его запрос:
-${text}
-
-Текущая версия мини-продукта:
-${buildMiniProductBrief(stateWithUser)}
-
-Задача:
-- Выполни правку по запросу пользователя.
-- Верни только обновлённую полную версию мини-продукта в markdown.
-- Сохраняй структуру мини-продукта на 7 дней из 3 занятий.
-- В полной версии должны остаться: название, оффер, краткое описание, 3 занятия, расписание на 7 дней, главный результат, для кого/не для кого, бонусы, возражения, лендинг-блок, 3 Telegram-поста и мост к следующему продукту.
-- Не обещай полного решения большой системной проблемы за 7 дней.
-- Не добавляй служебные комментарии вроде “готово” или “я изменил”. Только обновлённый мини-продукт.`, 5200);
+      const response = await requestProductStep('edit', stateWithUser, text);
 
       const description = response.includes('# Мини-продукт') ? response : `# Мини-продукт\n\n${response}`;
       persistState({

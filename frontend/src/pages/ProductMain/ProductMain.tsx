@@ -73,13 +73,6 @@ function limitText(value: string | undefined, max = 1200): string {
   return `${text.slice(0, max).trim()}\n...`;
 }
 
-function fitAiMessage(value: string, max = 15500): string {
-  if (value.length <= max) return value;
-  const head = value.slice(0, Math.floor(max * 0.72)).trim();
-  const tail = value.slice(-Math.floor(max * 0.2)).trim();
-  return `${head}\n\n...[часть контекста сокращена, чтобы запрос прошёл лимит API]...\n\n${tail}`;
-}
-
 function splitProductMarkdownToMessages(markdown: string): ProductChatMessage[] {
   const cleaned = cleanCodeFence(markdown);
   if (!cleaned.trim()) return [];
@@ -174,15 +167,6 @@ function stripMarkdown(value: string): string {
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .trim();
-}
-
-function extractMarkdownSection(markdown: string, titlePattern: RegExp): string {
-  const lines = markdown.split('\n');
-  const start = lines.findIndex((line) => titlePattern.test(line.trim()));
-  if (start === -1) return '';
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => /^##\s+/.test(line.trim()));
-  return (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
 }
 
 function getRequestErrorMessage(err: unknown): string {
@@ -364,17 +348,21 @@ export default function ProductMain() {
     return { ...product, chatMessages: [...(product.chatMessages ?? []), message] };
   }
 
-  async function requestAi(message: string, maxTokens = 2200): Promise<string> {
+  async function requestProductStep(
+    stepId: ProductStep['id'] | 'edit',
+    current: ProductState,
+    userRequest = '',
+  ): Promise<string> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
     try {
-      const resp = await aiApi.startWorkflow('product.main.generate', {
+      const resp = await aiApi.startWorkflow(`product.main.${stepId}`, {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
-          prompt: fitAiMessage(message),
-          maxTokens,
+          currentProduct: buildMainProductBrief(current),
+          userRequest,
         },
       });
       return cleanCodeFence(resp.content);
@@ -460,8 +448,9 @@ ${currentProduct}
 Без списка, без markdown, без пересказа модулей.`;
       default:
         return basePrompt();
-    }
+      }
   }
+  void buildStepPrompt;
 
   async function handleCreate() {
     if (loading) return;
@@ -476,59 +465,27 @@ ${currentProduct}
 
     try {
       const firstSteps = PRODUCT_STEPS.slice(0, 3);
-      next = {
-        ...next,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          names: 'running',
-          offer: 'running',
-          description: 'running',
-        },
-      };
-      persistState(next, { syncMaterial: false });
-
-      const introContent = await requestAi(`${basePrompt()}
-
-Сейчас сформируй первые 3 блока основного продукта одним ответом.
-Верни строго markdown с такими заголовками:
-
-## Варианты названия
-1. **Название** — коротко почему подходит
-2. **Название** — коротко почему подходит
-3. **Название** — коротко почему подходит
-
-## Оффер
-2-3 варианта главного оффера и в конце рекомендуемый вариант.
-
-## Описание продукта
-2-4 коротких абзаца: для кого продукт, какую проблему решает, как устроен путь, какой результат получает клиент.`, 4200);
-
-      const namesContent = extractMarkdownSection(introContent, /^##\s+варианты\s+названия/i) || introContent;
-      const offerContent = extractMarkdownSection(introContent, /^##\s+оффер/i);
-      const descriptionContent = extractMarkdownSection(introContent, /^##\s+описание/i);
-      const nameLines = stripMarkdown(namesContent).split('\n').filter(Boolean).slice(0, 3);
-      next = {
-        ...next,
-        nameOptions: nameLines,
-        name: nameLines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт',
-        offer: offerContent,
-        productDescription: descriptionContent,
-        stepStatuses: {
-          ...(next.stepStatuses ?? EMPTY_STATUSES),
-          names: 'done',
-          offer: 'done',
-          description: 'done',
-        },
-      };
       for (const step of firstSteps) {
-        const content = step.id === 'names'
-          ? namesContent
-          : step.id === 'offer'
-            ? offerContent
-            : descriptionContent;
-        next = withMessage(next, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
+        next = {
+          ...next,
+          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' },
+        };
+        persistState(next, { syncMaterial: false });
+
+        const content = await requestProductStep(step.id, next);
+        if (step.id === 'names') {
+          const nameLines = stripMarkdown(content).split('\n').filter(Boolean).slice(0, 3);
+          next.nameOptions = nameLines;
+          next.name = nameLines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт';
+        }
+        if (step.id === 'offer') next.offer = content;
+        if (step.id === 'description') next.productDescription = content;
+        next = withMessage({
+          ...next,
+          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'done' },
+        }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
+        persistState(next, { syncMaterial: false });
       }
-      persistState(next, { syncMaterial: false });
 
       const moduleStep = PRODUCT_STEPS.find((step) => step.id === 'modules')!;
       next = {
@@ -536,7 +493,7 @@ ${currentProduct}
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'running' },
       };
       persistState(next, { syncMaterial: false });
-      const modulesContent = await requestAi(buildStepPrompt(moduleStep, next), 5200);
+      const modulesContent = await requestProductStep(moduleStep.id, next);
       next = withMessage({
         ...next,
         modulesText: modulesContent,
@@ -550,7 +507,7 @@ ${currentProduct}
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'running' },
       };
       persistState(next, { syncMaterial: false });
-      const promiseContent = await requestAi(buildStepPrompt(promiseStep, next), 1600);
+      const promiseContent = await requestProductStep(promiseStep.id, next);
       next = withMessage({
         ...next,
         transformation: promiseContent,
@@ -582,21 +539,7 @@ ${currentProduct}
     setLoading(true);
 
     try {
-      const response = await requestAi(`${basePrompt()}
-
-Пользователь хочет отредактировать основной продукт через чат.
-Его запрос:
-${text}
-
-Текущая версия продукта:
-${buildMainProductBrief(stateWithUser)}
-
-Задача:
-- Выполни правку по запросу пользователя.
-- Верни только обновлённую полную версию продукта в markdown.
-- Сохраняй структуру: # Основной продукт, варианты названия, оффер, описание, модули программы, продуктовое обещание.
-- Продуктовое обещание держи коротким: 30-40 слов максимум.
-- Не добавляй служебные комментарии вроде “готово” или “я изменил”. Только обновлённый продукт.`, 5200);
+      const response = await requestProductStep('edit', stateWithUser, text);
 
       const next = withMessage(
         {

@@ -85,10 +85,28 @@ function selectBlocks(blocks: ContextBlock[], tokenBudget: number): ContextBlock
   return selected.sort((a, b) => blocks.indexOf(a) - blocks.indexOf(b));
 }
 
+function contextBudgetFor(workflow: string, step?: string): number {
+  if (workflow === 'product.main') {
+    if (step === 'modules' || step === 'edit') return 7000;
+    if (step === 'names' || step === 'promise') return 4200;
+    return 5600;
+  }
+  if (workflow === 'product.mini') {
+    if (step === 'landingBlock' || step === 'telegramPosts' || step === 'edit') return 7600;
+    if (step === 'bestName' || step === 'mainResult') return 4800;
+    return 6200;
+  }
+  if (workflow === 'leadmagnet') {
+    if (step === 'edit' || step === 'content' || step === 'script') return 8000;
+    return 6200;
+  }
+  return 8000;
+}
+
 export const projectContextService = {
   async build(input: BuildContextInput): Promise<ProjectContextBundle> {
     const workflowGroup = input.workflow.split('.')[0] ?? input.workflow;
-    const tokenBudget = input.tokenBudget ?? 8000;
+    const tokenBudget = input.tokenBudget ?? contextBudgetFor(input.workflow, input.step);
 
     const project = await prisma.project.findFirst({
       where: { id: input.projectId, userId: input.userId },
@@ -160,7 +178,7 @@ export const projectContextService = {
       {
         key: 'utp',
         title: 'УТП',
-        priority: workflowGroup === 'posts' || workflowGroup === 'reels' ? 'high' : 'medium',
+        priority: workflowGroup === 'posts' || workflowGroup === 'reels' || workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 'high' : 'medium',
         content: compact(project.utpData, 1800),
       },
       {
@@ -188,7 +206,7 @@ export const projectContextService = {
       {
         key: 'products',
         title: 'Продукты и офферы',
-        priority: 'medium',
+        priority: workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 'high' : 'medium',
         content: compact(project.products.map((product) => ({
           type: product.type,
           title: product.title,
@@ -214,7 +232,7 @@ export const projectContextService = {
         key: 'workflow_inputs',
         title: 'Входные параметры текущего workflow',
         priority: 'critical',
-        content: compact(input.inputs ?? {}, 2200),
+        content: compact(input.inputs ?? {}, workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 3600 : 2200),
       },
     ];
 

@@ -134,13 +134,6 @@ function limitText(value: string | undefined, max = 1200): string {
   return `${text.slice(0, max).trim()}\n...`;
 }
 
-function fitAiMessage(value: string, max = 15500): string {
-  if (value.length <= max) return value;
-  const head = value.slice(0, Math.floor(max * 0.72)).trim();
-  const tail = value.slice(-Math.floor(max * 0.2)).trim();
-  return `${head}\n\n...[часть контекста сокращена, чтобы запрос прошёл лимит API]...\n\n${tail}`;
-}
-
 function stripMarkdown(value: string): string {
   return value
     .replace(/^#{1,6}\s+/gm, '')
@@ -433,17 +426,24 @@ export default function LeadMagnet() {
     return { ...leadMagnet, chatMessages: [...(leadMagnet.chatMessages ?? []), message] };
   }
 
-  async function requestAi(message: string, maxTokens = 2600): Promise<string> {
+  async function requestLeadMagnetStep(
+    stepId: string,
+    current: LeadMagnetState,
+    options: { stepLabel?: string; stepTask?: string; userRequest?: string } = {},
+  ): Promise<string> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
     try {
-      const resp = await aiApi.startWorkflow('leadmagnet.generate', {
+      const resp = await aiApi.startWorkflow(`leadmagnet.${stepId}`, {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
-          prompt: fitAiMessage(message),
-          maxTokens,
+          format: selectedFormat ? FORMAT_LABELS[selectedFormat] : 'Лид-магнит',
+          stepLabel: options.stepLabel ?? stepId,
+          stepTask: options.stepTask ?? `Сгенерируй блок "${options.stepLabel ?? stepId}" для выбранного формата лид-магнита.`,
+          currentLeadMagnet: buildLeadMagnetBrief(current),
+          userRequest: options.userRequest ?? '',
         },
       });
       return cleanCodeFence(resp.content);
@@ -824,6 +824,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
     if (format === 'video-lesson') return videoLessonPrompt(step, markdown);
     return pdfGuidePrompt(step, markdown);
   }
+  void buildStepPrompt;
 
   function selectFormat(format: LeadMagnetFormat) {
     const next: LeadMagnetState = {
@@ -866,7 +867,10 @@ ${currentMarkdown || 'Пока пусто.'}`;
         };
         persistState(next, { syncMaterial: false });
 
-        const content = await requestAi(buildStepPrompt(selectedFormat, step, next), selectedFormat === 'sales-longread' ? 5200 : 3600);
+        const content = await requestLeadMagnetStep(step.id, next, {
+          stepLabel: step.label,
+          stepTask: `Сгенерируй блок "${step.label}" для формата "${FORMAT_LABELS[selectedFormat]}". Работай только над этим шагом, сохрани логику воронки и связь с текущим черновиком.`,
+        });
         next = withMessage({
           ...next,
           stepStatuses: { ...(next.stepStatuses ?? {}), [step.id]: 'done' },
@@ -908,23 +912,11 @@ ${currentMarkdown || 'Пока пусто.'}`;
     setLoading(true);
 
     try {
-      const response = await requestAi(`${basePrompt(selectedFormat)}
-
-Пользователь хочет отредактировать лид-магнит через чат.
-Формат: ${FORMAT_LABELS[selectedFormat]}.
-
-Запрос пользователя:
-${text}
-
-Текущая версия:
-${buildLeadMagnetBrief(stateWithUser)}
-
-Задача:
-- Выполни правку по запросу пользователя.
-- Верни только обновленную полную версию лид-магнита в markdown.
-- Сохрани выбранный формат: ${FORMAT_LABELS[selectedFormat]}.
-- Не добавляй служебные комментарии вроде "готово" или "я изменил".
-- Если пользователь просит доработать только часть, всё равно верни цельный обновленный материал.`, 6200);
+      const response = await requestLeadMagnetStep('edit', stateWithUser, {
+        stepLabel: 'Редактирование лид-магнита',
+        stepTask: `Выполни правку по запросу пользователя и верни цельный обновленный материал в markdown. Сохрани выбранный формат: ${FORMAT_LABELS[selectedFormat]}.`,
+        userRequest: text,
+      });
 
       const description = response.includes('# Лид-магнит') ? response : `# Лид-магнит\n\n## Формат\n${FORMAT_LABELS[selectedFormat]}\n\n${response}`;
       persistState({
