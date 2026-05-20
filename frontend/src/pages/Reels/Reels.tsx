@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
@@ -43,6 +42,10 @@ interface SavedReel {
   editedContent: string;
   editedTitle:   string;
   createdAt:     string;
+  workflowRunId?: string;
+  workflowStepId?: string;
+  artifactId?:    string;
+  generationId?:  string;
 }
 
 interface ReelItem extends SplitItem {
@@ -227,9 +230,7 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
 
 export default function Reels() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
-  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'reels')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -261,6 +262,7 @@ export default function Reels() {
 
   const [hooks,        setHooks]        = useState<HookOption[]>([]);
   const [selectedHook, setSelectedHook] = useState('');
+  const [hooksWorkflowRunId, setHooksWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
   const [isListening,   setIsListening]   = useState(false);
@@ -295,42 +297,28 @@ export default function Reels() {
   }
 
   async function handleGenerateHooks(nextTone = tone, nextIntensity = intensity) {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setPhase('step2-loading');
-    const segCtx = strat.chosenSegment ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 160)}.` : '';
-    const typeLabels: Record<ReelType, string> = {
-      tips: 'практический Reels с механизмом решения',
-      story: 'Reels-история или кейс',
-      myth: 'Reels-разрушение мифа',
-    };
-    const prompt = `Сгенерируй 30 сильных хуков для Reels Engine в Luma IQ.
-
-Платформа: ${PLATFORM_LABELS[platform]}
-Бизнес-цель: ${GOAL_LABELS[goal]}
-Формат: ${typeLabels[reelType]}
-Тон: ${TONE_LABELS[nextTone]}
-Интенсивность триггеров: ${INTENSITY_LABELS[nextIntensity]}
-${segCtx}
-
-Требования:
-- хуки должны быть привязаны к текущему проекту, эксперту, ЦА, позиционированию, продуктам и воронке;
-- не используй нишу психологии, если текущий проект не про психологию;
-- каждый хук 1–2 предложения максимум;
-- каждый хук должен включать минимум 2 механики: боль, ошибка, скрытый механизм, контраст, идентичность, цена бездействия, tension, curiosity gap;
-- без кликбейта, таблоидности, TikTok-кринжа и generic AI language.
-
-Формат ответа:
-Высокий приоритет
-1. [хук] — score: [0-100]
-
-Средний приоритет
-11. [хук] — score: [0-100]
-
-Тестовые
-21. [хук] — score: [0-100]
-
-Не объясняй логику.`;
     try {
-      const resp = await aiApi.chat({ model: 'chatgpt', section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
+      const resp = await aiApi.startWorkflow('reels.hooks.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          platform: PLATFORM_LABELS[platform],
+          goal: GOAL_LABELS[goal],
+          reelType,
+          reelTypeLabel: TYPE_LABELS[reelType],
+          tone: TONE_LABELS[nextTone],
+          intensity: INTENSITY_LABELS[nextIntensity],
+          selectedSegment: strat.chosenSegment ?? null,
+          selectedSubsegment: strat.chosenSubsegment ?? null,
+          corePains: strat.corePains ?? null,
+          finalResult: strat.finalResult ?? null,
+        },
+      });
       const parsed = parseHooks(resp.content);
       if (parsed.length === 0) {
         toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -341,6 +329,10 @@ ${segCtx}
       setSelectedHook(parsed[0]?.text ?? '');
       setTone(nextTone);
       setIntensity(nextIntensity);
+      setHooksWorkflowRunId(resp.workflowRunId);
+      if (!resp.validation.ok) {
+        toast('Хуки сгенерированы, но AI-валидация нашла замечания к формату');
+      }
     } catch {
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
       setPhase('step1');
@@ -351,49 +343,47 @@ ${segCtx}
   }
 
   async function handleGenerateReel() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     startGenerationTask(activeProjectId, 'reels', 'Пишу сценарий рилса', selectedHook || 'Собираю сценарий');
     setPhase('generating');
-    const segCtx = strat.chosenSegment ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 160)}.` : '';
-    const extraCtx = [keyword && `Ключевое слово для CTA: "${keyword}".`, facture && `Фактура от эксперта: "${facture}".`].filter(Boolean).join(' ');
-    const typeLabels: Record<ReelType, string> = {
-      tips: 'практический Reels',
-      story: 'Reels-история/кейс',
-      myth: 'Reels-разрушение мифа',
-    };
-    const prompt = `Создай полноценный сценарий вертикального видео для Reels Engine в Luma IQ.
-
-Платформа: ${PLATFORM_LABELS[platform]}
-Бизнес-цель: ${GOAL_LABELS[goal]}
-Формат: ${typeLabels[reelType]}
-Тон: ${TONE_LABELS[tone]}
-Интенсивность триггеров: ${INTENSITY_LABELS[intensity]}
-Выбранный хук: «${selectedHook}»
-${segCtx}
-${extraCtx}
-
-Перед сценарием проверь достаточность фактуры.
-Если фактуры недостаточно для сильного сценария, верни только блок “Нужна фактура” и 5 конкретных уточняющих вопросов.
-
-Если фактуры достаточно, верни готовый результат:
-## Заголовок
-## Хук
-## Сценарий 45–60 секунд по сценам
-## Эмоциональные акценты
-## CTA
-## Подсказки для съемки и удержания
-
-Требования:
-- сценарий должен звучать как реальная речь эксперта, а не статья;
-- удерживай внимание каждые 5–8 секунд;
-- используй конкретные ситуации, ошибки, фразы аудитории и механизм проблемы;
-- CTA должен соответствовать цели: ${GOAL_LABELS[goal]};
-- не используй мотивационную воду, инфоцыганский тон, generic AI language и TikTok-кринж.
-
-Не объясняй логику. Сразу выдавай готовый результат.`;
     let content: string;
+    let workflowRunId = '';
+    let workflowStepId = '';
+    let artifactId = '';
+    let generationId = '';
     try {
-      const resp = await aiApi.chat({ model: 'chatgpt', section: 'reels', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
+      const resp = await aiApi.startWorkflow('reels.script.write', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          platform: PLATFORM_LABELS[platform],
+          goal: GOAL_LABELS[goal],
+          reelType,
+          reelTypeLabel: TYPE_LABELS[reelType],
+          tone: TONE_LABELS[tone],
+          intensity: INTENSITY_LABELS[intensity],
+          hook: selectedHook,
+          facture,
+          cta: keyword ? `кодовое слово ${keyword}` : GOAL_LABELS[goal],
+          keyword,
+          hooksWorkflowRunId: hooksWorkflowRunId || null,
+          selectedSegment: strat.chosenSegment ?? null,
+          selectedSubsegment: strat.chosenSubsegment ?? null,
+          corePains: strat.corePains ?? null,
+          finalResult: strat.finalResult ?? null,
+        },
+      });
       content = resp.content;
+      workflowRunId = resp.workflowRunId;
+      workflowStepId = resp.workflowStepId;
+      artifactId = resp.artifactId;
+      generationId = resp.generationId;
+      if (!resp.validation.ok) {
+        toast('Сценарий готов, но AI-валидация нашла замечания к формату');
+      }
     } catch {
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
       setPhase('step2');
@@ -403,12 +393,12 @@ ${extraCtx}
     const id    = `reel-${Date.now()}`;
     const title = `${TYPE_LABELS[reelType]} · ${PLATFORM_LABELS[platform]}`;
     const now   = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-    const newReel: SavedReel = { id, reelType, platform, goal, tone, intensity, theme: selectedHook, hook: selectedHook, keyword, content, editedContent: '', editedTitle: title, createdAt: now };
+    const newReel: SavedReel = { id, reelType, platform, goal, tone, intensity, theme: selectedHook, hook: selectedHook, keyword, content, editedContent: '', editedTitle: title, createdAt: now, workflowRunId, workflowStepId, artifactId, generationId };
     const next = [newReel, ...reels];
     updateReels(next);
     setSelectedId(id);
     setPhase('editor');
-    void saveToApi({ title, content, platform: PLATFORM_LABELS[platform], metadata: { reelType, goal, tone, intensity, keyword, hook: selectedHook } })
+    void saveToApi({ title, content, platform: PLATFORM_LABELS[platform], metadata: { reelType, goal, tone, intensity, keyword, hook: selectedHook, workflowRunId, workflowStepId, artifactId, generationId } })
       .then((dbItem) => { if (!dbItem) return; updateReels([newReel, ...reels].map((r) => (r.id === id ? { ...r, dbId: dbItem.id } : r))); });
     finishGenerationTask(activeProjectId, 'reels');
   }
@@ -465,6 +455,7 @@ ${extraCtx}
     setKeyword('');
     setHooks([]);
     setSelectedHook('');
+    setHooksWorkflowRunId('');
     setPhase('step1');
   }
 
