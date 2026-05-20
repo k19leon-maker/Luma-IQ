@@ -1,477 +1,287 @@
-# LumaIQ — актуальный контекст проекта
+# Luma IQ — актуальный контекст проекта
+
+Обновлено: 2026-05-20
 
 ## Что это
 
-**LumaIQ** — SaaS-сервис для маркетинговой упаковки экспертов и сервисных бизнесов. Сервис помогает пройти путь от базового позиционирования и анализа целевой аудитории до УТП, продуктовой линейки, контент-плана и AI-материалов.
+Luma IQ — vertical AI SaaS для экспертов, маркетологов и продюсеров. Сервис помогает пользователю вести проект от базового описания эксперта и позиционирования до ЦА, УТП, продуктовой линейки, лидмагнитов, контента, воронок и AI-диалога.
 
-Главная логика продукта: пользователь ведет проект внутри сервиса, а AI-маркетолог / бизнес-стратег знает контекст проекта, накопленные материалы и помогает принимать решения по упаковке, стратегии, воронке, продуктам и контенту.
+Главная продуктовая идея: Luma IQ должен ощущаться не как GPT wrapper, а как context-aware AI marketing operating system.
 
-## Продакшен
+## Production
 
 - Frontend: Vercel
-- Домен frontend: `https://www.lumaiq.ru`
+- Frontend domain: `https://www.lumaiq.ru`
 - Backend: Hetzner VPS `128.140.111.43`
-- Домен API: `https://api.lumaiq.ru`
-- Backend path на сервере: `/app/backend`
+- API domain: `https://api.lumaiq.ru`
+- Server path: `/app/backend`
 - PM2 process: `lumaiq-backend`
-- SSH: `ssh root@128.140.111.43`
 - GitHub branch: `main`
 
-Типовой деплой backend:
+Backend deploy:
 
 ```bash
 ssh root@128.140.111.43 "cd /app && git fetch origin main && git reset --hard origin/main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
 ```
 
-Frontend деплоится автоматически через Vercel после `git push origin main`.
+Frontend deploys automatically through Vercel after push to `main`.
 
-## Стек
+## Stack
 
-| Слой | Технологии |
-|------|------------|
-| Frontend | React 18, TypeScript, Vite, CSS Modules |
-| Backend | Node.js, Express, TypeScript |
-| DB | PostgreSQL |
-| ORM | Prisma 7 |
-| Auth | JWT access/refresh, email/password |
-| State | Zustand + localStorage |
-| AI | Anthropic Claude основной, OpenAI альтернативный |
-| Process manager | PM2 |
+- Frontend: React 18, TypeScript, Vite, CSS Modules
+- Backend: Node.js, Express, TypeScript
+- DB: PostgreSQL
+- ORM: Prisma 7
+- Auth: JWT access/refresh
+- State: Zustand + localStorage
+- AI providers: OpenAI + Anthropic
+- Process manager: PM2
 
-Redis/Bull сейчас не являются активной частью продукта.
+Redis/Bull are not active production dependencies right now.
 
-## Основные разделы
+## Main Product Areas
 
-### Стратегия
+### Strategy
 
-1. **Позиционирование** — первый обязательный шаг стратегии.
-   - Route: `/strategy/positioning`
-   - Пользователь заполняет 4 простых поля: кто он, для кого работает, с какой проблемой помогает, к какому результату ведет.
-   - Данные сохраняются в `project.strategyData.positioningData`.
-   - Эти данные используются как базовый контекст для ЦА и AI-диалога.
+- `/strategy/about` or equivalent About Expert flow: project-scoped expert profile.
+- `/strategy/positioning`: starting positioning vector.
+- `/strategy/audience`: 13-step ЦА/JTBD flow.
+- `/strategy/utp`: offer/UTP.
+- `/strategy/social`: social profile packaging.
 
-2. **Целевая аудитория** — 13-шаговая AI-проработка ЦА.
-   - Route: `/strategy/audience`
-   - Данные сохраняются в `project.strategyData.answers` и `audience-store-v1`.
-   - AI-промпт должен учитывать `positioningData`.
-   - Промежуточный прогресс сохраняется после каждого шага.
-   - Шаги сегментов/подсегментов/запросов генерируются из роли эксперта проекта с 25-летним опытом в нише.
-   - Шаги болезненных вопросов, сокровенных желаний, конечного результата и раздражителей пишутся из роли выбранного клиента, простым языком клиента.
-   - Шаг 12 не должен содержать нишевые хардкоды вроде “после работы с психологом”.
+Important: the service supports many niches. Do not hardcode psychology.
 
-3. **УТП**
-   - Route: `/strategy/utp`
+### Product Builder
 
-4. **Оформление соцсетей**
-   - Route: `/strategy/social`
+- `/products/main`
+- `/products/mini`
+- `/products/lead-magnet`
 
-### Конструктор продуктов
+Product sections use project context, audience, UTP and product/leadmagnet logic.
 
-Продуктовые разделы вынесены из блока “Стратегия” в отдельный блок бокового меню “Конструктор продуктов”.
+### Content
 
-1. **Основной продукт**
-   - Route: `/products/main`
-   - Флагманский продукт / основная программа.
-   - Блочный конструктор: 3 варианта названия, оффер и описание, список модулей + закрепленный редактор выбранного модуля, чат с ИИ по модулю/всей программе, общий результат, ручные тарифы и PDF-презентация.
-
-2. **Мини-продукт**
-   - Route: `/products/mini`
-   - Быстрый входной платный продукт.
-
-3. **Лид-магнит**
-   - Route: `/products/lead-magnet`
-   - Бесплатный вход в воронку.
-
-Legacy routes `/strategy/product-main`, `/strategy/product-mini`, `/strategy/lead-magnet`, `/product-main`, `/product-mini`, `/product-free`, `/lead-magnet` редиректят на новые product routes.
-
-### Диалог с ИИ
-
-- Route: `/ai-dialog`
-- Это отдельный пункт бокового меню, вынесен за пределы блока стратегии.
-- Старые `/strategy/unpacking` и `/chat` редиректят сюда.
-- Смысл раздела: прямой AI-маркетолог по проекту.
-- Backend собирает контекст проекта через `buildAiDialogContext.ts`: проект, стратегия, прогресс, контент, задачи, история.
-
-### Контент
-
-- `/posts`
-- `/reels`
-- `/articles`
+- `/posts`: Posts Engine MVP with improved strategic prompts.
+- `/reels`: Reels Engine MVP: goal, platform, tone, trigger intensity, 30 hooks, hook selection, facture, script.
+- `/articles`: Articles Engine MVP: article type, platform, tone, depth, CTA, 20 topics, facture, article with SEO/meta/FAQ/scoring.
 - `/video-scripts`
-- `/chatbot-chains`
+- `/chatbot-chains`: Telegram chain prompt for direct-response posts.
 - `/content-plan`
 
-### Операционные разделы
+### AI Dialog
 
-- `/dashboard`
-- `/tasks`
-- `/files/materials`
-- `/files/products`
-- `/history`
-- `/settings`
+- `/ai-dialog`
+- Project-aware AI marketing assistant.
+- Uses backend context builder in `backend/src/utils/buildAiDialogContext.ts`.
 
-### Админка
+### Admin
 
-- Route: `/admin`
-- Доступ только для роли `ADMIN`.
-- Обычные пользователи не должны иметь доступ к admin API и admin UI.
-- Реализовано:
-  - dashboard метрик;
-  - список пользователей;
-  - карточка пользователя;
-  - ручное создание пользователя;
-  - ручная выдача PRO;
-  - просмотр подписки;
-  - payment source: `MANUAL`, `TRIBUTE`, `YOOKASSA`;
-  - LTV;
-  - activity events;
-  - AI usage analytics.
+- `/admin`
+- Admin only.
+- Manual user creation, manual PRO/access, payments, activity, AI usage analytics.
+- Payment sources: `MANUAL`, `TRIBUTE`, `YOOKASSA`.
 
-## Backend API
+## AI Model Logic
 
-Все основные API начинаются с `/api/v1`.
+Current intended model split:
 
-Ключевые группы:
+- AI dialog: `gpt-5.4`
+- Positioning / audience / UTP: `gpt-5.5`
+- Main product / mini product / lead magnet: `gpt-5.5`
+- Posts / Reels / scripts / content: `gpt-5.4`
+- Anthropic is supported for reasoning/heavier tasks and user-selected provider flows.
 
-- `/api/v1/auth`
-- `/api/v1/projects`
-- `/api/v1/ai/chat`
-- `/api/v1/payments`
-- `/api/v1/admin`
-- `/api/v1/strategy/export-pdf`
+AI provider calls live in `backend/src/services/ai.service.ts`.
 
-### AI endpoint
+## AI Economy
 
-`POST /api/v1/ai/chat`
+Implemented foundation:
 
-Пример body:
+- `billing_periods`
+- `credit_ledger`
+- `ai_generations`
+- `ai_usage_events`
+- `ai_model_pricing`
+- `feature_pricing`
+- `feature_usage_daily`
+
+Services:
+
+- `billing-period.service.ts`
+- `credit-ledger.service.ts`
+- `feature-pricing.service.ts`
+- `ai-cost.service.ts`
+- `access-policy.service.ts`
+- `ai-generation.service.ts`
+
+Token usage is captured from OpenAI/Anthropic responses and stored in `ai_generations`.
+
+## AI Orchestration Foundation
+
+Implemented first backend foundation, not yet fully wired to every frontend screen.
+
+New DB tables:
+
+- `ai_workflow_runs`
+- `ai_workflow_steps`
+- `ai_artifacts`
+
+`ai_generations` links to:
+
+- `workflowRunId`
+- `workflowStepId`
+
+New backend services:
+
+- `backend/src/services/project-context.service.ts`
+- `backend/src/services/ai-workflow.service.ts`
+- `backend/src/services/ai-validation.service.ts`
+
+Prompt registry:
+
+- `backend/src/prompts/registry/types.ts`
+- `backend/src/prompts/registry/helpers.ts`
+- `backend/src/prompts/registry/content-workflows.ts`
+- `backend/src/prompts/registry/index.ts`
+
+New API:
+
+```text
+GET  /api/v1/ai/workflows/prompts
+POST /api/v1/ai/workflows/:workflow/start
+POST /api/v1/ai/workflows/:workflow/step
+```
+
+Registered workflow prompts:
+
+- `posts.topic.generate.v1`
+- `posts.post.write.v1`
+- `reels.hooks.generate.v1`
+- `reels.script.write.v1`
+- `articles.topic.generate.v1`
+- `articles.article.write.v1`
+
+Important: old `/api/v1/ai/chat` remains active. Frontend migration to workflow API should be gradual.
+
+## Prompt Strategy
+
+Canonical doc: `docs/PROMPT_STRATEGY.md`.
+
+Current prompt layers:
+
+- Global behavior prompt: `backend/src/config/system-prompt.ts`
+- Legacy dynamic prompts: `backend/src/prompts/dynamic.prompts.ts`
+- Workflow prompt registry: `backend/src/prompts/registry/*`
+
+Frontend should not assemble new strategic prompts for new workflows. Frontend should send:
 
 ```ts
 {
-  model: 'claude' | 'chatgpt',
-  claudeModel?: string,
-  section: string,
-  message: string,
-  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>,
-  unpackingProfile?: Record<string, unknown>,
-  projectName?: string,
-  projectId?: string
+  workflow,
+  step,
+  projectId,
+  inputs
 }
 ```
 
-Для `section: 'ai-dialog'` важно передавать `projectId`, чтобы backend собрал полный контекст проекта.
+Backend handles:
 
-## AI и ограничения
+- prompt selection;
+- context selection;
+- model routing;
+- validation;
+- usage tracking;
+- artifact saving.
 
-- Anthropic Claude сейчас основной провайдер.
-- OpenAI есть как альтернативный провайдер, если ключ настроен.
-- Mock-ответы в пользовательских AI-разделах должны быть отключены или не использоваться как “успешная генерация”.
-- При ошибке AI пользователь должен видеть toast с ошибкой связи, а раздел не должен подставлять старые демо-данные.
-- Для free-пользователей есть backend paywall/лимиты AI.
-- Используется логирование AI-запросов для аналитики.
+## Project Context
 
-## Prompt strategy
+Current context sources:
 
-Основная стратегия зафиксирована в `docs/PROMPT_STRATEGY.md`, аудит текущих промптов — в `docs/PROMPTS_AUDIT.md`.
+- `Project.strategyData`
+- About Expert data inside `strategyData`
+- `Project.utpData`
+- `AudienceAvatar`
+- `JTBDSession`
+- `Product`
+- `GeneratedText`
+- content plan and project materials where available
 
-Глобальный системный слой:
+New `project-context.service.ts` supports:
 
-- `GLOBAL_AI_BEHAVIOR_PROMPT` находится в `backend/src/config/system-prompt.ts`.
-- Он добавляется ко всем AI-разделам через `withGlobalAiBehaviorPrompt()` в `backend/src/controllers/ai.controller.ts`.
-- Задает язык ответа, анти-галлюцинации, учет контекста, структуру ROLE / TL;DR / ANSWER / FOLLOW-UP для открытых вопросов и правила качества.
-- Важное исключение: если локальный раздел просит строгий JSON, конкретную схему, короткий ответ, готовый маркетинговый текст или “без markdown”, локальный формат важнее общего слоя.
+- selective injection;
+- priority blocks;
+- lightweight summaries;
+- token budgeting.
 
-Ключевая логика ролей:
+Do not pass the whole project blindly into every AI call.
 
-- `ai-dialog` — бизнес-стратег / маркетинг-стратег, смотрит на проект как на бизнес и помогает повышать прибыльность при минимальных лишних действиях.
-- `positioning` — пока без сложного AI-фреймворка: простые поля, которые задают направление проекта.
-- `audience` — главный фреймворк стратегии:
-  - сегменты, топ-3 сегмента, подсегменты, “хочу”, запросы и топ-3 запроса — роль опытного эксперта в нише пользователя;
-  - болезненные вопросы, сокровенные желания, конечный результат, “что бесит” — роль выбранного клиента.
-- `utp` и `social` — маркетолог-стратег, задача: конвертировать холодную аудиторию в интерес/подписку/заявку.
-- `product-main`, `product-mini`, `lead-magnet` — продуктовый маркетолог, задача: создавать продукты на основе найденного спроса в ЦА.
-- Контентные разделы — сильный копирайтер/контент-маркетолог, который пишет на основе стратегии, ЦА, материалов и фактуры пользователя.
+## Important DB Entities
 
-Важно: новые промпты не должны хардкодить психологию или любую другую нишу. Ниша всегда берется из позиционирования, ЦА и project materials.
-
-## Project materials / Knowledge base
-
-Сервис постепенно переводится на логику project materials: все важные результаты пользователя сохраняются как markdown-материалы и используются как knowledge base для следующих действий.
-
-Ключевые материалы:
-
-- `positioning.md`
-- `audience.md`
-- `utp.md`
-- `social.md`
-- `product-main.md`
-- `product-mini.md`
-- `lead-magnet.md`
-
-`audience.md` сейчас содержит:
-
-- стратегическое ядро для следующих разделов;
-- выбранный сегмент;
-- выбранный подсегмент;
-- главный запрос;
-- болезненные вопросы;
-- сокровенные желания;
-- конечный результат;
-- раздражители клиента.
-
-Материалы имеют:
-
-- content;
-- summary;
-- `summaryStatus`;
-- `linkedMaterialIds`;
-- историю версий.
-
-При редактировании/генерации разделов материал должен обновляться, а пользователь должен видеть UX-статус, что knowledge base актуален.
-
-## Оплаты и доступы
-
-Текущий режим — пилотный:
-
-- Регистрация в production должна быть закрыта, если явно не включена через env.
-- Доступы пользователям открываются вручную через админку.
-- PRO можно выдавать вручную.
-- YooKassa ветка должна быть выключена до реального запуска.
-- Tribute/manual платежи используются как источник оплаты для пилота.
-
-Важно: платежный webhook YooKassa не должен активировать подписки, пока `YOOKASSA_ENABLED=false`.
-
-## Email
-
-- Email verification реализована.
-- Если SMTP не настроен, backend должен работать без падения и логировать ссылку в консоль.
-
-## Prisma / DB
-
-Основные сущности:
+Core:
 
 - `User`
 - `Project`
-- `VerificationToken`
+- `JTBDSession`
+- `AudienceAvatar`
+- `Product`
+- `GeneratedText`
+- `ContentPlanItem`
 - `Subscription`
 - `Payment`
-- `AIUsage`
-- `AIRequestLog`
 - `UserEvent`
 
-Стратегические данные проекта хранятся в JSON-поле `Project.strategyData`.
+AI:
 
-Важные ключи внутри `strategyData`:
+- `AIRequestLog`
+- `AIGeneration`
+- `AIUsageEvent`
+- `AIModelPricing`
+- `FeaturePricing`
+- `BillingPeriod`
+- `CreditLedgerEntry`
+- `FeatureUsageDaily`
+- `AIWorkflowRun`
+- `AIWorkflowStep`
+- `AIArtifact`
 
-- `positioningData`
-- `answers`
-- `completed`
-- `unpackingData`
-- `progressFlags`
-- `materialsData`
+## Access And Payments
 
-Миграции на сервере применять через:
+Current mode: pilot/manual access.
 
-```bash
-cd /app/backend && npx prisma migrate deploy && npx prisma generate
-```
+- Production registration can be disabled through env.
+- Users can be created manually by admin.
+- PRO/access can be granted manually.
+- Tribute/manual payments are the practical payment path for pilot.
+- YooKassa exists but should remain disabled unless explicitly enabled and retested.
 
-## Frontend state
+## Checks
 
-Zustand stores:
-
-- `auth.store.ts` — пользователь, токены, сессия.
-- `projects.store.ts` — проекты и `activeProjectId`.
-- `progress.store.ts` — флаги прохождения стратегии, включая positioning/audience/utp/social.
-- `audience.store.ts` — ответы и completed для ЦА по проектам.
-- `unpacking.store.ts` — исторический store; часть данных может использоваться как профиль/контекст, но основной “чат распаковки” заменен на AI-диалог.
-- `model.store.ts` — выбранные AI-модели по разделам.
-- `materials.store.ts` — project materials / knowledge base, summary, links, versions, sync в `strategyData.materialsData`.
-- `generated.store.ts` — сохраненные результаты УТП, соцсетей, продуктов и лид-магнита по проектам.
-- `contentPlan.store.ts` — контент-план.
-- `tasks.store.ts` — задачи.
-
-## UI
-
-- Интерфейс на русском.
-- Основной фон светлый.
-- Акцентный цвет: `#D4A847`.
-- CSS Modules, без большой UI-библиотеки.
-- Drag-and-drop: `@dnd-kit`.
-- Пункт “Диалог с ИИ” в боковом меню визуально выделен.
-
-## Важные файлы
-
-Backend:
-
-- `backend/src/controllers/ai.controller.ts`
-- `backend/src/services/ai.service.ts`
-- `backend/src/controllers/project.controller.ts`
-- `backend/src/controllers/admin.controller.ts`
-- `backend/src/services/payment.service.ts`
-- `backend/src/services/ai-access.service.ts`
-- `backend/src/utils/buildAiDialogContext.ts`
-- `backend/prisma/schema.prisma`
-
-Frontend:
-
-- `frontend/src/App.tsx`
-- `frontend/src/components/Layout/Layout.tsx`
-- `frontend/src/pages/Positioning/Positioning.tsx`
-- `frontend/src/pages/Strategy/Strategy.tsx`
-- `frontend/src/pages/AiDialog/AiDialog.tsx`
-- `frontend/src/pages/Admin/*`
-- `frontend/src/api/projects.api.ts`
-- `frontend/src/api/ai.ts`
-- `frontend/src/hooks/useProjectMarketingContext.ts`
-- `frontend/src/store/materials.store.ts`
-- `frontend/src/store/generated.store.ts`
-- `frontend/src/utils/projectMaterials.ts`
-- `frontend/src/store/*`
-
-Docs:
-
-- `docs/PROMPTS_AUDIT.md`
-- `docs/PROMPT_STRATEGY.md`
-
-## Backlog: social context import
-
-Цель: дать пользователю возможность подключить свои соцсети, чтобы LumaIQ сам проанализировал его реальный контент и дальше генерировал материалы в стиле конкретного эксперта.
-
-### Telegram
-
-MVP-логика:
-
-- Создать бота, например `@luma_iq_bot`.
-- Пользователь добавляет бота администратором в свой Telegram-канал.
-- Backend получает новые публикации через Telegram Bot API webhook / updates `channel_post`.
-- Новые посты сохраняются в БД как `SocialPost`.
-- Для старой истории Bot API недостаточен: бот не может просто выкачать всю прошлую историю канала.
-- Для старых постов MVP-вариант: пользователь экспортирует историю канала из Telegram Desktop в `.json` и загружает файл в LumaIQ.
-- Позже можно рассмотреть Telegram Client API / MTProto для импорта старой истории, но это сложнее по безопасности и UX.
-
-### Instagram
-
-MVP-логика:
-
-- В интерфейсе проекта кнопка `Подключить Instagram`.
-- Пользователь проходит OAuth через Meta / Instagram.
-- Основной поддерживаемый сценарий: Instagram Professional account — Business или Creator.
-- Backend получает access token и подтягивает последние публикации аккаунта.
-- Сохранять: caption, media type, timestamp, permalink, media url / thumbnail, raw metadata.
-- Этого достаточно, чтобы AI понял темы, тональность, структуру постов, частые формулировки, офферы и CTA.
-- Для Reels/video на первом этапе анализировать caption и metadata.
-- Позже добавить скачивание/обработку видео и транскрибацию речи для анализа содержания Reels.
-
-### Предлагаемые сущности
-
-```text
-SocialAccount
-- id
-- userId
-- projectId
-- provider: INSTAGRAM | TELEGRAM
-- handle
-- externalId
-- accessTokenEncrypted
-- refreshTokenEncrypted
-- connectedAt
-- status
-
-SocialPost
-- id
-- socialAccountId
-- providerPostId
-- text
-- mediaType
-- url
-- publishedAt
-- metricsJson
-- rawJson
-
-ContentStyleProfile
-- id
-- projectId
-- summary
-- tone
-- themesJson
-- vocabularyJson
-- contentPatternsJson
-- audienceSignalsJson
-- doDontJson
-- examplesJson
-- updatedAt
-```
-
-### AI-использование
-
-- Импортировать последние 50-200 постов.
-- Очистить текст от мусора, ссылок и дублей.
-- Построить `ContentStyleProfile`.
-- При генерации контента подмешивать:
-  - краткий профиль стиля;
-  - 3-7 релевантных примеров старых постов;
-  - текущий контекст проекта.
-- В генераторах добавить режим `Писать в стиле моих соцсетей`.
-
-## Проверки перед завершением задачи
-
-Минимум:
+Before finishing backend changes:
 
 ```bash
 cd backend && npm run build
+cd backend && npx prisma validate
+```
+
+Before finishing frontend changes:
+
+```bash
+cd frontend && npm run type-check
 cd frontend && npm run build
 ```
 
-После backend-деплоя:
+Production health:
 
 ```bash
 curl -s -i https://api.lumaiq.ru/api/v1/health
 ```
 
-После frontend-деплоя:
+## Current Next Engineering Step
 
-```bash
-curl -s -i https://www.lumaiq.ru/
-```
+Migrate frontend content sections gradually to workflow API:
 
-## Текущее состояние на 13.05.2026
+1. Reels hooks/script
+2. Articles topic/article
+3. Posts topic/post
 
-Готово:
-
-- Production домены подключены.
-- Backend работает на Hetzner под PM2.
-- Frontend работает на Vercel.
-- Админка P0/P1 реализована.
-- Закрыта production-регистрация.
-- Реализованы manual PRO и ручное создание пользователей.
-- Реализованы AI usage analytics, activity events, LTV, payment source.
-- Реализован отдельный раздел “Диалог с ИИ”.
-- Реализован первый шаг стратегии “Позиционирование”.
-- Исправлено сохранение `positioningData`.
-- ЦА подтягивает `positioningData` и сохраняет промежуточный прогресс.
-- ЦА переведена на 13-шаговую логику с отдельным шагом “ТОП 3 запроса”.
-- В ЦА добавлен чат с ИИ на каждом шаге в формате диалога.
-- Исправлены критичные состояния ЦА: восстановление выбора после обновления, продолжение после ручного варианта, порядок сообщений в чате, выбор запроса из актуального топ-3.
-- PDF после ЦА скачивается, но качество/шаблон еще требует дальнейшей проверки.
-- УТП, соцсети, основной продукт, мини-продукт и лид-магнит используют контекст позиционирования, ЦА и project materials, а не мок-ответы.
-- Реализован project materials / knowledge base: сохранение материалов, AI-summary, связи между материалами, версии, UX-статус обновления.
-- Созданы документы `docs/PROMPTS_AUDIT.md` и `docs/PROMPT_STRATEGY.md`.
-- P0 по промптам ЦА выполнен: `buildStepPrompt` разделяет роли “эксперт” и “клиент”, убран хардкод про психолога, усилены форматы ответов, обновлен `audience.md`.
-- Продуктовые разделы вынесены в “Конструктор продуктов”.
-- Внутрянка продуктовых конструкторов обновлена:
-  - основной продукт генерируется как флагман на 2–3 месяца с модулями, итоговой трансформацией и тарифами Эконом/Стандарт/VIP;
-  - мини-продукт генерируется как продукт на 7–14 дней с программой, Telegram-механикой и переходом к следующему шагу;
-  - лид-магнит генерируется как продающий лонгрид или видеоурок, не как обычная статья.
-- Раздел “Основной продукт” переведен в блочный конструктор: 3 варианта названия, оффер, описание, управляемое число модулей, закрепленный редактор выбранного модуля с чатом ИИ по модулю/всей программе, общий результат продукта, ручные тарифы, проверка с ИИ и PDF-презентация.
-
-Ближайшие важные задачи:
-
-- Протестировать свежую логику ЦА на нескольких нишах: не психолог, B2B, эксперт, сервисный бизнес.
-- Дальше проработать промпты УТП и оформления соцсетей по стратегии из `docs/PROMPT_STRATEGY.md`.
-- Потом обновить промпты контентных разделов: посты, рилсы, статьи, видео-сценарии, цепочки сообщений.
-- Проверить весь путь пилотного пользователя: ручное создание → вход → позиционирование → ЦА → УТП → продукты → контент.
-- Улучшить backend paywall по конкретным действиям/разделам.
-- Добавить импорт контекста из Telegram и Instagram: подключение аккаунтов, импорт постов, анализ стиля.
-- Добавить phone SMS verification и Telegram linking позже.
-- Перед реальным запуском оплаты включить и заново проверить YooKassa webhook.
+Each migration should create `AIWorkflowRun`, `AIWorkflowStep`, `AIArtifact` and still save final user-visible content through the existing content/localStorage flow until UI persistence is redesigned.

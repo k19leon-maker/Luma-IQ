@@ -1,234 +1,101 @@
-# LumaIQ — Роадмеп доработки
-
-> Составлен: 19.04.2026  
-> Статус: живой документ, обновляется по мере работы
-
----
-
-## Текущее состояние проекта
-
-| Область | Статус |
-|---------|--------|
-| Frontend-структура и навигация | ✅ Готово |
-| JTBD-стратегия (12-шаговый чат) | ✅ Готово |
-| Продуктовая линейка (main / mini / free) | ✅ Готово (не закоммичено) |
-| Генератор рилсов (3 шага) | ✅ Готово |
-| Контент-разделы (посты, статьи, видео, цепочки) | ✅ Готово |
-| AI-интеграция (OpenAI + Claude) | ✅ Mock-режим работает |
-| База данных (Prisma / PostgreSQL) | ❌ Не инициализирована |
-| Реальные AI-ключи | ❌ Не подключены |
-| 8 страниц-заглушек | ❌ Не реализованы |
-| Персистенция продуктов | ❌ Теряются при F5 |
-
----
-
-## Матрица приоритетов
-
-```
-                  ВАЖНО                    НЕВАЖНО
-              ┌──────────────────────┬──────────────────────┐
-   СРОЧНО     │  БД + Docker         │  /tariff             │
-              │  AI-ключи            │  /history            │
-              │  Закоммитить         │  alert()-заглушки    │
-              │  ProductWorkspace    │                      │
-              │  Персистенция        │                      │
-              ├──────────────────────┼──────────────────────┤
-   НЕ СРОЧНО  │  /lead-magnet        │  /education          │
-              │  /audience           │  /texts / /files     │
-              │  /settings           │  Gemini / Grok       │
-              │  Content Plan        │  Bull-очереди        │
-              │  DOCX-экспорт        │  Email-верификация   │
-              └──────────────────────┴──────────────────────┘
-```
-
----
-
-## 🔴 Блок 1 — Фундамент (сделать сейчас)
-
-Без этого блока проект не работает как продукт.
-
-### 1.1 Запустить инфраструктуру
-
-**Файлы:** `docker-compose.yml`, `backend/.env`, `backend/prisma/`
-
-```bash
-docker-compose up -d          # PostgreSQL + Redis
-cd backend
-npm run prisma:migrate        # применить миграцию 20260415000000_init_data_foundation
-```
-
-**Что разблокирует:** все API-роуты проектов, сессий, продуктов, аудитории.
-
----
-
-### 1.2 Подключить реальные AI-ключи
-
-**Файл:** `backend/.env`
-
-```
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-**Что разблокирует:** настоящие ответы AI вместо mock-заглушек.
-
----
-
-### 1.3 Закоммитить ProductWorkspace
-
-**Файл:** `frontend/src/components/ProductWorkspace/` (git status: `??`)
-
-```bash
-git add frontend/src/components/ProductWorkspace/
-git commit -m "feat: ProductWorkspace component"
-```
-
-**Риск:** незакоммиченные файлы — угроза потери работы.
-
----
-
-### 1.4 Персистенция продуктов
-
-**Файл:** `frontend/src/components/ProductWorkspace/ProductWorkspace.tsx`
-
-**Проблема:** продукты хранятся только в локальном state компонента — теряются при F5.
-
-**Решение:** добавить `localStorage` (быстро) или сохранять через API `POST /api/v1/products` (правильно).
-
-**Приоритет localStorage:** сделать немедленно; API-интеграция — после запуска БД.
-
----
-
-## 🟠 Блок 2 — Ключевые модули (планировать)
-
-Завершает продуктовую линейку и базовый UX.
-
-### 2.1 /lead-magnet — третья ступень продукта
-
-**Файл:** `frontend/src/pages/LeadMagnet/LeadMagnet.tsx` (сейчас 17 строк — заглушка)
-
-**Задача:** реализовать по образцу ProductWorkspace.
-- Типы: чек-лист, гайд, мини-урок, шаблон, мини-консультация
-- Форматы: PDF, видео, Telegram, аудио
-- Генерация структуры через AI с учётом данных стратегии
-
----
-
-### 2.2 /audience — аватары целевой аудитории
-
-**Файл:** `frontend/src/pages/Audience/Audience.tsx` (17 строк — заглушка)
-
-**Prisma-модель готова:** `AudienceAvatar` (pains, desires, segment, profileSummary)
-
-**Задача:**
-- CRUD аватаров: создать / редактировать / удалить
-- AI-генерация аватара на основе данных JTBD-стратегии
-- Связь с продуктами (avatarId → Product)
-
----
-
-### 2.3 /settings — настройки профиля
-
-**Файл:** `frontend/src/pages/Settings/Settings.tsx` (36 строк — форма без сохранения)
-
-**Задача:**
-- Backend: `PUT /api/v1/users/me` (имя, email, дефолтная AI-модель)
-- Frontend: подключить форму к API, показать toast об успехе
-- Сохранение выбранной AI-модели в `auth.store`
-
----
-
-### 2.4 /content-plan — интеграция с генераторами
-
-**Файл:** `frontend/src/pages/ContentPlan/ContentPlan.tsx` (канбан без функционала)
-
-**Задача:**
-- Кнопка "Добавить в контент-план" из Posts / Reels → реально добавляет карточку
-- Убрать `alert('Добавлено в контент-план (в разработке)')` из ContentWorkspace и SplitEditor
-- Сохранение плана в localStorage (потом — в БД через `GeneratedText`)
-
----
-
-### 2.5 Реальный DOCX-экспорт
-
-**Файлы:** все компоненты с функцией `download()`
-
-**Проблема:** создаётся обычный Blob с расширением `.docx` — Word не откроет.
-
-**Решение:** подключить библиотеку `docx` (npm):
-```bash
-npm install docx
-```
-Оформить заголовок + параграфы + мета-данные в правильный формат.
-
----
-
-## 🟡 Блок 3 — Быстрые улучшения (сделать между задачами)
-
-Занимают 1–2 часа каждое, заметно улучшают UX.
-
-| # | Задача | Файл |
-|---|--------|------|
-| 3.1 | Убрать все `alert()` — заменить toast-уведомлением | ContentWorkspace, SplitEditor |
-| 3.2 | /history — вывести список из `GeneratedText` (БД) | `pages/History/History.tsx` |
-| 3.3 | /tariff — добавить ссылку на оплату вместо мёртвых кнопок | `pages/Tariff/Tariff.tsx` |
-| 3.4 | /products — проверить навигацию к product-main / mini / free | `pages/Products/Products.tsx` |
-
----
-
-## ⚪ Блок 4 — Отложить
-
-Не блокирует продукт, вернуться после запуска.
-
-| Задача | Причина отложить |
-|--------|-----------------|
-| /education — курсы JTBD | Контент, не функционал |
-| /texts и /files | Покрыты ContentWorkspace |
-| Gemini / Grok интеграция | OpenAI + Claude достаточно |
-| Bull-очереди (Redis) | Нужны при масштабировании, не сейчас |
-| Email-верификация | `isVerified` в схеме есть, логика отсутствует |
-| Google OAuth — дотестировать | После запуска реальной среды |
-
----
-
-## Sprint-план (порядок выполнения)
-
-```
-День 1 ── Фундамент
-          ├── docker-compose up -d
-          ├── prisma migrate dev
-          ├── Добавить .env ключи
-          └── git commit ProductWorkspace
-
-День 2 ── Персистенция + /lead-magnet
-          ├── ProductWorkspace → localStorage
-          └── /lead-magnet (по образцу ProductWorkspace)
-
-День 3 ── /audience
-          ├── CRUD аватаров
-          └── AI-генерация аватара из стратегии
-
-День 4 ── /settings + мелкие улучшения
-          ├── PUT /api/v1/users/me
-          ├── Подключить форму settings
-          └── Убрать alert(), починить /history
-
-День 5 ── Content Plan + DOCX
-          ├── Интеграция "Добавить в контент-план"
-          └── Реальный DOCX-экспорт (docx npm)
-```
-
----
-
-## Метрика готовности к запуску
-
-| Критерий | Статус |
-|----------|--------|
-| БД работает, данные сохраняются | ⬜ |
-| AI отвечает реально (не mock) | ⬜ |
-| Продуктовая линейка (main/mini/free) без потерь | ⬜ |
-| /lead-magnet реализован | ⬜ |
-| /audience с аватарами | ⬜ |
-| /settings сохраняет профиль | ⬜ |
-| Нет alert()-заглушек | ⬜ |
-| DOCX открывается в Word | ⬜ |
+# Luma IQ Roadmap
+
+Обновлено: 2026-05-20
+
+## Current State
+
+| Area | Status |
+|---|---|
+| Production frontend/backend | Done |
+| PostgreSQL/Prisma foundation | Done |
+| Auth/admin/manual access | Done |
+| OpenAI + Anthropic integration | Done |
+| AI usage/token/cost accounting | Foundation done |
+| Prompt improvements for Posts/Reels/Articles/Chains | MVP done |
+| AI orchestration foundation | Phase 1A/1B done |
+| Frontend migration to workflow API | Not done |
+| Subscription/autobilling | Future |
+| Social import/style analysis | Future |
+
+## Done Recently
+
+- OpenAI/Anthropic real AI responses enabled for production flows.
+- Model routing configured by section intent.
+- AI usage tracking writes `ai_generations` and `ai_usage_events`.
+- Token usage and model pricing seed added.
+- Posts prompt improved and psychology hardcode removed.
+- Chatbot Chains prompt replaced with Telegram direct-response logic.
+- Reels Engine MVP added: goals, hooks, facture, scripts.
+- Articles Engine MVP added: topic generation, platform/tone/depth, SEO article output.
+- AI orchestration foundation added:
+  - prompt registry;
+  - project context builder;
+  - workflow API;
+  - workflow runs/steps/artifacts;
+  - validation/repair layer.
+
+## Next Engineering Priorities
+
+### P0 — Migrate Content Engines To Workflow API
+
+1. Reels:
+   - use `reels.hooks.generate`;
+   - use `reels.script.write`;
+   - save selected hooks/scripts as `AIArtifact`.
+
+2. Articles:
+   - use `articles.topic.generate`;
+   - use `articles.article.write`;
+   - save topics/articles as `AIArtifact`.
+
+3. Posts:
+   - use `posts.topic.generate`;
+   - use `posts.post.write`;
+   - remove remaining frontend prompt assembly.
+
+### P1 — Workflow Observability
+
+- Admin view for workflow runs.
+- Artifact history per project.
+- Cost per workflow and feature.
+- Basic filters: user, project, workflow, status, date.
+
+### P1 — Access And Limits
+
+- Connect workflow API to credit limits more strictly.
+- Add per-workflow costs.
+- Add heavy/light classification by workflow step.
+
+### P2 — Prompt Registry Expansion
+
+- Add workflow configs for:
+  - chatbot chains;
+  - video scripts;
+  - positioning;
+  - audience/JTBD;
+  - UTP/social;
+  - product-main/product-mini/lead-magnet.
+
+### P2 — Memory Optimization
+
+- Lightweight summaries.
+- Repeated themes/hooks detection.
+- Content history compression.
+- No vector DB yet.
+
+### P3 — Social Context Import
+
+- Telegram channel import.
+- Instagram professional account import.
+- Content style profile.
+- “Write in my style” mode.
+
+### P3 — Billing Readiness
+
+- Stripe/Telegram payments later.
+- Tribute/manual remains current pilot path.
+- YooKassa stays disabled unless explicitly retested and enabled.
+
+## Product Principle
+
+Do not build autonomous agents. Build deterministic, observable, context-aware workflows.

@@ -1,846 +1,156 @@
-# Аудит промптов LumaIQ
+# Prompt And AI Orchestration Audit
 
-Дата: 2026-05-13
+Обновлено: 2026-05-20
 
-Цель документа: собрать в одном месте все промпты, которые сейчас работают под капотом разделов LumaIQ, чтобы дальше комплексно улучшать качество ответов AI.
+## Current AI Layer
 
-## Как устроен AI-слой сейчас
+Luma IQ currently has two AI paths.
 
-В большинстве разделов есть два уровня промптов:
+### Legacy Path
 
-1. **Frontend user prompt** — конкретная задача, которую раздел отправляет в `/api/v1/ai/chat`.
-2. **Backend system prompt** — системная роль, которую backend подставляет по `section`.
+```text
+Frontend prompt
+  -> /api/v1/ai/chat
+  -> ai.controller.ts
+  -> dynamic.prompts.ts
+  -> ai.service.ts
+  -> AI provider
+```
 
-Основной endpoint:
+This path still powers current UI screens.
 
-- `frontend/src/api/ai.ts`
-- `backend/src/controllers/ai.controller.ts`
+### Workflow Path
+
+```text
+Frontend inputs
+  -> /api/v1/ai/workflows/:workflow/start|step
+  -> prompt registry
+  -> project context builder
+  -> ai workflow service
+  -> validation/repair
+  -> artifact + usage accounting
+```
+
+This path is implemented as backend foundation and should gradually replace frontend prompt assembly.
+
+## Backend Files
+
+- `backend/src/config/system-prompt.ts`
+- `backend/src/prompts/dynamic.prompts.ts`
+- `backend/src/prompts/registry/*`
 - `backend/src/services/ai.service.ts`
+- `backend/src/services/ai-generation.service.ts`
+- `backend/src/services/ai-workflow.service.ts`
+- `backend/src/services/project-context.service.ts`
+- `backend/src/services/ai-validation.service.ts`
+- `backend/src/controllers/ai.controller.ts`
+- `backend/src/controllers/ai-workflow.controller.ts`
 
-Backend выбирает system prompt так:
+## Registered Workflow Prompts
 
-- если `section === 'ai-dialog'` и есть `projectId`, используется `buildAiDialogSystemPrompt`;
-- если есть `section`, используется `buildPromptForSection(section, ctx)`;
-- иначе используется общий fallback `PSY_BOOST_SYSTEM_PROMPT`.
+| Prompt ID | Feature | Purpose |
+|---|---|---|
+| `posts.topic.generate.v1` | post | Generate post topics |
+| `posts.post.write.v1` | post | Write final post |
+| `reels.hooks.generate.v1` | reel | Generate/rank Reels hooks |
+| `reels.script.write.v1` | reel | Write Reels script |
+| `articles.topic.generate.v1` | article | Generate article topics |
+| `articles.article.write.v1` | article | Write final article |
 
-## Общий backend fallback
+## Current Content Prompts
 
-Файл: `backend/src/services/ai.service.ts`
+### Posts
 
-Используется, если нет `section` или нет отдельного system prompt.
+Status: improved.
 
-```text
-Ты — AI-ассистент платформы LumaIQ для психологов.
-Помогаешь психологу упаковать его практику по JTBD-фреймворку.
-Отвечай на русском языке. Будь конкретным, структурированным, используй примеры из практики психологов.
-Не выходи за рамки темы маркетинга и упаковки психологических услуг.
-```
+System prompt role:
 
-Статус: **устаревший / конфликтует с мультинишевостью**.
+- senior social media strategist;
+- direct-response copywriter;
+- content marketer.
 
-Проблема: жестко зашита ниша психологов. Если раздел не передает `section`, AI может снова уходить в психологию.
+Important qualities:
 
-## Dynamic system prompts по section
+- platform-native;
+- no generic AI tone;
+- no psychology hardcode;
+- strong hook, tension, CTA.
 
-Файл: `backend/src/prompts/dynamic.prompts.ts`
+Migration needed:
 
-Эти промпты строятся из `ProjectContext`, который формируется из `unpackingProfile` и `projectName`.
+- move UI from `/ai/chat` to workflow API.
 
-### unpacking
+### Reels
 
-```text
-Ты помогаешь эксперту сформулировать позиционирование.
-Специализация эксперта: ${ctx.specialization}
+Status: MVP Reels Engine implemented in UI and prompt.
 
-Веди разговор строго по трём шагам:
+Capabilities:
 
-ШАГ 1: «С какими клиентами, запросами или нишами вам нравится работать? Назовите 3–5 вариантов»
-ШАГ 2: «В каких из этих направлений у вас есть результаты и кейсы клиентов?»
-ШАГ 3: «Какие конкретные результаты вы давали клиентам? Что говорили сами клиенты?»
+- goal selection;
+- platform selection;
+- tone;
+- trigger intensity;
+- 30 hooks;
+- selected hook;
+- facture;
+- 45-60 sec script.
 
-ПРАВИЛА:
-- Задавай СТРОГО ОДИН вопрос за сообщение.
-- Максимум 5 сообщений от тебя за всю сессию.
-- Вопросы короткие.
-- После шага 3 — сформируй 3 варианта позиционирования.
-```
+Migration needed:
 
-Статус: активный.
+- use `reels.hooks.generate` and `reels.script.write`.
 
-### audience / strategy
+### Articles
 
-```text
-Ты опытный маркетолог, который помогает эксперту найти и описать целевую аудиторию.
+Status: MVP Articles Engine implemented in UI and prompt.
 
-КОНТЕКСТ ЭКСПЕРТА:
-- Специализация: ${ctx.specialization}
-- Типичный клиент: ${ctx.typicalClient}
-- Уникальный подход: ${ctx.uniqueApproach}
-- Ключевой результат: ${ctx.keyResult}
-- Позиционирование: ${ctx.positioning}
+Capabilities:
 
-Все сегменты и боли должны быть релевантны "${ctx.specialization}".
-НЕ используй примеры из чужих ниш.
-Если специализация не психолог — НЕ упоминай психологов.
-```
+- article type;
+- platform;
+- tone;
+- depth;
+- CTA;
+- 20 topic options;
+- facture;
+- SEO/meta/FAQ/scoring.
 
-Статус: активный, но сейчас в разделе ЦА основной user prompt формируется на frontend.
+Migration needed:
 
-### utp
+- use `articles.topic.generate` and `articles.article.write`.
 
-```text
-Ты маркетолог-копирайтер. Помогаешь эксперту по теме "${ctx.specialization}" сформулировать уникальное торговое предложение.
-Клиенты эксперта: ${ctx.typicalClient}
-Ключевой результат который даёт эксперт: ${ctx.keyResult}
-Позиционирование: ${ctx.positioning}
-```
+### Chatbot Chains
 
-Статус: активный как system prompt. User prompt сейчас сильнее и идет из `UTP.tsx`.
+Status: improved.
 
-### social
+Prompt creates Telegram-native direct-response chain posts. Goal: sell next action in funnel.
 
-```text
-Ты помогаешь эксперту оформить профили в социальных сетях.
+Migration needed:
 
-КОНТЕКСТ ЭКСПЕРТА:
-- Специализация
-- Типичный клиент
-- Уникальный подход
-- Ключевой результат
-- Позиционирование
+- add workflow prompt configs and artifact storage.
 
-Задачи:
-- Instagram bio
-- Telegram description
-- VK profile
+## Known Legacy Risks
 
-Правила:
-- точно отражать специализацию;
-- не использовать клише;
-- писать языком ЦА;
-- соблюдать лимиты символов.
-```
+1. Some frontend screens still assemble prompts directly.
+2. `ai.service.ts` still contains old fallback prompts with psychology language.
+3. `dynamic.prompts.ts` is large and should gradually become legacy.
+4. LocalStorage still stores many content results on frontend.
+5. Project materials and DB context are not yet unified into one perfect memory layer.
 
-Статус: активный.
+## Rules For New Work
 
-### posts / reels / articles / video-scripts / chatbot / lead-magnet
-
-В backend есть краткие system prompts:
-
-- posts: “Ты контент-маркетолог...”
-- reels: “Ты сценарист коротких видео...”
-- articles: “Ты копирайтер...”
-- video-scripts: “Ты сценарист YouTube-видео...”
-- chatbot-chains: “Ты создаёшь цепочки сообщений...”
-- lead-magnet: “Ты создаёшь лид-магнит...”
-
-Статус: активные как system prompts, но часть frontend user prompts пока устарела и жестко говорит “для психолога”.
-
-## Диалог с ИИ
-
-Файл: `backend/src/utils/buildAiDialogContext.ts`
-
-Раздел: `frontend/src/pages/AIDialog/AIDialog.tsx`
-
-User prompt: текст пользователя.
-
-System prompt строится из проекта:
-
-```text
-Ты — AI-маркетолог LumaIQ и постоянный проектный ассистент пользователя.
-Ты помогаешь эксперту принимать решения по упаковке, стратегии, продуктовой линейке, воронке, контенту и запуску.
-
-Отвечай только на русском языке. Будь конкретным, практичным и бережным к контексту проекта.
-Не проводи жесткое интервью по шагам, если пользователь сам этого не просит.
-Если данных мало — задай 1–2 уточняющих вопроса.
-Если данных достаточно — предложи следующий лучший шаг.
-Всегда учитывай текущий этап пользователя и уже созданные материалы.
-```
-
-Контекст включает:
-
-- проект;
-- нишу;
-- описание;
-- специализацию пользователя;
-- текущий этап;
-- `strategyData`;
-- JTBD-сессию;
-- `utpData`;
-- продукты;
-- последний контент;
-- контент-план.
-
-Статус: активный.
-
-Важное замечание: сейчас этот backend prompt еще не использует новый `materialsData` как отдельный knowledge base. Он видит `strategyData` целиком, где `materialsData` лежит внутри JSON, но не выделяет материалы явно. Это стоит доработать.
-
-## Knowledge base материалов
-
-Файлы:
-
-- `frontend/src/store/materials.store.ts`
-- `frontend/src/utils/projectMaterials.ts`
-- `frontend/src/hooks/useProjectMarketingContext.ts`
-
-### AI-саммари материала
-
-Файл: `frontend/src/store/materials.store.ts`
-
-```text
-Сделай короткое рабочее саммари материала для AI knowledge base.
-
-Формат строго:
-Суть: ...
-Аудитория: ...
-Боли/запросы: ...
-Оффер/результат: ...
-Ключевые формулировки: ...
-
-Если какого-то блока нет в материале, напиши "не указано".
-Не добавляй факты, которых нет в материале.
-
-Материал:
-${material.content.slice(0, 6500)}
-```
-
-Section: `materials-summary`
-
-Статус: активный.
-
-Замечание: для `materials-summary` нет отдельного backend dynamic system prompt, поэтому backend уйдет в `default` dynamic prompt или fallback. Лучше добавить отдельный system prompt для summary, чтобы он не получал логику audience.
-
-### Knowledge context
-
-Файл: `frontend/src/utils/projectMaterials.ts`
-
-Логика:
-
-- выбирает preferred materials;
-- добавляет связанные материалы через `linkedMaterialIds`;
-- берет `summary`, если есть;
-- иначе берет техническое summary;
-- итоговый context режется до 5500 символов.
-
-Активно используется в:
-
-- УТП;
-- соцсети;
-- основной продукт;
-- мини-продукт;
-- лид-магнит.
-
-## Позиционирование
-
-Файл: `frontend/src/pages/Positioning/Positioning.tsx`
-
-В этом разделе нет AI prompt. Пользователь вручную заполняет:
-
-- роль / ниша;
-- аудитория;
-- проблема;
-- результат.
-
-Сервис строит формулировку:
-
-```text
-Я ${role} для ${audience}. Помогаю с ${problem}, чтобы ${result}.
-```
-
-После сохранения создается материал `positioning.md`.
-
-Статус: активный.
-
-## Целевая аудитория
-
-Файл: `frontend/src/pages/Strategy/Strategy.tsx`
-
-Основная функция: `buildStepPrompt(stepId, answers, projectContext, strict)`.
-
-Общий префикс каждого шага:
-
-```text
-Контекст проекта:
-${projectContext || 'Контекст пока не заполнен.'}
-
-Работай строго на основе этого контекста.
-Не подставляй случайные ниши, если они не следуют из контекста.
-```
-
-### Шаг 1 — 10 сегментов
-
-```text
-Сгенерируй 10 сегментов целевой аудитории для этого эксперта/проекта.
-Для каждого сегмента укажи: название сегмента, ситуацию «Когда:», желание «Хочу:» и цель «Чтобы:».
-Используй **жирный** для названий сегментов.
-Формат: «Сегмент N — **[название]**».
-Строго 10 сегментов.
-```
-
-### Шаг 2 — ТОП 3 сегмента
-
-```text
-Из этих 10 сегментов:
-${answers.segments}
-
-Выдай ТОЛЬКО список ТОП 3 сегментов по востребованности.
-Никаких вопросов, никаких уточнений.
-Формат:
-🥇 Сегмент 1 — [название]
-[1–2 предложения почему]
-...
-```
-
-### Шаг 4 — 5 подсегментов
-
-```text
-Для выбранного сегмента «${seg}» выдай ТОЛЬКО список из 5 подсегментов.
-Формат:
-Подсегмент 1 — [название]
-Когда: ...
-Хочу: ...
-Чтобы: ...
-```
-
-### Шаг 6 — Все “ХОЧУ”
-
-```text
-Для подсегмента «${sub}» составь список «ХОЧУ» — 10–12 конкретных желаний клиентов на языке самих клиентов.
-Начинай каждый пункт с «• Хочу».
-```
-
-### Шаг 7 — 10 запросов
-
-```text
-Для сегмента «${seg}» (подсегмент: «${sub}») выдай ТОЛЬКО список из 10 конкретных запросов.
-Никаких вопросов к пользователю, никаких уточнений.
-Формат:
-1. [запрос на живом языке клиента]
-...
-10. [запрос]
-```
-
-### Шаг 8 — ТОП 3 запроса
-
-```text
-Из этих 10 запросов:
-${answers.requests}
-
-Определи ТОП 3 запроса по срочности, боли и вероятности покупки.
-Покажи короткую логику выбора.
-Формат:
-🥇 Запрос 1 — [формулировка запроса]
-[1–2 предложения почему]
-...
-```
-
-### Шаг 10 — болезненные вопросы
-
-```text
-Для подсегмента «${sub}», запрос «${req}».
-Напиши 8–10 болезненных вопросов которые эти клиенты задают себе внутри — от первого лица, эмоционально.
-Начинай каждый с «•».
-```
-
-### Шаг 11 — сокровенные желания
-
-```text
-Для подсегмента «${sub}».
-Опиши сокровенные желания клиентов этого сегмента — глубинные мечты, которые они не произносят вслух, но очень хотят.
-6–8 пунктов, начинай с «•».
-```
-
-### Шаг 12 — конечный результат
-
-```text
-Для подсегмента «${sub}».
-Сформулируй одним ёмким предложением главный конечный результат который клиенты получают после работы с психологом.
-```
-
-Статус: активный, но **есть баг в формулировке**: “после работы с психологом” захардкожено и конфликтует с проектами не про психологию.
-
-### Шаг 13 — что бесит
-
-```text
-Для подсегмента «${sub}».
-Напиши текст от первого лица (150–250 слов) — что больше всего бесит и изматывает клиентов данного сегмента.
-Максимально эмоционально и на языке клиента. Без заголовков.
-```
-
-### Чат внутри шага ЦА
-
-User prompt собирается так:
-
-```text
-Контекст проекта:
-${projectContext}
-
-Текущий шаг: ${stepTitle}
-Текущий результат шага:
-${currentResult}
-
-Вопрос пользователя:
-${question}
-
-Если идет выбор:
-Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**.
-Не спрашивай "готов ли продолжать".
-Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.
-
-Иначе:
-Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты.
-Не запускай следующий шаг автоматически.
-```
-
-Статус: активный.
-
-## Распаковка / Диалог первичного интервью
-
-Файл: `frontend/src/pages/Unpacking/Unpacking.tsx`
-
-User prompt: текст пользователя.
-
-Section: `unpacking`.
-
-Backend system prompt: `SYSTEM_PROMPTS.unpacking` или dynamic `buildUnpackingPrompt`, в зависимости от того, как controller построил system prompt.
-
-При загрузке файла:
-
-```text
-Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}). Учти его при формировании стратегии.
-```
-
-Статус: активный.
-
-## УТП
-
-Файл: `frontend/src/pages/UTP/UTP.tsx`
-
-Section: `utp`.
-
-### Генерация
-
-```text
-Ты маркетолог-стратег. Создай УТП (уникальное торговое предложение) для проекта в 2–3 предложениях.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
-${inputText ? `Дополнительно: ${inputText}` : ''}
-
-Структура: Кому помогаю + Какую проблему решаю + Какой результат получает клиент + За счёт чего (метод).
-Напиши только текст УТП, без заголовков и пояснений.
-```
-
-### Улучшение
-
-```text
-Улучши это УТП проекта — сделай его более конкретным, убедительным и привязанным к контексту.
-Не меняй нишу и не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context}
-
-${utpText}
-${inputText ? `Пожелания: ${inputText}` : ''}
-
-Напиши только улучшенный текст УТП, без пояснений.
-```
-
-Статус: активный.
-
-## Оформление соцсетей
-
-Файл: `frontend/src/pages/Social/Social.tsx`
-
-Section: `social`.
-
-Общий prompt:
-
-```text
-Ты маркетолог-стратег. Работай строго по контексту проекта.
-Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context}
-
-${basePrompt}
-```
-
-### Instagram
-
-```text
-Напиши описание профиля Instagram (bio).
-Требования: максимум 150 символов, уместные эмодзи, ниша + аудитория + понятный результат + призыв к действию.
-Напиши только текст bio, без пояснений.
-```
-
-### Telegram
-
-```text
-Напиши описание Telegram-канала или профиля.
-Требования: 2–3 предложения, профессиональный тон, ниша + что получит подписчик + призыв.
-Напиши только текст описания.
-```
-
-### VK
-
-```text
-Напиши описание страницы ВКонтакте.
-Требования: 2–3 предложения, профессиональный тон, ниша/подход + аудитория + призыв к действию.
-Напиши только текст описания.
-```
-
-Статус: активный.
-
-## Основной продукт
-
-Файл: `frontend/src/pages/ProductMain/ProductMain.tsx`
-
-Section: `product-main`.
-
-```text
-Ты продуктовый маркетолог. Создай описание ОСНОВНОГО флагманского продукта для проекта.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context}
-
-Верни JSON (без markdown-блоков):
-{
-  "name": "название программы",
-  "price": "цена в рублях, реалистичная для этой ниши",
-  "format": "формат работы",
-  "duration": "длительность",
-  "description": "описание 2–3 предложения"
-}
-```
-
-Статус: активный.
-
-## Мини-продукт
-
-Файл: `frontend/src/pages/ProductMini/ProductMini.tsx`
-
-Section: `product-mini`.
-
-```text
-Ты продуктовый маркетолог. Создай описание МИНИ-ПРОДУКТА для проекта.
-Это недорогой платный продукт, который помогает клиенту получить первый ощутимый результат и перейти к основному продукту.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context}
-
-Верни JSON:
-{
-  "name": "название продукта",
-  "price": "цена в рублях, реалистичная для этой ниши",
-  "format": "формат",
-  "duration": "длительность",
-  "description": "описание 2–3 предложения"
-}
-```
-
-Статус: активный.
-
-## Лид-магнит
-
-Файл: `frontend/src/pages/LeadMagnet/LeadMagnet.tsx`
-
-Section: `lead-magnet`.
-
-```text
-Ты продуктовый маркетолог. Создай описание ЛИД-МАГНИТА для проекта.
-Лид-магнит — бесплатный материал: PDF-гайд, чек-лист, мини-вебинар или видео-урок.
-Цена: всегда «Бесплатно».
-Должен решать конкретную мини-проблему целевой аудитории.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context}
-
-Верни JSON:
-{
-  "name": "название лид-магнита",
-  "price": "Бесплатно",
-  "format": "формат",
-  "duration": "время изучения",
-  "description": "описание 2–3 предложения"
-}
-```
-
-Статус: активный.
-
-## Бесплатный продукт
-
-Файл: `frontend/src/pages/ProductFree/ProductFree.tsx`
-
-Важно: сейчас это **не AI prompt**. Это локальный генератор шаблонного текста `buildFreeProduct`.
-
-Статус: активный, но не AI.
-
-Проблема: внутри есть универсальные формулировки, но логика шаблонная. Для качества лучше перевести на AI через knowledge base, как `LeadMagnet`.
-
-## Посты
-
-Файл: `frontend/src/pages/Posts/Posts.tsx`
-
-Section: `posts`.
-
-### Генерация тем
-
-```text
-${segCtx}
-Придумай 5 конкретных тем для поста типа «${typeLabels[postType]}» для психолога на платформе Telegram/Instagram.
-Темы должны цеплять за живое.
-Выведи только 5 тем нумерованным списком, без пояснений.
-```
-
-### Генерация поста
-
-```text
-Напиши ${typeLabels[postType]} на тему «${selectedTheme}» для психолога.
-Платформа: Telegram/Instagram.
-${segCtx}
-${extraCtx}
-Текст поста только, без заголовка файла.
-До 600 слов.
-Живой язык, без психологического жаргона.
-```
-
-Статус: активный, но **устаревший / психолог захардкожен**.
-
-## Reels
-
-Файл: `frontend/src/pages/Reels/Reels.tsx`
-
-Section: `reels`.
-
-### Генерация тем
-
-```text
-${segCtx}
-Придумай 5 конкретных тем для рилса типа «${typeLabels[reelType]}» для психолога.
-Выведи только 5 тем нумерованным списком.
-```
-
-### Генерация сценария
-
-```text
-Напиши сценарий ${typeLabels[reelType]} на тему «${selectedTheme}» для психолога.
-${segCtx}
-${extraCtx}
-Формат: заголовок + тезисы по слайдам + подпись с CTA.
-До 400 слов.
-```
-
-Статус: активный, но **устаревший / психолог захардкожен**.
-
-## Статьи
-
-Файл: `frontend/src/pages/Articles/Articles.tsx`
-
-Section: `articles`.
-
-### Генерация тем
-
-```text
-Ты контент-стратег для психолога.
-Предложи 5 тем для статьи на платформе ${PLATFORM_LABELS[platform]}.
-Целевой сегмент: ${seg}
-Формат платформы: ${desc}
-
-Верни только нумерованный список из 5 тем, без лишних пояснений.
-```
-
-### Генерация статьи
-
-```text
-Ты — маркетолог-копирайтер психологов.
-Напиши полноценную SEO-статью для психолога на платформе ${platform}.
-
-Тема: ${selectedTheme}
-Целевой сегмент: ${seg}
-Материал из практики психолога: ${facture}
-${ctaText}
-
-Требования:
-- Длина: 1800–2500 слов
-- Структура: введение → H2-разделы → заключение → призыв
-- Язык клиента, не психологический жаргон
-- SEO: ключевые слова в подзаголовках органично
-```
-
-Статус: активный, но **устаревший / психолог захардкожен**.
-
-## Видео-сценарии
-
-Файл: `frontend/src/pages/VideoScripts/VideoScripts.tsx`
-
-Section: `video-scripts`.
-
-### Генерация тем
-
-```text
-Ты контент-стратег для психолога.
-Предложи 5 тем для YouTube-видео (~${duration} минут).
-Целевой сегмент: ${seg}
-```
-
-### Генерация сценария
-
-```text
-Ты сценарист для психолога.
-Напиши сценарий YouTube-видео (~${duration} минут).
-
-Тема: ${selectedTheme}
-Целевой сегмент: ${seg}
-Материал из практики психолога: ${facture}
-${ctaText}
-
-Структура:
-- КРЮЧОК
-- ПРОБЛЕМА
-- КЕЙС
-- РЕШЕНИЕ
-- ПРАКТИКА
-- РАБОТА С ВОЗРАЖЕНИЯМИ, если 12 минут
-- CTA
-```
-
-Статус: активный, но **устаревший / психолог захардкожен**.
-
-## Цепочки чат-бота
-
-Файл: `frontend/src/pages/ChatbotChains/ChatbotChains.tsx`
-
-Section: `chatbot-chains`.
-
-```text
-Ты — копирайтер Telegram-воронки для психолога.
-Создай цепочку из 13 сообщений для бота.
-
-Бот: ${bot}
-Целевой сегмент: ${seg}
-Формат лид-магнита: ${formatLabel}
-Расписание еженедельных встреч: ${meet}
-
-Структура:
-ЧАСТЬ 1 — Лид-магнит
-ЧАСТЬ 2 — Мини-продукт
-ЧАСТЬ 3 — Еженедельная встреча
-
-Требования:
-- каждое сообщение 50–150 слов;
-- живой язык;
-- CTA или вопрос в конце;
-- плейсхолдеры [цена], [дата], [ссылка].
-```
-
-Статус: активный, но **устаревший / психолог захардкожен**.
-
-## Старый Chat / JTBD chat
-
-Файл: `frontend/src/pages/Chat/Chat.tsx`
-
-User prompt: текст пользователя.
-
-Section не передается.
-
-Значит backend использует общий fallback `PSY_BOOST_SYSTEM_PROMPT`, который жестко про психологов.
-
-Статус: вероятно legacy. Нужно либо убрать, либо перевести на новый `ai-dialog`.
-
-## JTBD backend flow
-
-Файлы:
-
-- `backend/src/config/jtbd-framework.ts`
-- `backend/src/controllers/jtbd.controller.ts`
-
-Endpoint генерирует по `stepId`, берет `JTBD_FRAMEWORK[step].buildPrompt(answers)`.
-
-Статус: legacy/параллельный фреймворк.
-
-Проблема: почти все промпты жестко говорят “психолог”.
-
-## Старый frontend strategy-prompts
-
-Файл: `frontend/src/config/strategy-prompts.ts`
-
-Статус: вероятно legacy. Новый раздел ЦА использует `frontend/src/pages/Strategy/Strategy.tsx`.
-
-Промпты похожи на старую 11-шаговую JTBD-структуру:
-
-- 10 сегментов;
-- ТОП 3;
-- подсегменты;
-- “ХОЧУ”;
-- 10 запросов;
-- ТОП запросов;
-- болезненные вопросы;
-- желания;
-- конечный результат;
-- что пробовал клиент;
-- core pains.
-
-Проблема: часть логики дублирует новый `Strategy.tsx`, может вводить в заблуждение при будущих правках.
-
-## Главные проблемные места
-
-1. **Контентные разделы еще про психологов**
-   - `Posts.tsx`
-   - `Reels.tsx`
-   - `Articles.tsx`
-   - `VideoScripts.tsx`
-   - `ChatbotChains.tsx`
-
-2. **Общий fallback backend все еще про психологов**
-   - `backend/src/services/ai.service.ts`
-
-3. **Старый Chat не передает section**
-   - `frontend/src/pages/Chat/Chat.tsx`
-
-4. **ЦА шаг 12 говорит “после работы с психологом”**
-   - `frontend/src/pages/Strategy/Strategy.tsx`
-
-5. **materials-summary не имеет отдельного backend system prompt**
-   - сейчас section `materials-summary` попадает в default dynamic behavior.
-
-6. **Дублирование стратегических промптов**
-   - новый `Strategy.tsx`;
-   - старый `frontend/src/config/strategy-prompts.ts`;
-   - backend `jtbd-framework.ts`.
-
-## Рекомендация по следующему этапу доработки промптов
-
-1. Сначала создать единый стандарт промпта LumaIQ:
-   - роль;
-   - входной контекст;
-   - цель;
-   - формат ответа;
-   - критерии качества;
-   - ограничения;
-   - запрет на выдумывание ниши.
-
-2. Перевести контентные разделы на knowledge base:
-   - posts;
-   - reels;
-   - articles;
-   - video scripts;
-   - chatbot chains.
-
-3. Добавить backend system prompts для:
-   - `materials-summary`;
-   - `product-main`;
-   - `product-mini`;
-   - maybe `ai-dialog` с явным чтением `materialsData`.
-
-4. Убрать или пометить legacy:
-   - `frontend/src/config/strategy-prompts.ts`;
-   - `backend/src/config/jtbd-framework.ts`;
-   - `frontend/src/pages/Chat/Chat.tsx`.
-
-5. Исправить все “психолог” на универсальный “эксперт/проект”, кроме случаев, когда ниша реально психологическая.
-
+- Do not add complex new prompts to frontend.
+- Add new prompts through `backend/src/prompts/registry`.
+- Use `project-context.service.ts` for selective context.
+- Use `ai-workflow.service.ts` for workflow generation.
+- Save important AI outputs as `AIArtifact`.
+- Keep old endpoints working while migrating.
+- No autonomous agents, no LangChain monster, no Temporal/BullMQ for MVP.
+
+## Next Audit Tasks
+
+1. Identify all frontend `aiApi.chat` calls and rank by migration priority.
+2. Migrate Reels first.
+3. Migrate Articles second.
+4. Migrate Posts third.
+5. Add workflow configs for Chains and Video Scripts.
+6. Replace old psychology fallback in `ai.service.ts`.

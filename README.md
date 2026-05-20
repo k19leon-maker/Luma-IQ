@@ -1,60 +1,97 @@
-# LumaIQ
+# Luma IQ
 
-SaaS-платформа для маркетинговой упаковки психологов на основе JTBD-фреймворка.
+AI SaaS для экспертов, маркетологов и продюсеров. Сервис помогает собрать стратегию проекта, проработать ЦА, УТП, продуктовую линейку и создавать контент на основе контекста проекта.
 
-## Быстрый старт
+## Текущее состояние
 
-### Требования
+- Production frontend: `https://www.lumaiq.ru`
+- Production API: `https://api.lumaiq.ru`
+- Backend: Hetzner VPS, PM2 process `lumaiq-backend`
+- Frontend deploy: Vercel after push to `main`
+- Backend deploy: SSH to `/app`, pull `main`, migrate, build, restart PM2
 
-- Node.js 20+
-- Docker & Docker Compose
-- pnpm / npm
+## Stack
 
-### Запуск через Docker
+- Frontend: React 18, TypeScript, Vite, CSS Modules, Zustand
+- Backend: Node.js, Express, TypeScript
+- DB: PostgreSQL
+- ORM: Prisma 7
+- Auth: JWT access/refresh
+- AI: OpenAI + Anthropic
+- Process manager: PM2
 
-```bash
-# Скопировать переменные окружения для docker-compose
-cp .env.example .env
+## Main Modules
 
-# Запустить все сервисы
-docker-compose up -d
+- Strategy: About Expert, Positioning, Audience, UTP, Social profiles
+- Product Builder: Main Product, Mini Product, Lead Magnet
+- Content: Posts, Reels, Articles, Video Scripts, Chatbot Chains, Content Plan
+- AI Dialog: project-aware AI marketing assistant
+- Admin: users, manual access, subscriptions/payments, AI usage analytics
+- AI Economy: usage tracking, model pricing, cost accounting
+- AI Orchestration Foundation: prompt registry, project context builder, workflow runs/steps/artifacts
 
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:3001/api/v1
+## Backend AI
+
+Legacy endpoint remains active:
+
+```text
+POST /api/v1/ai/chat
 ```
 
-### Запуск локально
+New workflow foundation:
+
+```text
+GET  /api/v1/ai/workflows/prompts
+POST /api/v1/ai/workflows/:workflow/start
+POST /api/v1/ai/workflows/:workflow/step
+```
+
+Current workflow prompt configs:
+
+- `posts.topic.generate`
+- `posts.post.write`
+- `reels.hooks.generate`
+- `reels.script.write`
+- `articles.topic.generate`
+- `articles.article.write`
+
+## Local Start
 
 ```bash
-# Backend
 cd backend
 cp .env.example .env
 npm install
 npm run dev
+```
 
-# Frontend (в другом терминале)
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Локально frontend dev-сервер запускается на `http://localhost:5174`, а backend на `http://localhost:3001`.
+Local URLs:
 
-## Структура проекта
+- Frontend: `http://localhost:5174`
+- Backend API: `http://localhost:3001/api/v1`
 
+## Checks
+
+```bash
+cd backend && npm run build
+cd frontend && npm run build
 ```
-/lumaiq
-  /frontend    — React + TypeScript + CSS Modules
-  /backend     — Node.js + Express + TypeScript
-  /docs        — документация
-  docker-compose.yml
-  CLAUDE.md    — контекст проекта для AI
+
+Production health:
+
+```bash
+curl -s -i https://api.lumaiq.ru/api/v1/health
 ```
 
-## Основные модули
+## Docs
 
-- Чат-упаковка по JTBD
-- Продукты КПТ (лид-магнит / мини / основной)
-- Генерация текстов через ИИ
-- Управление целевой аудиторией
-- Обучение и тарифы
+- `CLAUDE.md` — current project context for AI/code assistants
+- `docs/architecture.md` — current architecture
+- `docs/PROMPT_STRATEGY.md` — AI roles and prompt strategy
+- `docs/PROMPTS_AUDIT.md` — prompt/orchestration audit
+- `docs/ROADMAP.md` — current roadmap
