@@ -19,7 +19,11 @@ export interface AdminUserListItem {
   projectCount: number;
   generatedTextCount: number;
   aiRequestCount: number;
+  failedAiRequestCount: number;
+  tokens: number;
+  aiCostUsd: number;
   ltv: number;
+  marginPercent: number;
   lastActivityAt: string;
   currentStage: string;
 }
@@ -42,6 +46,19 @@ export interface AdminUserDetail extends AdminUserListItem {
     date: string;
     count: number;
   }>;
+  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  aiCostUsd: number;
+  avgTokensPerRequest: number;
+  avgCostPerGenerationUsd: number;
+  marginPercent: number;
+  featureUsage: Array<{
+    featureCode: string;
+    requests: number;
+    tokens: number;
+    costUsd: number;
+  }>;
   projects: Array<{
     id: string;
     name: string;
@@ -52,6 +69,10 @@ export interface AdminUserDetail extends AdminUserListItem {
     productsCount: number;
     generatedTextsCount: number;
     contentPlanItemsCount: number;
+    health: number;
+    aiRequests: number;
+    aiTokens: number;
+    aiCostUsd: number;
   }>;
   aiRequestLogs: Array<{
     id: string;
@@ -76,15 +97,38 @@ export interface AdminDashboard {
   metrics: {
     totalUsers: number;
     newUsers7d: number;
+    newUsers30d: number;
+    activeUsers30d: number;
     activePro: number;
     revenue: number;
     averageLtv: number;
     aiTotal: number;
     aiToday: number;
+    totalAiCostUsd: number;
+    aiCostTodayUsd: number;
+    avgAiCostPerUserUsd: number;
+    avgAiCostPerProjectUsd: number;
+    estimatedMarginRub: number;
+    estimatedMarginPercent: number;
+    tokensToday: number;
+    generationsToday: number;
+    mostUsedFeature: string;
   };
   ai: {
     byProvider: Array<{ provider: string; count: number }>;
     byStatus: Array<{ status: string; count: number }>;
+    byFeature: Array<{ featureCode: string; requests: number; tokens: number; costUsd: number }>;
+    byModel: Array<{ provider: string; model: string; requests: number; tokens: number; costUsd: number }>;
+    byWorkflow: Array<{ workflow: string; requests: number; tokens: number; costUsd: number; avgLatencyMs: number }>;
+    workflowHealth: Array<{
+      workflow: string;
+      count: number;
+      success: number;
+      failed: number;
+      avgDurationMs: number;
+      avgRetry: number;
+      successRate: number;
+    }>;
   };
   recentEvents: Array<{
     id: string;
@@ -103,7 +147,7 @@ export const adminApi = {
       .get<AdminDashboard>('/admin/dashboard')
       .then((r) => r.data),
 
-  listUsers: (params?: { q?: string; plan?: string; limit?: number; offset?: number }) =>
+  listUsers: (params?: { q?: string; plan?: string; status?: string; limit?: number; offset?: number }) =>
     apiClient
       .get<{ users: AdminUserListItem[]; total: number; limit: number; offset: number }>('/admin/users', { params })
       .then((r) => r.data),

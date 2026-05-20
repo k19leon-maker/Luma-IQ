@@ -9,9 +9,42 @@ import { authService } from '../services/auth.service';
 const listSchema = z.object({
   q: z.string().optional(),
   plan: z.enum(['ALL', 'FREE', 'PRO', 'ANNUAL']).optional().default('ALL'),
+  status: z.enum(['ALL', 'ACTIVE', 'INACTIVE', 'HIGH_COST']).optional().default('ALL'),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
+
+function usd(value: unknown): number {
+  if (!value) return 0;
+  return Number(value);
+}
+
+function rub(value: unknown): number {
+  if (!value) return 0;
+  return Number(value);
+}
+
+function marginPercent(revenue: number, costUsd: number): number {
+  const costRub = costUsd * 100;
+  if (revenue <= 0) return costUsd > 0 ? -100 : 0;
+  return Math.round(((revenue - costRub) / revenue) * 100);
+}
+
+function projectHealth(project: {
+  strategyCompletedAt: Date | null;
+  utpData: unknown;
+  products: { type: string }[];
+  generatedTexts: { id: string }[];
+  contentPlanItems: { id: string }[];
+}): number {
+  let score = 0;
+  if (project.strategyCompletedAt) score += 25;
+  if (project.utpData) score += 15;
+  if (project.products.length > 0) score += 25;
+  if (project.generatedTexts.length > 0) score += 20;
+  if (project.contentPlanItems.length > 0) score += 15;
+  return score;
+}
 
 const grantProSchema = z.object({
   email:    z.string().email(),
@@ -63,16 +96,29 @@ export const adminController = {
       const [
         totalUsers,
         newUsers7d,
+        newUsers30d,
         activePro,
         revenueAgg,
         aiTotal,
         aiToday,
+        aiCostAgg,
+        aiCostTodayAgg,
+        tokensTodayAgg,
+        generationsToday,
+        activeUsers30d,
+        projectsCount,
         recentEvents,
         aiByProvider,
         aiByStatus,
+        costByFeature,
+        costByModel,
+        costByWorkflow,
+        workflowRuns,
+        workflowSteps,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+        prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
         prisma.subscription.count({
           where: {
             status: 'ACTIVE',
@@ -89,7 +135,29 @@ export const adminController = {
           where: { date: startOfDay.toISOString().slice(0, 10) },
           _sum: { count: true },
         }),
+        prisma.aIGeneration.aggregate({
+          where: { status: 'SUCCEEDED', createdAt: { gte: thirtyDaysAgo } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.aggregate({
+          where: { status: 'SUCCEEDED', createdAt: { gte: startOfDay } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.aggregate({
+          where: { createdAt: { gte: startOfDay } },
+          _sum: { totalTokens: true },
+        }),
+        prisma.aIGeneration.count({ where: { createdAt: { gte: startOfDay } } }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { _all: true },
+        }),
+        prisma.project.count(),
         prisma.userEvent.findMany({
+          where: { type: { in: ['admin_user_created', 'admin_pro_granted', 'admin_impersonation_started'] } },
           orderBy: { createdAt: 'desc' },
           take: 12,
           include: { user: { select: { email: true, name: true } } },
@@ -104,23 +172,127 @@ export const adminController = {
           where: { createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
         }),
+        prisma.aIGeneration.groupBy({
+          by: ['featureCode'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _count: { _all: true },
+          orderBy: { _count: { featureCode: 'desc' } },
+          take: 10,
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['provider', 'model'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _count: { _all: true },
+          orderBy: { _count: { model: 'desc' } },
+          take: 12,
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['featureCode'],
+          where: { createdAt: { gte: thirtyDaysAgo }, workflowRunId: { not: null } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _avg: { latencyMs: true },
+          _count: { _all: true },
+          orderBy: { _count: { featureCode: 'desc' } },
+          take: 12,
+        }),
+        prisma.aIWorkflowRun.groupBy({
+          by: ['workflow', 'status'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { _all: true },
+          orderBy: { _count: { workflow: 'desc' } },
+          take: 30,
+        }),
+        prisma.aIWorkflowStep.groupBy({
+          by: ['step', 'status'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _avg: { latencyMs: true, retryCount: true },
+          _count: { _all: true },
+          orderBy: { _count: { step: 'desc' } },
+          take: 30,
+        }),
       ]);
 
       const revenue = Number(revenueAgg._sum.amount ?? 0);
+      const aiCostUsd = usd(aiCostAgg._sum.actualCostUsd);
+      const aiCostTodayUsd = usd(aiCostTodayAgg._sum.actualCostUsd);
+      const activeUserCount = activeUsers30d.length;
+      const avgCostPerUser = activeUserCount > 0 ? aiCostUsd / activeUserCount : 0;
+      const avgCostPerProject = projectsCount > 0 ? aiCostUsd / projectsCount : 0;
+      const topFeature = costByFeature[0]?.featureCode ?? '—';
+
+      const workflowMap = new Map<string, {
+        workflow: string;
+        count: number;
+        success: number;
+        failed: number;
+        avgDurationMs: number;
+        avgRetry: number;
+      }>();
+      for (const run of workflowRuns) {
+        const item = workflowMap.get(run.workflow) ?? { workflow: run.workflow, count: 0, success: 0, failed: 0, avgDurationMs: 0, avgRetry: 0 };
+        item.count += run._count._all;
+        if (run.status.includes('FAILED')) item.failed += run._count._all;
+        else item.success += run._count._all;
+        workflowMap.set(run.workflow, item);
+      }
+      for (const step of workflowSteps) {
+        const workflow = step.step;
+        const item = workflowMap.get(workflow) ?? { workflow, count: 0, success: 0, failed: 0, avgDurationMs: 0, avgRetry: 0 };
+        item.avgDurationMs = Math.round(step._avg.latencyMs ?? 0);
+        item.avgRetry = Number((step._avg.retryCount ?? 0).toFixed(2));
+        workflowMap.set(workflow, item);
+      }
 
       res.json({
         metrics: {
           totalUsers,
           newUsers7d,
+          newUsers30d,
+          activeUsers30d: activeUserCount,
           activePro,
           revenue,
           averageLtv: totalUsers > 0 ? revenue / totalUsers : 0,
           aiTotal: aiTotal._sum.count ?? 0,
           aiToday: aiToday._sum.count ?? 0,
+          totalAiCostUsd: aiCostUsd,
+          aiCostTodayUsd,
+          avgAiCostPerUserUsd: avgCostPerUser,
+          avgAiCostPerProjectUsd: avgCostPerProject,
+          estimatedMarginRub: revenue - aiCostUsd * 100,
+          estimatedMarginPercent: marginPercent(revenue, aiCostUsd),
+          tokensToday: tokensTodayAgg._sum.totalTokens ?? 0,
+          generationsToday,
+          mostUsedFeature: topFeature,
         },
         ai: {
           byProvider: aiByProvider.map((item) => ({ provider: item.provider, count: item._count._all })),
           byStatus: aiByStatus.map((item) => ({ status: item.status, count: item._count._all })),
+          byFeature: costByFeature.map((item) => ({
+            featureCode: item.featureCode,
+            requests: item._count._all,
+            tokens: item._sum.totalTokens ?? 0,
+            costUsd: usd(item._sum.actualCostUsd),
+          })),
+          byModel: costByModel.map((item) => ({
+            provider: item.provider,
+            model: item.model,
+            requests: item._count._all,
+            tokens: item._sum.totalTokens ?? 0,
+            costUsd: usd(item._sum.actualCostUsd),
+          })),
+          byWorkflow: costByWorkflow.map((item) => ({
+            workflow: item.featureCode,
+            requests: item._count._all,
+            tokens: item._sum.totalTokens ?? 0,
+            costUsd: usd(item._sum.actualCostUsd),
+            avgLatencyMs: Math.round(item._avg.latencyMs ?? 0),
+          })),
+          workflowHealth: Array.from(workflowMap.values()).map((item) => ({
+            ...item,
+            successRate: item.count > 0 ? Math.round((item.success / item.count) * 100) : 0,
+          })),
         },
         recentEvents: recentEvents.map((event) => ({
           id: event.id,
@@ -142,7 +314,7 @@ export const adminController = {
     const parsed = listSchema.safeParse(req.query);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
 
-    const { q, plan, limit, offset } = parsed.data;
+    const { q, plan, status, limit, offset } = parsed.data;
 
     try {
       const where: Prisma.UserWhereInput = {
@@ -181,22 +353,60 @@ export const adminController = {
         }),
       ]);
 
-      const items = users.map((user) => ({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isVerified: user.isVerified,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        subscription: formatSubscription(user.subscription),
-        projectCount: user._count.projects,
-        generatedTextCount: user.projects[0]?.generatedTexts.length ?? 0,
-        aiRequestCount: user.aiUsage.reduce((sum, item) => sum + item.count, 0),
-        ltv: user.payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
-        lastActivityAt: user.events[0]?.createdAt ?? user.updatedAt,
-        currentStage: user.projects[0] ? currentStage(user.projects[0]) : 'Нет проекта',
-      }));
+      const userIds = users.map((user) => user.id);
+      const [generationByUser, failedByUser, projectCounts] = await Promise.all([
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds } },
+          _sum: { actualCostUsd: true, totalTokens: true },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds }, status: 'FAILED' },
+          _count: { _all: true },
+        }),
+        prisma.project.findMany({
+          where: { userId: { in: userIds } },
+          select: { userId: true, generatedTexts: { select: { id: true } } },
+        }),
+      ]);
+      const genMap = new Map(generationByUser.map((item) => [item.userId, item]));
+      const failedMap = new Map(failedByUser.map((item) => [item.userId, item._count._all]));
+      const generatedTextMap = new Map<string, number>();
+      for (const project of projectCounts) {
+        generatedTextMap.set(project.userId, (generatedTextMap.get(project.userId) ?? 0) + project.generatedTexts.length);
+      }
+
+      let items = users.map((user) => {
+        const gen = genMap.get(user.id);
+        const ltv = user.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+        const aiCostUsd = usd(gen?._sum.actualCostUsd);
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          subscription: formatSubscription(user.subscription),
+          projectCount: user._count.projects,
+          generatedTextCount: generatedTextMap.get(user.id) ?? 0,
+          aiRequestCount: gen?._count._all ?? user.aiUsage.reduce((sum, item) => sum + item.count, 0),
+          failedAiRequestCount: failedMap.get(user.id) ?? 0,
+          tokens: gen?._sum.totalTokens ?? 0,
+          aiCostUsd,
+          ltv,
+          marginPercent: marginPercent(ltv, aiCostUsd),
+          lastActivityAt: user.events[0]?.createdAt ?? user.updatedAt,
+          currentStage: user.projects[0] ? currentStage(user.projects[0]) : 'Нет проекта',
+        };
+      });
+
+      if (status === 'ACTIVE') items = items.filter((item) => new Date(item.lastActivityAt).getTime() >= Date.now() - 30 * 24 * 60 * 60 * 1000);
+      if (status === 'INACTIVE') items = items.filter((item) => new Date(item.lastActivityAt).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000);
+      if (status === 'HIGH_COST') items = items.filter((item) => item.aiCostUsd >= 3);
 
       res.json({ users: items, total, limit, offset });
     } catch (err) {
@@ -231,6 +441,34 @@ export const adminController = {
 
       if (!user) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
 
+      const generationAgg = await prisma.aIGeneration.aggregate({
+        where: { userId: user.id },
+        _sum: { actualCostUsd: true, totalTokens: true, inputTokens: true, outputTokens: true },
+        _avg: { totalTokens: true, actualCostUsd: true },
+        _count: { _all: true },
+      });
+      const featureUsage = await prisma.aIGeneration.groupBy({
+        by: ['featureCode'],
+        where: { userId: user.id },
+        _sum: { actualCostUsd: true, totalTokens: true },
+        _count: { _all: true },
+        orderBy: { _count: { featureCode: 'desc' } },
+        take: 20,
+      });
+      const projectGeneration = await prisma.aIGeneration.groupBy({
+        by: ['projectId'],
+        where: { userId: user.id, projectId: { not: null } },
+        _sum: { actualCostUsd: true, totalTokens: true },
+        _count: { _all: true },
+        orderBy: { _count: { projectId: 'desc' } },
+        take: 50,
+      });
+      const projectGenerationMap = new Map(projectGeneration.map((item) => [item.projectId, item]));
+      const ltv = user.payments
+        .filter((payment) => payment.status === 'SUCCEEDED')
+        .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const aiCostUsd = usd(generationAgg._sum.actualCostUsd);
+
       res.json({
         user: {
           id: user.id,
@@ -244,12 +482,23 @@ export const adminController = {
           subscription: formatSubscription(user.subscription),
           payments: user.payments,
           aiUsage: user.aiUsage,
-          aiRequestLogs: user.aiRequestLogs,
-          events: user.events,
-          aiRequestCount: user.aiUsage.reduce((sum, item) => sum + item.count, 0),
-          ltv: user.payments
-            .filter((payment) => payment.status === 'SUCCEEDED')
-            .reduce((sum, payment) => sum + Number(payment.amount), 0),
+          aiRequestLogs: user.aiRequestLogs.filter((log) => log.status !== 'success').slice(0, 10),
+          events: user.events.filter((event) => !['ai_request_succeeded', 'strategy_saved', 'user_logged_in'].includes(event.type)),
+          aiRequestCount: generationAgg._count._all,
+          tokens: generationAgg._sum.totalTokens ?? 0,
+          inputTokens: generationAgg._sum.inputTokens ?? 0,
+          outputTokens: generationAgg._sum.outputTokens ?? 0,
+          aiCostUsd,
+          avgTokensPerRequest: Math.round(generationAgg._avg.totalTokens ?? 0),
+          avgCostPerGenerationUsd: usd(generationAgg._avg.actualCostUsd),
+          ltv,
+          marginPercent: marginPercent(ltv, aiCostUsd),
+          featureUsage: featureUsage.map((item) => ({
+            featureCode: item.featureCode,
+            requests: item._count._all,
+            tokens: item._sum.totalTokens ?? 0,
+            costUsd: usd(item._sum.actualCostUsd),
+          })),
           projectCount: user.projects.length,
           generatedTextCount: user.projects.reduce((sum, project) => sum + project.generatedTexts.length, 0),
           currentStage: user.projects[0] ? currentStage(user.projects[0]) : 'Нет проекта',
@@ -260,6 +509,10 @@ export const adminController = {
             createdAt: project.createdAt,
             updatedAt: project.updatedAt,
             currentStage: currentStage(project),
+            health: projectHealth(project),
+            aiRequests: projectGenerationMap.get(project.id)?._count._all ?? 0,
+            aiTokens: projectGenerationMap.get(project.id)?._sum.totalTokens ?? 0,
+            aiCostUsd: usd(projectGenerationMap.get(project.id)?._sum.actualCostUsd),
             productsCount: project.products.length,
             generatedTextsCount: project.generatedTexts.length,
             contentPlanItemsCount: project.contentPlanItems.length,
