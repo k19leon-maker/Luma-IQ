@@ -551,17 +551,17 @@ ${contextAppendix(context)}`,
     maxTokens: 4200,
     artifactType: 'positioning_analysis',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `Ты — senior strategic positioning consultant для экспертного бизнеса.
+    userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию для экспертного бизнеса.
 
-Сделай AI Strategic Analysis на основе брифа “О себе” и project context.
+Сделай стратегический анализ на основе брифа “О себе” и контекста проекта.
 
 Проанализируй:
 - кто пользователь как эксперт;
-- strongest value;
-- strongest authority;
-- strongest differentiation;
-- premium potential;
-- strongest JTBD;
+- где самая сильная ценность;
+- где самая сильная экспертность;
+- где самое сильное отличие;
+- где премиальный потенциал;
+- какие задачи клиента сильнее всего подходят;
 - повторяющиеся темы;
 - сильные кейсы / доказательства;
 - слабые места текущей упаковки.
@@ -570,7 +570,7 @@ ${contextAppendix(context)}`,
 ## Кто эксперт
 ## Сильные стороны
 ## Где самая высокая ценность
-## Где есть premium potential
+## Где есть премиальный потенциал
 ## Лучшие JTBD-векторы
 ## Дифференциация
 ## Что нужно уточнить
@@ -579,7 +579,7 @@ ${contextAppendix(context)}`,
 
 ${contextAppendix(context)}
 
-Не делай анкету. Не проси заново заполнить данные. Покажи, что AI уже изучил бизнес.`,
+Не делай анкету. Не проси заново заполнить данные. Покажи, что ИИ уже изучил бизнес.`,
     validationRules: { requiredIncludes: ['## Кто эксперт', '## Сильные стороны'], minLength: 700, structuredOutput: 'text' },
   },
   {
@@ -593,18 +593,18 @@ ${contextAppendix(context)}
     maxTokens: 4200,
     artifactType: 'positioning_models',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ context }) => `Ты — senior positioning strategist.
+    userPromptBuilder: ({ context }) => `Ты — senior стратег по позиционированию.
 
-Объясни пользователю, какие positioning models подходят именно этому проекту.
+Объясни пользователю, какие модели позиционирования подходят именно этому проекту.
 
 Обязательно покрой модели:
-1. Niche-Based Positioning
-2. JTBD / Outcome Positioning
-3. Problem-Based Positioning
-4. Mechanism-Based Positioning
-5. Audience-Based Positioning
-6. Identity / Authority Positioning
-7. Transformation Positioning
+1. Позиционирование по нише
+2. Позиционирование по задаче / результату клиента
+3. Позиционирование по проблеме
+4. Позиционирование по механизму / методу
+5. Позиционирование по аудитории
+6. Позиционирование по экспертной роли / авторитету
+7. Позиционирование по трансформации
 
 Для каждой модели дай:
 - короткое название на русском;
@@ -632,13 +632,13 @@ ${contextAppendix(context)}
     maxTokens: 5200,
     artifactType: 'positioning_variants',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `Ты — senior strategic positioning consultant.
+    userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию.
 
-Сгенерируй 8 вариантов positioning angles на основе брифа и анализа.
+Сгенерируй 8 вариантов стратегического позиционирования на основе брифа и анализа.
 
 Для каждого варианта верни:
 ### [Название варианта]
-Тип: mass-market / premium / JTBD / mechanism / transformation / audience / authority
+Тип: массовый / премиальный / по задаче клиента / по механизму / по трансформации / по аудитории / по экспертной роли
 Формулировка: ...
 Для кого: ...
 Проблема: ...
@@ -647,7 +647,7 @@ ${contextAppendix(context)}
 Дифференциация: ...
 Почему может сработать: ...
 Риск: ...
-Рекомендуемый чек: low / medium / high / premium
+Рекомендуемый чек: низкий / средний / высокий / премиальный
 
 Дополнительный анализ, если есть:
 ${value(inputs, 'analysis', 'нет')}
@@ -668,24 +668,24 @@ ${contextAppendix(context)}
     maxTokens: 3600,
     artifactType: 'positioning_gap_analysis',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `Ты — market positioning analyst.
+    userPromptBuilder: ({ inputs, context }) => `Ты — аналитик рынка и позиционирования.
 
-Сделай Market Gap Analysis для вариантов позиционирования.
+Сделай анализ рынка и свободных стратегических углов для вариантов позиционирования.
 
 Покажи:
-## Crowded zone
-Какие фразы и углы будут generic / перегретыми.
+## Перегретая зона
+Какие фразы и углы будут слишком общими / перегретыми.
 
-## Differentiated zone
+## Зона отличия
 Где есть шанс выделиться.
 
-## Premium angles
+## Премиальные углы
 Какие углы могут вести к более высокому чеку.
 
-## Weak phrases
+## Слабые формулировки
 Какие формулировки лучше не использовать.
 
-## Recommended direction
+## Рекомендуемое направление
 Какой стратегический вектор выбрать и почему.
 
 Варианты для анализа:
@@ -694,7 +694,7 @@ ${value(inputs, 'variants', 'нет')}
 ${contextAppendix(context)}
 
 Пиши как стратег, без воды и без поверхностного “увеличу продажи”.`,
-    validationRules: { requiredIncludes: ['## Crowded zone', '## Recommended direction'], minLength: 800, structuredOutput: 'text' },
+    validationRules: { requiredIncludes: ['## Перегретая зона', '## Рекомендуемое направление'], minLength: 800, structuredOutput: 'text' },
   },
   {
     id: 'positioning.score.generate.v1',
@@ -707,7 +707,7 @@ ${contextAppendix(context)}
     maxTokens: 2200,
     artifactType: 'positioning_score',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `Ты — positioning quality evaluator.
+    userPromptBuilder: ({ inputs, context }) => `Ты — стратегический оценщик качества позиционирования.
 
 Оцени выбранное позиционирование.
 
@@ -715,19 +715,19 @@ ${contextAppendix(context)}
 ${value(inputs, 'finalPositioning', 'нет')}
 
 Верни строго:
-Clarity: X/10
-Differentiation: X/10
-Trust: X/10
-Premium Potential: X/10
-Specificity: X/10
-Market Saturation: low / medium / high
+Ясность: X/10
+Отличие от конкурентов: X/10
+Доверие: X/10
+Премиальный потенциал: X/10
+Конкретика: X/10
+Насыщенность рынка: низкая / средняя / высокая
 
 ## Что сильное
 ## Что ослабляет
 ## Как усилить одной правкой
 
 ${contextAppendix(context)}`,
-    validationRules: { requiredIncludes: ['Clarity:', 'Differentiation:', 'Market Saturation:'], minLength: 300, structuredOutput: 'text' },
+    validationRules: { requiredIncludes: ['Ясность:', 'Отличие от конкурентов:', 'Насыщенность рынка:'], minLength: 300, structuredOutput: 'text' },
   },
   {
     id: 'positioning.assets.generate.v1',
@@ -740,30 +740,30 @@ ${contextAppendix(context)}`,
     maxTokens: 3600,
     artifactType: 'positioning_assets',
     systemPrompt: (context) => buildUnpackingPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `Ты — brand positioning copywriter.
+    userPromptBuilder: ({ inputs, context }) => `Ты — бренд-стратег и копирайтер по позиционированию.
 
-На основе финального позиционирования сгенерируй positioning assets.
+На основе финального позиционирования сгенерируй материалы позиционирования.
 
 Финальное позиционирование:
 ${value(inputs, 'finalPositioning', 'нет')}
 
 Верни:
-## Short positioning
-## Long positioning
-## Social bio
-## Headline
-## Authority statement
-## Elevator pitch
-## Website positioning
+## Короткое позиционирование
+## Длинное позиционирование
+## Описание для соцсетей
+## Заголовок
+## Заявление экспертности
+## Короткая самопрезентация
+## Позиционирование для сайта
 ## CTA
-## Expert description
+## Описание эксперта
 
-Тексты должны быть конкретными, без generic AI language.
+Тексты должны быть конкретными, без шаблонного нейросетевого языка.
 
 ${contextAppendix(context)}
 
-Верни только готовые assets.`,
-    validationRules: { requiredIncludes: ['## Short positioning', '## CTA'], minLength: 700, structuredOutput: 'text' },
+Верни только готовые материалы.`,
+    validationRules: { requiredIncludes: ['## Короткое позиционирование', '## CTA'], minLength: 700, structuredOutput: 'text' },
   },
   {
     id: 'strategy.audience.generate.v1',
