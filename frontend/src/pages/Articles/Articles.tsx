@@ -9,8 +9,6 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
-import { useModelStore } from '../../store/model.store';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './Articles.module.css';
 
@@ -40,6 +38,10 @@ interface SavedArticle {
   editedContent: string;
   editedTitle:   string;
   createdAt:     string;
+  workflowRunId?: string;
+  workflowStepId?: string;
+  artifactId?:    string;
+  generationId?:  string;
 }
 
 interface ArticleItem extends SplitItem {
@@ -370,9 +372,6 @@ export default function Articles() {
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'ARTICLE' });
 
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
-  const getSettings = useModelStore((s) => s.getSettings);
-  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'articles')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -400,6 +399,7 @@ export default function Articles() {
   // Step 2
   const [topics,        setTopics]        = useState<TopicOption[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
+  const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
   const [isListening,   setIsListening]   = useState(false);
@@ -442,47 +442,24 @@ export default function Articles() {
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setPhase('step2-loading');
     try {
-      const settings = getSettings('articles');
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
-      const prompt   = `Сгенерируй 20 сильных тем для Articles Engine в Luma IQ.
-
-Тип статьи: ${ARTICLE_TYPE_LABELS[articleType]}
-Площадка: ${PLATFORM_LABELS[platform]}
-Тон: ${tone}
-Глубина: ${depth}
-${seg ? `Целевой сегмент: ${seg}` : ''}
-Формат площадки: ${PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? ''}
-
-Требования:
-- темы должны быть привязаны к текущему проекту, эксперту, ЦА, позиционированию, продуктам и воронке;
-- не используй нишу психологии, если текущий проект не про психологию;
-- темы должны работать как editorial / SEO / PR материал, а не generic блог;
-- каждая тема должна иметь angle, SEO intent, pain point и curiosity gap;
-- отсортируй темы по потенциалу.
-
-Формат каждой темы:
-1. Заголовок: ...
-Подзаголовок: ...
-Angle: ...
-SEO intent: ...
-Для кого: ...
-Почему будут читать: ...
-Pain point: ...
-Curiosity gap: ...
-Scores: SEO / CTR / Authority / Share / Lead — [0-100]
-
-Не объясняй логику.`;
-
-      const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
-        section: 'articles',
-        message: prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('articles.topic.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          articleType: ARTICLE_TYPE_LABELS[articleType],
+          platform: PLATFORM_LABELS[platform],
+          tone,
+          depth,
+          selectedSegment: seg || null,
+          platformFormat: PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? '',
+        },
       });
 
       const parsed = parseTopics(resp.content);
@@ -493,6 +470,10 @@ Scores: SEO / CTR / Authority / Share / Lead — [0-100]
       }
       setTopics(parsed);
       setSelectedTheme(parsed[0]?.title ?? '');
+      setTopicsWorkflowRunId(resp.workflowRunId);
+      if (!resp.validation.ok) {
+        toast('Темы сгенерированы, но AI-валидация нашла замечания к формату');
+      }
       setFacture('');
     } catch (err) {
       console.error('[Articles] themes AI error:', err);
@@ -504,10 +485,13 @@ Scores: SEO / CTR / Authority / Share / Lead — [0-100]
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGenerateArticle() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     startGenerationTask(activeProjectId, 'articles', 'Пишу статью', selectedTheme || 'Формирую структуру и текст статьи');
     setPhase('generating');
     try {
-      const settings = getSettings('articles');
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
       const selectedTopic = topics.find((topic) => topic.title === selectedTheme);
       const ctaText  = {
@@ -518,52 +502,22 @@ Scores: SEO / CTR / Authority / Share / Lead — [0-100]
         soft: 'CTA: мягкий editorial CTA без давления',
       }[ctaType];
 
-      const prompt = `Создай профессиональную экспертную статью для Articles Engine в Luma IQ.
-
-Тип статьи: ${ARTICLE_TYPE_LABELS[articleType]}
-Площадка: ${PLATFORM_LABELS[platform]}
-Тон: ${tone}
-Глубина: ${depth}
-Тема: ${selectedTheme}
-${selectedTopic?.details ? `Детали темы:\n${selectedTopic.details}` : ''}
-${seg ? `Целевой сегмент: ${seg}` : ''}
-${facture.trim() ? `Фактура эксперта:\n${facture.trim()}` : ''}
-${ctaText}
-
-Перед написанием оцени фактуру.
-Если фактуры недостаточно для сильной статьи, верни только блок “Нужна фактура” и 7 конкретных уточняющих вопросов.
-
-Если фактуры достаточно, создай:
-1. Заголовок 20–30 слов
-2. Подзаголовок
-3. Лид-текст
-4. 3–5 вариантов outline / narrative arcs кратко
-5. Полную статью в markdown с H2/H3
-6. SEO block: primary keyword, secondary keywords, search intent, semantic entities, long-tail keywords
-7. Meta title, meta description, slug
-8. FAQ block
-9. Internal linking ideas / next content
-10. CTA
-11. Article scoring: readability, authority, SEO, emotional retention, editorial quality, CTR, share, lead potential
-
-Требования:
-- не используй нишу психологии, если текущий проект не про психологию;
-- статья должна быть редакционной, журналистской, экспертной и не похожей на AI;
-- органично используй SEO без keyword stuffing;
-- добавь фактуру, примеры, авторскую позицию, рыночный контекст и выводы;
-- адаптируй структуру под площадку ${PLATFORM_LABELS[platform]};
-- не пиши generic SEO-мусор, воду и инфоцыганскую подачу.
-
-Не объясняй логику. Сразу выдавай готовый результат.`;
-
-      const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel: settings.claudeModel,
-        section: 'articles',
-        message: prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('articles.article.write', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          articleType: ARTICLE_TYPE_LABELS[articleType],
+          platform: PLATFORM_LABELS[platform],
+          tone,
+          depth,
+          topic: selectedTheme,
+          topicDetails: selectedTopic?.details ?? '',
+          selectedSegment: seg || null,
+          facture,
+          cta: ctaText,
+          botKeyword,
+          topicsWorkflowRunId: topicsWorkflowRunId || null,
+        },
       });
 
       const content = resp.content.trim() || buildArticle(platform, selectedTheme, ctaType, botKeyword, facture);
@@ -573,12 +527,16 @@ ${ctaText}
       const newArticle: SavedArticle = {
         id, platform, articleType, tone, depth, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
+        workflowRunId: resp.workflowRunId,
+        workflowStepId: resp.workflowStepId,
+        artifactId: resp.artifactId,
+        generationId: resp.generationId,
       };
       const next = [newArticle, ...articles];
       updateArticles(next);
       setSelectedId(id);
       setPhase('editor');
-      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform] });
+      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform], metadata: { articleType, tone, depth, ctaType, workflowRunId: resp.workflowRunId, workflowStepId: resp.workflowStepId, artifactId: resp.artifactId, generationId: resp.generationId } });
     } catch (err) {
       console.warn('[Articles] generate AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -651,6 +609,7 @@ ${ctaText}
     setBotKeyword('');
     setTopics([]);
     setSelectedTheme('');
+    setTopicsWorkflowRunId('');
     setPhase('step1');
   }
 

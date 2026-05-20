@@ -10,7 +10,7 @@ import FormattedText from '../../components/FormattedText/FormattedText';
 
 
 export default function UTP() {
-  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
+  const { activeProjectId, context } = useProjectMarketingContext();
   const savedData    = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveUtp      = useGeneratedStore((s) => s.setUtp);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -42,6 +42,10 @@ export default function UTP() {
 
   async function handleGenerate() {
     if (loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setLoading(true);
     try {
       const prompt   = `Ты маркетолог-стратег. Создай УТП (уникальное торговое предложение) для проекта в 2–3 предложениях.
@@ -54,13 +58,13 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
 Структура: Кому помогаю + Какую проблему решаю + Какой результат получает клиент + За счёт чего (метод).
 Напиши только текст УТП, без заголовков и пояснений.`;
 
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section:             'utp',
-        message:             prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile:    mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('strategy.utp.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          prompt,
+          inputText,
+        },
       });
       persistUtp(resp.content.trim());
     } catch (err) {
@@ -73,6 +77,10 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
 
   async function handleImprove() {
     if (!utpText || loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setLoading(true);
     try {
       const prompt   = `Улучши это УТП проекта — сделай его более конкретным, убедительным и привязанным к контексту.
@@ -86,13 +94,14 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
 
 Напиши только улучшенный текст УТП, без пояснений.`;
 
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section:             'utp',
-        message:             prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile:    mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('strategy.utp.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          prompt,
+          currentUtp: utpText,
+          inputText,
+        },
       });
       persistUtp(resp.content.trim());
       toast.success('УТП улучшено');

@@ -43,7 +43,7 @@ const INIT_STATE = {
 };
 
 export default function Social() {
-  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
+  const { activeProjectId, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveSocial = useGeneratedStore((s) => s.setSocial);
@@ -69,6 +69,10 @@ export default function Social() {
   async function handleGenerate(key: string) {
     const state = states[key];
     if (!state || state.loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
 
     setStates((prev) => ({ ...prev, [key]: { ...prev[key]!, loading: true } }));
 
@@ -83,14 +87,14 @@ ${context || 'Контекст пока не заполнен.'}
 
 ${basePrompt}`;
 
-      const resp = await aiApi.chat({
-        model:               settings.provider === 'claude' ? 'claude' : 'chatgpt',
-        claudeModel:         settings.claudeModel,
-        section:             'social',
-        message:             prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile:    mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('strategy.social.generate', {
+        projectId: activeProjectId,
+        provider: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+        claudeModel: settings.claudeModel,
+        inputs: {
+          platform: PLATFORMS.find((p) => p.key === key)?.name ?? key,
+          prompt,
+        },
       });
 
       const text = resp.content.trim();

@@ -481,6 +481,19 @@ export default function Strategy() {
     return { projectContext, mergedProfile };
   }, [activeProjectName, positioningData, unpackingProfile]);
 
+  async function runAudienceWorkflow(prompt: string, mergedProfile: Record<string, string>): Promise<string> {
+    const resp = await aiApi.startWorkflow('strategy.audience.generate', {
+      projectId: activeProjectId,
+      provider: 'chatgpt',
+      inputs: {
+        prompt,
+        activeProjectName,
+        unpackingProfile: mergedProfile,
+      },
+    });
+    return resp.content;
+  }
+
   // ── Scroll tracking ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -734,15 +747,7 @@ export default function Strategy() {
         let content: string;
         try {
           const prompt = buildStepPrompt(step.id, answers, projectContext);
-          const resp = await aiApi.chat({
-            model: 'chatgpt',
-            section: 'audience',
-            message: prompt,
-            conversationHistory: [],
-            unpackingProfile: mergedProfile,
-            projectName: activeProjectName,
-          });
-          content = resp.content;
+          content = await runAudienceWorkflow(prompt, mergedProfile);
         } catch (err: unknown) {
           console.error('[AI audience step', step.id, ']:', err);
           toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -785,21 +790,14 @@ export default function Strategy() {
             try {
               const sourceStepId = step.id === 3 ? 2 : step.id === 5 ? 4 : 8;
               const strictPrompt = buildStepPrompt(sourceStepId, answers, projectContext, true);
-              const retryResp = await aiApi.chat({
-                model: 'chatgpt',
-                section: 'audience',
-                message: strictPrompt,
-                conversationHistory: [],
-                unpackingProfile: mergedProfile,
-                projectName: activeProjectName,
-              });
-              const retryOptions = normalizeChoiceOptions(step.id, retryResp.content);
+              const retryContent = await runAudienceWorkflow(strictPrompt, mergedProfile);
+              const retryOptions = normalizeChoiceOptions(step.id, retryContent);
               if (retryOptions.length >= 2) {
                 options = retryOptions;
                 const prevAnsKey = step.id === 3 ? 'top3segments' : step.id === 5 ? 'subsegments' : 'top3requests';
-                answers[prevAnsKey as keyof AudienceAnswers] = retryResp.content;
+                answers[prevAnsKey as keyof AudienceAnswers] = retryContent;
                 answersRef.current = { ...answers };
-                updateDocEntry(sourceStepId, { fullText: retryResp.content, displayedText: retryResp.content });
+                updateDocEntry(sourceStepId, { fullText: retryContent, displayedText: retryContent });
                 persistAudienceProgress(answers, false);
               }
             } catch {
@@ -1015,10 +1013,7 @@ export default function Strategy() {
     setStepChatLoading(true);
 
     try {
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section: 'audience',
-        message: [
+      const content = await runAudienceWorkflow([
           `Контекст проекта:\n${projectContext}`,
           `Текущий шаг: ${stepTitle}`,
           `Текущий результат шага:\n${currentResult}`,
@@ -1026,16 +1021,13 @@ export default function Strategy() {
           isChoicePending
             ? 'Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**. Не спрашивай "готов ли продолжать" и не проси написать, когда пользователь будет готов. Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.'
             : 'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.',
-        ].join('\n\n'),
-        conversationHistory: history,
-        unpackingProfile: mergedProfile,
-        projectName: activeProjectName,
-      });
+          `История переписки:\n${history.map((m) => `${m.role}: ${m.content}`).join('\n')}`,
+        ].join('\n\n'), mergedProfile);
       const responseCandidate = currentEntry && isChoicePending
-        ? extractChoiceCandidate(resp.content, currentEntry.stepId)
+        ? extractChoiceCandidate(content, currentEntry.stepId)
         : null;
       if (responseCandidate) setPendingCustomChoice(responseCandidate);
-      setStepChatMessages((prev) => [...prev, { role: 'assistant', content: resp.content, stepTitle, stepId }]);
+      setStepChatMessages((prev) => [...prev, { role: 'assistant', content, stepTitle, stepId }]);
     } catch {
       toast.error('Не удалось получить ответ в чате шага');
       setStepChatMessages((prev) => prev.filter((msg) => msg !== userMsg));

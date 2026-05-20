@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
-import { aiApi, type ConversationMessage } from '../../api/ai';
+import { aiApi } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
 
 // ─── Fallback replies ─────────────────────────────────────────────────────────
@@ -83,6 +83,29 @@ export default function Unpacking() {
   const [userMsgCount, setUserMsgCount] = useState(0);
   const [aiSuggestedFinish, setAiSuggestedFinish] = useState(false);
 
+  async function runUnpackingWorkflow(message: string, history: ChatMsg[] = []): Promise<string> {
+    if (!activeProjectId) {
+      throw new Error('Сначала выберите проект');
+    }
+    const formattedHistory = history
+      .filter((m) => m.text)
+      .map((m) => `${m.role === 'ai' ? 'assistant' : 'user'}: ${m.text}`)
+      .join('\n');
+    const resp = await aiApi.startWorkflow('strategy.positioning.generate', {
+      projectId: activeProjectId,
+      provider: 'chatgpt',
+      inputs: {
+        prompt: [
+          `Проект: ${projectName || 'Проект'}`,
+          formattedHistory ? `История диалога:\n${formattedHistory}` : '',
+          `Сообщение пользователя:\n${message}`,
+          'Ответь как AI-маркетолог в разделе “О себе”: задай точный уточняющий вопрос или помоги структурировать информацию об эксперте. Если информации достаточно, предложи завершить распаковку.',
+        ].filter(Boolean).join('\n\n'),
+      },
+    });
+    return resp.content;
+  }
+
   // Switch project and restore messages (local first, then DB fallback)
   useEffect(() => {
     if (!activeProjectId) return;
@@ -134,25 +157,12 @@ export default function Unpacking() {
     setUserMsgCount(newCount);
 
     try {
-      const history: ConversationMessage[] = newMessages
-        .filter((m) => m.text)
-        .map((m) => ({
-          role: m.role === 'ai' ? 'assistant' : 'user',
-          content: m.text,
-        }));
+      const content = await runUnpackingWorkflow(text, newMessages.slice(0, -1));
 
-      const resp = await aiApi.chat({
-        model:               'chatgpt',
-        section:             'unpacking',
-        message:             text,
-        conversationHistory: history.slice(0, -1), // exclude current message
-        projectName,
-      });
-
-      const aiMsg: ChatMsg = { role: 'ai', text: resp.content, time: nowTime() };
+      const aiMsg: ChatMsg = { role: 'ai', text: content, time: nowTime() };
       setMessages((prev) => [...prev, aiMsg]);
       const finishKeywords = ['нажмите кнопку', 'завершить распаковку', 'перейти к стратегии', 'перейти к целевой', 'достаточно информации', 'готов сформировать'];
-      if (finishKeywords.some((kw) => resp.content.toLowerCase().includes(kw))) {
+      if (finishKeywords.some((kw) => content.toLowerCase().includes(kw))) {
         setAiSuggestedFinish(true);
       }
     } catch (err) {
@@ -193,17 +203,13 @@ export default function Unpacking() {
     setUserMsgCount((c) => c + 1);
 
     try {
-      const resp = await aiApi.chat({
-        model:               'chatgpt',
-        section:             'unpacking',
-        message:             `Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}). Учти его при формировании стратегии.`,
-        conversationHistory: [],
-        projectName,
-      });
-      const aiMsg: ChatMsg = { role: 'ai', text: resp.content, time: nowTime() };
+      const content = await runUnpackingWorkflow(
+        `Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}). Учти его при формировании стратегии.`,
+      );
+      const aiMsg: ChatMsg = { role: 'ai', text: content, time: nowTime() };
       setMessages((prev) => [...prev, aiMsg]);
       const finishKeywords = ['нажмите кнопку', 'завершить распаковку', 'перейти к стратегии', 'перейти к целевой', 'достаточно информации', 'готов сформировать'];
-      if (finishKeywords.some((kw) => resp.content.toLowerCase().includes(kw))) {
+      if (finishKeywords.some((kw) => content.toLowerCase().includes(kw))) {
         setAiSuggestedFinish(true);
       }
     } catch {

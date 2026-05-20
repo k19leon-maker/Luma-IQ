@@ -8,7 +8,6 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './ChatbotChains.module.css';
 
@@ -369,9 +368,7 @@ export default function ChatbotChains() {
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'CHATBOT_CHAIN' });
 
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const getSettings = useModelStore((s) => s.getSettings);
-  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'chatbot-chains')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -406,6 +403,9 @@ export default function ChatbotChains() {
   // ── Generate ──────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
+    if (!activeProjectId) {
+      return;
+    }
     startGenerationTask(activeProjectId, 'chatbot-chains', 'Пишу цепочку сообщений', 'Собираю структуру Telegram-воронки');
     setPhase('generating');
     try {
@@ -421,7 +421,6 @@ export default function ChatbotChains() {
 Целевой сегмент: ${seg}
 Формат лид-магнита: ${formatLabel}
 Расписание еженедельных встреч: ${meet}
-Контекст проекта: ${projectName}
 
 Логика цепочки:
 1–5 — продать изучение лидмагнита: приветствие, боль, инсайт, история/пример, дожим к изучению материала.
@@ -447,14 +446,17 @@ export default function ChatbotChains() {
 
 Не объясняй логику. Не добавляй комментарии. Сразу выдавай готовые посты.`;
 
-      const resp = await aiApi.chat({
-        model: settings.provider === 'claude' ? 'claude' : 'chatgpt',
+      const resp = await aiApi.startWorkflow('chatbot.chain.generate', {
+        projectId: activeProjectId,
+        provider: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
-        section: 'chatbot-chains',
-        message: prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
+        inputs: {
+          botName: bot,
+          segment: seg,
+          leadMagnetFormat: formatLabel,
+          meetingSchedule: meet,
+          prompt,
+        },
       });
 
       // Parse 13 messages from response
@@ -488,7 +490,19 @@ export default function ChatbotChains() {
       setEditMap({});
       setPhase('step2');
       const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
-      void saveToApi({ title: `Цепочка бота: ${bot}`, content: fullText, platform: 'Telegram', metadata: { format, botName } });
+      void saveToApi({
+        title: `Цепочка бота: ${bot}`,
+        content: fullText,
+        platform: 'Telegram',
+        metadata: {
+          format,
+          botName,
+          workflowRunId: resp.workflowRunId,
+          workflowStepId: resp.workflowStepId,
+          artifactId: resp.artifactId,
+          generationId: resp.generationId,
+        },
+      });
     } catch (err) {
       console.warn('[ChatbotChains] AI error, using fallback:', err);
       const messages = buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null);

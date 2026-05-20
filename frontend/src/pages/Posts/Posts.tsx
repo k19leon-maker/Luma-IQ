@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
@@ -38,6 +37,10 @@ interface SavedPost {
   editedContent: string;
   editedTitle:   string;
   createdAt:     string;
+  workflowRunId?: string;
+  workflowStepId?: string;
+  artifactId?:    string;
+  generationId?:  string;
 }
 
 interface PostItem extends SplitItem {
@@ -209,9 +212,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 
 export default function Posts() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
   const { openAddModal } = useContentPlanStore();
-  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'posts')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -251,6 +252,7 @@ export default function Posts() {
   const [themes,        setThemes]        = useState<string[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [facture,       setFacture]       = useState('');
+  const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
   const [isListening,   setIsListening]   = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -266,6 +268,10 @@ export default function Posts() {
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setPhase('step2-loading');
     const segCtx = strat.chosenSegment
       ? `Сегмент ЦА: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Подсегмент: ${strat.chosenSubsegment?.split('\n')[0]?.slice(0, 80) ?? ''}.`
@@ -290,10 +296,22 @@ ${segCtx}
 
 Формат ответа: только 5 тем нумерованным списком, без пояснений.`;
     try {
-      const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
+      const resp = await aiApi.startWorkflow('posts.topic.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+          postType: typeLabels[postType],
+          goal: offer === 'lead' ? 'продать лид-магнит' : offer === 'mini' ? 'продать мини-продукт' : 'продать основной продукт',
+          selectedSegment: segCtx || null,
+          prompt,
+        },
+      });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
       setThemes(lines);
       setSelectedTheme(lines[0] ?? '');
+      setTopicsWorkflowRunId(resp.workflowRunId);
+      if (!resp.validation.ok) toast.error('AI ответил неидеально, но темы сохранены');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : String(err);
       let errorMessage = 'Ошибка соединения с AI';
@@ -311,6 +329,10 @@ ${segCtx}
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGeneratePost() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     startGenerationTask(activeProjectId, 'posts', 'Пишу пост', selectedTheme || 'Собираю текст поста');
     setPhase('generating');
     const segCtx = strat.chosenSegment
@@ -346,9 +368,31 @@ ${extraCtx}
 
 Верни только готовый текст поста.`;
     let content: string;
+    let workflowMeta: Pick<SavedPost, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'> = {};
     try {
-      const resp = await aiApi.chat({ model: 'chatgpt', section: 'posts', message: prompt, conversationHistory: [], unpackingProfile: mergedProfile as Record<string, string>, projectName });
+      const resp = await aiApi.startWorkflow('posts.post.write', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+          postType: typeLabels[postType],
+          goal: offer === 'lead' ? 'лид-магнит' : offer === 'mini' ? 'мини-продукт' : 'основной продукт',
+          topic: selectedTheme,
+          facture,
+          keyword,
+          cta: extraCtx,
+          topicsWorkflowRunId: topicsWorkflowRunId || null,
+          prompt,
+        },
+      });
       content = resp.content;
+      workflowMeta = {
+        workflowRunId: resp.workflowRunId,
+        workflowStepId: resp.workflowStepId,
+        artifactId: resp.artifactId,
+        generationId: resp.generationId,
+      };
+      if (!resp.validation.ok) toast.error('AI ответил неидеально, но пост сохранен');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : String(err);
       let errorMessage = 'Ошибка соединения с AI';
@@ -368,6 +412,7 @@ ${extraCtx}
       id, postType, platform, theme: selectedTheme,
       offer, keyword, content,
       editedContent: '', editedTitle: title, createdAt: now,
+      ...workflowMeta,
     };
     const next = [newPost, ...posts];
     updatePosts(next);
@@ -376,7 +421,7 @@ ${extraCtx}
     void saveToApi({
       title, content,
       platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
-      metadata: { postType, offer, keyword, theme: selectedTheme },
+      metadata: { postType, offer, keyword, theme: selectedTheme, ...workflowMeta },
     }).then((dbItem) => {
       if (!dbItem) return;
       updatePosts([newPost, ...posts].map((p) => (p.id === id ? { ...p, dbId: dbItem.id } : p)));

@@ -8,7 +8,6 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { aiApi } from '../../api/ai';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import s from './VideoScripts.module.css';
 
@@ -32,6 +31,10 @@ interface SavedScript {
   editedContent: string;
   editedTitle:   string;
   createdAt:     string;
+  workflowRunId?: string;
+  workflowStepId?: string;
+  artifactId?:    string;
+  generationId?:  string;
 }
 
 interface ScriptItem extends SplitItem {
@@ -360,8 +363,6 @@ export default function VideoScripts() {
   const { openAddModal } = useContentPlanStore();
   const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
 
-  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? '');
-  const { mergedProfile } = useProjectMarketingContext();
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'video-scripts')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
@@ -402,6 +403,10 @@ export default function VideoScripts() {
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setPhase('step2-loading');
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
@@ -410,13 +415,14 @@ export default function VideoScripts() {
 
 Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
 
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section: 'video-scripts',
-        message: prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('video.topic.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          duration,
+          segment: seg,
+          prompt,
+        },
       });
 
       const lines = resp.content
@@ -442,6 +448,10 @@ export default function VideoScripts() {
 
   // ── Step 2 → Editor ──────────────────────────────────────────────────────────
   async function handleGenerateScript() {
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     startGenerationTask(activeProjectId, 'video-scripts', 'Пишу сценарий видео', selectedTheme || 'Формирую структуру сценария');
     setPhase('generating');
     try {
@@ -468,13 +478,17 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
 
 Для каждого блока укажи тайминг и текст «на камеру». Используй живой разговорный язык.`;
 
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section: 'video-scripts',
-        message: prompt,
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
+      const resp = await aiApi.startWorkflow('video.script.write', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          duration,
+          topic: selectedTheme,
+          segment: seg,
+          facture,
+          cta: ctaText,
+          prompt,
+        },
       });
 
       const content = resp.content.trim() || buildScript(duration, selectedTheme, ctaType, botKeyword, facture);
@@ -484,11 +498,26 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
       const newScript: SavedScript = {
         id, duration, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
+        workflowRunId: resp.workflowRunId,
+        workflowStepId: resp.workflowStepId,
+        artifactId: resp.artifactId,
+        generationId: resp.generationId,
       };
       updateScripts([newScript, ...scripts]);
       setSelectedId(id);
       setPhase('editor');
-      void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
+      void saveToApi({
+        title,
+        content,
+        platform: 'YouTube',
+        metadata: {
+          duration,
+          workflowRunId: resp.workflowRunId,
+          workflowStepId: resp.workflowStepId,
+          artifactId: resp.artifactId,
+          generationId: resp.generationId,
+        },
+      });
     } catch (err) {
       console.warn('[VideoScripts] generate AI error:', err);
       const content = buildScript(duration, selectedTheme, ctaType, botKeyword, facture);

@@ -1,4 +1,16 @@
-import { buildArticlesPrompt, buildPostsPrompt, buildReelsPrompt } from '../dynamic.prompts';
+import {
+  buildArticlesPrompt,
+  buildAudiencePrompt,
+  buildChatbotPrompt,
+  buildLeadMagnetPrompt,
+  buildMainProductPrompt,
+  buildPostsPrompt,
+  buildReelsPrompt,
+  buildSocialPrompt,
+  buildUnpackingPrompt,
+  buildUTPPrompt,
+  buildVideoScriptsPrompt,
+} from '../dynamic.prompts';
 import { contextAppendix, value } from './helpers';
 import { PromptConfig } from './types';
 
@@ -191,5 +203,223 @@ ${contextAppendix(context)}
 
 Не объясняй логику. Сразу выдавай готовую статью.`,
     validationRules: { requiredIncludes: ['##', 'SEO', 'CTA'], minLength: 2500, structuredOutput: 'article' },
+  },
+  {
+    id: 'chatbot.chain.generate.v1',
+    version: 'v1',
+    feature: 'chatbot_chain',
+    workflow: 'chatbot.chain',
+    step: 'generate',
+    model: 'gpt-5.4',
+    temperature: 0.7,
+    maxTokens: 7200,
+    artifactType: 'chatbot_chain',
+    systemPrompt: (context) => buildChatbotPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Сгенерируй 13 Telegram-постов для раздела “Цепочка сообщений” в Luma IQ.
+
+Бот: ${value(inputs, 'botName', 'Telegram-бот')}
+Целевой сегмент: ${value(inputs, 'segment', 'сегмент из проекта')}
+Формат лид-магнита: ${value(inputs, 'leadMagnetFormat', 'материал')}
+Расписание встреч: ${value(inputs, 'meetingSchedule', 'не указано')}
+
+Логика цепочки:
+1-5 — продать изучение лидмагнита.
+6-10 — продать следующее действие.
+11-13 — вернуть аудиторию и усилить действие.
+
+Формат ответа строго:
+1. [Заголовок поста]
+[готовый текст поста]
+
+И так до 13.
+
+${contextAppendix(context)}
+
+Не объясняй логику. Сразу выдавай готовые посты.`,
+    validationRules: { minLength: 2200, structuredOutput: 'list' },
+  },
+  {
+    id: 'video.topic.generate.v1',
+    version: 'v1',
+    feature: 'video_script',
+    workflow: 'video.topic',
+    step: 'generate',
+    model: 'gpt-5.4',
+    temperature: 0.7,
+    maxTokens: 2600,
+    artifactType: 'video_topics',
+    systemPrompt: (context) => buildVideoScriptsPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Предложи 5 тем для YouTube-видео.
+
+Длительность: примерно ${value(inputs, 'duration', '10')} минут.
+Целевой сегмент: ${value(inputs, 'segment', 'сегмент из проекта')}
+
+Темы должны быть привязаны к проекту, ЦА, позиционированию и продуктовой логике.
+Верни только нумерованный список из 5 тем, одна тема — одна строка.
+
+${contextAppendix(context)}`,
+    validationRules: { minLength: 150, structuredOutput: 'list' },
+  },
+  {
+    id: 'video.script.write.v1',
+    version: 'v1',
+    feature: 'video_script',
+    workflow: 'video.script',
+    step: 'write',
+    model: 'gpt-5.4',
+    temperature: 0.68,
+    maxTokens: 5200,
+    artifactType: 'video_script',
+    systemPrompt: (context) => buildVideoScriptsPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Напиши сценарий YouTube-видео.
+
+Длительность: примерно ${value(inputs, 'duration', '10')} минут.
+Тема: ${value(inputs, 'topic')}
+Целевой сегмент: ${value(inputs, 'segment', 'сегмент из проекта')}
+Фактура: ${value(inputs, 'facture', 'не указана')}
+CTA: ${value(inputs, 'cta', 'нативный CTA')}
+
+Структура:
+- КРЮЧОК
+- ПРОБЛЕМА
+- КЕЙС / пример
+- РЕШЕНИЕ
+- ПРАКТИКА
+- ПРИЗЫВ К ДЕЙСТВИЮ
+
+Для каждого блока укажи тайминг и текст на камеру.
+
+${contextAppendix(context)}
+
+Верни только готовый сценарий.`,
+    validationRules: { minLength: 1200, structuredOutput: 'script' },
+  },
+  {
+    id: 'product.main.generate.v1',
+    version: 'v1',
+    feature: 'product_main',
+    workflow: 'product.main',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 4200,
+    artifactType: 'product_main_block',
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только по задаче пользователя. Без служебных комментариев.`,
+    validationRules: { minLength: 250, structuredOutput: 'text' },
+  },
+  {
+    id: 'product.mini.generate.v1',
+    version: 'v1',
+    feature: 'product_mini',
+    workflow: 'product.mini',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 4200,
+    artifactType: 'product_mini_block',
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только по задаче пользователя. Без служебных комментариев.`,
+    validationRules: { minLength: 250, structuredOutput: 'text' },
+  },
+  {
+    id: 'leadmagnet.generate.v1',
+    version: 'v1',
+    feature: 'lead_magnet',
+    workflow: 'leadmagnet',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 4600,
+    artifactType: 'lead_magnet_block',
+    systemPrompt: (context) => buildLeadMagnetPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только по задаче пользователя. Без служебных комментариев.`,
+    validationRules: { minLength: 250, structuredOutput: 'text' },
+  },
+  {
+    id: 'strategy.audience.generate.v1',
+    version: 'v1',
+    feature: 'audience',
+    workflow: 'strategy.audience',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 5200,
+    artifactType: 'audience_block',
+    systemPrompt: (context) => buildAudiencePrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только по задаче пользователя. Без служебных комментариев.`,
+    validationRules: { minLength: 250, structuredOutput: 'text' },
+  },
+  {
+    id: 'strategy.utp.generate.v1',
+    version: 'v1',
+    feature: 'utp',
+    workflow: 'strategy.utp',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 2600,
+    artifactType: 'utp',
+    systemPrompt: (context) => buildUTPPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только готовым текстом без пояснений.`,
+    validationRules: { minLength: 80, structuredOutput: 'text' },
+  },
+  {
+    id: 'strategy.social.generate.v1',
+    version: 'v1',
+    feature: 'social',
+    workflow: 'strategy.social',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 3200,
+    artifactType: 'social_packaging',
+    systemPrompt: (context) => buildSocialPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+Площадка: ${value(inputs, 'platform', 'соцсеть')}
+
+${contextAppendix(context)}
+
+Ответь только готовым текстом без пояснений.`,
+    validationRules: { minLength: 150, structuredOutput: 'text' },
+  },
+  {
+    id: 'strategy.positioning.generate.v1',
+    version: 'v1',
+    feature: 'positioning',
+    workflow: 'strategy.positioning',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 5200,
+    artifactType: 'positioning_block',
+    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+
+${contextAppendix(context)}
+
+Ответь только по задаче пользователя. Без служебных комментариев.`,
+    validationRules: { minLength: 250, structuredOutput: 'text' },
   },
 ];

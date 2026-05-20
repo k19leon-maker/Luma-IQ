@@ -375,7 +375,7 @@ async function downloadProductPresentationPdf(product: MiniProductState, project
 }
 
 export default function ProductMini() {
-  const { activeProjectId, projectName, context, mergedProfile } = useProjectMarketingContext();
+  const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveProductMini = useGeneratedStore((s) => s.setProductMini);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -422,15 +422,17 @@ export default function ProductMini() {
   }
 
   async function requestAi(message: string, maxTokens = 2200): Promise<string> {
+    if (!activeProjectId) {
+      throw new Error('Сначала выберите проект');
+    }
     try {
-      const resp = await aiApi.chat({
-        model: 'chatgpt',
-        section: 'product-mini',
-        message: fitAiMessage(message),
-        conversationHistory: [],
-        projectName,
-        unpackingProfile: mergedProfile as Record<string, string>,
-        maxTokens,
+      const resp = await aiApi.startWorkflow('product.mini.generate', {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs: {
+          prompt: fitAiMessage(message),
+          maxTokens,
+        },
       });
       return cleanCodeFence(resp.content);
     } catch (err) {
