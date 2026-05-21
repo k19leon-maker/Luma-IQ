@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { aiApi } from '../../api/ai';
@@ -135,6 +135,12 @@ function extractFirstSentence(text: string): string {
   return clean.split(/(?<=[.!?])\s+/)[0] || clean;
 }
 
+function renderLineWithAccent(line: string) {
+  const labelMatch = line.match(/^([^:]{2,42}):\s*(.+)$/);
+  if (!labelMatch) return line;
+  return <><strong>{labelMatch[1]}:</strong> {labelMatch[2]}</>;
+}
+
 function parseVariants(content: string): string[] {
   const chunks = content
     .split(/\n(?=###\s+)/)
@@ -198,19 +204,21 @@ function MarkdownBlock({ content, compact = false }: { content: string; compact?
           return <h3 key={`${line}-${index}`}>{cleanMarkdownLabel(line)}</h3>;
         }
         if (/^[-—]\s+/.test(line)) {
-          return <p className={s.bulletLine} key={`${line}-${index}`}>{line.replace(/^[-—]\s+/, '')}</p>;
+          return <p className={s.bulletLine} key={`${line}-${index}`}>{renderLineWithAccent(line.replace(/^[-—]\s+/, ''))}</p>;
         }
         if (/^\d+[\).]\s+/.test(line)) {
-          return <p className={s.bulletLine} key={`${line}-${index}`}>{line.replace(/^\d+[\).]\s+/, '')}</p>;
+          return <p className={s.bulletLine} key={`${line}-${index}`}>{renderLineWithAccent(line.replace(/^\d+[\).]\s+/, ''))}</p>;
         }
-        const labelMatch = line.match(/^([^:]{2,36}):\s*(.+)$/);
-        if (labelMatch) {
-          return <p key={`${line}-${index}`}><strong>{labelMatch[1]}:</strong> {labelMatch[2]}</p>;
-        }
-        return <p key={`${line}-${index}`}>{line}</p>;
+        return <p key={`${line}-${index}`}>{renderLineWithAccent(line)}</p>;
       })}
     </div>
   );
+}
+
+function updateTextLine(source: string, index: number, nextLine: string) {
+  const lines = source.split('\n');
+  lines[index] = nextLine;
+  return lines.join('\n');
 }
 
 export default function Positioning() {
@@ -539,9 +547,9 @@ export default function Positioning() {
         <div className={s.grid}>
           <aside className={s.sidebar}>
             <button className={`${s.tab} ${activeTab === 'analysis' ? s.activeTab : ''}`} onClick={() => setActiveTab('analysis')}>Стратегический анализ</button>
+            <button className={`${s.tab} ${activeTab === 'gap' ? s.activeTab : ''}`} onClick={() => setActiveTab('gap')}>Анализ рынка</button>
             <button className={`${s.tab} ${activeTab === 'models' ? s.activeTab : ''}`} onClick={() => setActiveTab('models')}>Модели позиционирования</button>
             <button className={`${s.tab} ${activeTab === 'variants' ? s.activeTab : ''}`} onClick={() => setActiveTab('variants')}>Варианты позиционирования</button>
-            <button className={`${s.tab} ${activeTab === 'gap' ? s.activeTab : ''}`} onClick={() => setActiveTab('gap')}>Анализ рынка</button>
             <button className={`${s.tab} ${activeTab === 'final' ? s.activeTab : ''}`} onClick={() => setActiveTab('final')}>Финальная сборка</button>
 
             <div className={s.sideCard}>
@@ -662,15 +670,10 @@ export default function Positioning() {
                     <aside className={s.detailColumn}>
                       <div className={s.detailLabel}>{selectedVariant === effectivePreviewVariant ? 'Зафиксированный вариант' : 'Просмотр варианта'}</div>
                       <h3>{extractVariantTitle(effectivePreviewVariant)}</h3>
-                      <MarkdownBlock content={effectivePreviewVariant} compact />
-
-                      <label className={s.editBox}>
-                        <span>Редактировать перед фиксацией</span>
-                        <textarea value={variantDraft} onChange={(event) => setVariantDraft(event.target.value)} rows={8} />
-                      </label>
+                      <EditableVariantPreview value={variantDraft} onChange={setVariantDraft} />
 
                       <div className={s.detailActions}>
-                        <button className={s.primaryButton} onClick={confirmVariant}>Зафиксировать вариант</button>
+                        <button className={s.primaryButton} onClick={confirmVariant}>✓ Выбрать этот вариант</button>
                         {selectedVariant ? <button className={s.secondaryButton} onClick={resetConfirmedVariant}>Выбрать заново</button> : null}
                       </div>
                       <p className={s.helperText}>Переключение карточек не тратит токены. Токены понадобятся только для новых AI-запросов.</p>
@@ -730,7 +733,11 @@ export default function Positioning() {
 
                   <aside className={s.finalPreview}>
                     <div className={s.boxTitle}>Итоговая формулировка</div>
-                    <pre>{finalStatement || 'Зафиксируйте вариант позиционирования или заполните конструктор вручную.'}</pre>
+                    {finalStatement ? (
+                      <MarkdownBlock content={finalStatement} compact />
+                    ) : (
+                      <p className={s.placeholderText}>Зафиксируйте вариант позиционирования или заполните конструктор вручную.</p>
+                    )}
                     {selectedVariant ? (
                       <button className={s.textButton} onClick={() => setActiveTab('variants')}>Посмотреть выбранный вариант</button>
                     ) : (
@@ -776,11 +783,98 @@ function Field({ label, value, onChange, placeholder }: {
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.style.height = 'auto';
+    ref.current.style.height = `${ref.current.scrollHeight}px`;
+  }, [value]);
+
   return (
     <label className={s.field}>
       <span>{label}</span>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={3} />
+      <textarea ref={ref} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={2} />
     </label>
+  );
+}
+
+function EditableVariantPreview({ value, onChange }: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const lines = value.split('\n');
+
+  if (!value.trim()) {
+    return <p className={s.placeholderText}>Выберите вариант слева, чтобы посмотреть и отредактировать его.</p>;
+  }
+
+  return (
+    <div className={s.editablePreview}>
+      {lines.map((line, index) => {
+        const heading = line.match(/^###\s*(.+)$/);
+        const labelMatch = line.match(/^([^:]{2,34}):\s*(.*)$/);
+
+        if (heading) {
+          return (
+            <AutoGrowInput
+              className={s.editableHeading}
+              key={`${index}-heading`}
+              value={heading[1]}
+              onChange={(next) => onChange(updateTextLine(value, index, `### ${next}`))}
+            />
+          );
+        }
+
+        if (labelMatch) {
+          return (
+            <label className={s.editableFact} key={`${index}-${labelMatch[1]}`}>
+              <strong>{labelMatch[1]}:</strong>
+              <AutoGrowInput
+                value={labelMatch[2]}
+                onChange={(next) => onChange(updateTextLine(value, index, `${labelMatch[1]}: ${next}`))}
+              />
+            </label>
+          );
+        }
+
+        if (!line.trim()) {
+          return <div className={s.editableSpacer} key={`${index}-empty`} />;
+        }
+
+        return (
+          <AutoGrowInput
+            key={`${index}-plain`}
+            value={line}
+            onChange={(next) => onChange(updateTextLine(value, index, next))}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function AutoGrowInput({ value, onChange, className }: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.style.height = 'auto';
+    ref.current.style.height = `${ref.current.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      className={className}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      rows={1}
+    />
   );
 }
 
