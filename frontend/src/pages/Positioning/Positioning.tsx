@@ -43,41 +43,96 @@ const POSITIONING_MODELS = [
     title: 'По нише',
     type: 'Нишевое позиционирование',
     note: 'Хорошо работает, когда ниша уже понятна и у эксперта есть сильные кейсы в одном рынке.',
+    detail: 'Сужает рынок до понятного сегмента. Подходит, если у эксперта уже есть повторяемые кейсы в одной нише и понятный язык аудитории.',
+    pros: 'Проще объяснять ценность, быстрее собирать доверие, легче делать контент под одну аудиторию.',
+    cons: 'Можно слишком рано сузиться и потерять соседние платежеспособные сегменты.',
+    money: 'Чек растет, если ниша платежеспособная и проблема дорогая.',
   },
   {
     title: 'По задаче / результату',
     type: 'По задаче клиента',
     note: 'Часто лучше продает, потому что говорит языком результата клиента, а не профессии эксперта.',
+    detail: 'Ставит в центр не профессию эксперта, а конкретную задачу, ради которой клиент готов платить.',
+    pros: 'Хорошо цепляет спрос, помогает быстро объяснить зачем покупать.',
+    cons: 'Если результат слишком широкий, позиционирование снова становится generic.',
+    money: 'Обычно дает сильный коммерческий фокус и понятную связь с продуктами.',
   },
   {
     title: 'По проблеме',
     type: 'Проблемное позиционирование',
     note: 'Полезно, когда аудитория остро осознает боль и ищет решение прямо сейчас.',
+    detail: 'Работает от боли: человек узнает свою ситуацию и понимает, что эксперт специализируется именно на ней.',
+    pros: 'Высокое узнавание, сильные хуки, хороший прогрев через контент.',
+    cons: 'Может звучать слишком тревожно, если перегнуть с болью.',
+    money: 'Сильнее всего работает там, где проблема уже стоит дорого для клиента.',
   },
   {
     title: 'По механизму',
     type: 'По авторскому механизму',
     note: 'Усиливает доверие и премиальность, если у эксперта есть понятная методология.',
+    detail: 'Фокус на способе решения: метод, система, процесс, технология, авторский подход.',
+    pros: 'Добавляет экспертность, отличает от “я просто консультирую”.',
+    cons: 'Механизм должен быть понятным, иначе он усложнит продажу.',
+    money: 'Поднимает чек, если механизм выглядит внедряемым и снижает риск для клиента.',
   },
   {
     title: 'По аудитории',
     type: 'По целевой аудитории',
     note: 'Помогает быстро сузиться и стать “своим” для конкретного сегмента.',
+    detail: 'Показывает, для кого именно работает эксперт. Полезно, если аудитория хочет видеть “своего” специалиста.',
+    pros: 'Проще писать контент, собирать кейсы и делать офферы под одну группу.',
+    cons: 'Если аудитория описана слишком широко, модель не дает отличия.',
+    money: 'Чек зависит от платежеспособности выбранного сегмента.',
   },
   {
     title: 'По роли / авторитету',
     type: 'По экспертной роли',
     note: 'Работает для премиального образа и сильной экспертной позиции.',
+    detail: 'Формирует роль эксперта на рынке: архитектор, стратег, наставник, внедренец, редактор, продюсер.',
+    pros: 'Создает статус, помогает выйти из товарного сравнения по цене.',
+    cons: 'Нужны доказательства: кейсы, цифры, опыт, публичность или методология.',
+    money: 'Хорошо работает для премиальных услуг и консультационных форматов.',
   },
   {
     title: 'По трансформации',
     type: 'По трансформации',
     note: 'Показывает путь из текущего состояния в желаемое и хорошо связывается с продуктами.',
+    detail: 'Описывает переход клиента из точки А в точку Б. Хорошо подходит для упаковки воронки и продуктовой линейки.',
+    pros: 'Дает понятную драматургию, сильные кейсы и ясное обещание.',
+    cons: 'Трансформация должна быть конкретной, иначе будет звучать как мотивационный лозунг.',
+    money: 'Повышает ценность, если точка Б измерима и важна для бизнеса или жизни клиента.',
   },
 ];
 
 function extractVariantTitle(text: string): string {
   return text.split('\n')[0]?.replace(/^#+\s*/, '').trim() || 'Вариант позиционирования';
+}
+
+function cleanMarkdownLabel(value: string): string {
+  return value.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
+}
+
+function stripLeadingLabel(text: string): string {
+  return text.replace(/^#+\s*/, '').replace(/^\d+[\).]\s*/, '').trim();
+}
+
+function getFieldValue(text: string, label: string): string {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = text.match(new RegExp(`${escaped}:\\s*([^\\n]+)`, 'i'));
+  return match?.[1]?.trim() ?? '';
+}
+
+function variantSummary(text: string): string {
+  return getFieldValue(text, 'Формулировка') || stripLeadingLabel(text).split('\n').slice(0, 2).join(' ');
+}
+
+function variantType(text: string): string {
+  return getFieldValue(text, 'Тип') || 'Стратегический вариант';
+}
+
+function extractFirstSentence(text: string): string {
+  const clean = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean.split(/(?<=[.!?])\s+/)[0] || clean;
 }
 
 function parseVariants(content: string): string[] {
@@ -112,14 +167,50 @@ function buildStatement(data: {
     data.differentiation ? `Отличие: ${data.differentiation}` : '',
     data.proof ? `Почему доверять: ${data.proof}` : '',
   ].filter(Boolean).join('\n');
-  const selected = data.selectedVariant ? `Выбранный стратегический вариант:\n${data.selectedVariant}` : '';
-
-  return [selected, framework].filter(Boolean).join('\n\n');
+  return framework;
 }
 
-function MarkdownBlock({ content }: { content: string }) {
+function parseSections(content: string) {
+  if (!content.trim()) return [];
+  const chunks = content
+    .split(/\n(?=##+\s+|[А-ЯA-ZЁ][^:\n]{2,80}:\s*$)/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  return chunks.map((chunk) => {
+    const lines = chunk.split('\n').map((line) => line.trim()).filter(Boolean);
+    const rawTitle = lines[0] ?? 'Раздел';
+    const hasHeading = /^##+\s+/.test(rawTitle) || /:\s*$/.test(rawTitle);
+    return {
+      title: hasHeading ? cleanMarkdownLabel(rawTitle).replace(/:\s*$/, '') : 'Ключевой вывод',
+      body: hasHeading ? lines.slice(1).join('\n') : lines.join('\n'),
+    };
+  });
+}
+
+function MarkdownBlock({ content, compact = false }: { content: string; compact?: boolean }) {
   if (!content.trim()) return null;
-  return <pre className={s.markdown}>{content}</pre>;
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
+  return (
+    <div className={`${s.richText} ${compact ? s.richTextCompact : ''}`}>
+      {lines.map((line, index) => {
+        if (/^##+\s+/.test(line)) {
+          return <h3 key={`${line}-${index}`}>{cleanMarkdownLabel(line)}</h3>;
+        }
+        if (/^[-—]\s+/.test(line)) {
+          return <p className={s.bulletLine} key={`${line}-${index}`}>{line.replace(/^[-—]\s+/, '')}</p>;
+        }
+        if (/^\d+[\).]\s+/.test(line)) {
+          return <p className={s.bulletLine} key={`${line}-${index}`}>{line.replace(/^\d+[\).]\s+/, '')}</p>;
+        }
+        const labelMatch = line.match(/^([^:]{2,36}):\s*(.+)$/);
+        if (labelMatch) {
+          return <p key={`${line}-${index}`}><strong>{labelMatch[1]}:</strong> {labelMatch[2]}</p>;
+        }
+        return <p key={`${line}-${index}`}>{line}</p>;
+      })}
+    </div>
+  );
 }
 
 export default function Positioning() {
@@ -140,6 +231,11 @@ export default function Positioning() {
   const [variants, setVariants] = useState('');
   const [marketGap, setMarketGap] = useState('');
   const [selectedVariant, setSelectedVariant] = useState('');
+  const [previewVariant, setPreviewVariant] = useState('');
+  const [variantDraft, setVariantDraft] = useState('');
+  const [activeModelIndex, setActiveModelIndex] = useState(0);
+  const [activeAnalysisIndex, setActiveAnalysisIndex] = useState(0);
+  const [activeGapIndex, setActiveGapIndex] = useState(0);
   const [role, setRole] = useState('');
   const [audience, setAudience] = useState('');
   const [problem, setProblem] = useState('');
@@ -151,6 +247,12 @@ export default function Positioning() {
   const [assets, setAssets] = useState('');
 
   const parsedVariants = useMemo(() => parseVariants(variants), [variants]);
+  const analysisSections = useMemo(() => parseSections(analysis), [analysis]);
+  const marketSections = useMemo(() => parseSections(marketGap), [marketGap]);
+  const activeAnalysisSection = analysisSections[Math.min(activeAnalysisIndex, Math.max(analysisSections.length - 1, 0))];
+  const activeGapSection = marketSections[Math.min(activeGapIndex, Math.max(marketSections.length - 1, 0))];
+  const activeModel = POSITIONING_MODELS[activeModelIndex] ?? POSITIONING_MODELS[0];
+  const effectivePreviewVariant = previewVariant || parsedVariants[0] || selectedVariant;
   const finalStatement = useMemo(() => buildStatement({
     role,
     audience,
@@ -171,6 +273,25 @@ export default function Positioning() {
     return lines.slice(0, 4).join('\n');
   }, [briefText]);
   const briefCanToggle = briefText.trim() && briefText.trim() !== briefPreview.trim();
+
+  useEffect(() => {
+    if (!parsedVariants.length) return;
+    if (!previewVariant || !parsedVariants.includes(previewVariant)) {
+      setPreviewVariant(selectedVariant && parsedVariants.includes(selectedVariant) ? selectedVariant : parsedVariants[0]);
+    }
+  }, [parsedVariants, previewVariant, selectedVariant]);
+
+  useEffect(() => {
+    setVariantDraft(effectivePreviewVariant);
+  }, [effectivePreviewVariant]);
+
+  useEffect(() => {
+    if (activeAnalysisIndex >= analysisSections.length) setActiveAnalysisIndex(0);
+  }, [activeAnalysisIndex, analysisSections.length]);
+
+  useEffect(() => {
+    if (activeGapIndex >= marketSections.length) setActiveGapIndex(0);
+  }, [activeGapIndex, marketSections.length]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -198,6 +319,7 @@ export default function Positioning() {
         setDifferentiation(saved.differentiation ?? '');
         setProof(saved.proof ?? '');
         setSelectedVariant(saved.selectedVariant ?? '');
+        setPreviewVariant(saved.selectedVariant ?? '');
         setAnalysis(saved.strategicAnalysis ?? '');
         setModels(saved.positioningModels ?? '');
         setVariants(saved.variants ?? '');
@@ -237,6 +359,9 @@ export default function Positioning() {
         inputs: { analysis: analysisResp.content },
       });
       setVariants(variantsResp.content);
+      const nextVariants = parseVariants(variantsResp.content);
+      setPreviewVariant(nextVariants[0] ?? '');
+      setVariantDraft(nextVariants[0] ?? '');
 
       toast.loading('ИИ ищет рыночные возможности и премиальные углы...', { id: 'positioning-lab' });
       const gapResp = await aiApi.startWorkflow('positioning.gap-analysis.generate', {
@@ -295,6 +420,31 @@ export default function Positioning() {
     } finally {
       setRunning(false);
     }
+  }
+
+  function confirmVariant() {
+    const nextVariant = variantDraft.trim() || effectivePreviewVariant.trim();
+    if (!nextVariant) {
+      toast.error('Сначала выберите вариант позиционирования');
+      return;
+    }
+
+    setSelectedVariant(nextVariant);
+    setRole(getFieldValue(nextVariant, 'Кто вы') || role || [expertProfile?.role, expertProfile?.niche].filter(Boolean).join(', '));
+    setAudience(getFieldValue(nextVariant, 'Для кого') || audience);
+    setProblem(getFieldValue(nextVariant, 'Проблема') || problem);
+    setResult(getFieldValue(nextVariant, 'Результат') || result);
+    setMechanism(getFieldValue(nextVariant, 'Механизм') || mechanism);
+    setDifferentiation(getFieldValue(nextVariant, 'Дифференциация') || differentiation);
+    setProof(getFieldValue(nextVariant, 'Почему доверять') || getFieldValue(nextVariant, 'Почему может сработать') || proof);
+    setActiveTab('final');
+    toast.success('Вариант зафиксирован. Финальная сборка обновлена.');
+  }
+
+  function resetConfirmedVariant() {
+    setSelectedVariant('');
+    setActiveTab('variants');
+    toast.success('Можно выбрать другой вариант');
   }
 
   async function save(goNext: boolean) {
@@ -416,7 +566,27 @@ export default function Positioning() {
                     <p>ИИ показывает, где у эксперта сильная ценность, авторитет, дифференциация и премиальный потенциал.</p>
                   </div>
                 </div>
-                {analysis ? <MarkdownBlock content={analysis} /> : <EmptyState onRun={runLab} />}
+                {analysisSections.length ? (
+                  <div className={s.workbench}>
+                    <div className={s.centerColumn}>
+                      {analysisSections.map((section, index) => (
+                        <button
+                          className={`${s.itemCard} ${index === activeAnalysisIndex ? s.activeItemCard : ''}`}
+                          key={`${section.title}-${index}`}
+                          onClick={() => setActiveAnalysisIndex(index)}
+                        >
+                          <span>{section.title}</span>
+                          <small>{extractFirstSentence(section.body).slice(0, 150)}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <aside className={s.detailColumn}>
+                      <div className={s.detailLabel}>Разбор</div>
+                      <h3>{activeAnalysisSection?.title}</h3>
+                      <MarkdownBlock content={activeAnalysisSection?.body ?? ''} compact />
+                    </aside>
+                  </div>
+                ) : <EmptyState onRun={runLab} />}
               </section>
             ) : activeTab === 'models' ? (
               <section>
@@ -426,39 +596,87 @@ export default function Positioning() {
                     <p>Модели помогают выбрать не просто текст, а стратегию роли на рынке.</p>
                   </div>
                 </div>
-                <div className={s.modelGrid}>
-                  {POSITIONING_MODELS.map((model) => (
-                    <div className={s.modelCard} key={model.type}>
-                      <div className={s.modelType}>{model.type}</div>
-                      <h3>{model.title}</h3>
-                      <p>{model.note}</p>
+                <div className={s.workbench}>
+                  <div className={s.centerColumn}>
+                    {POSITIONING_MODELS.map((model, index) => (
+                      <button
+                        className={`${s.modelCard} ${index === activeModelIndex ? s.activeItemCard : ''}`}
+                        key={model.type}
+                        onClick={() => setActiveModelIndex(index)}
+                      >
+                        <div className={s.modelType}>{model.type}</div>
+                        <h3>{model.title}</h3>
+                        <p>{model.note}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <aside className={s.detailColumn}>
+                    <div className={s.detailLabel}>Как использовать</div>
+                    <h3>{activeModel.title}</h3>
+                    <p>{activeModel.detail}</p>
+                    <div className={s.detailStack}>
+                      <div><strong>Плюсы</strong><span>{activeModel.pros}</span></div>
+                      <div><strong>Минусы</strong><span>{activeModel.cons}</span></div>
+                      <div><strong>Чек</strong><span>{activeModel.money}</span></div>
                     </div>
-                  ))}
+                    {models ? (
+                      <div className={s.miniNote}>
+                        <strong>AI-комментарий по проекту</strong>
+                        <MarkdownBlock content={models.slice(0, 950)} compact />
+                      </div>
+                    ) : null}
+                  </aside>
                 </div>
-                {models ? <MarkdownBlock content={models} /> : <EmptyState onRun={runLab} />}
+                {!models ? <EmptyState onRun={runLab} /> : null}
               </section>
             ) : activeTab === 'variants' ? (
               <section>
                 <div className={s.sectionHead}>
                   <div>
                     <h2>Варианты позиционирования</h2>
-                    <p>Выберите один вариант, комбинируйте с другими или используйте как черновик для финального конструктора.</p>
+                    <p>Клик по карточке только показывает описание. Финальная сборка изменится только после подтверждения выбора.</p>
                   </div>
                 </div>
                 {parsedVariants.length ? (
-                  <div className={s.variantGrid}>
-                    {parsedVariants.map((variant) => {
-                      const active = selectedVariant === variant;
-                      return (
-                        <button className={`${s.variantCard} ${active ? s.selectedVariant : ''}`} key={variant} onClick={() => setSelectedVariant(variant)}>
-                          <span>{extractVariantTitle(variant)}</span>
-                          <small>{variant.replace(/^###\s*/, '').slice(0, 260)}...</small>
-                        </button>
-                      );
-                    })}
+                  <div className={s.workbench}>
+                    <div className={s.centerColumn}>
+                      {parsedVariants.map((variant) => {
+                        const previewActive = effectivePreviewVariant === variant;
+                        const confirmed = selectedVariant === variant;
+                        return (
+                          <button
+                            className={`${s.variantCard} ${previewActive ? s.activeItemCard : ''} ${confirmed ? s.confirmedVariant : ''} ${selectedVariant && !confirmed ? s.dimmedVariant : ''}`}
+                            key={variant}
+                            onClick={() => setPreviewVariant(variant)}
+                          >
+                            <div className={s.variantTopline}>
+                              <span>{extractVariantTitle(variant)}</span>
+                              {confirmed ? <b>✓</b> : null}
+                            </div>
+                            <em>{variantType(variant)}</em>
+                            <small>{variantSummary(variant).slice(0, 190)}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <aside className={s.detailColumn}>
+                      <div className={s.detailLabel}>{selectedVariant === effectivePreviewVariant ? 'Зафиксированный вариант' : 'Просмотр варианта'}</div>
+                      <h3>{extractVariantTitle(effectivePreviewVariant)}</h3>
+                      <MarkdownBlock content={effectivePreviewVariant} compact />
+
+                      <label className={s.editBox}>
+                        <span>Редактировать перед фиксацией</span>
+                        <textarea value={variantDraft} onChange={(event) => setVariantDraft(event.target.value)} rows={8} />
+                      </label>
+
+                      <div className={s.detailActions}>
+                        <button className={s.primaryButton} onClick={confirmVariant}>Зафиксировать вариант</button>
+                        {selectedVariant ? <button className={s.secondaryButton} onClick={resetConfirmedVariant}>Выбрать заново</button> : null}
+                      </div>
+                      <p className={s.helperText}>Переключение карточек не тратит токены. Токены понадобятся только для новых AI-запросов.</p>
+                    </aside>
                   </div>
                 ) : <EmptyState onRun={runLab} />}
-                {variants ? <MarkdownBlock content={variants} /> : null}
               </section>
             ) : activeTab === 'gap' ? (
               <section>
@@ -468,7 +686,27 @@ export default function Positioning() {
                     <p>Где рынок перегрет, какие фразы ослабляют упаковку и где есть шанс занять более сильную позицию.</p>
                   </div>
                 </div>
-                {marketGap ? <MarkdownBlock content={marketGap} /> : <EmptyState onRun={runLab} />}
+                {marketSections.length ? (
+                  <div className={s.workbench}>
+                    <div className={s.marketCards}>
+                      {marketSections.map((section, index) => (
+                        <button
+                          className={`${s.marketCard} ${index === activeGapIndex ? s.activeItemCard : ''}`}
+                          key={`${section.title}-${index}`}
+                          onClick={() => setActiveGapIndex(index)}
+                        >
+                          <span>{section.title}</span>
+                          <small>{extractFirstSentence(section.body).slice(0, 160)}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <aside className={s.detailColumn}>
+                      <div className={s.detailLabel}>Фокус анализа</div>
+                      <h3>{activeGapSection?.title}</h3>
+                      <MarkdownBlock content={activeGapSection?.body ?? ''} compact />
+                    </aside>
+                  </div>
+                ) : <EmptyState onRun={runLab} />}
               </section>
             ) : (
               <section>
@@ -479,26 +717,26 @@ export default function Positioning() {
                   </div>
                 </div>
 
-                {selectedVariant ? (
-                  <div className={s.selectedBox}>
-                    <div className={s.boxTitle}>Выбранный стратегический вариант</div>
-                    <MarkdownBlock content={selectedVariant} />
+                <div className={s.finalWorkbench}>
+                  <div className={s.constructorGrid}>
+                    <Field label="Кто вы" value={role} onChange={setRole} placeholder="Эксперт по построению отделов продаж" />
+                    <Field label="Для кого" value={audience} onChange={setAudience} placeholder="Для онлайн-школ и экспертного бизнеса" />
+                    <Field label="С какой проблемой" value={problem} onChange={setProblem} placeholder="Собственник завязан на продажах" />
+                    <Field label="К какому результату" value={result} onChange={setResult} placeholder="Отдел продаж работает без ручного контроля" />
+                    <Field label="Через какой механизм" value={mechanism} onChange={setMechanism} placeholder="Найм РОПа + система управления" />
+                    <Field label="Чем отличаетесь" value={differentiation} onChange={setDifferentiation} placeholder="Не консультирую, а внедряю под ключ" />
+                    <Field label="Почему доверять" value={proof} onChange={setProof} placeholder="Кейсы, цифры, опыт, регалии" />
                   </div>
-                ) : null}
 
-                <div className={s.constructorGrid}>
-                  <Field label="Кто вы" value={role} onChange={setRole} placeholder="Эксперт по построению отделов продаж" />
-                  <Field label="Для кого" value={audience} onChange={setAudience} placeholder="Для онлайн-школ и экспертного бизнеса" />
-                  <Field label="С какой проблемой" value={problem} onChange={setProblem} placeholder="Собственник завязан на продажах" />
-                  <Field label="К какому результату" value={result} onChange={setResult} placeholder="Отдел продаж работает без ручного контроля" />
-                  <Field label="Через какой механизм" value={mechanism} onChange={setMechanism} placeholder="Найм РОПа + система управления" />
-                  <Field label="Чем отличаетесь" value={differentiation} onChange={setDifferentiation} placeholder="Не консультирую, а внедряю под ключ" />
-                  <Field label="Почему доверять" value={proof} onChange={setProof} placeholder="Кейсы, цифры, опыт, регалии" />
-                </div>
-
-                <div className={s.finalPreview}>
-                  <div className={s.boxTitle}>Финальная сборка</div>
-                  <pre>{finalStatement || 'Выберите вариант или заполните конструктор.'}</pre>
+                  <aside className={s.finalPreview}>
+                    <div className={s.boxTitle}>Итоговая формулировка</div>
+                    <pre>{finalStatement || 'Зафиксируйте вариант позиционирования или заполните конструктор вручную.'}</pre>
+                    {selectedVariant ? (
+                      <button className={s.textButton} onClick={() => setActiveTab('variants')}>Посмотреть выбранный вариант</button>
+                    ) : (
+                      <button className={s.textButton} onClick={() => setActiveTab('variants')}>Выбрать вариант</button>
+                    )}
+                  </aside>
                 </div>
 
                 <div className={s.actionRow}>

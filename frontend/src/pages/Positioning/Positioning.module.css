@@ -177,6 +177,85 @@
   min-height: 680px;
 }
 
+.workbench,
+.finalWorkbench {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.centerColumn {
+  display: grid;
+  gap: 10px;
+}
+
+.detailColumn,
+.finalPreview {
+  position: sticky;
+  top: 16px;
+  background: #fff;
+  border: 1px solid #e4ded1;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.detailLabel {
+  color: #9b7422;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.detailColumn h3 {
+  margin: 0 0 10px;
+  color: #222028;
+  font-size: 21px;
+  line-height: 1.25;
+  font-weight: 850;
+}
+
+.detailColumn > p {
+  margin: 0 0 14px;
+  color: #5f5b65;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.itemCard {
+  border: 1px solid #e3dccf;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.itemCard span {
+  display: block;
+  color: #25232a;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 850;
+  margin-bottom: 6px;
+}
+
+.itemCard small {
+  display: block;
+  color: #706c76;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.activeItemCard {
+  border-color: #c9942b;
+  background: #fffaf0;
+  box-shadow: 0 0 0 3px rgba(201, 148, 43, 0.14);
+}
+
 .sectionHead {
   display: flex;
   justify-content: space-between;
@@ -249,6 +328,60 @@
   overflow-wrap: anywhere;
 }
 
+.richText {
+  display: grid;
+  gap: 9px;
+  color: #37343d;
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.richText h3 {
+  margin: 12px 0 2px;
+  color: #222028;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 850;
+}
+
+.richText h3:first-child {
+  margin-top: 0;
+}
+
+.richText p {
+  margin: 0;
+}
+
+.richText strong {
+  color: #242229;
+  font-weight: 850;
+}
+
+.richTextCompact {
+  font-size: 13px;
+  line-height: 1.56;
+}
+
+.richTextCompact h3 {
+  font-size: 15px;
+}
+
+.bulletLine {
+  position: relative;
+  padding-left: 16px;
+}
+
+.bulletLine::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0.72em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c9942b;
+}
+
 .modelGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -261,6 +394,9 @@
   background: #fbfaf6;
   border-radius: 8px;
   padding: 14px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
 
 .modelType {
@@ -299,6 +435,27 @@
   padding: 14px;
   text-align: left;
   cursor: pointer;
+  font: inherit;
+}
+
+.variantTopline {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.variantTopline b {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4f9d5d;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .variantCard span {
@@ -308,6 +465,18 @@
   line-height: 1.35;
   font-weight: 850;
   margin-bottom: 8px;
+}
+
+.variantCard em {
+  display: block;
+  margin-bottom: 7px;
+  color: #9b7422;
+  font-size: 11px;
+  line-height: 1.4;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .variantCard small {
@@ -322,6 +491,129 @@
   box-shadow: 0 0 0 3px rgba(201, 148, 43, 0.14);
 }
 
+.confirmedVariant {
+  border-color: #4f9d5d;
+  background: #f5fbf5;
+}
+
+.dimmedVariant {
+  opacity: 0.58;
+}
+
+.dimmedVariant.activeItemCard,
+.dimmedVariant:hover {
+  opacity: 1;
+}
+
+.detailStack {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.detailStack div,
+.miniNote {
+  border: 1px solid #ece5d8;
+  background: #fbfaf6;
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+
+.detailStack strong,
+.miniNote > strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #2b2930;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detailStack span {
+  display: block;
+  color: #625d68;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.editBox {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.editBox span {
+  color: #343139;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.editBox textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dcd5c8;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #2c2931;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.editBox textarea:focus {
+  border-color: #c9942b;
+  box-shadow: 0 0 0 3px rgba(201, 148, 43, 0.14);
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.helperText {
+  margin: 10px 0 0;
+  color: #817b86;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.marketCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketCard {
+  border: 1px solid #e3dccf;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.marketCard span {
+  display: block;
+  color: #25232a;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 850;
+  margin-bottom: 8px;
+}
+
+.marketCard small {
+  display: block;
+  color: #706c76;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .selectedBox,
 .finalPreview,
 .resultBlock {
@@ -331,9 +623,8 @@
 
 .constructorGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .field {
@@ -420,13 +711,24 @@
     grid-template-columns: 1fr;
   }
 
+  .workbench,
+  .finalWorkbench {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
+    position: static;
+  }
+
+  .detailColumn,
+  .finalPreview {
     position: static;
   }
 
   .constructorGrid,
   .modelGrid,
-  .variantGrid {
+  .variantGrid,
+  .marketCards {
     grid-template-columns: 1fr;
   }
 }
