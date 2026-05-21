@@ -253,6 +253,7 @@ export default function Positioning() {
   const [proof, setProof] = useState('');
   const [score, setScore] = useState('');
   const [assets, setAssets] = useState('');
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const parsedVariants = useMemo(() => parseVariants(variants), [variants]);
   const analysisSections = useMemo(() => parseSections(analysis), [analysis]);
@@ -272,6 +273,33 @@ export default function Positioning() {
     selectedVariant,
   }), [audience, differentiation, mechanism, problem, proof, result, role, selectedVariant]);
   const canFinalize = Boolean(selectedVariant.trim() || (role.trim() && audience.trim() && problem.trim() && result.trim()));
+  const positioningDraft = useMemo<PositioningData>(() => ({
+    role: role.trim(),
+    audience: audience.trim(),
+    problem: problem.trim(),
+    result: result.trim(),
+    mechanism: mechanism.trim(),
+    differentiation: differentiation.trim(),
+    proof: proof.trim(),
+    selectedVariant: selectedVariant.trim(),
+    strategicAnalysis: analysis,
+    positioningModels: models,
+    variants,
+    marketGap,
+    score,
+    assets,
+    statement: finalStatement.trim(),
+    completed: canFinalize,
+    updatedAt: new Date().toISOString(),
+  }), [analysis, assets, audience, canFinalize, differentiation, finalStatement, marketGap, mechanism, models, problem, proof, result, role, score, selectedVariant, variants]);
+  const hasPositioningDraft = Boolean(
+    analysis.trim() ||
+    models.trim() ||
+    variants.trim() ||
+    marketGap.trim() ||
+    selectedVariant.trim() ||
+    finalStatement.trim(),
+  );
   const briefText = useMemo(() => {
     if (!expertProfile) return '';
     return expertProfile.summary || [expertProfile.name, expertProfile.role, expertProfile.niche].filter(Boolean).join(' · ');
@@ -300,6 +328,19 @@ export default function Positioning() {
   useEffect(() => {
     if (activeGapIndex >= marketSections.length) setActiveGapIndex(0);
   }, [activeGapIndex, marketSections.length]);
+
+  useEffect(() => {
+    if (!activeProjectId || loading || !hasPositioningDraft) return;
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      projectsApi.saveStrategy(activeProjectId, { positioningData: positioningDraft }).catch(() => {});
+    }, 900);
+
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [activeProjectId, hasPositioningDraft, loading, positioningDraft]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -377,6 +418,17 @@ export default function Positioning() {
         inputs: { variants: variantsResp.content },
       });
       setMarketGap(gapResp.content);
+      await projectsApi.saveStrategy(activeProjectId, {
+        positioningData: {
+          ...positioningDraft,
+          strategicAnalysis: analysisResp.content,
+          positioningModels: modelsResp.content,
+          variants: variantsResp.content,
+          marketGap: gapResp.content,
+          completed: canFinalize,
+          updatedAt: new Date().toISOString(),
+        },
+      });
       setActiveTab('variants');
       toast.success('Лаборатория позиционирования собрана', { id: 'positioning-lab' });
     } catch {
@@ -437,14 +489,50 @@ export default function Positioning() {
       return;
     }
 
+    const nextRole = getFieldValue(nextVariant, 'Кто вы') || role || [expertProfile?.role, expertProfile?.niche].filter(Boolean).join(', ');
+    const nextAudience = getFieldValue(nextVariant, 'Для кого') || audience;
+    const nextProblem = getFieldValue(nextVariant, 'Проблема') || problem;
+    const nextResult = getFieldValue(nextVariant, 'Результат') || result;
+    const nextMechanism = getFieldValue(nextVariant, 'Механизм') || mechanism;
+    const nextDifferentiation = getFieldValue(nextVariant, 'Дифференциация') || differentiation;
+    const nextProof = getFieldValue(nextVariant, 'Почему доверять') || getFieldValue(nextVariant, 'Почему может сработать') || proof;
+
     setSelectedVariant(nextVariant);
-    setRole(getFieldValue(nextVariant, 'Кто вы') || role || [expertProfile?.role, expertProfile?.niche].filter(Boolean).join(', '));
-    setAudience(getFieldValue(nextVariant, 'Для кого') || audience);
-    setProblem(getFieldValue(nextVariant, 'Проблема') || problem);
-    setResult(getFieldValue(nextVariant, 'Результат') || result);
-    setMechanism(getFieldValue(nextVariant, 'Механизм') || mechanism);
-    setDifferentiation(getFieldValue(nextVariant, 'Дифференциация') || differentiation);
-    setProof(getFieldValue(nextVariant, 'Почему доверять') || getFieldValue(nextVariant, 'Почему может сработать') || proof);
+    setRole(nextRole);
+    setAudience(nextAudience);
+    setProblem(nextProblem);
+    setResult(nextResult);
+    setMechanism(nextMechanism);
+    setDifferentiation(nextDifferentiation);
+    setProof(nextProof);
+    const nextStatement = buildStatement({
+      role: nextRole,
+      audience: nextAudience,
+      problem: nextProblem,
+      result: nextResult,
+      mechanism: nextMechanism,
+      differentiation: nextDifferentiation,
+      proof: nextProof,
+      selectedVariant: nextVariant,
+    });
+    if (activeProjectId) {
+      void projectsApi.saveStrategy(activeProjectId, {
+        positioningData: {
+          ...positioningDraft,
+          role: nextRole.trim(),
+          audience: nextAudience.trim(),
+          problem: nextProblem.trim(),
+          result: nextResult.trim(),
+          mechanism: nextMechanism.trim(),
+          differentiation: nextDifferentiation.trim(),
+          proof: nextProof.trim(),
+          selectedVariant: nextVariant.trim(),
+          statement: nextStatement.trim(),
+          completed: true,
+          updatedAt: new Date().toISOString(),
+        },
+      }).catch(() => {});
+    }
     setActiveTab('final');
     toast.success('Вариант зафиксирован. Финальная сборка обновлена.');
   }
@@ -465,25 +553,7 @@ export default function Positioning() {
       return;
     }
 
-    const positioningData: PositioningData = {
-      role: role.trim(),
-      audience: audience.trim(),
-      problem: problem.trim(),
-      result: result.trim(),
-      mechanism: mechanism.trim(),
-      differentiation: differentiation.trim(),
-      proof: proof.trim(),
-      selectedVariant: selectedVariant.trim(),
-      strategicAnalysis: analysis,
-      positioningModels: models,
-      variants,
-      marketGap,
-      score,
-      assets,
-      statement: finalStatement.trim(),
-      completed: true,
-      updatedAt: new Date().toISOString(),
-    };
+    const positioningData: PositioningData = { ...positioningDraft, completed: true, updatedAt: new Date().toISOString() };
 
     setSaving(true);
     try {
