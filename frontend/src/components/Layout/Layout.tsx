@@ -160,7 +160,10 @@ export default function Layout({ children }: LayoutProps) {
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
   const projectsLoading    = useProjectsStore((s) => s.loading);
 
-  useEffect(() => { void loadProjects(); }, []); // eslint-disable-line
+  useEffect(() => {
+    if (!user?.id) return;
+    void loadProjects();
+  }, [user?.id, loadProjects]);
 
   const restoreAdminSession = useCallback(() => {
     const access = localStorage.getItem('adminAccessTokenBackup');

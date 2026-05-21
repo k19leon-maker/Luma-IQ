@@ -35,6 +35,7 @@ export interface ProjectsState {
   setActiveProjectId: (id: string) => void;
   setCurrentProject:  (project: Project | null) => void;
   clearCurrentProject: () => void;
+  resetProjects: () => void;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -117,6 +118,12 @@ export const useProjectsStore = create<ProjectsState>()(
 
       setCurrentProject:   (project) => set({ currentProject: project }),
       clearCurrentProject: ()        => set({ currentProject: null }),
+      resetProjects: () => set({
+        projects: [],
+        activeProjectId: '',
+        loading: false,
+        currentProject: null,
+      }),
     }),
     {
       name:    'lumaiq-projects-v4',
