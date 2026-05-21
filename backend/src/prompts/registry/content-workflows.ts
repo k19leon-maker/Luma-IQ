@@ -7,7 +7,6 @@ import {
   buildPostsPrompt,
   buildReelsPrompt,
   buildSocialPrompt,
-  buildUnpackingPrompt,
   buildUTPPrompt,
   buildVideoScriptsPrompt,
 } from '../dynamic.prompts';
@@ -79,6 +78,20 @@ const MAIN_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number
 Сохраняй структуру: # Основной продукт, варианты названия, оффер, описание, модули программы, продуктовое обещание.`,
   },
 ];
+
+const buildPositioningLabPrompt = () => `Ты — senior стратег по позиционированию, market strategist и редактор упаковки экспертного бизнеса внутри Luma IQ.
+
+Твоя задача — не вести анкету и не задавать вопросы, а генерировать готовые стратегические материалы на основе уже заполненного брифа проекта.
+
+Критически важно:
+- НЕ пиши "ШАГ 1", "ШАГ 2", "ШАГ 3".
+- НЕ проси пользователя назвать 3–5 направлений.
+- НЕ задавай анкетные вопросы вместо результата.
+- НЕ возвращай инструкцию пользователю.
+- Если данных не хватает, сделай разумную стратегическую гипотезу на основе доступного контекста и пометь ее как гипотезу.
+- Всегда возвращай готовый структурированный результат в формате, который запросил конкретный workflow.
+- Пиши только на русском языке.
+`.trim();
 
 const MINI_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
   { step: 'bestName', label: 'Лучшее название мини-продукта', maxTokens: 2600, minLength: 450, task: 'Дай 10 вариантов названия мини-продукта и выбери рекомендуемый вариант. Названия должны быть связаны с болью и первым результатом, без пустого инфобизнеса.' },
@@ -550,7 +563,7 @@ ${contextAppendix(context)}`,
     temperature: 0.55,
     maxTokens: 2200,
     artifactType: 'positioning_analysis',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию для экспертного бизнеса.
 
 Сделай стратегический анализ на основе брифа “О себе” и контекста проекта.
@@ -592,7 +605,7 @@ ${contextAppendix(context)}
     temperature: 0.55,
     maxTokens: 2600,
     artifactType: 'positioning_models',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ context }) => `Ты — senior стратег по позиционированию.
 
 Объясни пользователю, какие модели позиционирования подходят именно этому проекту.
@@ -631,7 +644,7 @@ ${contextAppendix(context)}
     temperature: 0.65,
     maxTokens: 3800,
     artifactType: 'positioning_variants',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию.
 
 Сгенерируй 8 вариантов стратегического позиционирования на основе брифа и анализа.
@@ -655,7 +668,12 @@ ${value(inputs, 'analysis', 'нет')}
 ${contextAppendix(context)}
 
 Варианты должны быть разными, не перефразировками одного и того же.`,
-    validationRules: { requiredIncludes: ['###'], minLength: 1500, structuredOutput: 'text' },
+    validationRules: {
+      requiredIncludes: ['###', 'Формулировка:', 'Для кого:', 'Проблема:', 'Результат:', 'Механизм:'],
+      forbiddenIncludes: ['ШАГ 1', 'ШАГ 2', 'ШАГ 3', 'Назовите 3–5', 'Назовите 3-5'],
+      minLength: 1500,
+      structuredOutput: 'text',
+    },
   },
   {
     id: 'positioning.gap-analysis.generate.v1',
@@ -667,7 +685,7 @@ ${contextAppendix(context)}
     temperature: 0.55,
     maxTokens: 2400,
     artifactType: 'positioning_gap_analysis',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — аналитик рынка и позиционирования.
 
 Сделай анализ рынка и свободных стратегических углов для вариантов позиционирования.
@@ -706,7 +724,7 @@ ${contextAppendix(context)}
     temperature: 0.45,
     maxTokens: 2200,
     artifactType: 'positioning_score',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — стратегический оценщик качества позиционирования.
 
 Оцени выбранное позиционирование.
@@ -739,7 +757,7 @@ ${contextAppendix(context)}`,
     temperature: 0.58,
     maxTokens: 3600,
     artifactType: 'positioning_assets',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — бренд-стратег и копирайтер по позиционированию.
 
 На основе финального позиционирования сгенерируй материалы позиционирования.
@@ -831,7 +849,7 @@ ${contextAppendix(context)}
     temperature: 0.65,
     maxTokens: 5200,
     artifactType: 'positioning_block',
-    systemPrompt: (context) => buildUnpackingPrompt(context.base),
+    systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
 
 ${contextAppendix(context)}

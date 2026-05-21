@@ -8,6 +8,7 @@ export interface WorkflowPromptInput {
 
 export interface ValidationRules {
   requiredIncludes?: string[];
+  forbiddenIncludes?: string[];
   minLength?: number;
   structuredOutput?: 'text' | 'list' | 'article' | 'script';
 }

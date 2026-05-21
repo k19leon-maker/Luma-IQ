@@ -20,6 +20,12 @@ export const aiValidationService = {
       }
     }
 
+    for (const forbidden of rules.forbiddenIncludes ?? []) {
+      if (text.includes(forbidden)) {
+        errors.push(`Forbidden fragment found: ${forbidden}`);
+      }
+    }
+
     if (rules.structuredOutput === 'list') {
       const listLikeLines = text.split('\n').filter((line) => /^\s*(?:[-*]|\d+[\).\]])\s+/.test(line));
       if (listLikeLines.length < 3) errors.push('Expected list-like output');
