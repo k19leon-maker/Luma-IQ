@@ -3,8 +3,10 @@ import toast from 'react-hot-toast';
 import { aiApi, ConversationMessage } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
+import { useContentApi } from '../../hooks/useContentApi';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { isMigrated, markMigrated, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from './AIDialog.module.css';
 
 interface DialogMessage {
@@ -33,6 +35,7 @@ export default function AIDialog() {
   const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const projectName = useProjectsStore((st) => st.projects.find((p) => p.id === st.activeProjectId)?.name ?? 'Проект');
   const getSettings = useModelStore((st) => st.getSettings);
+  const { dbItems, loaded: dbLoaded, saveItem: saveDialog, updateItem: updateDialog } = useContentApi({ projectId: activeProjectId, type: 'OTHER' });
 
   const welcome = useMemo<DialogMessage>(() => ({
     role: 'assistant',
@@ -43,26 +46,74 @@ export default function AIDialog() {
   const [messages, setMessages] = useState<DialogMessage[]>([welcome]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [dialogRecordId, setDialogRecordId] = useState<string | null>(null);
+  const dialogRecordIdRef = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(storageKey(activeProjectId));
-    if (!raw) {
+    if (!activeProjectId || !dbLoaded) return;
+
+    const dbDialog = dbItems.find((item) => item.metadata?.kind === 'ai_dialog');
+    if (dbDialog) {
+      try {
+        const parsed = JSON.parse(dbDialog.content) as DialogMessage[];
+        setMessages(parsed.length ? parsed : [welcome]);
+      } catch {
+        setMessages([welcome]);
+      }
+      setDialogRecordId(dbDialog.id);
+      dialogRecordIdRef.current = dbDialog.id;
+      return;
+    }
+
+    const legacy = readLegacyItems<DialogMessage>(storageKey(activeProjectId));
+    if (legacy.length > 0 && !isMigrated(activeProjectId, 'ai-dialog')) {
+      setMessages(legacy);
+      void saveDialog({
+        title: 'AI диалог',
+        content: JSON.stringify(legacy),
+        platform: 'LumaIQ',
+        metadata: { kind: 'ai_dialog' },
+      }).then((item) => {
+        if (!item) return;
+        setDialogRecordId(item.id);
+        dialogRecordIdRef.current = item.id;
+      });
+      markMigrated(activeProjectId, 'ai-dialog');
+      return;
+    }
+
+    setDialogRecordId(null);
+    dialogRecordIdRef.current = null;
+    setMessages([welcome]);
+  }, [activeProjectId, dbItems, dbLoaded, saveDialog, welcome]);
+
+  async function persistMessages(nextMessages: DialogMessage[]) {
+    if (!activeProjectId) return;
+    const content = JSON.stringify(nextMessages);
+    const recordId = dialogRecordIdRef.current ?? dialogRecordId;
+    if (recordId) {
+      void updateDialog(recordId, { content, metadata: { kind: 'ai_dialog' } });
+      return;
+    }
+    const item = await saveDialog({
+      title: 'AI диалог',
+      content,
+      platform: 'LumaIQ',
+      metadata: { kind: 'ai_dialog' },
+    });
+    if (item) {
+      setDialogRecordId(item.id);
+      dialogRecordIdRef.current = item.id;
+    }
+  }
+
+  useEffect(() => {
+    if (!activeProjectId || !dbLoaded) {
       setMessages([welcome]);
       return;
     }
-    try {
-      const parsed = JSON.parse(raw) as DialogMessage[];
-      setMessages(parsed.length ? parsed : [welcome]);
-    } catch {
-      setMessages([welcome]);
-    }
-  }, [activeProjectId, welcome]);
-
-  useEffect(() => {
-    if (!activeProjectId) return;
-    localStorage.setItem(storageKey(activeProjectId), JSON.stringify(messages));
-  }, [activeProjectId, messages]);
+  }, [activeProjectId, dbLoaded, welcome]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +132,7 @@ export default function AIDialog() {
     const userMsg: DialogMessage = { role: 'user', content: text, time: nowTime() };
     const next = [...messages, userMsg];
     setMessages(next);
+    void persistMessages(next);
 
     try {
       const history: ConversationMessage[] = next.slice(-16, -1).map((m) => ({
@@ -98,15 +150,23 @@ export default function AIDialog() {
         message: text,
         conversationHistory: history,
       });
-      setMessages((prev) => [...prev, { role: 'assistant', content: response.content, time: nowTime() }]);
+      setMessages((prev) => {
+        const withAnswer = [...prev, { role: 'assistant' as const, content: response.content, time: nowTime() }];
+        void persistMessages(withAnswer);
+        return withAnswer;
+      });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       toast.error(msg ?? 'AI временно недоступен');
-      setMessages((prev) => [...prev, {
-        role: 'assistant',
-        content: 'Не смог ответить из-за ошибки соединения. Попробуйте еще раз чуть позже.',
-        time: nowTime(),
-      }]);
+      setMessages((prev) => {
+        const withError = [...prev, {
+          role: 'assistant' as const,
+          content: 'Не смог ответить из-за ошибки соединения. Попробуйте еще раз чуть позже.',
+          time: nowTime(),
+        }];
+        void persistMessages(withError);
+        return withError;
+      });
     } finally {
       setSending(false);
     }

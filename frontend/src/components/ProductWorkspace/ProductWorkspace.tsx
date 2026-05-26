@@ -4,6 +4,7 @@ import { productsApi, ProductType } from '../../api/products.api';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { exportToDocx } from '../../utils/exportDocx';
+import { isMigrated, markMigrated, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from './ProductWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -56,11 +57,7 @@ function makePreview(content: string): string {
 
 
 function loadItems(key: string): ProductItem[] {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    return JSON.parse(raw) as ProductItem[];
-  } catch { return []; }
+  return readLegacyItems<ProductItem>(key);
 }
 
 function firstLine(text: string | undefined, fallback = ''): string {
@@ -111,7 +108,7 @@ export default function ProductWorkspace({
   const strategy: StrategyData | null =
     (audienceAnswers?.chosenSegment || audienceAnswers?.corePains) ? audienceAnswers as StrategyData : null;
 
-  const [items,    setItems]    = useState<ProductItem[]>(() => loadItems(storageKey));
+  const [items,    setItems]    = useState<ProductItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode,     setMode]     = useState<'generate' | 'editor'>('generate');
   const [loading,  setLoading]  = useState(false);
@@ -123,16 +120,15 @@ export default function ProductWorkspace({
   const activeItem  = items.find((m) => m.id === activeId) ?? null;
 
   useEffect(() => {
-    const local = loadItems(storageKey);
-    setItems(local);
+    setItems([]);
     setActiveId(null);
-    setMode(local.length > 0 ? 'editor' : 'generate');
-    // Загружаем из API и мёржим (API приоритет)
-    if (activeProjectId) {
-      productsApi.list(activeProjectId, productType)
-        .then((apiProducts) => {
-          if (!apiProducts.length) return;
-          const merged: ProductItem[] = apiProducts.map((p) => ({
+    setMode('generate');
+    if (!activeProjectId) return;
+
+    productsApi.list(activeProjectId, productType)
+      .then((apiProducts) => {
+        if (apiProducts.length > 0) {
+          const fromDb: ProductItem[] = apiProducts.map((p) => ({
             id:      `prod-${p.id}`,
             dbId:    p.id,
             title:   p.title,
@@ -142,11 +138,37 @@ export default function ProductWorkspace({
             status:  'ready' as const,
             type:    p.title,
           }));
-          setItems(merged);
-          localStorage.setItem(storageKey, JSON.stringify(merged));
-        })
-        .catch(() => { /* БД недоступна — используем localStorage */ });
-    }
+          setItems(fromDb);
+          setActiveId(fromDb[0]?.id ?? null);
+          setMode(fromDb.length ? 'editor' : 'generate');
+          return;
+        }
+
+        const legacy = loadItems(storageKey);
+        if (legacy.length > 0 && !isMigrated(activeProjectId, storageKey)) {
+          setItems(legacy);
+          setActiveId(legacy[0]?.id ?? null);
+          setMode('editor');
+          legacy.forEach((item) => {
+            void productsApi.create({
+              projectId: activeProjectId,
+              type: productType,
+              title: item.title,
+              content: item.content,
+              isAiGenerated: true,
+            }).then((dbProduct) => {
+              setItems((prev) => prev.map((current) => current.id === item.id ? { ...current, dbId: dbProduct.id } : current));
+            });
+          });
+          markMigrated(activeProjectId, storageKey);
+        }
+      })
+      .catch(() => {
+        const legacy = loadItems(storageKey);
+        setItems(legacy);
+        setActiveId(legacy[0]?.id ?? null);
+        setMode(legacy.length > 0 ? 'editor' : 'generate');
+      });
   }, [storageKey, activeProjectId, productType]); // eslint-disable-line
 
   useEffect(() => {
@@ -156,13 +178,9 @@ export default function ProductWorkspace({
     }
   }, [activeId]); // eslint-disable-line
 
-  const storageKeyRef = useRef(storageKey);
-  useEffect(() => { storageKeyRef.current = storageKey; }, [storageKey]);
-
   const updateItems = useCallback((updater: ProductItem[] | ((prev: ProductItem[]) => ProductItem[])) => {
     setItems((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(storageKeyRef.current, JSON.stringify(next));
       return next;
     });
   }, []);

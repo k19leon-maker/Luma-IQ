@@ -9,6 +9,7 @@ interface UseContentApiOptions {
 interface UseContentApiResult {
   dbItems:     ContentItem[];
   loading:     boolean;
+  loaded:      boolean;
   saveItem:    (data: { title?: string; content: string; platform?: string; isMock?: boolean; metadata?: Record<string, unknown> }) => Promise<ContentItem | null>;
   updateItem:  (id: string, data: { title?: string; content?: string; metadata?: Record<string, unknown> }) => Promise<void>;
   removeItem:  (id: string) => Promise<void>;
@@ -17,6 +18,7 @@ interface UseContentApiResult {
 export function useContentApi({ projectId, type }: UseContentApiOptions): UseContentApiResult {
   const [dbItems, setDbItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const loadedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -24,11 +26,15 @@ export function useContentApi({ projectId, type }: UseContentApiOptions): UseCon
     if (!projectId || loadedRef.current === key) return;
     loadedRef.current = key;
     setDbItems([]);
+    setLoaded(false);
     setLoading(true);
     contentApi.list(projectId, type)
       .then(setDbItems)
       .catch(() => { /* БД недоступна — работаем без */ })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoaded(true);
+        setLoading(false);
+      });
   }, [projectId, type]);
 
   const saveItem = useCallback(async (data: {
@@ -65,5 +71,5 @@ export function useContentApi({ projectId, type }: UseContentApiOptions): UseCon
     }
   }, []);
 
-  return { dbItems, loading, saveItem, updateItem, removeItem };
+  return { dbItems, loading, loaded, saveItem, updateItem, removeItem };
 }

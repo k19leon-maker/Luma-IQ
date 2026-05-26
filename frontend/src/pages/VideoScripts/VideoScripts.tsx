@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
@@ -8,7 +8,9 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { aiApi } from '../../api/ai';
+import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,6 +26,7 @@ interface StrategyData {
 
 interface SavedScript {
   id:            string;
+  dbId?:         string;
   duration:      Duration;
   ctaType:       CtaType;
   botKeyword:    string;
@@ -321,15 +324,26 @@ function buildScript(
 function scriptsKey(projectId: string) { return `video_scripts_${projectId}`; }
 
 function loadScripts(projectId: string): SavedScript[] {
-  try {
-    const raw = localStorage.getItem(scriptsKey(projectId));
-    if (raw) return JSON.parse(raw) as SavedScript[];
-  } catch {}
-  return makeSeedScripts();
+  return readLegacyItems<SavedScript>(scriptsKey(projectId));
 }
 
-function persistScripts(projectId: string, scripts: SavedScript[]) {
-  localStorage.setItem(scriptsKey(projectId), JSON.stringify(scripts));
+function scriptFromDb(item: ContentItem): SavedScript {
+  const duration = metadataString(item, 'duration', '10') as Duration;
+  return {
+    id: `db-${item.id}`,
+    dbId: item.id,
+    duration,
+    ctaType: metadataString(item, 'ctaType', 'telegram') as CtaType,
+    botKeyword: metadataString(item, 'botKeyword', ''),
+    content: item.content,
+    editedContent: '',
+    editedTitle: item.title ?? `Сценарий · ${DURATION_LABELS[duration]}`,
+    createdAt: createdDateRu(item),
+    workflowRunId: metadataString(item, 'workflowRunId', undefined as unknown as string),
+    workflowStepId: metadataString(item, 'workflowStepId', undefined as unknown as string),
+    artifactId: metadataString(item, 'artifactId', undefined as unknown as string),
+    generationId: metadataString(item, 'generationId', undefined as unknown as string),
+  };
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
@@ -361,7 +375,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 export default function VideoScripts() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
-  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
+  const { dbItems, loaded: dbLoaded, saveItem: saveToApi, updateItem: updateInApi } = useContentApi({ projectId: activeProjectId, type: 'VIDEO_SCRIPT' });
 
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'video-scripts')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
@@ -371,13 +385,11 @@ export default function VideoScripts() {
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Scripts
-  const [scripts,    setScripts]    = useState<SavedScript[]>(() => loadScripts(activeProjectId));
-  const [selectedId, setSelectedId] = useState<string | null>(() => loadScripts(activeProjectId)[0]?.id ?? null);
+  const [scripts,    setScripts]    = useState<SavedScript[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Phase
-  const [phase, setPhase] = useState<Phase>(() =>
-    loadScripts(activeProjectId).length > 0 ? 'editor' : 'step1',
-  );
+  const [phase, setPhase] = useState<Phase>('step1');
 
   // Step 1
   const [duration,   setDuration]   = useState<Duration>('10');
@@ -396,10 +408,51 @@ export default function VideoScripts() {
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
 
   // ── Persist ───────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeProjectId || !dbLoaded) return;
+
+    if (dbItems.length > 0) {
+      const fromDb = dbItems.map(scriptFromDb);
+      setScripts(fromDb);
+      setSelectedId(fromDb[0]?.id ?? null);
+      setPhase(fromDb.length ? 'editor' : 'step1');
+      return;
+    }
+
+    const legacy = loadScripts(activeProjectId);
+    if (legacy.length > 0 && !isMigrated(activeProjectId, 'video-scripts')) {
+      setScripts(legacy);
+      setSelectedId(legacy[0]?.id ?? null);
+      setPhase('editor');
+      legacy.forEach((script) => {
+        void saveToApi({
+          title: script.editedTitle,
+          content: script.editedContent || script.content,
+          platform: 'YouTube',
+          metadata: {
+            duration: script.duration,
+            ctaType: script.ctaType,
+            botKeyword: script.botKeyword,
+            workflowRunId: script.workflowRunId,
+            workflowStepId: script.workflowStepId,
+            artifactId: script.artifactId,
+            generationId: script.generationId,
+          },
+        });
+      });
+      markMigrated(activeProjectId, 'video-scripts');
+      return;
+    }
+
+    const seed = makeSeedScripts();
+    setScripts(seed);
+    setSelectedId(seed[0]?.id ?? null);
+    setPhase('editor');
+  }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
+
   const updateScripts = useCallback((next: SavedScript[]) => {
     setScripts(next);
-    persistScripts(activeProjectId, next);
-  }, [activeProjectId]);
+  }, []);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {
@@ -503,7 +556,8 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
         artifactId: resp.artifactId,
         generationId: resp.generationId,
       };
-      updateScripts([newScript, ...scripts]);
+      const next = [newScript, ...scripts];
+      updateScripts(next);
       setSelectedId(id);
       setPhase('editor');
       void saveToApi({
@@ -512,11 +566,16 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
         platform: 'YouTube',
         metadata: {
           duration,
+          ctaType,
+          botKeyword,
           workflowRunId: resp.workflowRunId,
           workflowStepId: resp.workflowStepId,
           artifactId: resp.artifactId,
           generationId: resp.generationId,
         },
+      }).then((dbItem) => {
+        if (!dbItem) return;
+        updateScripts(next.map((script) => script.id === id ? { ...script, dbId: dbItem.id } : script));
       });
     } catch (err) {
       console.warn('[VideoScripts] generate AI error:', err);
@@ -528,10 +587,14 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
         id, duration, ctaType, botKeyword,
         content, editedContent: '', editedTitle: title, createdAt: now,
       };
-      updateScripts([newScript, ...scripts]);
+      const next = [newScript, ...scripts];
+      updateScripts(next);
       setSelectedId(id);
       setPhase('editor');
-      void saveToApi({ title, content, platform: 'YouTube', metadata: { duration } });
+      void saveToApi({ title, content, platform: 'YouTube', metadata: { duration, ctaType, botKeyword } }).then((dbItem) => {
+        if (!dbItem) return;
+        updateScripts(next.map((script) => script.id === id ? { ...script, dbId: dbItem.id } : script));
+      });
     } finally {
       finishGenerationTask(activeProjectId, 'video-scripts');
     }
@@ -573,9 +636,26 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
   function handleSave(scId: string) {
     const ov = editMap[scId];
     if (!ov) return;
-    updateScripts(scripts.map(sc =>
+    const next = scripts.map(sc =>
       sc.id === scId ? { ...sc, editedTitle: ov.title, editedContent: ov.content } : sc,
-    ));
+    );
+    updateScripts(next);
+    const script = next.find((sc) => sc.id === scId);
+    if (script?.dbId) {
+      void updateInApi(script.dbId, {
+        title: ov.title,
+        content: ov.content,
+        metadata: {
+          duration: script.duration,
+          ctaType: script.ctaType,
+          botKeyword: script.botKeyword,
+          workflowRunId: script.workflowRunId,
+          workflowStepId: script.workflowStepId,
+          artifactId: script.artifactId,
+          generationId: script.generationId,
+        },
+      });
+    }
     setEditMap(prev => { const n = { ...prev }; delete n[scId]; return n; });
   }
 

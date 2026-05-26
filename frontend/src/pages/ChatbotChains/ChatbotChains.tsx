@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
@@ -8,7 +8,9 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
+import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
+import { isMigrated, markMigrated, metadataString, readLegacyObject } from '../../utils/generatedContentPersistence';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ interface ChainMessage {
 }
 
 interface StoredChain {
+  dbId?:           string;
   format:          Format;
   botName:         string;
   meetingSchedule: string;
@@ -327,14 +330,7 @@ function buildChain(
 function chainKey(projectId: string) { return `chatbot_chain_${projectId}`; }
 
 function loadChain(projectId: string): StoredChain | null {
-  try {
-    const raw = localStorage.getItem(chainKey(projectId));
-    return raw ? (JSON.parse(raw) as StoredChain) : null;
-  } catch { return null; }
-}
-
-function persistChain(projectId: string, chain: StoredChain) {
-  localStorage.setItem(chainKey(projectId), JSON.stringify(chain));
+  return readLegacyObject<StoredChain>(chainKey(projectId));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -361,12 +357,55 @@ function buildFullText(messages: ChainMessage[]): string {
   }).join('\n\n\n');
 }
 
+function isChainMessageArray(value: unknown): value is ChainMessage[] {
+  return Array.isArray(value) && value.every((item) =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as ChainMessage).id === 'string' &&
+    typeof (item as ChainMessage).content === 'string',
+  );
+}
+
+function parseMessagesFromText(content: string): ChainMessage[] {
+  const chunks = content.split(/\n\n---\n\n/g).map((part) => part.trim()).filter(Boolean);
+  return MSG_DEFS.map((def, index) => ({
+    id: `db-msg-${def.index}`,
+    index: def.index,
+    part: def.part,
+    role: def.role,
+    dayDelay: def.dayDelay,
+    content: chunks[index]?.replace(/^Сообщение\s+\d+\s*/i, '').trim() ?? '',
+    editedContent: '',
+  }));
+}
+
+function chainFromDb(item: ContentItem): StoredChain {
+  const rawMessages = item.metadata?.messages;
+  const messages = isChainMessageArray(rawMessages) ? rawMessages : parseMessagesFromText(item.content);
+  return {
+    dbId: item.id,
+    format: metadataString(item, 'format', 'article') as Format,
+    botName: metadataString(item, 'botName', ''),
+    meetingSchedule: metadataString(item, 'meetingSchedule', ''),
+    messages,
+  };
+}
+
+function chainMetadata(chain: StoredChain): Record<string, unknown> {
+  return {
+    format: chain.format,
+    botName: chain.botName,
+    meetingSchedule: chain.meetingSchedule,
+    messages: chain.messages,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ChatbotChains() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
-  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'CHATBOT_CHAIN' });
+  const { dbItems, loaded: dbLoaded, saveItem: saveToApi, updateItem: updateInApi } = useContentApi({ projectId: activeProjectId, type: 'CHATBOT_CHAIN' });
 
   const getSettings = useModelStore((s) => s.getSettings);
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'chatbot-chains')]);
@@ -376,10 +415,8 @@ export default function ChatbotChains() {
   const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
-  const savedChain = loadChain(activeProjectId);
-
   // Phase
-  const [phase, setPhase] = useState<Phase>(savedChain ? 'step2' : 'step1');
+  const [phase, setPhase] = useState<Phase>('step1');
 
   // Step 1 state
   const [format,          setFormat]          = useState<Format>('article');
@@ -387,18 +424,50 @@ export default function ChatbotChains() {
   const [meetingSchedule, setMeetingSchedule] = useState('');
 
   // Step 2 state
-  const [chain,      setChain]      = useState<StoredChain>(savedChain ?? makeSeedChain());
-  const [activeId,   setActiveId]   = useState<string>(savedChain?.messages[0]?.id ?? 'c1');
+  const [chain,      setChain]      = useState<StoredChain>(makeSeedChain());
+  const [activeId,   setActiveId]   = useState<string>('c1');
 
   // Unsaved edits per message
   const [editMap, setEditMap] = useState<Record<string, string>>({});
 
   // ── Persist ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeProjectId || !dbLoaded) return;
+
+    const dbChain = dbItems[0] ? chainFromDb(dbItems[0]) : null;
+    if (dbChain) {
+      setChain(dbChain);
+      setActiveId(dbChain.messages[0]?.id ?? '');
+      setPhase('step2');
+      return;
+    }
+
+    const legacy = loadChain(activeProjectId);
+    if (legacy && !isMigrated(activeProjectId, 'chatbot-chain')) {
+      setChain(legacy);
+      setActiveId(legacy.messages[0]?.id ?? '');
+      setPhase('step2');
+      void saveToApi({
+        title: `Цепочка бота: ${legacy.botName || 'Telegram'}`,
+        content: buildFullText(legacy.messages),
+        platform: 'Telegram',
+        metadata: chainMetadata(legacy),
+      }).then((item) => {
+        if (item) setChain((current) => ({ ...current, dbId: item.id }));
+      });
+      markMigrated(activeProjectId, 'chatbot-chain');
+      return;
+    }
+
+    const seed = makeSeedChain();
+    setChain(seed);
+    setActiveId(seed.messages[0]?.id ?? 'c1');
+    setPhase('step1');
+  }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
   const updateChain = useCallback((next: StoredChain) => {
     setChain(next);
-    persistChain(activeProjectId, next);
-  }, [activeProjectId]);
+  }, []);
 
   // ── Generate ──────────────────────────────────────────────────────────────
 
@@ -495,13 +564,14 @@ export default function ChatbotChains() {
         content: fullText,
         platform: 'Telegram',
         metadata: {
-          format,
-          botName,
+          ...chainMetadata(newChain),
           workflowRunId: resp.workflowRunId,
           workflowStepId: resp.workflowStepId,
           artifactId: resp.artifactId,
           generationId: resp.generationId,
         },
+      }).then((item) => {
+        if (item) setChain((current) => ({ ...current, dbId: item.id }));
       });
     } catch (err) {
       console.warn('[ChatbotChains] AI error, using fallback:', err);
@@ -512,7 +582,14 @@ export default function ChatbotChains() {
       setEditMap({});
       setPhase('step2');
       const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
-      void saveToApi({ title: `Цепочка бота: ${botName || 'Telegram'}`, content: fullText, platform: 'Telegram', metadata: { format, botName } });
+      void saveToApi({
+        title: `Цепочка бота: ${botName || 'Telegram'}`,
+        content: fullText,
+        platform: 'Telegram',
+        metadata: chainMetadata(newChain),
+      }).then((item) => {
+        if (item) setChain((current) => ({ ...current, dbId: item.id }));
+      });
     } finally {
       finishGenerationTask(activeProjectId, 'chatbot-chains');
     }
@@ -545,6 +622,12 @@ export default function ChatbotChains() {
       ),
     };
     updateChain(next);
+    if (next.dbId) {
+      void updateInApi(next.dbId, {
+        content: buildFullText(next.messages),
+        metadata: chainMetadata(next),
+      });
+    }
     setEditMap(prev => { const n = { ...prev }; delete n[msg.id]; return n; });
   }
 
@@ -773,7 +856,7 @@ export default function ChatbotChains() {
         </div>
 
         <div className={s.btnRow}>
-          {savedChain && (
+          {chain.dbId && (
             <button
               className={s.primaryBtn}
               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
@@ -9,7 +9,9 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
+import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +30,7 @@ interface StrategyData {
 
 interface SavedArticle {
   id:            string;
+  dbId?:         string;
   platform:      Platform;
   articleType?:  ArticleType;
   tone?:         Tone;
@@ -330,15 +333,40 @@ ${ctaBlock}`;
 function articlesKey(projectId: string) { return `articles_${projectId}`; }
 
 function loadArticles(projectId: string): SavedArticle[] {
-  try {
-    const raw = localStorage.getItem(articlesKey(projectId));
-    if (raw) return JSON.parse(raw) as SavedArticle[];
-  } catch {}
-  return makeSeedArticles();
+  return readLegacyItems<SavedArticle>(articlesKey(projectId));
 }
 
-function persistArticles(projectId: string, articles: SavedArticle[]) {
-  localStorage.setItem(articlesKey(projectId), JSON.stringify(articles));
+function isPlatform(value: string): value is Platform {
+  return value in PLATFORM_LABELS;
+}
+
+function articleFromDb(item: ContentItem): SavedArticle {
+  const platformFromMeta = metadataString(item, 'platform', '');
+  const platformFromProvider = Object.entries(PLATFORM_LABELS).find(([, label]) => label === item.provider)?.[0] ?? '';
+  const platform = isPlatform(platformFromMeta)
+    ? platformFromMeta
+    : isPlatform(platformFromProvider)
+      ? platformFromProvider
+      : 'telegram';
+
+  return {
+    id: `db-${item.id}`,
+    dbId: item.id,
+    platform,
+    articleType: metadataString(item, 'articleType', 'analytics') as ArticleType,
+    tone: metadataString(item, 'tone', 'editorial') as Tone,
+    depth: metadataString(item, 'depth', 'deep') as Depth,
+    ctaType: metadataString(item, 'ctaType', 'soft') as CtaType,
+    botKeyword: metadataString(item, 'botKeyword', ''),
+    content: item.content,
+    editedContent: '',
+    editedTitle: item.title ?? `Статья · ${PLATFORM_LABELS[platform]}`,
+    createdAt: createdDateRu(item),
+    workflowRunId: metadataString(item, 'workflowRunId', undefined as unknown as string),
+    workflowStepId: metadataString(item, 'workflowStepId', undefined as unknown as string),
+    artifactId: metadataString(item, 'artifactId', undefined as unknown as string),
+    generationId: metadataString(item, 'generationId', undefined as unknown as string),
+  };
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
@@ -370,7 +398,7 @@ function Stepper({ step }: { step: 1 | 2 }) {
 export default function Articles() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const { openAddModal } = useContentPlanStore();
-  const { saveItem: saveToApi } = useContentApi({ projectId: activeProjectId, type: 'ARTICLE' });
+  const { dbItems, loaded: dbLoaded, saveItem: saveToApi, updateItem: updateInApi } = useContentApi({ projectId: activeProjectId, type: 'ARTICLE' });
 
   const generationTask = useContentGenerationStore((s) => s.tasks[contentGenerationKey(activeProjectId, 'articles')]);
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
@@ -380,13 +408,11 @@ export default function Articles() {
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Articles
-  const [articles, setArticles]     = useState<SavedArticle[]>(() => loadArticles(activeProjectId));
-  const [selectedId, setSelectedId] = useState<string | null>(() => loadArticles(activeProjectId)[0]?.id ?? null);
+  const [articles, setArticles]     = useState<SavedArticle[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Phase
-  const [phase, setPhase] = useState<Phase>(() =>
-    loadArticles(activeProjectId).length > 0 ? 'editor' : 'step1',
-  );
+  const [phase, setPhase] = useState<Phase>('step1');
 
   // Step 1
   const [platform,    setPlatform]    = useState<Platform>('vc');
@@ -409,10 +435,54 @@ export default function Articles() {
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
 
   // ── Persist ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeProjectId || !dbLoaded) return;
+
+    if (dbItems.length > 0) {
+      const fromDb = dbItems.map(articleFromDb);
+      setArticles(fromDb);
+      setSelectedId(fromDb[0]?.id ?? null);
+      setPhase(fromDb.length ? 'editor' : 'step1');
+      return;
+    }
+
+    const legacy = loadArticles(activeProjectId);
+    if (legacy.length > 0 && !isMigrated(activeProjectId, 'articles')) {
+      setArticles(legacy);
+      setSelectedId(legacy[0]?.id ?? null);
+      setPhase('editor');
+      legacy.forEach((article) => {
+        void saveToApi({
+          title: article.editedTitle,
+          content: article.editedContent || article.content,
+          platform: PLATFORM_LABELS[article.platform],
+          metadata: {
+            platform: article.platform,
+            articleType: article.articleType,
+            tone: article.tone,
+            depth: article.depth,
+            ctaType: article.ctaType,
+            botKeyword: article.botKeyword,
+            workflowRunId: article.workflowRunId,
+            workflowStepId: article.workflowStepId,
+            artifactId: article.artifactId,
+            generationId: article.generationId,
+          },
+        });
+      });
+      markMigrated(activeProjectId, 'articles');
+      return;
+    }
+
+    const seed = makeSeedArticles();
+    setArticles(seed);
+    setSelectedId(seed[0]?.id ?? null);
+    setPhase('editor');
+  }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
+
   const updateArticles = useCallback((next: SavedArticle[]) => {
     setArticles(next);
-    persistArticles(activeProjectId, next);
-  }, [activeProjectId]);
+  }, []);
 
   function parseTopics(content: string): TopicOption[] {
     const chunks = content
@@ -536,7 +606,15 @@ export default function Articles() {
       updateArticles(next);
       setSelectedId(id);
       setPhase('editor');
-      void saveToApi({ title, content, platform: PLATFORM_LABELS[platform], metadata: { articleType, tone, depth, ctaType, workflowRunId: resp.workflowRunId, workflowStepId: resp.workflowStepId, artifactId: resp.artifactId, generationId: resp.generationId } });
+      void saveToApi({
+        title,
+        content,
+        platform: PLATFORM_LABELS[platform],
+        metadata: { platform, articleType, tone, depth, ctaType, botKeyword, workflowRunId: resp.workflowRunId, workflowStepId: resp.workflowStepId, artifactId: resp.artifactId, generationId: resp.generationId },
+      }).then((dbItem) => {
+        if (!dbItem) return;
+        updateArticles(next.map((article) => article.id === id ? { ...article, dbId: dbItem.id } : article));
+      });
     } catch (err) {
       console.warn('[Articles] generate AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -582,9 +660,29 @@ export default function Articles() {
   function handleSave(artId: string) {
     const ov = editMap[artId];
     if (!ov) return;
-    updateArticles(articles.map(a =>
+    const next = articles.map(a =>
       a.id === artId ? { ...a, editedTitle: ov.title, editedContent: ov.content } : a,
-    ));
+    );
+    updateArticles(next);
+    const article = next.find((a) => a.id === artId);
+    if (article?.dbId) {
+      void updateInApi(article.dbId, {
+        title: ov.title,
+        content: ov.content,
+        metadata: {
+          platform: article.platform,
+          articleType: article.articleType,
+          tone: article.tone,
+          depth: article.depth,
+          ctaType: article.ctaType,
+          botKeyword: article.botKeyword,
+          workflowRunId: article.workflowRunId,
+          workflowStepId: article.workflowStepId,
+          artifactId: article.artifactId,
+          generationId: article.generationId,
+        },
+      });
+    }
     setEditMap(prev => { const n = { ...prev }; delete n[artId]; return n; });
   }
 

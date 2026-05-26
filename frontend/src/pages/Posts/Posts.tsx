@@ -8,7 +8,9 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
+import { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -173,15 +175,29 @@ function postsKey(projectId: string) {
 }
 
 function loadPosts(projectId: string): SavedPost[] {
-  try {
-    const raw = localStorage.getItem(postsKey(projectId));
-    if (raw) return JSON.parse(raw) as SavedPost[];
-  } catch {}
-  return makeSeedPosts();
+  return readLegacyItems<SavedPost>(postsKey(projectId));
 }
 
-function persistPosts(projectId: string, posts: SavedPost[]) {
-  localStorage.setItem(postsKey(projectId), JSON.stringify(posts));
+function postFromDb(item: ContentItem): SavedPost {
+  const postType = metadataString(item, 'postType', 'pain') as PostType;
+  const platform = (item.provider?.toLowerCase().includes('instagram') ? 'instagram' : metadataString(item, 'platform', 'telegram')) as Platform;
+  return {
+    id: `db-${item.id}`,
+    dbId: item.id,
+    postType,
+    platform,
+    theme: metadataString(item, 'theme', item.title ?? 'Пост'),
+    offer: metadataString(item, 'offer', 'lead') as Offer,
+    keyword: metadataString(item, 'keyword'),
+    content: item.content,
+    editedContent: item.content,
+    editedTitle: item.title ?? 'Пост',
+    createdAt: createdDateRu(item),
+    workflowRunId: metadataString(item, 'workflowRunId') || undefined,
+    workflowStepId: metadataString(item, 'workflowStepId') || undefined,
+    artifactId: metadataString(item, 'artifactId') || undefined,
+    generationId: metadataString(item, 'generationId') || undefined,
+  };
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
@@ -217,7 +233,7 @@ export default function Posts() {
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
-  const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
+  const { dbItems, loaded: dbLoaded, saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
     projectId: activeProjectId,
     type: 'POST',
   });
@@ -226,21 +242,48 @@ export default function Posts() {
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
   // Posts
-  const [posts, setPosts]         = useState<SavedPost[]>(() => loadPosts(activeProjectId));
-  const [selectedId, setSelectedId] = useState<string | null>(() => loadPosts(activeProjectId)[0]?.id ?? null);
+  const [posts, setPosts]         = useState<SavedPost[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Sync from API on mount
   useEffect(() => {
-    // Already handled by useContentApi internally — здесь просто reload из localStorage при смене проекта
-    setPosts(loadPosts(activeProjectId));
-    setSelectedId(loadPosts(activeProjectId)[0]?.id ?? null);
-    setPhase(loadPosts(activeProjectId).length > 0 ? 'editor' : 'step1');
-  }, [activeProjectId]); // eslint-disable-line
+    if (!activeProjectId || !dbLoaded) return;
+    const fromDb = dbItems.map(postFromDb);
+    const legacy = loadPosts(activeProjectId);
+    if (fromDb.length > 0) {
+      setPosts(fromDb);
+      setSelectedId(fromDb[0]?.id ?? null);
+      setPhase('editor');
+      return;
+    }
+    if (legacy.length > 0 && !isMigrated(activeProjectId, 'posts')) {
+      setPosts(legacy);
+      setSelectedId(legacy[0]?.id ?? null);
+      setPhase('editor');
+      void Promise.all(legacy.map((post) => saveToApi({
+        title: post.editedTitle,
+        content: post.editedContent || post.content,
+        platform: post.platform === 'telegram' ? 'Telegram' : 'Instagram',
+        metadata: {
+          postType: post.postType,
+          offer: post.offer,
+          keyword: post.keyword,
+          theme: post.theme,
+          workflowRunId: post.workflowRunId,
+          workflowStepId: post.workflowStepId,
+          artifactId: post.artifactId,
+          generationId: post.generationId,
+        },
+      }))).then(() => markMigrated(activeProjectId, 'posts'));
+      return;
+    }
+    const seeds = makeSeedPosts();
+    setPosts(seeds);
+    setSelectedId(seeds[0]?.id ?? null);
+    setPhase('editor');
+  }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
   // Phase
-  const [phase, setPhase] = useState<Phase>(() =>
-    loadPosts(activeProjectId).length > 0 ? 'editor' : 'step1',
-  );
+  const [phase, setPhase] = useState<Phase>('step1');
 
   // Step 1 form state
   const [platform, setPlatform] = useState<Platform>('telegram');
@@ -263,8 +306,7 @@ export default function Posts() {
   // ── Persist ──────────────────────────────────────────────────────────────────
   const updatePosts = useCallback((next: SavedPost[]) => {
     setPosts(next);
-    persistPosts(activeProjectId, next);
-  }, [activeProjectId]);
+  }, []);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {

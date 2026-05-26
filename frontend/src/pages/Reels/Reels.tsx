@@ -6,9 +6,11 @@ import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { aiApi } from '../../api/ai';
+import { ContentItem } from '../../api/content.api';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -194,14 +196,31 @@ function makeSeedReels(): SavedReel[] {
 
 function reelsKey(projectId: string) { return `reels_${projectId}`; }
 function loadReels(projectId: string): SavedReel[] {
-  try {
-    const raw = localStorage.getItem(reelsKey(projectId));
-    if (raw) return JSON.parse(raw) as SavedReel[];
-  } catch {}
-  return makeSeedReels();
+  return readLegacyItems<SavedReel>(reelsKey(projectId));
 }
-function persistReels(projectId: string, reels: SavedReel[]) {
-  localStorage.setItem(reelsKey(projectId), JSON.stringify(reels));
+
+function reelFromDb(item: ContentItem): SavedReel {
+  const platform = Object.entries(PLATFORM_LABELS).find(([, label]) => label === item.provider)?.[0] as Platform | undefined;
+  return {
+    id: `db-${item.id}`,
+    dbId: item.id,
+    reelType: metadataString(item, 'reelType', 'tips') as ReelType,
+    platform: platform ?? metadataString(item, 'platform', 'reels') as Platform,
+    goal: metadataString(item, 'goal', 'lead') as ReelGoal,
+    tone: metadataString(item, 'tone', 'expert') as Tone,
+    intensity: metadataString(item, 'intensity', 'medium') as Intensity,
+    theme: metadataString(item, 'hook', item.title ?? 'Рилс'),
+    hook: metadataString(item, 'hook', item.title ?? 'Рилс'),
+    keyword: metadataString(item, 'keyword'),
+    content: item.content,
+    editedContent: item.content,
+    editedTitle: item.title ?? 'Рилс',
+    createdAt: createdDateRu(item),
+    workflowRunId: metadataString(item, 'workflowRunId') || undefined,
+    workflowStepId: metadataString(item, 'workflowStepId') || undefined,
+    artifactId: metadataString(item, 'artifactId') || undefined,
+    generationId: metadataString(item, 'generationId') || undefined,
+  };
 }
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
@@ -235,7 +254,7 @@ export default function Reels() {
   const startGenerationTask = useContentGenerationStore((s) => s.startTask);
   const finishGenerationTask = useContentGenerationStore((s) => s.finishTask);
 
-  const { saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
+  const { dbItems, loaded: dbLoaded, saveItem: saveToApi, updateItem: updateInApi } = useContentApi({
     projectId: activeProjectId,
     type: 'REEL',
   });
@@ -243,16 +262,50 @@ export default function Reels() {
   const strat = (useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers) ?? {}) as StrategyData;
   const hasStrategy = !!(strat.chosenSegment || strat.chosenSubsegment);
 
-  const [reels,      setReels]      = useState<SavedReel[]>(() => loadReels(activeProjectId));
-  const [selectedId, setSelectedId] = useState<string | null>(() => loadReels(activeProjectId)[0]?.id ?? null);
+  const [reels,      setReels]      = useState<SavedReel[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    setReels(loadReels(activeProjectId));
-    setSelectedId(loadReels(activeProjectId)[0]?.id ?? null);
-    setPhase(loadReels(activeProjectId).length > 0 ? 'editor' : 'step1');
-  }, [activeProjectId]); // eslint-disable-line
+    if (!activeProjectId || !dbLoaded) return;
+    const fromDb = dbItems.map(reelFromDb);
+    const legacy = loadReels(activeProjectId);
+    if (fromDb.length > 0) {
+      setReels(fromDb);
+      setSelectedId(fromDb[0]?.id ?? null);
+      setPhase('editor');
+      return;
+    }
+    if (legacy.length > 0 && !isMigrated(activeProjectId, 'reels')) {
+      setReels(legacy);
+      setSelectedId(legacy[0]?.id ?? null);
+      setPhase('editor');
+      void Promise.all(legacy.map((reel) => saveToApi({
+        title: reel.editedTitle,
+        content: reel.editedContent || reel.content,
+        platform: PLATFORM_LABELS[reel.platform],
+        metadata: {
+          reelType: reel.reelType,
+          platform: reel.platform,
+          goal: reel.goal,
+          tone: reel.tone,
+          intensity: reel.intensity,
+          keyword: reel.keyword,
+          hook: reel.hook,
+          workflowRunId: reel.workflowRunId,
+          workflowStepId: reel.workflowStepId,
+          artifactId: reel.artifactId,
+          generationId: reel.generationId,
+        },
+      }))).then(() => markMigrated(activeProjectId, 'reels'));
+      return;
+    }
+    const seeds = makeSeedReels();
+    setReels(seeds);
+    setSelectedId(seeds[0]?.id ?? null);
+    setPhase('editor');
+  }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
-  const [phase,     setPhase]     = useState<Phase>(() => loadReels(activeProjectId).length > 0 ? 'editor' : 'step1');
+  const [phase,     setPhase]     = useState<Phase>('step1');
   const [platform,  setPlatform]  = useState<Platform>('reels');
   const [reelType,  setReelType]  = useState<ReelType>('tips');
   const [goal,      setGoal]      = useState<ReelGoal>('lead');
@@ -271,8 +324,7 @@ export default function Reels() {
 
   const updateReels = useCallback((next: SavedReel[]) => {
     setReels(next);
-    persistReels(activeProjectId, next);
-  }, [activeProjectId]);
+  }, []);
 
   function parseHooks(content: string): HookOption[] {
     const lines = content

@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { contentApi, ContentItem } from '../../api/content.api';
+import { ApiProduct, productsApi } from '../../api/products.api';
 import { useProjectsStore } from '../../store/projects.store';
-import { useAudienceStore, AudienceAnswers } from '../../store/audience.store';
+import { useAudienceStore } from '../../store/audience.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import s from './Files.module.css';
 
@@ -16,92 +18,6 @@ interface FileEntry {
   summaryStatus?: string;
   linkedCount?: number;
   versionsCount?: number;
-}
-
-function tryParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try { return JSON.parse(raw) as T; } catch { return null; }
-}
-
-function gatherFiles(projectId: string, audienceAnswers?: Partial<AudienceAnswers>): FileEntry[] {
-  const files: FileEntry[] = [];
-
-  // Posts
-  const posts = tryParse<{ id: string; theme?: string; postType?: string; editedContent?: string; content?: string }[]>(
-    localStorage.getItem(`posts_${projectId}`)
-  );
-  (posts ?? []).forEach((p) => {
-    const body = p.editedContent ?? p.content ?? '';
-    if (body.trim()) files.push({ id: `post_${p.id}`, icon: '📱', type: 'Пост', title: p.theme || p.postType || 'Пост', content: body, date: '' });
-  });
-
-  // Articles
-  const articles = tryParse<{ id: string; editedTitle?: string; editedContent?: string; content?: string; createdAt?: string }[]>(
-    localStorage.getItem(`articles_${projectId}`)
-  );
-  (articles ?? []).forEach((a) => {
-    const body = a.editedContent ?? a.content ?? '';
-    if (body.trim()) files.push({ id: `art_${a.id}`, icon: '📝', type: 'Статья', title: a.editedTitle || 'Статья', content: body, date: a.createdAt ?? '' });
-  });
-
-  // Video scripts
-  const scripts = tryParse<{ id: string; editedTitle?: string; editedContent?: string; content?: string; createdAt?: string }[]>(
-    localStorage.getItem(`video_scripts_${projectId}`)
-  );
-  (scripts ?? []).forEach((sc) => {
-    const body = sc.editedContent ?? sc.content ?? '';
-    if (body.trim()) files.push({ id: `vs_${sc.id}`, icon: '🎥', type: 'Сценарий', title: sc.editedTitle || 'Сценарий', content: body, date: sc.createdAt ?? '' });
-  });
-
-  // Reels (global)
-  const reels = tryParse<{ id: string; editedTitle?: string; hookText?: string; editedContent?: string; content?: string }[]>(
-    localStorage.getItem('reels_session')
-  );
-  (reels ?? []).forEach((r) => {
-    const body = r.editedContent ?? r.content ?? '';
-    if (body.trim()) files.push({ id: `reel_${r.id}`, icon: '🎬', type: 'Рилс', title: r.editedTitle || r.hookText?.slice(0, 50) || 'Рилс', content: body, date: '' });
-  });
-
-  // Chatbot chain — stored as a single object with messages array
-  const chain = tryParse<{ messages?: { id: string; index?: number; editedContent?: string; content?: string }[] }>(
-    localStorage.getItem(`chatbot_chain_${projectId}`)
-  );
-  if (chain?.messages?.length) {
-    const full = chain.messages
-      .map((m) => (m.editedContent ?? m.content ?? '').trim())
-      .filter(Boolean)
-      .join('\n\n---\n\n');
-    if (full) files.push({ id: 'chain_full', icon: '🤖', type: 'Цепочка текстов', title: `Цепочка (${chain.messages.length} сообщ.)`, content: full, date: '' });
-  }
-
-  // Products main/mini/free
-  const productTypes: ['main' | 'mini' | 'free', string, string][] = [
-    ['main', '🚀', 'Основной продукт'],
-    ['mini', '⚡', 'Мини-продукт'],
-    ['free', '🎁', 'Бесплатный продукт'],
-  ];
-  for (const [type, icon, label] of productTypes) {
-    const items = tryParse<{ id: string; title: string; content: string; date?: string }[]>(
-      localStorage.getItem(`products_${type}_${projectId}`)
-    );
-    (items ?? []).forEach((item) => {
-      if (item.content?.trim()) files.push({ id: `prod_${item.id}`, icon, type: label, title: item.title || label, content: item.content, date: item.date ?? '' });
-    });
-  }
-
-  // Strategy — from per-project audience store
-  if (audienceAnswers) {
-    const seg = audienceAnswers.chosenSegment || audienceAnswers.segments || '';
-    if (seg) {
-      const text = Object.entries(audienceAnswers)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}:\n${v}`)
-        .join('\n\n');
-      files.push({ id: 'strategy_main', icon: '🎯', type: 'Стратегия', title: `Стратегия — ${seg.split('\n')[0]?.slice(0, 50) ?? ''}`, content: text, date: '' });
-    }
-  }
-
-  return files;
 }
 
 const MATERIAL_ICONS: Record<string, string> = {
@@ -128,6 +44,49 @@ const MATERIAL_TYPES: Record<string, string> = {
   content: 'Контент',
 };
 
+const CONTENT_LABELS: Record<string, { icon: string; type: string }> = {
+  POST: { icon: '📱', type: 'Пост' },
+  REEL: { icon: '🎬', type: 'Рилс' },
+  ARTICLE: { icon: '📝', type: 'Статья' },
+  VIDEO_SCRIPT: { icon: '🎥', type: 'Сценарий' },
+  CHATBOT_CHAIN: { icon: '🤖', type: 'Цепочка текстов' },
+  OTHER: { icon: '📄', type: 'Материал' },
+};
+
+const PRODUCT_LABELS: Record<string, { icon: string; type: string }> = {
+  MAIN: { icon: '🚀', type: 'Основной продукт' },
+  MINI: { icon: '⚡', type: 'Мини-продукт' },
+  FREE: { icon: '🎁', type: 'Бесплатный продукт' },
+};
+
+function fileFromContent(item: ContentItem): FileEntry | null {
+  if (item.metadata?.kind === 'ai_dialog') return null;
+  const label = CONTENT_LABELS[item.type] ?? CONTENT_LABELS.OTHER;
+  if (!item.content.trim()) return null;
+  return {
+    id: `content_${item.id}`,
+    icon: label.icon,
+    type: label.type,
+    title: item.title || label.type,
+    content: item.content,
+    date: new Date(item.updatedAt).toLocaleDateString('ru-RU'),
+  };
+}
+
+function fileFromProduct(item: ApiProduct): FileEntry | null {
+  const content = item.shortDescription ?? item.offer ?? item.transformation ?? '';
+  if (!content.trim()) return null;
+  const label = PRODUCT_LABELS[item.type] ?? PRODUCT_LABELS.MAIN;
+  return {
+    id: `product_${item.id}`,
+    icon: label.icon,
+    type: label.type,
+    title: item.title || label.type,
+    content,
+    date: new Date(item.updatedAt).toLocaleDateString('ru-RU'),
+  };
+}
+
 function download(title: string, content: string) {
   const blob = new Blob([`${title}\n\n${content}`], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -144,10 +103,33 @@ export default function FileMaterials() {
   const projectMaterials = useMaterialsStore((s) => s.projects[activeProjectId ?? ''] ?? []);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
   const refreshSummary = useMaterialsStore((s) => s.refreshSummary);
+  const [generatedFiles, setGeneratedFiles] = useState<FileEntry[]>([]);
 
   useEffect(() => {
     if (activeProjectId) void loadMaterialsFromDb(activeProjectId);
   }, [activeProjectId, loadMaterialsFromDb]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setGeneratedFiles([]);
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([
+      contentApi.list(activeProjectId),
+      productsApi.list(activeProjectId),
+    ]).then(([contentItems, productItems]) => {
+      if (cancelled) return;
+      const contentFiles = contentItems.map(fileFromContent).filter((item): item is FileEntry => Boolean(item));
+      const productFiles = productItems.map(fileFromProduct).filter((item): item is FileEntry => Boolean(item));
+      setGeneratedFiles([...contentFiles, ...productFiles]);
+    }).catch(() => {
+      if (!cancelled) setGeneratedFiles([]);
+    });
+
+    return () => { cancelled = true; };
+  }, [activeProjectId]);
 
   const files = useMemo(
     () => {
@@ -164,11 +146,22 @@ export default function FileMaterials() {
         linkedCount: item.linkedMaterialIds?.length ?? 0,
         versionsCount: item.versions?.length ?? 0,
       }));
-      const legacyFiles = gatherFiles(activeProjectId, audienceAnswers)
+      const strategyFiles: FileEntry[] = [];
+      if (audienceAnswers) {
+        const seg = audienceAnswers.chosenSegment || audienceAnswers.segments || '';
+        if (seg) {
+          const text = Object.entries(audienceAnswers)
+            .filter(([, v]) => v)
+            .map(([k, v]) => `${k}:\n${v}`)
+            .join('\n\n');
+          strategyFiles.push({ id: 'strategy_main', icon: '🎯', type: 'Стратегия', title: `Стратегия — ${seg.split('\n')[0]?.slice(0, 50) ?? ''}`, content: text, date: '' });
+        }
+      }
+      const extraFiles = [...generatedFiles, ...strategyFiles]
         .filter((file) => !materialFiles.some((item) => item.title === file.title || item.id === file.id));
-      return [...materialFiles, ...legacyFiles];
+      return [...materialFiles, ...extraFiles];
     },
-    [activeProjectId, audienceAnswers, projectMaterials],
+    [audienceAnswers, generatedFiles, projectMaterials],
   );
 
   return (
