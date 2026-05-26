@@ -12,7 +12,30 @@ export interface AICostResult {
   pricingSnapshot: Prisma.InputJsonValue;
 }
 
+export class MissingModelPricingError extends Error {
+  status = 500;
+  code = 'MODEL_PRICING_MISSING';
+
+  constructor(provider: AIProvider, model: string) {
+    super(`Нет pricing для модели ${provider}/${model}. Генерация остановлена, чтобы не считать себестоимость неверно.`);
+  }
+}
+
 export const aiCostService = {
+  async assertPricingExists(input: { provider: AIProvider; model: string; at?: Date }): Promise<void> {
+    const at = input.at ?? new Date();
+    const pricing = await prisma.aIModelPricing.findFirst({
+      where: {
+        provider: input.provider,
+        model: input.model,
+        validFrom: { lte: at },
+        OR: [{ validTo: null }, { validTo: { gt: at } }],
+      },
+      select: { id: true },
+    });
+    if (!pricing) throw new MissingModelPricingError(input.provider, input.model);
+  },
+
   async calculate(input: {
     provider: AIProvider;
     model: string;

@@ -1,4 +1,5 @@
 import { AIProvider as DbAIProvider, Prisma } from '@prisma/client';
+import crypto from 'crypto';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 import { prisma } from '../lib/prisma';
 import { promptRegistry } from '../prompts/registry';
@@ -17,6 +18,7 @@ export interface RunWorkflowInput {
   provider?: 'chatgpt' | 'claude';
   openaiModel?: string;
   claudeModel?: string;
+  idempotencyKey?: string;
 }
 
 function toProvider(input?: 'chatgpt' | 'claude'): AIProvider {
@@ -46,6 +48,32 @@ ${content}
 Верни только исправленную финальную версию без комментариев.`;
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${JSON.stringify(key)}:${stableJson(val)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function makeIdempotencyKey(input: RunWorkflowInput): string {
+  const raw = stableJson({
+    userId: input.userId,
+    projectId: input.projectId,
+    workflow: input.workflow,
+    step: input.step,
+    workflowRunId: input.workflowRunId ?? null,
+    provider: input.provider ?? null,
+    openaiModel: input.openaiModel ?? null,
+    claudeModel: input.claudeModel ?? null,
+    inputs: input.inputs,
+  });
+  return `workflow:${crypto.createHash('sha256').update(raw).digest('hex')}`;
+}
+
 export const aiWorkflowService = {
   async run(input: RunWorkflowInput) {
     const config = promptRegistry.get(input.workflow, input.step);
@@ -54,6 +82,34 @@ export const aiWorkflowService = {
       select: { id: true },
     });
     if (!project) throw new Error('Проект не найден');
+
+    const idempotencyKey = input.idempotencyKey ?? makeIdempotencyKey(input);
+    const replayGeneration = await prisma.aIGeneration.findUnique({
+      where: { idempotencyKey },
+    });
+    if (replayGeneration?.status === 'SUCCEEDED') {
+      const artifact = await prisma.aIArtifact.findFirst({
+        where: { generationId: replayGeneration.id, userId: input.userId, projectId: input.projectId },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (artifact) {
+        return {
+          workflowRunId: artifact.workflowRunId ?? '',
+          workflowStepId: artifact.workflowStepId ?? '',
+          artifactId: artifact.id,
+          generationId: replayGeneration.id,
+          content: artifact.content,
+          validation: (artifact.metadata as { validation?: unknown } | null)?.validation ?? { ok: true, errors: [] },
+          mock: Boolean((artifact.metadata as { mock?: unknown } | null)?.mock),
+          model: replayGeneration.model,
+          provider: replayGeneration.provider === 'ANTHROPIC' ? 'anthropic' : 'openai',
+          replayed: true,
+        };
+      }
+    }
+    if (replayGeneration?.status === 'RUNNING') {
+      throw Object.assign(new Error('Этот workflow step уже выполняется'), { status: 409, code: 'WORKFLOW_IN_PROGRESS' });
+    }
 
     const workflowRun = input.workflowRunId
       ? await prisma.aIWorkflowRun.findFirst({
@@ -99,11 +155,10 @@ export const aiWorkflowService = {
       : input.openaiModel ?? config.model;
     const systemPrompt = withGlobalAiBehaviorPrompt(config.systemPrompt(context));
     const userPrompt = config.userPromptBuilder({ inputs: input.inputs, context });
-    const accountingStartedAt = Date.now();
     let generationId: string | null = null;
 
     try {
-      const accounting = await aiGenerationService.startAccounting({
+      const executed = await aiGenerationService.run({
         userId: input.userId,
         projectId: input.projectId,
         workflowRunId: workflowRun.id,
@@ -111,6 +166,7 @@ export const aiWorkflowService = {
         featureCode: config.feature,
         provider: dbProvider,
         model,
+        idempotencyKey,
         promptVersion: config.version,
         contextVersion: context.contextVersion,
         metadata: {
@@ -120,49 +176,54 @@ export const aiWorkflowService = {
           contextBlocks: context.blocks.map((block) => block.key),
           contextApproxTokens: context.approxTokens,
         },
+        execute: async () => {
+          let response = await chat({
+            provider,
+            messages: [{ role: 'user', content: userPrompt }],
+            systemPrompt,
+            section: workflowGroup(input.workflow),
+            openaiModel: provider === 'openai' ? model : undefined,
+            claudeModel: provider === 'anthropic' ? model : undefined,
+            maxTokens: config.maxTokens,
+            temperature: config.temperature,
+          });
+
+          let validation = aiValidationService.validate(response.content, config.validationRules);
+          let retryCount = 0;
+          let usage = response.usage;
+
+          if (!validation.ok) {
+            retryCount = 1;
+            const repair = await chat({
+              provider,
+              messages: [{ role: 'user', content: buildRepairPrompt(response.content, validation.errors) }],
+              systemPrompt,
+              section: workflowGroup(input.workflow),
+              openaiModel: provider === 'openai' ? model : undefined,
+              claudeModel: provider === 'anthropic' ? model : undefined,
+              maxTokens: config.maxTokens,
+              temperature: Math.max(0.2, config.temperature - 0.2),
+            });
+            response = repair;
+            usage = {
+              inputTokens: usage.inputTokens + repair.usage.inputTokens,
+              outputTokens: usage.outputTokens + repair.usage.outputTokens,
+              cachedInputTokens: (usage.cachedInputTokens ?? 0) + (repair.usage.cachedInputTokens ?? 0),
+              totalTokens: usage.totalTokens + repair.usage.totalTokens,
+            };
+            validation = aiValidationService.validate(response.content, config.validationRules);
+          }
+
+          return {
+            result: { response, validation, retryCount },
+            usage,
+            provider: toDbProvider(response.provider),
+            model: response.model,
+          };
+        },
       });
-      generationId = accounting.generation.id;
-
-      let response = await chat({
-        provider,
-        messages: [{ role: 'user', content: userPrompt }],
-        systemPrompt,
-        section: workflowGroup(input.workflow),
-        openaiModel: provider === 'openai' ? model : undefined,
-        claudeModel: provider === 'anthropic' ? model : undefined,
-        maxTokens: config.maxTokens,
-        temperature: config.temperature,
-      });
-
-      let validation = aiValidationService.validate(response.content, config.validationRules);
-      let retryCount = 0;
-
-      if (!validation.ok) {
-        retryCount = 1;
-        response = await chat({
-          provider,
-          messages: [{ role: 'user', content: buildRepairPrompt(response.content, validation.errors) }],
-          systemPrompt,
-          section: workflowGroup(input.workflow),
-          openaiModel: provider === 'openai' ? model : undefined,
-          claudeModel: provider === 'anthropic' ? model : undefined,
-          maxTokens: config.maxTokens,
-          temperature: Math.max(0.2, config.temperature - 0.2),
-        });
-        validation = aiValidationService.validate(response.content, config.validationRules);
-      }
-
-      await aiGenerationService.markSucceeded({
-        generationId,
-        userId: input.userId,
-        projectId: input.projectId,
-        featureCode: config.feature,
-        provider: toDbProvider(response.provider),
-        model: response.model,
-        startedAtMs: accountingStartedAt,
-        isMock: response.mock,
-        usage: response.usage,
-      });
+      generationId = executed.generationId;
+      const { response, validation, retryCount } = executed.result;
 
       const artifact = await prisma.aIArtifact.create({
         data: {
@@ -183,6 +244,7 @@ export const aiWorkflowService = {
             retryCount,
             provider: response.provider,
             model: response.model,
+            mock: response.mock,
           } as unknown as Prisma.InputJsonValue,
         },
       });
@@ -225,19 +287,6 @@ export const aiWorkflowService = {
         provider: response.provider,
       };
     } catch (err) {
-      if (generationId) {
-        await aiGenerationService.markFailed({
-          generationId,
-          userId: input.userId,
-          projectId: input.projectId,
-          featureCode: config.feature,
-          provider: dbProvider,
-          model,
-          startedAtMs: accountingStartedAt,
-          error: err,
-        }).catch(() => {});
-      }
-
       await prisma.aIWorkflowStep.update({
         where: { id: workflowStep.id },
         data: {

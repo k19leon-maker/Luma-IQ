@@ -1,12 +1,13 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { AIProvider, Prisma } from '@prisma/client';
 import { JTBD_FRAMEWORK, JTBDAnswers } from '../config/jtbd-framework';
 import { chat, resolveOpenAIModel } from '../services/ai.service';
 import { jtbdSessionService } from '../services/jtbd-session.service';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { aiAccessService, AiAccessError } from '../services/ai-access.service';
+import { aiGenerationService } from '../services/ai-generation.service';
+import { AccessPolicyError } from '../services/access-policy.service';
 import { eventService } from '../services/event.service';
 
 async function assertProjectOwner(projectId: string, userId: string, res: Response): Promise<boolean> {
@@ -87,17 +88,34 @@ export const jtbdController = {
     {
       const prompt   = step.buildPrompt(answers as JTBDAnswers).trim();
       const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
+      const dbProvider: AIProvider = provider === 'openai' ? 'OPENAI' : 'ANTHROPIC';
+      const resolvedModel = provider === 'openai' ? resolveOpenAIModel('audience') : 'claude-haiku-4-5-20251001';
 
       try {
-        await aiAccessService.consume(req.userId!);
-
-        const result = await chat({
-          provider,
-          messages: [{ role: 'user', content: prompt }],
-          section: 'audience',
-          maxTokens: 2048,
-          temperature: 0.7,
+        const generation = await aiGenerationService.run({
+          userId: req.userId!,
+          projectId: projectId ?? null,
+          featureCode: 'jtbd',
+          provider: dbProvider,
+          model: resolvedModel,
+          metadata: { section: 'jtbd', stepId, sessionId: sessionId ?? null },
+          execute: async () => {
+            const result = await chat({
+              provider,
+              messages: [{ role: 'user', content: prompt }],
+              section: 'audience',
+              maxTokens: 2048,
+              temperature: 0.7,
+            });
+            return {
+              result,
+              usage: result.usage,
+              provider: result.provider === 'anthropic' ? 'ANTHROPIC' : 'OPENAI',
+              model: result.model,
+            };
+          },
         });
+        const result = generation.result;
         content = result.content;
         isMock  = result.mock;
         void prisma.aIRequestLog.create({
@@ -105,7 +123,7 @@ export const jtbdController = {
             userId: req.userId!,
             provider,
             section: 'jtbd',
-            model: provider === 'openai' ? resolveOpenAIModel('audience') : null,
+            model: result.model,
             status: 'SUCCEEDED',
             isMock: result.mock,
           },
@@ -121,7 +139,7 @@ export const jtbdController = {
             userId: req.userId!,
             provider,
             section: 'jtbd',
-            model: provider === 'openai' ? resolveOpenAIModel('audience') : null,
+            model: resolvedModel,
             status: 'FAILED',
             error: err instanceof Error ? err.message : 'unknown',
           },
@@ -130,8 +148,12 @@ export const jtbdController = {
           userId: req.userId!,
           metadata: { provider, section: 'jtbd', stepId, error: err instanceof Error ? err.message : 'unknown' },
         }).catch(() => {});
-        if (err instanceof AiAccessError) {
+        if (err instanceof AccessPolicyError) {
           res.status(err.status).json({ error: err.message });
+          return;
+        }
+        if (typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number') {
+          res.status((err as { status: number }).status).json({ error: err instanceof Error ? err.message : 'Ошибка AI-сервиса' });
           return;
         }
         res.status(503).json({ error: 'Неполадки со связью. Попробуйте обновить страницу.' });

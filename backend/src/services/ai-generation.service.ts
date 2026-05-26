@@ -2,7 +2,7 @@ import { AIProvider, AIGenerationStatus, Prisma } from '@prisma/client';
 import { FeatureCode } from '../config/ai-economy';
 import { prisma } from '../lib/prisma';
 import { accessPolicyService } from './access-policy.service';
-import { aiCostService, TokenUsage } from './ai-cost.service';
+import { aiCostService, MissingModelPricingError, TokenUsage } from './ai-cost.service';
 import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
 import { featurePricingService } from './feature-pricing.service';
@@ -179,6 +179,50 @@ export const aiGenerationService = {
 
   async run<T>(input: RunAIGenerationInput<T>): Promise<{ result: T; generationId: string; creditsCharged: number; actualCostUsd: string }> {
     const pricing = await featurePricingService.resolve(input.featureCode);
+
+    try {
+      await aiCostService.assertPricingExists({ provider: input.provider, model: input.model });
+    } catch (err) {
+      if (err instanceof MissingModelPricingError) {
+        await prisma.aIUsageEvent.create({
+          data: {
+            userId: input.userId,
+            projectId: input.projectId ?? null,
+            eventType: 'FAILED',
+            featureCode: input.featureCode,
+            provider: input.provider,
+            model: input.model,
+            metadata: {
+              adminAlert: true,
+              code: err.code,
+              message: err.message,
+            },
+          },
+        }).catch(() => {});
+      }
+      throw err;
+    }
+
+    if (input.idempotencyKey) {
+      const existing = await prisma.aIGeneration.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (existing?.status === 'SUCCEEDED') {
+        throw Object.assign(new Error('Повторный AI-запрос уже был успешно выполнен'), {
+          status: 409,
+          code: 'IDEMPOTENCY_REPLAY',
+          generationId: existing.id,
+        });
+      }
+      if (existing?.status === 'RUNNING') {
+        throw Object.assign(new Error('Такой AI-запрос уже выполняется'), {
+          status: 409,
+          code: 'IDEMPOTENCY_IN_PROGRESS',
+          generationId: existing.id,
+        });
+      }
+    }
+
     const access = await accessPolicyService.assertCanUseFeature({
       userId: input.userId,
       projectId: input.projectId ?? null,

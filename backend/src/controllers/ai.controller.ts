@@ -6,8 +6,8 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
 import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
-import { aiAccessService, AiAccessError } from '../services/ai-access.service';
 import { aiGenerationService } from '../services/ai-generation.service';
+import { AccessPolicyError } from '../services/access-policy.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
@@ -34,6 +34,7 @@ const chatSchema = z.object({
   projectId: z.string().uuid().optional(),
   fileContext: z.string().optional(),
   maxTokens: z.number().int().min(256).max(8000).optional(),
+  idempotencyKey: z.string().max(200).optional(),
 });
 
 const SECTION_FEATURES: Record<string, FeatureCode> = {
@@ -91,6 +92,7 @@ export const aiController = {
       projectId,
       fileContext,
       maxTokens,
+      idempotencyKey,
     } = parsed.data;
 
     const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
@@ -145,57 +147,39 @@ export const aiController = {
       systemPrompt = withGlobalAiBehaviorPrompt(systemPrompt);
     }
 
-    const accountingStartedAt = Date.now();
-    let generationId: string | null = null;
-    let accountingProjectId: string | null = null;
-
     try {
-      const accounting = await aiGenerationService.startAccounting({
+      const generation = await aiGenerationService.run({
         userId: req.userId!,
         projectId: projectId ?? null,
         featureCode,
         provider: dbProvider,
         model: resolvedModel,
+        idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
         metadata: {
           section: section ?? null,
           requestModel: model,
           hasProjectId: Boolean(projectId),
         },
-      }).catch((err) => {
-        console.warn('[AI accounting] start failed:', err instanceof Error ? err.message : err);
-        return null;
+        execute: async () => {
+          const result = await chat({
+            provider,
+            messages,
+            section,
+            openaiModel,
+            claudeModel,
+            systemPrompt,
+            maxTokens: maxTokens ?? (section === 'product-main' ? 6000 : 2048),
+            temperature: 0.7,
+          });
+          return {
+            result,
+            usage: result.usage,
+            provider: responseProviderToDb(result.provider),
+            model: result.model,
+          };
+        },
       });
-      generationId = accounting?.generation.id ?? null;
-      accountingProjectId = accounting?.generation.projectId ?? null;
-
-      await aiAccessService.consume(req.userId!);
-
-      const result = await chat({
-        provider,
-        messages,
-        section,
-        openaiModel,
-        claudeModel,
-        systemPrompt,
-        maxTokens: maxTokens ?? (section === 'product-main' ? 6000 : 2048),
-        temperature: 0.7,
-      });
-
-      if (generationId) {
-        await aiGenerationService.markSucceeded({
-          generationId,
-          userId: req.userId!,
-          projectId: accountingProjectId,
-          featureCode,
-          provider: responseProviderToDb(result.provider),
-          model: result.model,
-          startedAtMs: accountingStartedAt,
-          isMock: result.mock,
-          usage: result.usage,
-        }).catch((err) => {
-          console.warn('[AI accounting] success update failed:', err instanceof Error ? err.message : err);
-        });
-      }
+      const result = generation.result;
 
       void prisma.aIRequestLog.create({
         data: {
@@ -215,20 +199,6 @@ export const aiController = {
       res.json({ content: result.content, mock: result.mock });
     } catch (err) {
       console.error('[AI] Error:', err);
-      if (generationId) {
-        await aiGenerationService.markFailed({
-          generationId,
-          userId: req.userId!,
-          projectId: accountingProjectId,
-          featureCode,
-          provider: dbProvider,
-          model: resolvedModel,
-          startedAtMs: accountingStartedAt,
-          error: err,
-        }).catch((accountingErr) => {
-          console.warn('[AI accounting] failed update failed:', accountingErr instanceof Error ? accountingErr.message : accountingErr);
-        });
-      }
       void prisma.aIRequestLog.create({
         data: {
           userId: req.userId!,
@@ -243,8 +213,12 @@ export const aiController = {
         userId: req.userId!,
         metadata: { provider, section, error: err instanceof Error ? err.message : 'unknown' },
       }).catch(() => {});
-      if (err instanceof AiAccessError) {
+      if (err instanceof AccessPolicyError) {
         res.status(err.status).json({ error: err.message });
+        return;
+      }
+      if (typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number') {
+        res.status((err as { status: number }).status).json({ error: err instanceof Error ? err.message : 'Ошибка AI-сервиса' });
         return;
       }
       const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';

@@ -31,6 +31,8 @@ export interface PlanLimitConfig {
   projectLimit: number;
   heavyGenerationLimit: number;
   chatDailyLimit: number;
+  dailyGenerationLimit: number;
+  monthlyGenerationLimit: number;
   features: Record<string, boolean>;
 }
 
@@ -168,6 +170,8 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
     projectLimit: 1,
     heavyGenerationLimit: 2,
     chatDailyLimit: 5,
+    dailyGenerationLimit: 10,
+    monthlyGenerationLimit: 30,
     features: {
       ai_chat: true,
       positioning: true,
@@ -191,6 +195,8 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
     projectLimit: 10,
     heavyGenerationLimit: 80,
     chatDailyLimit: 150,
+    dailyGenerationLimit: 250,
+    monthlyGenerationLimit: 2500,
     features: ALL_FEATURES,
   },
   ANNUAL: {
@@ -198,6 +204,8 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
     projectLimit: 20,
     heavyGenerationLimit: 120,
     chatDailyLimit: 250,
+    dailyGenerationLimit: 400,
+    monthlyGenerationLimit: 4000,
     features: ALL_FEATURES,
   },
 };

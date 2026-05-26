@@ -12,6 +12,7 @@ const workflowBodySchema = z.object({
   provider: z.enum(['chatgpt', 'claude']).optional(),
   openaiModel: z.string().optional(),
   claudeModel: z.string().optional(),
+  idempotencyKey: z.string().max(200).optional(),
 });
 
 function param(value: string | string[] | undefined): string {
@@ -60,11 +61,15 @@ export const aiWorkflowController = {
         provider: parsed.data.provider,
         openaiModel: parsed.data.openaiModel,
         claudeModel: parsed.data.claudeModel,
+        idempotencyKey: parsed.data.idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
       });
       res.json(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка AI workflow';
-      res.status(message.includes('not found') || message.includes('не найден') ? 404 : 500).json({ error: message });
+      const status = typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number'
+        ? (err as { status: number }).status
+        : message.includes('not found') || message.includes('не найден') ? 404 : 500;
+      res.status(status).json({ error: message });
     }
   },
 
@@ -87,11 +92,15 @@ export const aiWorkflowController = {
         provider: parsed.data.provider,
         openaiModel: parsed.data.openaiModel,
         claudeModel: parsed.data.claudeModel,
+        idempotencyKey: parsed.data.idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
       });
       res.json(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка AI workflow';
-      res.status(message.includes('not found') || message.includes('не найден') ? 404 : 500).json({ error: message });
+      const status = typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number'
+        ? (err as { status: number }).status
+        : message.includes('not found') || message.includes('не найден') ? 404 : 500;
+      res.status(status).json({ error: message });
     }
   },
 };

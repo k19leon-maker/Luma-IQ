@@ -93,6 +93,8 @@ export const accessPolicyService = {
       featureCode: input.featureCode,
       generationClass: pricing.generationClass,
       chatDailyLimit: access.limits.chatDailyLimit,
+      dailyGenerationLimit: access.limits.dailyGenerationLimit,
+      monthlyGenerationLimit: access.limits.monthlyGenerationLimit,
       heavyGenerationLimit: access.limits.heavyGenerationLimit,
       billingPeriodId: access.billingPeriod.id,
     });
@@ -105,10 +107,38 @@ export const accessPolicyService = {
     featureCode: FeatureCode;
     generationClass: GenerationClass;
     chatDailyLimit: number;
+    dailyGenerationLimit: number;
+    monthlyGenerationLimit: number;
     heavyGenerationLimit: number;
     billingPeriodId: string;
   }): Promise<void> {
     const today = new Date().toISOString().slice(0, 10);
+    const todayStart = new Date(`${today}T00:00:00.000Z`);
+
+    const [dailyCount, monthlyCount] = await Promise.all([
+      prisma.aIGeneration.count({
+        where: {
+          userId: input.userId,
+          status: 'SUCCEEDED',
+          createdAt: { gte: todayStart },
+        },
+      }),
+      prisma.aIGeneration.count({
+        where: {
+          userId: input.userId,
+          billingPeriodId: input.billingPeriodId,
+          status: 'SUCCEEDED',
+        },
+      }),
+    ]);
+
+    if (dailyCount >= input.dailyGenerationLimit) {
+      throw new AccessPolicyError('Дневной лимит AI-генераций исчерпан', 429, 'DAILY_GENERATION_LIMIT');
+    }
+
+    if (monthlyCount >= input.monthlyGenerationLimit) {
+      throw new AccessPolicyError('Месячный лимит AI-генераций исчерпан', 429, 'MONTHLY_GENERATION_LIMIT');
+    }
 
     if (input.featureCode === 'ai_chat') {
       const chatToday = await prisma.aIGeneration.count({
@@ -116,7 +146,7 @@ export const accessPolicyService = {
           userId: input.userId,
           featureCode: 'ai_chat',
           status: 'SUCCEEDED',
-          createdAt: { gte: new Date(`${today}T00:00:00.000Z`) },
+          createdAt: { gte: todayStart },
         },
       });
       if (chatToday >= input.chatDailyLimit) {
