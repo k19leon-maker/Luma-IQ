@@ -11,7 +11,7 @@ import { ModelBar } from '../../components/MessageInput/MessageInput';
 import { aiApi } from '../../api/ai';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
-import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -333,7 +333,7 @@ ${ctaBlock}`;
 function articlesKey(projectId: string) { return `articles_${projectId}`; }
 
 function loadArticles(projectId: string): SavedArticle[] {
-  return readLegacyItems<SavedArticle>(articlesKey(projectId));
+  return readLegacyItemsWithProjectFallback<SavedArticle>(articlesKey(projectId), projectId);
 }
 
 function isPlatform(value: string): value is Platform {
@@ -483,6 +483,19 @@ export default function Articles() {
   const updateArticles = useCallback((next: SavedArticle[]) => {
     setArticles(next);
   }, []);
+
+  useEffect(() => {
+    const entries = Object.entries(editMap);
+    if (entries.length === 0) return;
+    const timer = window.setTimeout(() => {
+      entries.forEach(([articleId, draft]) => {
+        const article = articles.find((item) => item.id === articleId);
+        if (!article?.dbId) return;
+        void updateInApi(article.dbId, { title: draft.title, content: draft.content });
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [articles, editMap, updateInApi]);
 
   function parseTopics(content: string): TopicOption[] {
     const chunks = content

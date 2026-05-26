@@ -10,7 +10,7 @@ import { ContentItem } from '../../api/content.api';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
-import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ function makeSeedReels(): SavedReel[] {
 
 function reelsKey(projectId: string) { return `reels_${projectId}`; }
 function loadReels(projectId: string): SavedReel[] {
-  return readLegacyItems<SavedReel>(reelsKey(projectId));
+  return readLegacyItemsWithProjectFallback<SavedReel>(reelsKey(projectId), projectId);
 }
 
 function reelFromDb(item: ContentItem): SavedReel {
@@ -325,6 +325,19 @@ export default function Reels() {
   const updateReels = useCallback((next: SavedReel[]) => {
     setReels(next);
   }, []);
+
+  useEffect(() => {
+    const entries = Object.entries(editMap);
+    if (entries.length === 0) return;
+    const timer = window.setTimeout(() => {
+      entries.forEach(([reelId, draft]) => {
+        const reel = reels.find((item) => item.id === reelId);
+        if (!reel?.dbId) return;
+        void updateInApi(reel.dbId, { title: draft.title, content: draft.content });
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [editMap, reels, updateInApi]);
 
   function parseHooks(content: string): HookOption[] {
     const lines = content

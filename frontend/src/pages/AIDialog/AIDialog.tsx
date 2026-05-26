@@ -6,7 +6,7 @@ import { MessageActions, MessageInput } from '../../components/MessageInput/Mess
 import { useContentApi } from '../../hooks/useContentApi';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
-import { isMigrated, markMigrated, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { isMigrated, markMigrated, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './AIDialog.module.css';
 
 interface DialogMessage {
@@ -66,7 +66,7 @@ export default function AIDialog() {
       return;
     }
 
-    const legacy = readLegacyItems<DialogMessage>(storageKey(activeProjectId));
+    const legacy = readLegacyItemsWithProjectFallback<DialogMessage>(storageKey(activeProjectId), activeProjectId);
     if (legacy.length > 0 && !isMigrated(activeProjectId, 'ai-dialog')) {
       setMessages(legacy);
       void saveDialog({

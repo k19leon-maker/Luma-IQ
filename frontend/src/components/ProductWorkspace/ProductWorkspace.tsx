@@ -4,7 +4,7 @@ import { productsApi, ProductType } from '../../api/products.api';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { exportToDocx } from '../../utils/exportDocx';
-import { isMigrated, markMigrated, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { isMigrated, markMigrated, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './ProductWorkspace.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -56,8 +56,8 @@ function makePreview(content: string): string {
 }
 
 
-function loadItems(key: string): ProductItem[] {
-  return readLegacyItems<ProductItem>(key);
+function loadItems(key: string, projectId: string): ProductItem[] {
+  return readLegacyItemsWithProjectFallback<ProductItem>(key, projectId);
 }
 
 function firstLine(text: string | undefined, fallback = ''): string {
@@ -144,7 +144,7 @@ export default function ProductWorkspace({
           return;
         }
 
-        const legacy = loadItems(storageKey);
+        const legacy = loadItems(storageKey, activeProjectId);
         if (legacy.length > 0 && !isMigrated(activeProjectId, storageKey)) {
           setItems(legacy);
           setActiveId(legacy[0]?.id ?? null);
@@ -164,10 +164,9 @@ export default function ProductWorkspace({
         }
       })
       .catch(() => {
-        const legacy = loadItems(storageKey);
-        setItems(legacy);
-        setActiveId(legacy[0]?.id ?? null);
-        setMode(legacy.length > 0 ? 'editor' : 'generate');
+        setItems([]);
+        setActiveId(null);
+        setMode('generate');
       });
   }, [storageKey, activeProjectId, productType]); // eslint-disable-line
 
@@ -177,6 +176,15 @@ export default function ProductWorkspace({
       setEditContent(activeItem.content);
     }
   }, [activeId]); // eslint-disable-line
+
+  useEffect(() => {
+    if (mode !== 'editor' || !activeItem?.dbId) return;
+    if (editTitle === activeItem.title && editContent === activeItem.content) return;
+    const timer = window.setTimeout(() => {
+      void productsApi.update(activeItem.dbId!, { title: editTitle, content: editContent });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [activeItem?.dbId, activeItem?.title, activeItem?.content, editContent, editTitle, mode]);
 
   const updateItems = useCallback((updater: ProductItem[] | ((prev: ProductItem[]) => ProductItem[])) => {
     setItems((prev) => {

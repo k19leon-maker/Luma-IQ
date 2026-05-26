@@ -10,7 +10,7 @@ import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
-import { isMigrated, markMigrated, metadataString, readLegacyObject } from '../../utils/generatedContentPersistence';
+import { isMigrated, markMigrated, metadataString, readLegacyObjectWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -330,7 +330,7 @@ function buildChain(
 function chainKey(projectId: string) { return `chatbot_chain_${projectId}`; }
 
 function loadChain(projectId: string): StoredChain | null {
-  return readLegacyObject<StoredChain>(chainKey(projectId));
+  return readLegacyObjectWithProjectFallback<StoredChain>(chainKey(projectId), projectId);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -468,6 +468,26 @@ export default function ChatbotChains() {
   const updateChain = useCallback((next: StoredChain) => {
     setChain(next);
   }, []);
+
+  useEffect(() => {
+    const entries = Object.entries(editMap);
+    if (entries.length === 0 || !chain.dbId) return;
+    const timer = window.setTimeout(() => {
+      const next: StoredChain = {
+        ...chain,
+        messages: chain.messages.map((message) => (
+          editMap[message.id] !== undefined
+            ? { ...message, editedContent: editMap[message.id] }
+            : message
+        )),
+      };
+      void updateInApi(chain.dbId!, {
+        content: buildFullText(next.messages),
+        metadata: chainMetadata(next),
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [chain, editMap, updateInApi]);
 
   // ── Generate ──────────────────────────────────────────────────────────────
 

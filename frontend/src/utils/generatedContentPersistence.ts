@@ -11,6 +11,33 @@ export function readLegacyItems<T>(key: string): T[] {
   }
 }
 
+export function legacyProjectIds(projectId: string): string[] {
+  try {
+    const raw = localStorage.getItem('lumaiq_project_id_migration');
+    if (!raw) return [];
+    const map = JSON.parse(raw) as Record<string, string>;
+    return Object.entries(map)
+      .filter(([, newProjectId]) => newProjectId === projectId)
+      .map(([oldProjectId]) => oldProjectId);
+  } catch {
+    return [];
+  }
+}
+
+export function readLegacyItemsWithProjectFallback<T>(key: string, projectId: string): T[] {
+  const byCurrentId = readLegacyItems<T>(key);
+  const byOldIds = legacyProjectIds(projectId).flatMap((oldProjectId) => (
+    readLegacyItems<T>(key.replace(projectId, oldProjectId))
+  ));
+  const seen = new Set<string>();
+  return [...byCurrentId, ...byOldIds].filter((item) => {
+    const id = typeof item === 'object' && item !== null && 'id' in item ? String((item as { id?: unknown }).id) : JSON.stringify(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 export function readLegacyObject<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(key);
@@ -18,6 +45,16 @@ export function readLegacyObject<T>(key: string): T | null {
   } catch {
     return null;
   }
+}
+
+export function readLegacyObjectWithProjectFallback<T>(key: string, projectId: string): T | null {
+  const current = readLegacyObject<T>(key);
+  if (current) return current;
+  for (const oldProjectId of legacyProjectIds(projectId)) {
+    const legacy = readLegacyObject<T>(key.replace(projectId, oldProjectId));
+    if (legacy) return legacy;
+  }
+  return null;
 }
 
 export function migrationKey(projectId: string, area: string): string {

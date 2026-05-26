@@ -10,7 +10,7 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
-import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -175,7 +175,7 @@ function postsKey(projectId: string) {
 }
 
 function loadPosts(projectId: string): SavedPost[] {
-  return readLegacyItems<SavedPost>(postsKey(projectId));
+  return readLegacyItemsWithProjectFallback<SavedPost>(postsKey(projectId), projectId);
 }
 
 function postFromDb(item: ContentItem): SavedPost {
@@ -307,6 +307,19 @@ export default function Posts() {
   const updatePosts = useCallback((next: SavedPost[]) => {
     setPosts(next);
   }, []);
+
+  useEffect(() => {
+    const entries = Object.entries(editMap);
+    if (entries.length === 0) return;
+    const timer = window.setTimeout(() => {
+      entries.forEach(([postId, draft]) => {
+        const post = posts.find((item) => item.id === postId);
+        if (!post?.dbId) return;
+        void updateInApi(post.dbId, { title: draft.title, content: draft.content });
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [editMap, posts, updateInApi]);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {

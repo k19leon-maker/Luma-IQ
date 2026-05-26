@@ -10,7 +10,7 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { aiApi } from '../../api/ai';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
-import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItems } from '../../utils/generatedContentPersistence';
+import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ function buildScript(
 function scriptsKey(projectId: string) { return `video_scripts_${projectId}`; }
 
 function loadScripts(projectId: string): SavedScript[] {
-  return readLegacyItems<SavedScript>(scriptsKey(projectId));
+  return readLegacyItemsWithProjectFallback<SavedScript>(scriptsKey(projectId), projectId);
 }
 
 function scriptFromDb(item: ContentItem): SavedScript {
@@ -453,6 +453,19 @@ export default function VideoScripts() {
   const updateScripts = useCallback((next: SavedScript[]) => {
     setScripts(next);
   }, []);
+
+  useEffect(() => {
+    const entries = Object.entries(editMap);
+    if (entries.length === 0) return;
+    const timer = window.setTimeout(() => {
+      entries.forEach(([scriptId, draft]) => {
+        const script = scripts.find((item) => item.id === scriptId);
+        if (!script?.dbId) return;
+        void updateInApi(script.dbId, { title: draft.title, content: draft.content });
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [editMap, scripts, updateInApi]);
 
   // ── Step 1 → Step 2 ──────────────────────────────────────────────────────────
   async function handleGenerateThemes() {

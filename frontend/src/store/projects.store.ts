@@ -10,6 +10,65 @@ function colorForIndex(i: number): string {
   return PROJECT_COLORS[i % PROJECT_COLORS.length] ?? '#7c6cfc';
 }
 
+function readLegacyLocalProjects(): LocalProject[] {
+  try {
+    const raw = localStorage.getItem('lumaiq-projects-v4');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { state?: { projects?: LocalProject[] } };
+    return Array.isArray(parsed.state?.projects) ? parsed.state.projects : [];
+  } catch {
+    return [];
+  }
+}
+
+function readProjectIdMigration(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('lumaiq_project_id_migration');
+    return raw ? JSON.parse(raw) as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveProjectIdMigration(map: Record<string, string>): void {
+  localStorage.setItem('lumaiq_project_id_migration', JSON.stringify(map));
+}
+
+async function importLegacyLocalProjects(apiProjects: Project[]): Promise<Project[]> {
+  if (localStorage.getItem('lumaiq_projects_imported_to_db') === 'true') return apiProjects;
+
+  const legacyProjects = readLegacyLocalProjects();
+  if (legacyProjects.length === 0) {
+    localStorage.setItem('lumaiq_projects_imported_to_db', 'true');
+    return apiProjects;
+  }
+
+  const migration = readProjectIdMigration();
+  const imported = [...apiProjects];
+
+  for (const legacy of legacyProjects) {
+    const existingById = imported.find((project) => project.id === legacy.id);
+    if (existingById) {
+      migration[legacy.id] = existingById.id;
+      continue;
+    }
+
+    const existingByName = imported.find((project) => project.name.trim().toLowerCase() === legacy.name.trim().toLowerCase());
+    if (existingByName) {
+      migration[legacy.id] = existingByName.id;
+      continue;
+    }
+
+    const created = await projectsApi.create({ name: legacy.name });
+    imported.push(created);
+    migration[legacy.id] = created.id;
+  }
+
+  saveProjectIdMigration(migration);
+  localStorage.setItem('lumaiq_projects_imported_to_db', 'true');
+  return imported;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface LocalProject {
@@ -51,7 +110,7 @@ export const useProjectsStore = create<ProjectsState>()(
       loadProjects: async () => {
         set({ loading: true });
         try {
-          const apiProjects = await projectsApi.list();
+          const apiProjects = await importLegacyLocalProjects(await projectsApi.list());
           const projects: LocalProject[] = apiProjects.map((p, i) => ({
             id:    p.id,
             name:  p.name,
@@ -65,21 +124,15 @@ export const useProjectsStore = create<ProjectsState>()(
               : (projects[0]?.id ?? ''),
           }));
         } catch {
-          set({ loading: false });
+          set({ projects: [], activeProjectId: '', loading: false });
         }
       },
 
       addProject: async (name: string) => {
         const { projects } = get();
         const color = colorForIndex(projects.length);
-        let local: LocalProject;
-        try {
-          const project = await projectsApi.create({ name });
-          local = { id: project.id, name: project.name, color };
-        } catch {
-          // Backend unavailable — create locally with a UUID
-          local = { id: crypto.randomUUID(), name, color };
-        }
+        const project = await projectsApi.create({ name });
+        const local: LocalProject = { id: project.id, name: project.name, color };
         set((s) => ({
           projects: [...s.projects, local],
           activeProjectId: local.id,
@@ -88,11 +141,7 @@ export const useProjectsStore = create<ProjectsState>()(
       },
 
       removeProject: async (id: string) => {
-        try {
-          await projectsApi.delete(id);
-        } catch {
-          // fire-and-forget — если БД недоступна, удаляем только локально
-        }
+        await projectsApi.delete(id);
         set((s) => {
           const next = s.projects.filter((p) => p.id !== id);
           const fallback = next[0];
@@ -104,11 +153,7 @@ export const useProjectsStore = create<ProjectsState>()(
       },
 
       renameProject: async (id: string, name: string) => {
-        try {
-          await projectsApi.update(id, { name });
-        } catch {
-          // обновляем локально даже при ошибке
-        }
+        await projectsApi.update(id, { name });
         set((s) => ({
           projects: s.projects.map((p) => (p.id === id ? { ...p, name } : p)),
         }));
@@ -128,9 +173,13 @@ export const useProjectsStore = create<ProjectsState>()(
     {
       name:    'lumaiq-projects-v4',
       partialize: (s) => ({
-        projects:        s.projects,
         activeProjectId: s.activeProjectId,
-        currentProject:  s.currentProject,
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        activeProjectId: typeof (persisted as Partial<ProjectsState> | undefined)?.activeProjectId === 'string'
+          ? (persisted as Partial<ProjectsState>).activeProjectId ?? ''
+          : '',
       }),
     },
   ),

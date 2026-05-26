@@ -1,19 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProjectsStore, LocalProject } from '../../store/projects.store';
+import { useProjectsStore } from '../../store/projects.store';
 import s from './Onboarding.module.css';
 
 interface Props {
   onDone: () => void;
 }
 
-const PROJECT_COLORS = ['#7c6cfc', '#4caf82', '#f0a030', '#e05c5c', '#5cb8e0', '#c45cf0'];
-
 export default function Onboarding({ onDone }: Props) {
   const navigate = useNavigate();
   const addProject        = useProjectsStore((s) => s.addProject);
-  const projects          = useProjectsStore((s) => s.projects);
-  const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
 
   const [step, setStep]               = useState(0);
   const [projectName, setProjectName] = useState('');
@@ -35,20 +31,7 @@ export default function Onboarding({ onDone }: Props) {
       await addProject(name);
       goTo(3);
     } catch {
-      // API недоступна — создаём проект локально
-      try {
-        const id    = crypto.randomUUID();
-        const color = PROJECT_COLORS[projects.length % PROJECT_COLORS.length] ?? '#7c6cfc';
-        const local: LocalProject = { id, name, color };
-        useProjectsStore.setState((s) => ({
-          projects:        [...s.projects, local],
-          activeProjectId: id,
-        }));
-        setActiveProjectId(id);
-        goTo(3);
-      } catch {
-        setError('Не удалось создать проект. Попробуйте ещё раз.');
-      }
+      setError('Не удалось создать проект на сервере. Проверьте соединение и попробуйте ещё раз.');
     } finally {
       setCreating(false);
     }
