@@ -68,10 +68,11 @@ const PRICING = [
 ];
 
 function samePrice(active, next) {
+  const sameDecimal = (current, expected) => Number(current?.toString() ?? 0) === Number(expected ?? 0);
   return (
-    active.inputPricePer1M.toString() === next.inputPricePer1M &&
-    active.outputPricePer1M.toString() === next.outputPricePer1M &&
-    (active.cachedInputPricePer1M?.toString() ?? null) === next.cachedInputPricePer1M
+    sameDecimal(active.inputPricePer1M, next.inputPricePer1M) &&
+    sameDecimal(active.outputPricePer1M, next.outputPricePer1M) &&
+    sameDecimal(active.cachedInputPricePer1M, next.cachedInputPricePer1M)
   );
 }
 
