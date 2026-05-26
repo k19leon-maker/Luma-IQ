@@ -27,6 +27,39 @@ async function assertProjectOwner(userId: string, projectId: string): Promise<bo
   return !!p && p.userId === userId;
 }
 
+async function linkArtifactToContent(input: {
+  userId: string;
+  projectId: string;
+  contentId: string;
+  contentType: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const artifactId = typeof input.metadata?.artifactId === 'string' ? input.metadata.artifactId : null;
+  if (!artifactId) return;
+
+  const artifact = await prisma.aIArtifact.findFirst({
+    where: { id: artifactId, userId: input.userId, projectId: input.projectId },
+    select: { id: true, metadata: true },
+  });
+  if (!artifact) return;
+
+  const currentMetadata = artifact.metadata && typeof artifact.metadata === 'object' && !Array.isArray(artifact.metadata)
+    ? artifact.metadata as Record<string, unknown>
+    : {};
+
+  await prisma.aIArtifact.update({
+    where: { id: artifact.id },
+    data: {
+      metadata: {
+        ...currentMetadata,
+        linkedContentId: input.contentId,
+        linkedContentType: input.contentType,
+        linkedAt: new Date().toISOString(),
+      } as Prisma.InputJsonValue,
+    },
+  });
+}
+
 export const contentController = {
   async history(req: AuthRequest, res: Response): Promise<void> {
     const limit  = Math.min(parseInt((req.query.limit as string) || '50', 10), 200);
@@ -88,6 +121,7 @@ export const contentController = {
           metadata: metadata ? (metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
         },
       });
+      await linkArtifactToContent({ userId: req.userId!, projectId, contentId: item.id, contentType: type, metadata });
       res.status(201).json({ item });
     } catch (err) {
       console.error('[Content] create:', err);
@@ -113,6 +147,7 @@ export const contentController = {
           ...(metadata  !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
         },
       });
+      await linkArtifactToContent({ userId: req.userId!, projectId: existing.projectId, contentId: item.id, contentType: item.type, metadata });
       res.json({ item });
     } catch (err) {
       console.error('[Content] update:', err);

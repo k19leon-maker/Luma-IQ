@@ -237,6 +237,16 @@ export const aiWorkflowService = {
           type: config.artifactType,
           title: String(input.inputs.topic ?? input.inputs.title ?? config.artifactType),
           content: response.content,
+          structured: {
+            content: response.content,
+            validation,
+            workflow: input.workflow,
+            step: input.step,
+            inputs: input.inputs,
+            provider: response.provider,
+            model: response.model,
+            mock: response.mock,
+          } as unknown as Prisma.InputJsonValue,
           metadata: {
             promptId: config.id,
             promptVersion: config.version,
@@ -252,7 +262,7 @@ export const aiWorkflowService = {
       await prisma.aIWorkflowStep.update({
         where: { id: workflowStep.id },
         data: {
-          status: validation.ok ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
+          status: 'SUCCEEDED',
           output: {
             artifactId: artifact.id,
             generationId,
@@ -267,11 +277,13 @@ export const aiWorkflowService = {
       await prisma.aIWorkflowRun.update({
         where: { id: workflowRun.id },
         data: {
-          status: 'RUNNING',
+          status: validation.ok ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
           output: {
             lastArtifactId: artifact.id,
             lastStep: input.step,
-          },
+            validation,
+          } as unknown as Prisma.InputJsonValue,
+          completedAt: new Date(),
         },
       });
 
@@ -307,5 +319,25 @@ export const aiWorkflowService = {
 
       throw err;
     }
+  },
+
+  async cancel(input: { userId: string; workflowRunId: string }) {
+    const workflowRun = await prisma.aIWorkflowRun.findFirst({
+      where: { id: input.workflowRunId, userId: input.userId },
+    });
+    if (!workflowRun) throw new Error('Workflow run не найден');
+    if (workflowRun.status !== 'RUNNING') return workflowRun;
+
+    const [updated] = await prisma.$transaction([
+      prisma.aIWorkflowRun.update({
+        where: { id: workflowRun.id },
+        data: { status: 'CANCELED', completedAt: new Date() },
+      }),
+      prisma.aIWorkflowStep.updateMany({
+        where: { workflowRunId: workflowRun.id, status: 'RUNNING' },
+        data: { status: 'CANCELED', completedAt: new Date() },
+      }),
+    ]);
+    return updated;
   },
 };

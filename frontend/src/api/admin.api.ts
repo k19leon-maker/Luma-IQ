@@ -5,6 +5,11 @@ export interface AdminSubscription {
   plan: string;
   status: string;
   expiresAt: string | null;
+  paymentSource?: string | null;
+  lastPaymentAt?: string | null;
+  adminNote?: string | null;
+  ltvRub?: string | number | null;
+  limitOverrides?: unknown;
 }
 
 export interface AdminUserListItem {
@@ -175,5 +180,34 @@ export const adminApi = {
   impersonateUser: (id: string) =>
     apiClient
       .post<AuthResponse>(`/admin/users/${id}/impersonate`)
+      .then((r) => r.data),
+
+  updateUserAccess: (id: string, data: {
+    role?: 'ADMIN' | 'USER';
+    plan?: 'FREE' | 'PRO' | 'ANNUAL';
+    status?: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+    expiresAt?: string | null;
+    paymentDate?: string | null;
+    paymentSource?: 'TRIBUTE' | 'MANUAL' | 'PROMO';
+    paymentAmount?: number;
+    externalId?: string;
+    adminNote?: string | null;
+    ltvRub?: number | null;
+    limitOverrides?: {
+      monthlyCredits?: number;
+      projectLimit?: number;
+      heavyGenerationLimit?: number;
+      chatDailyLimit?: number;
+      dailyGenerationLimit?: number;
+      monthlyGenerationLimit?: number;
+    } | null;
+  }) =>
+    apiClient
+      .patch<{ ok: boolean; subscription: AdminSubscription }>(`/admin/users/${id}/access`, data)
+      .then((r) => r.data),
+
+  addUserCredits: (id: string, data: { amount: number; reason?: string }) =>
+    apiClient
+      .post<{ ok: boolean; entry: { id: string; balanceAfter: number } }>(`/admin/users/${id}/credits`, data)
       .then((r) => r.data),
 };

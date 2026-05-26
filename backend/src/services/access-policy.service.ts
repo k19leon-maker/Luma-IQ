@@ -1,5 +1,5 @@
 import { GenerationClass, Subscription, SubscriptionPlan } from '@prisma/client';
-import { PLAN_LIMITS, FeatureCode } from '../config/ai-economy';
+import { PLAN_LIMITS, FeatureCode, PlanLimitConfig } from '../config/ai-economy';
 import { prisma } from '../lib/prisma';
 import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
@@ -20,6 +20,22 @@ function isActiveSubscription(subscription: Subscription | null): boolean {
   if (!subscription) return false;
   if (subscription.status !== 'ACTIVE') return false;
   return !subscription.expiresAt || subscription.expiresAt >= new Date();
+}
+
+function mergeLimitOverrides(base: PlanLimitConfig, subscription: Subscription | null): PlanLimitConfig {
+  const raw = subscription?.limitOverrides;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+  const overrides = raw as Partial<PlanLimitConfig> & { features?: Record<string, boolean> };
+  return {
+    ...base,
+    monthlyCredits: typeof overrides.monthlyCredits === 'number' ? overrides.monthlyCredits : base.monthlyCredits,
+    projectLimit: typeof overrides.projectLimit === 'number' ? overrides.projectLimit : base.projectLimit,
+    heavyGenerationLimit: typeof overrides.heavyGenerationLimit === 'number' ? overrides.heavyGenerationLimit : base.heavyGenerationLimit,
+    chatDailyLimit: typeof overrides.chatDailyLimit === 'number' ? overrides.chatDailyLimit : base.chatDailyLimit,
+    dailyGenerationLimit: typeof overrides.dailyGenerationLimit === 'number' ? overrides.dailyGenerationLimit : base.dailyGenerationLimit,
+    monthlyGenerationLimit: typeof overrides.monthlyGenerationLimit === 'number' ? overrides.monthlyGenerationLimit : base.monthlyGenerationLimit,
+    features: overrides.features ? { ...base.features, ...overrides.features } : base.features,
+  };
 }
 
 export const accessPolicyService = {
@@ -47,7 +63,7 @@ export const accessPolicyService = {
 
     const subscription = user.subscription;
     const plan = isActiveSubscription(subscription) ? subscription!.plan : 'FREE';
-    const limits = PLAN_LIMITS[plan as SubscriptionPlan];
+    const limits = mergeLimitOverrides(PLAN_LIMITS[plan as SubscriptionPlan], subscription);
     const billingPeriod = await billingPeriodService.getOrCreateCurrent(userId, subscription);
     const creditBalance = await creditLedgerService.getBalance(userId);
 

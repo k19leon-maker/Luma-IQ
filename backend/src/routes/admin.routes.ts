@@ -11,6 +11,8 @@ router.get('/dashboard', adminController.dashboard);
 router.get('/users', adminController.listUsers);
 router.get('/users/:id', adminController.getUser);
 router.post('/users/grant-pro', adminController.grantPro);
+router.patch('/users/:id/access', adminController.updateUserAccess);
+router.post('/users/:id/credits', adminController.addUserCredits);
 router.post('/users/:id/impersonate', adminController.impersonateUser);
 
 export default router;

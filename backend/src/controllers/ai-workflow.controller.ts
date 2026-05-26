@@ -15,6 +15,10 @@ const workflowBodySchema = z.object({
   idempotencyKey: z.string().max(200).optional(),
 });
 
+const cancelBodySchema = z.object({
+  workflowRunId: z.string().uuid(),
+});
+
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
@@ -101,6 +105,25 @@ export const aiWorkflowController = {
         ? (err as { status: number }).status
         : message.includes('not found') || message.includes('не найден') ? 404 : 500;
       res.status(status).json({ error: message });
+    }
+  },
+
+  async cancel(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = cancelBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    try {
+      const run = await aiWorkflowService.cancel({
+        userId: req.userId!,
+        workflowRunId: parsed.data.workflowRunId,
+      });
+      res.json({ ok: true, run });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка отмены workflow';
+      res.status(message.includes('не найден') ? 404 : 500).json({ error: message });
     }
   },
 };

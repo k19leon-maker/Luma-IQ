@@ -21,5 +21,6 @@ router.post('/chat', requireAuth, aiLimiter, aiController.chat);
 router.get('/workflows/prompts', requireAuth, aiWorkflowController.listPrompts);
 router.post('/workflows/:workflow/start', requireAuth, aiLimiter, aiWorkflowController.start);
 router.post('/workflows/:workflow/step', requireAuth, aiLimiter, aiWorkflowController.step);
+router.post('/workflows/:workflow/cancel', requireAuth, aiWorkflowController.cancel);
 
 export default router;

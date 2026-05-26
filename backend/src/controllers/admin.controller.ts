@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { authService } from '../services/auth.service';
+import { creditLedgerService } from '../services/credit-ledger.service';
 
 const listSchema = z.object({
   q: z.string().optional(),
@@ -58,6 +59,32 @@ const grantProSchema = z.object({
   adminNote: z.string().max(1000).optional(),
 });
 
+const updateAccessSchema = z.object({
+  role: z.enum(['ADMIN', 'USER']).optional(),
+  plan: z.enum(['FREE', 'PRO', 'ANNUAL']).optional(),
+  status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  paymentDate: z.string().datetime().nullable().optional(),
+  paymentSource: z.enum(['TRIBUTE', 'MANUAL', 'PROMO']).optional(),
+  paymentAmount: z.number().min(0).max(10_000_000).optional(),
+  externalId: z.string().max(200).optional(),
+  adminNote: z.string().max(2000).nullable().optional(),
+  ltvRub: z.number().min(0).max(100_000_000).nullable().optional(),
+  limitOverrides: z.object({
+    monthlyCredits: z.number().int().min(0).max(1_000_000).optional(),
+    projectLimit: z.number().int().min(0).max(1000).optional(),
+    heavyGenerationLimit: z.number().int().min(0).max(100_000).optional(),
+    chatDailyLimit: z.number().int().min(0).max(100_000).optional(),
+    dailyGenerationLimit: z.number().int().min(0).max(100_000).optional(),
+    monthlyGenerationLimit: z.number().int().min(0).max(1_000_000).optional(),
+  }).nullable().optional(),
+});
+
+const addCreditsSchema = z.object({
+  amount: z.number().int().min(-1_000_000).max(1_000_000).refine((value) => value !== 0, 'amount не должен быть 0'),
+  reason: z.string().max(500).optional(),
+});
+
 function currentStage(project: {
   strategyCompletedAt: Date | null;
   strategyData: unknown;
@@ -77,12 +104,30 @@ function currentStage(project: {
   return 'Старт';
 }
 
-function formatSubscription(sub: { plan: string; status: string; expiresAt: Date | null } | null) {
+function formatSubscription(sub: {
+  plan: string;
+  status: string;
+  expiresAt: Date | null;
+  paymentSource?: string | null;
+  lastPaymentAt?: Date | null;
+  adminNote?: string | null;
+  ltvRub?: unknown;
+  limitOverrides?: unknown;
+} | null) {
   if (!sub) return { plan: 'FREE', status: 'ACTIVE', expiresAt: null };
   if (sub.expiresAt && sub.expiresAt < new Date() && sub.status === 'ACTIVE') {
     return { plan: 'FREE', status: 'EXPIRED', expiresAt: sub.expiresAt };
   }
-  return { plan: sub.plan, status: sub.status, expiresAt: sub.expiresAt };
+  return {
+    plan: sub.plan,
+    status: sub.status,
+    expiresAt: sub.expiresAt,
+    paymentSource: sub.paymentSource ?? null,
+    lastPaymentAt: sub.lastPaymentAt ?? null,
+    adminNote: sub.adminNote ?? null,
+    ltvRub: sub.ltvRub ?? null,
+    limitOverrides: sub.limitOverrides ?? null,
+  };
 }
 
 export const adminController = {
@@ -617,6 +662,119 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] grantPro:', err);
       res.status(500).json({ error: 'Ошибка выдачи PRO' });
+    }
+  },
+
+  async updateUserAccess(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = updateAccessSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+
+    try {
+      const target = await prisma.user.findUnique({ where: { id: req.params.id as string }, include: { subscription: true } });
+      if (!target) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
+
+      const data = parsed.data;
+      if (data.role) {
+        await prisma.user.update({ where: { id: target.id }, data: { role: data.role } });
+      }
+
+      const expiresAt = data.expiresAt === undefined ? target.subscription?.expiresAt ?? null : data.expiresAt ? new Date(data.expiresAt) : null;
+      const lastPaymentAt = data.paymentDate === undefined ? target.subscription?.lastPaymentAt ?? null : data.paymentDate ? new Date(data.paymentDate) : null;
+      const plan = data.plan ?? target.subscription?.plan ?? 'FREE';
+      const status = data.status ?? target.subscription?.status ?? 'ACTIVE';
+
+      const subscription = await prisma.subscription.upsert({
+        where: { userId: target.id },
+        create: {
+          userId: target.id,
+          plan,
+          status,
+          expiresAt,
+          paymentSource: data.paymentSource ?? null,
+          lastPaymentAt,
+          adminNote: data.adminNote ?? null,
+          ltvRub: data.ltvRub ?? null,
+          limitOverrides: data.limitOverrides ? data.limitOverrides as Prisma.InputJsonValue : Prisma.JsonNull,
+        },
+        update: {
+          plan,
+          status,
+          expiresAt,
+          ...(data.paymentSource !== undefined ? { paymentSource: data.paymentSource } : {}),
+          ...(data.paymentDate !== undefined ? { lastPaymentAt } : {}),
+          ...(data.adminNote !== undefined ? { adminNote: data.adminNote } : {}),
+          ...(data.ltvRub !== undefined ? { ltvRub: data.ltvRub } : {}),
+          ...(data.limitOverrides !== undefined ? { limitOverrides: data.limitOverrides ? data.limitOverrides as Prisma.InputJsonValue : Prisma.JsonNull } : {}),
+        },
+      });
+
+      if ((data.paymentAmount ?? 0) > 0) {
+        await prisma.payment.create({
+          data: {
+            userId: target.id,
+            subscriptionId: subscription.id,
+            amount: data.paymentAmount!,
+            status: 'SUCCEEDED',
+            source: data.paymentSource ?? 'MANUAL',
+            externalId: data.externalId ?? null,
+            adminNote: data.adminNote ?? null,
+            createdAt: data.paymentDate ? new Date(data.paymentDate) : undefined,
+            metadata: {
+              plan,
+              updatedBy: req.userId!,
+              source: 'admin_access_update',
+            },
+          },
+        });
+      }
+
+      await prisma.userEvent.create({
+        data: {
+          userId: target.id,
+          actorId: req.userId!,
+          type: 'admin_access_updated',
+          metadata: data as Prisma.InputJsonValue,
+        },
+      });
+
+      res.json({ ok: true, subscription });
+    } catch (err) {
+      console.error('[Admin] updateUserAccess:', err);
+      res.status(500).json({ error: 'Ошибка обновления доступа' });
+    }
+  },
+
+  async addUserCredits(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = addCreditsSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+
+    try {
+      const target = await prisma.user.findUnique({ where: { id: req.params.id as string }, select: { id: true } });
+      if (!target) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
+
+      const entry = await creditLedgerService.addEntry({
+        userId: target.id,
+        type: 'ADJUST',
+        source: 'ADMIN',
+        amount: parsed.data.amount,
+        reason: parsed.data.reason ?? 'Admin credits override',
+        metadata: { actorId: req.userId! },
+      });
+
+      await prisma.userEvent.create({
+        data: {
+          userId: target.id,
+          actorId: req.userId!,
+          type: 'admin_credits_adjusted',
+          metadata: { amount: parsed.data.amount, reason: parsed.data.reason, balanceAfter: entry.balanceAfter } as Prisma.InputJsonValue,
+        },
+      });
+
+      res.json({ ok: true, entry });
+    } catch (err) {
+      console.error('[Admin] addUserCredits:', err);
+      const message = err instanceof Error ? err.message : 'Ошибка обновления credits';
+      res.status(500).json({ error: message });
     }
   },
 

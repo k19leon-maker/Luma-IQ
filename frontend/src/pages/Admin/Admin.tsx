@@ -55,7 +55,7 @@ function fmtStatus(status: string): string {
   if (status === 'ACTIVE') return 'Активен';
   if (status === 'EXPIRED') return 'Истек';
   if (status === 'FAILED') return 'Ошибка';
-  if (status === 'CANCELED') return 'Отменен';
+  if (status === 'CANCELED' || status === 'CANCELLED') return 'Отменен';
   return status;
 }
 
@@ -113,6 +113,19 @@ export default function Admin() {
   const [externalId, setExternalId] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [grantLoading, setGrantLoading] = useState(false);
+  const [accessRole, setAccessRole] = useState<'ADMIN' | 'USER'>('USER');
+  const [accessPlan, setAccessPlan] = useState<'FREE' | 'PRO' | 'ANNUAL'>('FREE');
+  const [accessStatus, setAccessStatus] = useState<'ACTIVE' | 'EXPIRED' | 'CANCELLED'>('ACTIVE');
+  const [accessExpiresAt, setAccessExpiresAt] = useState('');
+  const [accessLtv, setAccessLtv] = useState(0);
+  const [accessPaymentDate, setAccessPaymentDate] = useState('');
+  const [accessNote, setAccessNote] = useState('');
+  const [accessProjectLimit, setAccessProjectLimit] = useState('');
+  const [accessDailyLimit, setAccessDailyLimit] = useState('');
+  const [accessMonthlyLimit, setAccessMonthlyLimit] = useState('');
+  const [creditsAmount, setCreditsAmount] = useState(0);
+  const [creditsReason, setCreditsReason] = useState('');
+  const [accessLoading, setAccessLoading] = useState(false);
 
   const sortedUsers = useMemo(() => {
     return [...users].sort((a, b) => {
@@ -155,6 +168,17 @@ export default function Admin() {
       setSelected(detail);
       setGrantEmail(detail.email);
       setGrantName(detail.name ?? '');
+      setAccessRole(detail.role as 'ADMIN' | 'USER');
+      setAccessPlan(detail.subscription.plan as 'FREE' | 'PRO' | 'ANNUAL');
+      setAccessStatus(detail.subscription.status as 'ACTIVE' | 'EXPIRED' | 'CANCELLED');
+      setAccessExpiresAt(detail.subscription.expiresAt ? detail.subscription.expiresAt.slice(0, 10) : '');
+      setAccessPaymentDate(detail.subscription.lastPaymentAt ? detail.subscription.lastPaymentAt.slice(0, 10) : '');
+      setAccessLtv(Number(detail.subscription.ltvRub ?? detail.ltv ?? 0));
+      setAccessNote(detail.subscription.adminNote ?? '');
+      const overrides = detail.subscription.limitOverrides as { projectLimit?: number; dailyGenerationLimit?: number; monthlyGenerationLimit?: number } | null | undefined;
+      setAccessProjectLimit(overrides?.projectLimit ? String(overrides.projectLimit) : '');
+      setAccessDailyLimit(overrides?.dailyGenerationLimit ? String(overrides.dailyGenerationLimit) : '');
+      setAccessMonthlyLimit(overrides?.monthlyGenerationLimit ? String(overrides.monthlyGenerationLimit) : '');
     } catch {
       toast.error('Не удалось загрузить карточку пользователя');
     } finally {
@@ -227,6 +251,57 @@ export default function Admin() {
       toast.error('Не удалось войти под пользователем');
     } finally {
       setImpersonateLoading(false);
+    }
+  }
+
+  async function handleUpdateSelectedAccess() {
+    if (!selected) return;
+    setAccessLoading(true);
+    try {
+      const limitOverrides = {
+        ...(accessProjectLimit ? { projectLimit: Number(accessProjectLimit) } : {}),
+        ...(accessDailyLimit ? { dailyGenerationLimit: Number(accessDailyLimit) } : {}),
+        ...(accessMonthlyLimit ? { monthlyGenerationLimit: Number(accessMonthlyLimit) } : {}),
+      };
+      await adminApi.updateUserAccess(selected.id, {
+        role: accessRole,
+        plan: accessPlan,
+        status: accessStatus,
+        expiresAt: accessExpiresAt ? new Date(`${accessExpiresAt}T23:59:59.000Z`).toISOString() : null,
+        paymentDate: accessPaymentDate ? new Date(`${accessPaymentDate}T12:00:00.000Z`).toISOString() : null,
+        paymentSource,
+        paymentAmount,
+        externalId: externalId || undefined,
+        adminNote: accessNote || null,
+        ltvRub: accessLtv || null,
+        limitOverrides: Object.keys(limitOverrides).length > 0 ? limitOverrides : null,
+      });
+      toast.success('Доступ пользователя обновлен');
+      setPaymentAmount(0);
+      setExternalId('');
+      await refreshAll();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось обновить доступ');
+    } finally {
+      setAccessLoading(false);
+    }
+  }
+
+  async function handleAddCredits() {
+    if (!selected || creditsAmount === 0) return;
+    setAccessLoading(true);
+    try {
+      await adminApi.addUserCredits(selected.id, { amount: creditsAmount, reason: creditsReason || undefined });
+      toast.success('Credits обновлены');
+      setCreditsAmount(0);
+      setCreditsReason('');
+      await refreshAll();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось обновить credits');
+    } finally {
+      setAccessLoading(false);
     }
   }
 
@@ -470,8 +545,6 @@ export default function Admin() {
           <div><h2>{selected.name ?? 'Без имени'}</h2><p>{selected.email}</p></div>
           <div className={s.actions}>
             <button className={s.secondaryButton} onClick={() => void handleImpersonate()} disabled={impersonateLoading || selected.id === currentUser?.id}>Войти как пользователь</button>
-            <button className={s.secondaryButton} disabled>Изменить роль</button>
-            <button className={s.secondaryButton} disabled>Отключить</button>
           </div>
         </div>
 
@@ -506,6 +579,35 @@ export default function Admin() {
             </div>
           </section>
         </div>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Ручное управление доступом</div>
+          <div className={s.formGrid}>
+            <select className={s.select} value={accessRole} onChange={(e) => setAccessRole(e.target.value as 'ADMIN' | 'USER')}><option value="USER">Пользователь</option><option value="ADMIN">Администратор</option></select>
+            <select className={s.select} value={accessPlan} onChange={(e) => setAccessPlan(e.target.value as 'FREE' | 'PRO' | 'ANNUAL')}><option value="FREE">FREE</option><option value="PRO">PRO</option><option value="ANNUAL">ANNUAL</option></select>
+            <select className={s.select} value={accessStatus} onChange={(e) => setAccessStatus(e.target.value as 'ACTIVE' | 'EXPIRED' | 'CANCELLED')}><option value="ACTIVE">Активен</option><option value="EXPIRED">Истек</option><option value="CANCELLED">Отключен</option></select>
+            <input className={s.input} type="date" value={accessExpiresAt} onChange={(e) => setAccessExpiresAt(e.target.value)} />
+            <input className={s.input} type="date" value={accessPaymentDate} onChange={(e) => setAccessPaymentDate(e.target.value)} />
+            <select className={s.select} value={paymentSource} onChange={(e) => setPaymentSource(e.target.value as 'TRIBUTE' | 'MANUAL' | 'PROMO')}><option value="TRIBUTE">Tribute</option><option value="MANUAL">Manual</option><option value="PROMO">Promo</option></select>
+            <input className={s.input} type="number" min={0} value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} placeholder="Новый платеж, ₽" />
+            <input className={s.input} type="number" min={0} value={accessLtv} onChange={(e) => setAccessLtv(Number(e.target.value))} placeholder="LTV, ₽" />
+            <input className={s.input} value={externalId} onChange={(e) => setExternalId(e.target.value)} placeholder="Tribute ID / ссылка" />
+            <input className={s.input} value={accessProjectLimit} onChange={(e) => setAccessProjectLimit(e.target.value)} placeholder="Override: лимит проектов" />
+            <input className={s.input} value={accessDailyLimit} onChange={(e) => setAccessDailyLimit(e.target.value)} placeholder="Override: AI в день" />
+            <input className={s.input} value={accessMonthlyLimit} onChange={(e) => setAccessMonthlyLimit(e.target.value)} placeholder="Override: AI в месяц" />
+            <textarea className={s.textarea} value={accessNote} onChange={(e) => setAccessNote(e.target.value)} placeholder="Заметка администратора / Tribute" rows={3} />
+          </div>
+          <div className={s.actions}><button className={s.button} onClick={() => void handleUpdateSelectedAccess()} disabled={accessLoading}>Сохранить доступ</button></div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Credits override</div>
+          <div className={s.formGrid}>
+            <input className={s.input} type="number" value={creditsAmount} onChange={(e) => setCreditsAmount(Number(e.target.value))} placeholder="+100 или -50" />
+            <input className={s.input} value={creditsReason} onChange={(e) => setCreditsReason(e.target.value)} placeholder="Причина корректировки" />
+          </div>
+          <div className={s.actions}><button className={s.secondaryButton} onClick={() => void handleAddCredits()} disabled={accessLoading || creditsAmount === 0}>Начислить / списать credits</button></div>
+        </section>
 
         {renderProjects()}
         {renderSettings()}
