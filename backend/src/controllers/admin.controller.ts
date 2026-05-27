@@ -161,6 +161,9 @@ export const adminController = {
         costByWorkflow,
         workflowRuns,
         workflowSteps,
+        failedGenerations30d,
+        missingPricingAlerts30d,
+        highCostUsers30d,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
@@ -258,6 +261,22 @@ export const adminController = {
           orderBy: { _count: { step: 'desc' } },
           take: 30,
         }),
+        prisma.aIGeneration.count({
+          where: { status: 'FAILED', createdAt: { gte: thirtyDaysAgo } },
+        }),
+        prisma.aIUsageEvent.count({
+          where: {
+            eventType: 'FAILED',
+            metadata: { path: ['code'], equals: 'MODEL_PRICING_MISSING' },
+            createdAt: { gte: thirtyDaysAgo },
+          },
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _sum: { actualCostUsd: true },
+          having: { actualCostUsd: { _sum: { gte: 3 } } },
+        }),
       ]);
 
       const revenue = Number(revenueAgg._sum.amount ?? 0);
@@ -310,6 +329,9 @@ export const adminController = {
           estimatedMarginPercent: marginPercent(revenue, aiCostUsd),
           tokensToday: tokensTodayAgg._sum.totalTokens ?? 0,
           generationsToday,
+          failedGenerations30d,
+          missingPricingAlerts30d,
+          highCostUsers30d: highCostUsers30d.length,
           mostUsedFeature: topFeature,
         },
         ai: {

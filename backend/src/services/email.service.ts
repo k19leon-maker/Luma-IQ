@@ -12,6 +12,10 @@ function createTransport() {
 }
 
 export const emailService = {
+  isConfigured(): boolean {
+    return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+  },
+
   async sendVerificationEmail(to: string, token: string): Promise<void> {
     const link = `${env.FRONTEND_URL}/auth/verify-email?token=${token}`;
     const transport = createTransport();

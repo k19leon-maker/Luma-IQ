@@ -313,6 +313,8 @@ export default function Admin() {
           <MetricCard label="Выручка / MRR" value={fmtMoney(m?.revenue ?? 0)} hint={`Средний LTV ${fmtMoney(m?.averageLtv ?? 0)}`} />
           <MetricCard label="AI-расходы за 30 дней" value={fmtMoney(m?.totalAiCostUsd ?? 0, 'USD')} hint={`${fmtMoney(m?.avgAiCostPerUserUsd ?? 0, 'USD')} / активный пользователь`} />
           <MetricCard label="Запросы сегодня" value={m?.aiToday ?? 0} hint={`${m?.generationsToday ?? 0} генераций`} />
+          <MetricCard label="Ошибки AI за 30 дней" value={m?.failedGenerations30d ?? 0} hint={`${m?.missingPricingAlerts30d ?? 0} missing pricing`} />
+          <MetricCard label="Дорогие пользователи" value={m?.highCostUsers30d ?? 0} hint="AI cost ≥ $3 за 30 дней" />
           <MetricCard label="Токены сегодня" value={fmtTokens(m?.tokensToday ?? 0)} hint="по всем провайдерам" />
           <MetricCard label="Самая используемая функция" value={m?.mostUsedFeature ?? '—'} hint="по запросам и расходам" />
           <MetricCard label="Оценочная маржа" value={fmtMoney(m?.estimatedMarginRub ?? 0)} hint={`${m?.estimatedMarginPercent ?? 0}% валовая маржа`} />

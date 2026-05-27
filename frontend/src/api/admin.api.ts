@@ -117,6 +117,9 @@ export interface AdminDashboard {
     estimatedMarginPercent: number;
     tokensToday: number;
     generationsToday: number;
+    failedGenerations30d: number;
+    missingPricingAlerts30d: number;
+    highCostUsers30d: number;
     mostUsedFeature: string;
   };
   ai: {
