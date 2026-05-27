@@ -28,4 +28,24 @@ router.post(
   filesController.extractText,
 );
 
+router.get(
+  '/',
+  requireAuth,
+  filesController.listProjectFiles,
+);
+
+router.post(
+  '/',
+  requireAuth,
+  filesLimiter,
+  upload.single('file'),
+  filesController.uploadProjectFile,
+);
+
+router.delete(
+  '/:id',
+  requireAuth,
+  filesController.deleteProjectFile,
+);
+
 export default router;

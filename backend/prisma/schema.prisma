@@ -37,6 +37,8 @@ model User {
   featureUsageDaily   FeatureUsageDaily[]
   aiWorkflowRuns      AIWorkflowRun[]
   aiArtifacts         AIArtifact[]
+  structuredOutputs   ProjectStructuredOutput[]
+  projectFiles        ProjectFile[]
 
   @@map("users")
 }
@@ -395,6 +397,7 @@ model AIArtifact {
   project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workflowRun  AIWorkflowRun?  @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
   workflowStep AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+  structuredOutputs ProjectStructuredOutput[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -403,6 +406,55 @@ model AIArtifact {
   @@index([workflowRunId])
   @@index([workflowStepId])
   @@map("ai_artifacts")
+}
+
+model ProjectStructuredOutput {
+  id         String   @id @default(uuid())
+  userId     String
+  projectId  String
+  artifactId String?
+  domain     String
+  kind       String
+  key        String?
+  title      String?
+  content    String?
+  data       Json
+  source     String   @default("ai_artifact")
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  artifact AIArtifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, domain, kind])
+  @@index([artifactId])
+  @@map("project_structured_outputs")
+}
+
+model ProjectFile {
+  id           String   @id @default(uuid())
+  userId       String
+  projectId    String
+  originalName String
+  mimeType     String?
+  sizeBytes    Int
+  extension    String?
+  textContent  String
+  summary      String?
+  status       String   @default("ready")
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("project_files")
 }
 
 model FeatureUsageDaily {
@@ -482,6 +534,8 @@ model Project {
   featureUsageDaily   FeatureUsageDaily[]
   aiWorkflowRuns      AIWorkflowRun[]
   aiArtifacts         AIArtifact[]
+  structuredOutputs   ProjectStructuredOutput[]
+  projectFiles        ProjectFile[]
 
   @@index([userId, createdAt])
   @@map("projects")

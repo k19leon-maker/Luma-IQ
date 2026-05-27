@@ -75,6 +75,89 @@ const saveStrategySchema = z.object({
   generatedData: z.record(z.unknown()).optional(),
 });
 
+async function saveNormalizedProjectData(input: {
+  userId: string;
+  projectId: string;
+  data: z.infer<typeof saveStrategySchema>;
+}): Promise<void> {
+  const { prisma } = await import('../lib/prisma');
+  const rows: Array<{
+    domain: string;
+    kind: string;
+    key: string;
+    title: string;
+    content: string;
+    data: Record<string, unknown>;
+  }> = [];
+
+  if (input.data.expertProfileData) {
+    rows.push({
+      domain: 'strategy',
+      kind: 'expert_profile',
+      key: 'expert_profile.current',
+      title: 'О себе',
+      content: String(input.data.expertProfileData.summary ?? input.data.expertProfileData.role ?? ''),
+      data: input.data.expertProfileData as Record<string, unknown>,
+    });
+  }
+
+  if (input.data.positioningData) {
+    rows.push({
+      domain: 'positioning',
+      kind: 'positioning_current',
+      key: 'positioning.current',
+      title: 'Позиционирование',
+      content: String(input.data.positioningData.statement ?? input.data.positioningData.role ?? ''),
+      data: input.data.positioningData as Record<string, unknown>,
+    });
+  }
+
+  const generated = input.data.generatedData as Record<string, unknown> | undefined;
+  for (const [key, kind, title] of [
+    ['productMain', 'product_main', 'Основной продукт'],
+    ['productMini', 'product_mini', 'Мини-продукт'],
+    ['leadMagnet', 'lead_magnet', 'Лид-магнит'],
+  ] as const) {
+    const value = generated?.[key];
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      rows.push({
+        domain: 'product',
+        kind,
+        key: `generated.${key}`,
+        title,
+        content: String(record.markdown ?? record.description ?? record.productDescription ?? record.offer ?? ''),
+        data: record,
+      });
+    }
+  }
+
+  if (!rows.length) return;
+  await prisma.$transaction([
+    prisma.projectStructuredOutput.deleteMany({
+      where: {
+        userId: input.userId,
+        projectId: input.projectId,
+        source: 'project_strategy',
+        key: { in: rows.map((row) => row.key) },
+      },
+    }),
+    ...rows.map((row) => prisma.projectStructuredOutput.create({
+      data: {
+        userId: input.userId,
+        projectId: input.projectId,
+        domain: row.domain,
+        kind: row.kind,
+        key: row.key,
+        title: row.title,
+        content: row.content,
+        data: row.data as Prisma.InputJsonValue,
+        source: 'project_strategy',
+      },
+    })),
+  ]);
+}
+
 export const projectController = {
   async list(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -247,6 +330,11 @@ export const projectController = {
       await prisma.project.update({
         where: { id: req.params.id as string },
         data: { strategyData: merged },
+      });
+      await saveNormalizedProjectData({
+        userId: req.userId!,
+        projectId: req.params.id as string,
+        data: parsed.data,
       });
       void eventService.track('strategy_saved', {
         userId: req.userId!,

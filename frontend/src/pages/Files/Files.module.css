@@ -7,8 +7,9 @@
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .title {
@@ -102,4 +103,53 @@
   border-color: var(--success);
   color: var(--success);
   background: rgba(76, 175, 130, 0.08);
+}
+
+.uploadBtn {
+  background: var(--text-primary);
+  border: 1px solid var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.uploadBtn:hover {
+  opacity: 0.9;
+}
+
+.uploadBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.dangerBtn {
+  border-color: rgba(242, 92, 92, 0.45);
+  color: #d94b4b;
+}
+
+.dangerBtn:hover {
+  background: rgba(242, 92, 92, 0.08);
+  border-color: #d94b4b;
+  color: #d94b4b;
+}
+
+@media (max-width: 720px) {
+  .header,
+  .card {
+    flex-direction: column;
+  }
+
+  .actionBtn,
+  .uploadBtn {
+    width: 100%;
+  }
 }

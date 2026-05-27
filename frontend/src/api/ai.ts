@@ -43,6 +43,7 @@ export interface WorkflowResponse {
   artifactId:     string;
   generationId:   string;
   content:        string;
+  structured?:     Record<string, unknown> | null;
   validation:     { ok: boolean; errors: string[] };
   mock:           boolean;
   model:          string;
@@ -73,4 +74,38 @@ export const aiApi = {
       .post<{ text: string }>('/files/extract-text', form)
       .then((r) => r.data.text);
   },
+};
+
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  originalName: string;
+  mimeType: string | null;
+  sizeBytes: number;
+  extension: string | null;
+  textContent: string;
+  summary: string | null;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const filesApi = {
+  list: (projectId: string) =>
+    apiClient
+      .get<{ files: ProjectFile[] }>('/files', { params: { projectId } })
+      .then((r) => r.data.files),
+
+  upload: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('projectId', projectId);
+    form.append('file', file);
+    return apiClient
+      .post<{ file: ProjectFile }>('/files', form)
+      .then((r) => r.data.file);
+  },
+
+  remove: (id: string) =>
+    apiClient.delete<{ ok: boolean }>(`/files/${id}`).then((r) => r.data),
 };

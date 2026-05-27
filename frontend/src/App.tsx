@@ -1,46 +1,41 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
 import AdminRoute from './components/AdminRoute/AdminRoute';
 import Onboarding from './components/Onboarding/Onboarding';
-import Login from './pages/Login/Login';
-import Register from './pages/Register/Register';
-import AuthCallback from './pages/AuthCallback/AuthCallback';
-import VerifyEmail from './pages/VerifyEmail/VerifyEmail';
-import Dashboard from './pages/Dashboard/Dashboard';
-import Pricing from './pages/Pricing/Pricing';
-import AIDialog from './pages/AIDialog/AIDialog';
-
-// Strategy
-import AboutExpert from './pages/AboutExpert/AboutExpert';
-import Positioning from './pages/Positioning/Positioning';
-import Strategy    from './pages/Strategy/Strategy';
-import UTP         from './pages/UTP/UTP';
-import Social      from './pages/Social/Social';
-import ProductMain from './pages/ProductMain/ProductMain';
-import ProductMini from './pages/ProductMini/ProductMini';
-import LeadMagnet  from './pages/LeadMagnet/LeadMagnet';
-
-// Content
-import Posts         from './pages/Posts/Posts';
-import Reels         from './pages/Reels/Reels';
-import Articles      from './pages/Articles/Articles';
-import VideoScripts  from './pages/VideoScripts/VideoScripts';
-import ChatbotChains from './pages/ChatbotChains/ChatbotChains';
-
-// Content plan / Files / Projects / Tasks / Misc
-import ContentPlan   from './pages/ContentPlan/ContentPlan';
-import FileMaterials from './pages/Files/FileMaterials';
-import FileProducts  from './pages/Files/FileProducts';
-import ProjectPage   from './pages/Project/ProjectPage';
-import Tasks         from './pages/Tasks/Tasks';
-import History       from './pages/History/History';
-import Settings      from './pages/Settings/Settings';
-import Admin         from './pages/Admin/Admin';
 
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+
+const Login = lazy(() => import('./pages/Login/Login'));
+const Register = lazy(() => import('./pages/Register/Register'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback/AuthCallback'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail/VerifyEmail'));
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
+const Pricing = lazy(() => import('./pages/Pricing/Pricing'));
+const AIDialog = lazy(() => import('./pages/AIDialog/AIDialog'));
+const AboutExpert = lazy(() => import('./pages/AboutExpert/AboutExpert'));
+const Positioning = lazy(() => import('./pages/Positioning/Positioning'));
+const Strategy = lazy(() => import('./pages/Strategy/Strategy'));
+const UTP = lazy(() => import('./pages/UTP/UTP'));
+const Social = lazy(() => import('./pages/Social/Social'));
+const ProductMain = lazy(() => import('./pages/ProductMain/ProductMain'));
+const ProductMini = lazy(() => import('./pages/ProductMini/ProductMini'));
+const LeadMagnet = lazy(() => import('./pages/LeadMagnet/LeadMagnet'));
+const Posts = lazy(() => import('./pages/Posts/Posts'));
+const Reels = lazy(() => import('./pages/Reels/Reels'));
+const Articles = lazy(() => import('./pages/Articles/Articles'));
+const VideoScripts = lazy(() => import('./pages/VideoScripts/VideoScripts'));
+const ChatbotChains = lazy(() => import('./pages/ChatbotChains/ChatbotChains'));
+const ContentPlan = lazy(() => import('./pages/ContentPlan/ContentPlan'));
+const FileMaterials = lazy(() => import('./pages/Files/FileMaterials'));
+const FileProducts = lazy(() => import('./pages/Files/FileProducts'));
+const ProjectPage = lazy(() => import('./pages/Project/ProjectPage'));
+const Tasks = lazy(() => import('./pages/Tasks/Tasks'));
+const History = lazy(() => import('./pages/History/History'));
+const Settings = lazy(() => import('./pages/Settings/Settings'));
+const Admin = lazy(() => import('./pages/Admin/Admin'));
 
 // ── Layout wrapper with Onboarding ────────────────────────────────────────────
 
@@ -58,6 +53,18 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function PageLoader() {
+  return (
+    <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 14 }}>
+      Загружаю раздел...
+    </div>
+  );
+}
+
+function page(element: React.ReactNode) {
+  return <ErrorBoundary><Suspense fallback={<PageLoader />}>{element}</Suspense></ErrorBoundary>;
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -65,10 +72,10 @@ export default function App() {
     <>
       <Routes>
         {/* ── Public ───────────────────────────────────────────── */}
-        <Route path="/login"                  element={<Login />} />
-        <Route path="/register"               element={<Register />} />
-        <Route path="/auth/callback"          element={<AuthCallback />} />
-        <Route path="/auth/verify-email"      element={<VerifyEmail />} />
+        <Route path="/login"                  element={page(<Login />)} />
+        <Route path="/register"               element={page(<Register />)} />
+        <Route path="/auth/callback"          element={page(<AuthCallback />)} />
+        <Route path="/auth/verify-email"      element={page(<VerifyEmail />)} />
 
         {/* ── Root → dashboard ─────────────────────────────────── */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -81,43 +88,43 @@ export default function App() {
               <AppLayout>
                 <Routes>
                   {/* Дашборд */}
-                  <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-                  <Route path="/ai-dialog" element={<ErrorBoundary><AIDialog /></ErrorBoundary>} />
+                  <Route path="/dashboard" element={page(<Dashboard />)} />
+                  <Route path="/ai-dialog" element={page(<AIDialog />)} />
 
                   {/* Стратегия */}
-                  <Route path="/strategy/about"       element={<ErrorBoundary><AboutExpert /></ErrorBoundary>} />
-                  <Route path="/strategy/positioning" element={<ErrorBoundary><Positioning /></ErrorBoundary>} />
-                  <Route path="/strategy/audience"     element={<ErrorBoundary><Strategy /></ErrorBoundary>} />
-                  <Route path="/strategy/utp"          element={<ErrorBoundary><UTP /></ErrorBoundary>} />
-                  <Route path="/strategy/social"       element={<ErrorBoundary><Social /></ErrorBoundary>} />
+                  <Route path="/strategy/about"       element={page(<AboutExpert />)} />
+                  <Route path="/strategy/positioning" element={page(<Positioning />)} />
+                  <Route path="/strategy/audience"     element={page(<Strategy />)} />
+                  <Route path="/strategy/utp"          element={page(<UTP />)} />
+                  <Route path="/strategy/social"       element={page(<Social />)} />
                   {/* Конструктор продуктов */}
-                  <Route path="/products/main"        element={<ErrorBoundary><ProductMain /></ErrorBoundary>} />
-                  <Route path="/products/mini"        element={<ErrorBoundary><ProductMini /></ErrorBoundary>} />
-                  <Route path="/products/lead-magnet" element={<ErrorBoundary><LeadMagnet /></ErrorBoundary>} />
+                  <Route path="/products/main"        element={page(<ProductMain />)} />
+                  <Route path="/products/mini"        element={page(<ProductMini />)} />
+                  <Route path="/products/lead-magnet" element={page(<LeadMagnet />)} />
 
                   {/* Контент */}
-                  <Route path="/posts"          element={<ErrorBoundary><Posts /></ErrorBoundary>} />
-                  <Route path="/reels"          element={<ErrorBoundary><Reels /></ErrorBoundary>} />
-                  <Route path="/articles"       element={<ErrorBoundary><Articles /></ErrorBoundary>} />
-                  <Route path="/video-scripts"  element={<ErrorBoundary><VideoScripts /></ErrorBoundary>} />
-                  <Route path="/chatbot-chains" element={<ErrorBoundary><ChatbotChains /></ErrorBoundary>} />
+                  <Route path="/posts"          element={page(<Posts />)} />
+                  <Route path="/reels"          element={page(<Reels />)} />
+                  <Route path="/articles"       element={page(<Articles />)} />
+                  <Route path="/video-scripts"  element={page(<VideoScripts />)} />
+                  <Route path="/chatbot-chains" element={page(<ChatbotChains />)} />
 
                   {/* Контент-план */}
-                  <Route path="/content-plan" element={<ErrorBoundary><ContentPlan /></ErrorBoundary>} />
+                  <Route path="/content-plan" element={page(<ContentPlan />)} />
 
                   {/* Файлы */}
-                  <Route path="/files/materials" element={<ErrorBoundary><FileMaterials /></ErrorBoundary>} />
-                  <Route path="/files/products"  element={<ErrorBoundary><FileProducts /></ErrorBoundary>} />
+                  <Route path="/files/materials" element={page(<FileMaterials />)} />
+                  <Route path="/files/products"  element={page(<FileProducts />)} />
 
                   {/* Проекты */}
-                  <Route path="/projects/:id" element={<ErrorBoundary><ProjectPage /></ErrorBoundary>} />
+                  <Route path="/projects/:id" element={page(<ProjectPage />)} />
 
                   {/* Задачи / Прочее */}
-                  <Route path="/tasks"    element={<ErrorBoundary><Tasks /></ErrorBoundary>} />
-                  <Route path="/history"  element={<ErrorBoundary><History /></ErrorBoundary>} />
-                  <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-                  <Route path="/pricing"  element={<ErrorBoundary><Pricing /></ErrorBoundary>} />
-                  <Route path="/admin"    element={<ErrorBoundary><AdminRoute><Admin /></AdminRoute></ErrorBoundary>} />
+                  <Route path="/tasks"    element={page(<Tasks />)} />
+                  <Route path="/history"  element={page(<History />)} />
+                  <Route path="/settings" element={page(<Settings />)} />
+                  <Route path="/pricing"  element={page(<Pricing />)} />
+                  <Route path="/admin"    element={page(<AdminRoute><Admin /></AdminRoute>)} />
 
                   {/* Legacy redirects */}
                   <Route path="/strategy"     element={<Navigate to="/strategy/about"        replace />} />

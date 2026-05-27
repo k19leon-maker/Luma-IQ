@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { contentApi, ContentItem } from '../../api/content.api';
 import { ApiProduct, productsApi } from '../../api/products.api';
+import { filesApi, ProjectFile } from '../../api/ai';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useMaterialsStore } from '../../store/materials.store';
@@ -87,6 +89,22 @@ function fileFromProduct(item: ApiProduct): FileEntry | null {
   };
 }
 
+function fileFromProjectFile(item: ProjectFile): FileEntry | null {
+  const content = item.textContent || item.summary || '';
+  if (!content.trim()) return null;
+  return {
+    id: `upload_${item.id}`,
+    materialId: item.id,
+    icon: '📎',
+    type: item.extension?.replace('.', '').toUpperCase() || 'Файл',
+    title: item.originalName,
+    content,
+    summary: item.summary ?? undefined,
+    summaryStatus: item.status === 'ready' ? 'fresh' : item.status,
+    date: new Date(item.updatedAt).toLocaleDateString('ru-RU'),
+  };
+}
+
 function download(title: string, content: string) {
   const blob = new Blob([`${title}\n\n${content}`], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -104,6 +122,9 @@ export default function FileMaterials() {
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
   const refreshSummary = useMaterialsStore((s) => s.refreshSummary);
   const [generatedFiles, setGeneratedFiles] = useState<FileEntry[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<ProjectFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activeProjectId) void loadMaterialsFromDb(activeProjectId);
@@ -119,17 +140,50 @@ export default function FileMaterials() {
     Promise.all([
       contentApi.list(activeProjectId),
       productsApi.list(activeProjectId),
-    ]).then(([contentItems, productItems]) => {
+      filesApi.list(activeProjectId),
+    ]).then(([contentItems, productItems, projectFiles]) => {
       if (cancelled) return;
       const contentFiles = contentItems.map(fileFromContent).filter((item): item is FileEntry => Boolean(item));
       const productFiles = productItems.map(fileFromProduct).filter((item): item is FileEntry => Boolean(item));
       setGeneratedFiles([...contentFiles, ...productFiles]);
+      setUploadedFiles(projectFiles);
     }).catch(() => {
-      if (!cancelled) setGeneratedFiles([]);
+      if (!cancelled) {
+        setGeneratedFiles([]);
+        setUploadedFiles([]);
+      }
     });
 
     return () => { cancelled = true; };
   }, [activeProjectId]);
+
+  async function handleUpload(files: FileList | null) {
+    if (!activeProjectId || !files?.length) return;
+    setUploading(true);
+    try {
+      const saved: ProjectFile[] = [];
+      for (const file of Array.from(files)) {
+        saved.push(await filesApi.upload(activeProjectId, file));
+      }
+      setUploadedFiles((current) => [...saved, ...current]);
+      toast.success(saved.length === 1 ? 'Файл добавлен в материалы проекта' : `Файлы добавлены: ${saved.length}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Не удалось загрузить файл');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function removeUploadedFile(fileId: string) {
+    try {
+      await filesApi.remove(fileId);
+      setUploadedFiles((current) => current.filter((file) => file.id !== fileId));
+      toast.success('Файл удален');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Не удалось удалить файл');
+    }
+  }
 
   const files = useMemo(
     () => {
@@ -157,22 +211,36 @@ export default function FileMaterials() {
           strategyFiles.push({ id: 'strategy_main', icon: '🎯', type: 'Стратегия', title: `Стратегия — ${seg.split('\n')[0]?.slice(0, 50) ?? ''}`, content: text, date: '' });
         }
       }
-      const extraFiles = [...generatedFiles, ...strategyFiles]
+      const uploadFiles = uploadedFiles.map(fileFromProjectFile).filter((item): item is FileEntry => Boolean(item));
+      const extraFiles = [...uploadFiles, ...generatedFiles, ...strategyFiles]
         .filter((file) => !materialFiles.some((item) => item.title === file.title || item.id === file.id));
       return [...materialFiles, ...extraFiles];
     },
-    [audienceAnswers, generatedFiles, projectMaterials],
+    [audienceAnswers, generatedFiles, projectMaterials, uploadedFiles],
   );
 
   return (
     <div className={s.root}>
       <div className={s.header}>
-        <h2 className={s.title}>Материалы</h2>
-        <p className={s.desc}>
-          {files.length > 0
-            ? `${files.length} документ${files.length === 1 ? '' : files.length < 5 ? 'а' : 'ов'} — knowledge base проекта`
-            : 'Созданные материалы появятся здесь'}
-        </p>
+        <div>
+          <h2 className={s.title}>Материалы</h2>
+          <p className={s.desc}>
+            {files.length > 0
+              ? `${files.length} документ${files.length === 1 ? '' : files.length < 5 ? 'а' : 'ов'} — knowledge base проекта`
+              : 'Созданные материалы появятся здесь'}
+          </p>
+        </div>
+        <button className={s.uploadBtn} onClick={() => fileInputRef.current?.click()} disabled={!activeProjectId || uploading}>
+          {uploading ? 'Загружаю...' : '+ Загрузить файл'}
+        </button>
+        <input
+          ref={fileInputRef}
+          className={s.hiddenInput}
+          type="file"
+          multiple
+          accept=".txt,.md,.doc,.docx,.pdf"
+          onChange={(event) => void handleUpload(event.target.files)}
+        />
       </div>
 
       {files.length === 0 ? (
@@ -203,13 +271,22 @@ export default function FileMaterials() {
                 </div>
               </div>
               {file.materialId && (
-                <button
-                  className={s.actionBtn}
-                  onClick={() => void refreshSummary(activeProjectId, file.materialId!)}
-                  disabled={file.summaryStatus === 'updating'}
-                >
-                  {file.summaryStatus === 'updating' ? 'Обновляю...' : 'Обновить саммари'}
-                </button>
+                file.id.startsWith('upload_') ? (
+                  <button
+                    className={`${s.actionBtn} ${s.dangerBtn}`}
+                    onClick={() => void removeUploadedFile(file.materialId!)}
+                  >
+                    Удалить
+                  </button>
+                ) : (
+                  <button
+                    className={s.actionBtn}
+                    onClick={() => void refreshSummary(activeProjectId, file.materialId!)}
+                    disabled={file.summaryStatus === 'updating'}
+                  >
+                    {file.summaryStatus === 'updating' ? 'Обновляю...' : 'Обновить саммари'}
+                  </button>
+                )
               )}
               <button className={s.actionBtn} onClick={() => download(file.title, file.content)}>
                 ⬇️ Скачать

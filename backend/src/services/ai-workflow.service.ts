@@ -7,6 +7,7 @@ import { AIProvider, chat } from './ai.service';
 import { aiGenerationService } from './ai-generation.service';
 import { aiValidationService } from './ai-validation.service';
 import { projectContextService } from './project-context.service';
+import { structuredOutputService } from './structured-output.service';
 
 export interface RunWorkflowInput {
   userId: string;
@@ -115,6 +116,7 @@ export const aiWorkflowService = {
           artifactId: artifact.id,
           generationId: replayGeneration.id,
           content: artifact.content,
+          structured: artifact.structured,
           validation: (artifact.metadata as { validation?: unknown } | null)?.validation ?? { ok: true, errors: [] },
           mock: Boolean((artifact.metadata as { mock?: unknown } | null)?.mock),
           model: replayGeneration.model,
@@ -244,6 +246,19 @@ export const aiWorkflowService = {
       generationId = executed.generationId;
       const { response, validation, retryCount } = executed.result;
 
+      const structured = structuredOutputService.build({
+        userId: input.userId,
+        projectId: input.projectId,
+        artifactId: '',
+        workflow: input.workflow,
+        step: input.step,
+        type: config.artifactType,
+        title: String(input.inputs.topic ?? input.inputs.title ?? config.artifactType),
+        content: response.content,
+        inputs: input.inputs,
+        metadata: { validation, stageType },
+      });
+
       const artifact = await prisma.aIArtifact.create({
         data: {
           userId: input.userId,
@@ -257,7 +272,8 @@ export const aiWorkflowService = {
           title: String(input.inputs.topic ?? input.inputs.title ?? config.artifactType),
           content: response.content,
           structured: {
-            content: response.content,
+            ...structured.data,
+            rawContent: response.content,
             validation,
             workflow: input.workflow,
             step: input.step,
@@ -278,6 +294,21 @@ export const aiWorkflowService = {
             stageType,
           } as unknown as Prisma.InputJsonValue,
         },
+      });
+
+      await structuredOutputService.save({
+        userId: input.userId,
+        projectId: input.projectId,
+        artifactId: artifact.id,
+        workflow: input.workflow,
+        step: input.step,
+        type: config.artifactType,
+        title: artifact.title,
+        content: response.content,
+        inputs: input.inputs,
+        metadata: { validation, stageType },
+      }).catch((error) => {
+        console.error('[AIWorkflow] structured output save failed:', error);
       });
 
       await prisma.aIWorkflowStep.update({
@@ -314,6 +345,7 @@ export const aiWorkflowService = {
         artifactId: artifact.id,
         generationId,
         content: response.content,
+        structured: artifact.structured,
         validation,
         mock: response.mock,
         model: response.model,
