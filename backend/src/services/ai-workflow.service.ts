@@ -7,6 +7,7 @@ import { AIProvider, chat } from './ai.service';
 import { aiGenerationService } from './ai-generation.service';
 import { aiValidationService } from './ai-validation.service';
 import { projectContextService } from './project-context.service';
+import { promptCmsService } from './prompt-cms.service';
 import { structuredOutputService } from './structured-output.service';
 
 export interface RunWorkflowInput {
@@ -170,11 +171,22 @@ export const aiWorkflowService = {
 
     const provider = toProvider(input.provider);
     const dbProvider = toDbProvider(provider);
+    const baseSystemPrompt = withGlobalAiBehaviorPrompt(config.systemPrompt(context));
+    const baseUserPrompt = config.userPromptBuilder({ inputs: input.inputs, context });
+    const effectivePrompt = await promptCmsService.resolve({
+      config,
+      userId: input.userId,
+      projectId: input.projectId,
+      context,
+      inputs: input.inputs,
+      baseSystemPrompt,
+      baseUserPrompt,
+    });
     const model = provider === 'anthropic'
-      ? input.claudeModel ?? 'claude-haiku-4-5-20251001'
-      : input.openaiModel ?? config.model;
-    const systemPrompt = withGlobalAiBehaviorPrompt(config.systemPrompt(context));
-    const userPrompt = config.userPromptBuilder({ inputs: input.inputs, context });
+      ? input.claudeModel ?? effectivePrompt.model
+      : input.openaiModel ?? effectivePrompt.model;
+    const systemPrompt = effectivePrompt.systemPrompt;
+    const userPrompt = effectivePrompt.userPrompt;
     let generationId: string | null = null;
 
     try {
@@ -193,6 +205,12 @@ export const aiWorkflowService = {
           workflow: input.workflow,
           step: input.step,
           promptId: config.id,
+          cmsVersionId: effectivePrompt.cmsVersionId,
+          cmsVersionLabel: effectivePrompt.cmsVersionLabel,
+          promptExperimentId: effectivePrompt.experimentId,
+          promptExperimentName: effectivePrompt.experimentName,
+          promptExperimentVariantId: effectivePrompt.variantId,
+          promptExperimentVariantName: effectivePrompt.variantName,
           contextBlocks: context.blocks.map((block) => block.key),
           contextApproxTokens: context.approxTokens,
           stageType,
@@ -205,8 +223,8 @@ export const aiWorkflowService = {
             section: workflowGroup(input.workflow),
             openaiModel: provider === 'openai' ? model : undefined,
             claudeModel: provider === 'anthropic' ? model : undefined,
-            maxTokens: config.maxTokens,
-            temperature: config.temperature,
+            maxTokens: effectivePrompt.maxTokens,
+            temperature: effectivePrompt.temperature,
           });
 
           let validation = aiValidationService.validate(response.content, config.validationRules);
@@ -222,8 +240,8 @@ export const aiWorkflowService = {
               section: workflowGroup(input.workflow),
               openaiModel: provider === 'openai' ? model : undefined,
               claudeModel: provider === 'anthropic' ? model : undefined,
-              maxTokens: config.maxTokens,
-              temperature: Math.max(0.2, config.temperature - 0.2),
+              maxTokens: effectivePrompt.maxTokens,
+              temperature: Math.max(0.2, effectivePrompt.temperature - 0.2),
             });
             response = repair;
             usage = {
@@ -286,6 +304,12 @@ export const aiWorkflowService = {
           metadata: {
             promptId: config.id,
             promptVersion: config.version,
+            cmsVersionId: effectivePrompt.cmsVersionId,
+            cmsVersionLabel: effectivePrompt.cmsVersionLabel,
+            promptExperimentId: effectivePrompt.experimentId,
+            promptExperimentName: effectivePrompt.experimentName,
+            promptExperimentVariantId: effectivePrompt.variantId,
+            promptExperimentVariantName: effectivePrompt.variantName,
             validation,
             retryCount,
             provider: response.provider,

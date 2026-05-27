@@ -39,6 +39,8 @@ model User {
   aiArtifacts         AIArtifact[]
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
+  promptVersions      PromptVersion[]
+  promptExperiments   PromptExperiment[]
 
   @@map("users")
 }
@@ -455,6 +457,74 @@ model ProjectFile {
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
   @@map("project_files")
+}
+
+model PromptVersion {
+  id                 String   @id @default(uuid())
+  promptId           String
+  versionLabel       String
+  workflow           String
+  step               String
+  featureCode        String
+  artifactType       String
+  model              String?
+  temperature        Decimal? @db.Decimal(4, 2)
+  maxTokens          Int?
+  systemPrompt       String?
+  userPromptTemplate String?
+  validationRules    Json?
+  status             String   @default("DRAFT")
+  notes              String?
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  variants  PromptExperimentVariant[]
+
+  @@index([workflow, step, status])
+  @@index([promptId, versionLabel])
+  @@map("prompt_versions")
+}
+
+model PromptExperiment {
+  id          String    @id @default(uuid())
+  name        String
+  workflow    String
+  step        String
+  status      String    @default("DRAFT")
+  trafficPct  Int       @default(100)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdById String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  variants  PromptExperimentVariant[]
+
+  @@index([workflow, step, status])
+  @@map("prompt_experiments")
+}
+
+model PromptExperimentVariant {
+  id              String   @id @default(uuid())
+  experimentId    String
+  promptVersionId String?
+  name            String
+  trafficWeight   Int      @default(50)
+  isControl       Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  experiment    PromptExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  promptVersion PromptVersion?   @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+
+  @@index([experimentId])
+  @@index([promptVersionId])
+  @@map("prompt_experiment_variants")
 }
 
 model FeatureUsageDaily {

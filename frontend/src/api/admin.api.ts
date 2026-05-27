@@ -121,6 +121,8 @@ export interface AdminDashboard {
     missingPricingAlerts30d: number;
     highCostUsers30d: number;
     mostUsedFeature: string;
+    promptVersionsCount: number;
+    runningPromptExperiments: number;
   };
   ai: {
     byProvider: Array<{ provider: string; count: number }>;
@@ -137,6 +139,28 @@ export interface AdminDashboard {
       avgRetry: number;
       successRate: number;
     }>;
+    marginByPlan: Array<{
+      plan: string;
+      users: number;
+      revenueRub: number;
+      aiCostUsd: number;
+      aiCostRub: number;
+      marginRub: number;
+      marginPercent: number;
+    }>;
+    promptExperiments: {
+      versions: number;
+      running: number;
+    };
+  };
+  retention: {
+    cohort30dUsers: number;
+    activatedUsers: number;
+    activationRate: number;
+    retained7dUsers: number;
+    retained30dUsers: number;
+    retention7dRate: number;
+    retention30dRate: number;
   };
   recentEvents: Array<{
     id: string;
@@ -147,6 +171,57 @@ export interface AdminDashboard {
     createdAt: string;
     user: { email: string; name: string | null } | null;
   }>;
+}
+
+export interface AdminPromptRegistryItem {
+  id: string;
+  workflow: string;
+  step: string;
+  feature: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  artifactType: string;
+}
+
+export interface AdminPromptVersion {
+  id: string;
+  promptId: string;
+  versionLabel: string;
+  workflow: string;
+  step: string;
+  featureCode: string;
+  artifactType: string;
+  model: string | null;
+  temperature: string | number | null;
+  maxTokens: number | null;
+  systemPrompt: string | null;
+  userPromptTemplate: string | null;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminPromptExperiment {
+  id: string;
+  name: string;
+  workflow: string;
+  step: string;
+  status: string;
+  trafficPct: number;
+  startedAt: string | null;
+  endedAt: string | null;
+  variants: Array<{
+    id: string;
+    name: string;
+    trafficWeight: number;
+    isControl: boolean;
+    promptVersionId: string | null;
+    promptVersion: AdminPromptVersion | null;
+  }>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const adminApi = {
@@ -213,4 +288,33 @@ export const adminApi = {
     apiClient
       .post<{ ok: boolean; entry: { id: string; balanceAfter: number } }>(`/admin/users/${id}/credits`, data)
       .then((r) => r.data),
+
+  prompts: () =>
+    apiClient
+      .get<{ registry: AdminPromptRegistryItem[]; versions: AdminPromptVersion[]; experiments: AdminPromptExperiment[] }>('/admin/prompts')
+      .then((r) => r.data),
+
+  createPromptVersion: (data: {
+    workflow: string;
+    step: string;
+    versionLabel: string;
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
+    userPromptTemplate?: string;
+    status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+    notes?: string;
+  }) =>
+    apiClient.post<{ version: AdminPromptVersion }>('/admin/prompts/versions', data).then((r) => r.data.version),
+
+  createPromptExperiment: (data: {
+    name: string;
+    workflow: string;
+    step: string;
+    status?: 'DRAFT' | 'RUNNING' | 'PAUSED' | 'FINISHED';
+    trafficPct?: number;
+    variants: Array<{ name: string; promptVersionId?: string | null; trafficWeight?: number; isControl?: boolean }>;
+  }) =>
+    apiClient.post<{ experiment: AdminPromptExperiment }>('/admin/prompts/experiments', data).then((r) => r.data.experiment),
 };

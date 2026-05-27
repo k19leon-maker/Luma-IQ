@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { adminApi, AdminDashboard, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
+import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Admin.module.css';
 
-type Page = 'dashboard' | 'users' | 'usage' | 'subscriptions' | 'ai' | 'projects' | 'workflows' | 'errors' | 'settings' | 'user-detail';
+type Page = 'dashboard' | 'users' | 'usage' | 'subscriptions' | 'ai' | 'projects' | 'workflows' | 'prompts' | 'errors' | 'settings' | 'user-detail';
 type SortKey = 'aiCostUsd' | 'tokens' | 'ltv' | 'lastActivityAt' | 'createdAt' | 'aiRequestCount';
 
 const PAGES: Array<{ id: Page; label: string }> = [
@@ -16,6 +16,7 @@ const PAGES: Array<{ id: Page; label: string }> = [
   { id: 'ai', label: 'AI-аналитика' },
   { id: 'projects', label: 'Проекты' },
   { id: 'workflows', label: 'Workflow' },
+  { id: 'prompts', label: 'Промпты' },
   { id: 'errors', label: 'Ошибки' },
   { id: 'settings', label: 'Настройки' },
 ];
@@ -126,6 +127,20 @@ export default function Admin() {
   const [creditsAmount, setCreditsAmount] = useState(0);
   const [creditsReason, setCreditsReason] = useState('');
   const [accessLoading, setAccessLoading] = useState(false);
+  const [promptRegistry, setPromptRegistry] = useState<AdminPromptRegistryItem[]>([]);
+  const [promptVersions, setPromptVersions] = useState<AdminPromptVersion[]>([]);
+  const [promptExperiments, setPromptExperiments] = useState<AdminPromptExperiment[]>([]);
+  const [promptWorkflow, setPromptWorkflow] = useState('posts.post');
+  const [promptStep, setPromptStep] = useState('write');
+  const [promptVersionLabel, setPromptVersionLabel] = useState('v2');
+  const [promptStatus, setPromptStatus] = useState<'DRAFT' | 'ACTIVE' | 'ARCHIVED'>('DRAFT');
+  const [promptModel, setPromptModel] = useState('');
+  const [promptTemperature, setPromptTemperature] = useState('');
+  const [promptMaxTokens, setPromptMaxTokens] = useState('');
+  const [promptSystem, setPromptSystem] = useState('');
+  const [promptNotes, setPromptNotes] = useState('');
+  const [experimentName, setExperimentName] = useState('');
+  const [experimentVersionId, setExperimentVersionId] = useState('');
 
   const sortedUsers = useMemo(() => {
     return [...users].sort((a, b) => {
@@ -143,6 +158,22 @@ export default function Admin() {
       setDashboard(await adminApi.dashboard());
     } catch {
       toast.error('Не удалось загрузить бизнес-метрики');
+    }
+  }
+
+  async function loadPrompts() {
+    try {
+      const data = await adminApi.prompts();
+      setPromptRegistry(data.registry);
+      setPromptVersions(data.versions);
+      setPromptExperiments(data.experiments);
+      const first = data.registry[0];
+      if (first && !promptWorkflow) {
+        setPromptWorkflow(first.workflow);
+        setPromptStep(first.step);
+      }
+    } catch {
+      toast.error('Не удалось загрузить prompt CMS');
     }
   }
 
@@ -189,10 +220,11 @@ export default function Admin() {
   useEffect(() => {
     void loadDashboard();
     void loadUsers();
+    void loadPrompts();
   }, []);
 
   async function refreshAll() {
-    await Promise.all([loadDashboard(), loadUsers()]);
+    await Promise.all([loadDashboard(), loadUsers(), loadPrompts()]);
     if (selected) {
       const detail = await adminApi.getUser(selected.id).catch(() => null);
       if (detail) setSelected(detail);
@@ -318,6 +350,9 @@ export default function Admin() {
           <MetricCard label="Токены сегодня" value={fmtTokens(m?.tokensToday ?? 0)} hint="по всем провайдерам" />
           <MetricCard label="Самая используемая функция" value={m?.mostUsedFeature ?? '—'} hint="по запросам и расходам" />
           <MetricCard label="Оценочная маржа" value={fmtMoney(m?.estimatedMarginRub ?? 0)} hint={`${m?.estimatedMarginPercent ?? 0}% валовая маржа`} />
+          <MetricCard label="Prompt CMS" value={m?.promptVersionsCount ?? 0} hint={`${m?.runningPromptExperiments ?? 0} A/B тестов запущено`} />
+          <MetricCard label="Activation 30d" value={`${dashboard?.retention.activationRate ?? 0}%`} hint={`${dashboard?.retention.activatedUsers ?? 0}/${dashboard?.retention.cohort30dUsers ?? 0} новых пользователей`} />
+          <MetricCard label="Retention AI" value={`${dashboard?.retention.retention7dRate ?? 0}%`} hint={`7d: ${dashboard?.retention.retained7dUsers ?? 0} · 30d: ${dashboard?.retention.retention30dRate ?? 0}%`} />
         </div>
 
         <div className={s.twoCol}>
@@ -337,6 +372,24 @@ export default function Admin() {
             {dashboard?.ai.byFeature.length === 0 && <div className={s.emptyState}>AI-использования пока нет</div>}
           </section>
         </div>
+        <section className={s.panel}>
+          <div className={s.panelTitle}>AI margin по тарифам</div>
+          <table className={s.table}>
+            <thead><tr><th>Тариф</th><th>Пользователи</th><th>Выручка</th><th>AI cost</th><th>Маржа</th><th>Margin %</th></tr></thead>
+            <tbody>
+              {(dashboard?.ai.marginByPlan ?? []).map((item) => (
+                <tr key={item.plan}>
+                  <td><strong>{item.plan}</strong></td>
+                  <td>{item.users}</td>
+                  <td>{fmtMoney(item.revenueRub)}</td>
+                  <td>{fmtMoney(item.aiCostUsd, 'USD')}</td>
+                  <td>{fmtMoney(item.marginRub)}</td>
+                  <td>{item.marginPercent}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       </>
     );
   }
@@ -486,6 +539,129 @@ export default function Admin() {
     );
   }
 
+  async function handleCreatePromptVersion() {
+    try {
+      const version = await adminApi.createPromptVersion({
+        workflow: promptWorkflow,
+        step: promptStep,
+        versionLabel: promptVersionLabel,
+        status: promptStatus,
+        model: promptModel || undefined,
+        temperature: promptTemperature ? Number(promptTemperature) : undefined,
+        maxTokens: promptMaxTokens ? Number(promptMaxTokens) : undefined,
+        systemPrompt: promptSystem || undefined,
+        notes: promptNotes || undefined,
+      });
+      toast.success(`Версия промпта создана: ${version.versionLabel}`);
+      setExperimentVersionId(version.id);
+      await loadPrompts();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось создать версию промпта');
+    }
+  }
+
+  async function handleCreateExperiment() {
+    try {
+      await adminApi.createPromptExperiment({
+        name: experimentName || `${promptWorkflow}.${promptStep} A/B`,
+        workflow: promptWorkflow,
+        step: promptStep,
+        status: 'RUNNING',
+        trafficPct: 100,
+        variants: [
+          { name: 'Control', promptVersionId: null, trafficWeight: 50, isControl: true },
+          { name: 'Variant', promptVersionId: experimentVersionId || null, trafficWeight: 50 },
+        ],
+      });
+      toast.success('A/B тест запущен');
+      setExperimentName('');
+      await loadPrompts();
+      await loadDashboard();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось запустить A/B тест');
+    }
+  }
+
+  function renderPrompts() {
+    const selectedPrompt = promptRegistry.find((item) => item.workflow === promptWorkflow && item.step === promptStep);
+    const relevantVersions = promptVersions.filter((item) => item.workflow === promptWorkflow && item.step === promptStep);
+    return (
+      <div className={s.detailStack}>
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Prompt CMS / version control</div>
+          <div className={s.formGrid}>
+            <select className={s.select} value={`${promptWorkflow}.${promptStep}`} onChange={(event) => {
+              const parts = event.target.value.split('.');
+              setPromptWorkflow(parts.slice(0, -1).join('.'));
+              setPromptStep(parts[parts.length - 1] ?? 'generate');
+            }}>
+              {promptRegistry.map((prompt) => (
+                <option key={`${prompt.workflow}.${prompt.step}`} value={`${prompt.workflow}.${prompt.step}`}>
+                  {prompt.workflow}.{prompt.step} · {prompt.feature}
+                </option>
+              ))}
+            </select>
+            <input className={s.input} value={promptVersionLabel} onChange={(e) => setPromptVersionLabel(e.target.value)} placeholder="Версия, например v2" />
+            <select className={s.select} value={promptStatus} onChange={(e) => setPromptStatus(e.target.value as 'DRAFT' | 'ACTIVE' | 'ARCHIVED')}>
+              <option value="DRAFT">Черновик</option>
+              <option value="ACTIVE">Активная версия</option>
+              <option value="ARCHIVED">Архив</option>
+            </select>
+            <input className={s.input} value={promptModel} onChange={(e) => setPromptModel(e.target.value)} placeholder={`Модель: ${selectedPrompt?.model ?? 'по умолчанию'}`} />
+            <input className={s.input} value={promptTemperature} onChange={(e) => setPromptTemperature(e.target.value)} placeholder={`Temperature: ${selectedPrompt?.temperature ?? ''}`} />
+            <input className={s.input} value={promptMaxTokens} onChange={(e) => setPromptMaxTokens(e.target.value)} placeholder={`Max tokens: ${selectedPrompt?.maxTokens ?? ''}`} />
+            <textarea className={s.textarea} value={promptSystem} onChange={(e) => setPromptSystem(e.target.value)} placeholder="System prompt override. Используйте {{context}}, если хотите вставить selective context в конкретное место." rows={8} />
+            <textarea className={s.textarea} value={promptNotes} onChange={(e) => setPromptNotes(e.target.value)} placeholder="Заметка: что тестируем и зачем" rows={3} />
+          </div>
+          <div className={s.actions}>
+            <button className={s.button} onClick={() => void handleCreatePromptVersion()}>Создать версию</button>
+          </div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>A/B testing prompts</div>
+          <div className={s.formGrid}>
+            <input className={s.input} value={experimentName} onChange={(e) => setExperimentName(e.target.value)} placeholder="Название A/B теста" />
+            <select className={s.select} value={experimentVersionId} onChange={(e) => setExperimentVersionId(e.target.value)}>
+              <option value="">Variant = code prompt</option>
+              {relevantVersions.map((version) => <option key={version.id} value={version.id}>{version.versionLabel} · {version.status}</option>)}
+            </select>
+          </div>
+          <div className={s.actions}>
+            <button className={s.secondaryButton} onClick={() => void handleCreateExperiment()} disabled={!promptWorkflow}>Запустить 50/50 A/B</button>
+          </div>
+        </section>
+
+        <div className={s.twoCol}>
+          <section className={s.panel}>
+            <div className={s.panelTitle}>Версии выбранного промпта</div>
+            {relevantVersions.map((version) => (
+              <div key={version.id} className={s.listItem}>
+                <strong>{version.versionLabel} · {version.status}</strong>
+                <span>{version.model || selectedPrompt?.model} · temp {String(version.temperature ?? selectedPrompt?.temperature)} · {version.maxTokens ?? selectedPrompt?.maxTokens} tokens</span>
+                {version.notes && <p>{version.notes}</p>}
+              </div>
+            ))}
+            {relevantVersions.length === 0 && <div className={s.emptyState}>Для этого prompt step пока нет CMS-версий</div>}
+          </section>
+          <section className={s.panel}>
+            <div className={s.panelTitle}>Эксперименты</div>
+            {promptExperiments.slice(0, 12).map((experiment) => (
+              <div key={experiment.id} className={s.listItem}>
+                <strong>{experiment.name} · {experiment.status}</strong>
+                <span>{experiment.workflow}.{experiment.step} · traffic {experiment.trafficPct}%</span>
+                <p>{experiment.variants.map((variant) => `${variant.name}: ${variant.trafficWeight}%`).join(' · ')}</p>
+              </div>
+            ))}
+            {promptExperiments.length === 0 && <div className={s.emptyState}>A/B тестов пока нет</div>}
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   function renderSubscriptions() {
     return (
       <section className={s.panel}>
@@ -623,6 +799,7 @@ export default function Admin() {
     if (page === 'ai') return renderAIAnalytics();
     if (page === 'projects') return renderProjects();
     if (page === 'workflows') return renderWorkflows();
+    if (page === 'prompts') return renderPrompts();
     if (page === 'errors') return renderErrors();
     if (page === 'settings') return renderSettings();
     return renderUserDetail();

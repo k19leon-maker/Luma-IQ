@@ -6,6 +6,8 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { authService } from '../services/auth.service';
 import { creditLedgerService } from '../services/credit-ledger.service';
+import { promptRegistry } from '../prompts/registry';
+import { promptCmsService } from '../services/prompt-cms.service';
 import { setRefreshCookie } from '../utils/auth-cookies';
 
 const listSchema = z.object({
@@ -86,6 +88,33 @@ const addCreditsSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+const createPromptVersionSchema = z.object({
+  workflow: z.string().min(1).max(120),
+  step: z.string().min(1).max(80),
+  versionLabel: z.string().min(1).max(80),
+  model: z.string().max(120).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(100).max(50000).optional(),
+  systemPrompt: z.string().max(60000).optional(),
+  userPromptTemplate: z.string().max(60000).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).optional().default('DRAFT'),
+  notes: z.string().max(2000).optional(),
+});
+
+const createPromptExperimentSchema = z.object({
+  name: z.string().min(1).max(200),
+  workflow: z.string().min(1).max(120),
+  step: z.string().min(1).max(80),
+  status: z.enum(['DRAFT', 'RUNNING', 'PAUSED', 'FINISHED']).optional().default('DRAFT'),
+  trafficPct: z.number().int().min(1).max(100).optional().default(100),
+  variants: z.array(z.object({
+    name: z.string().min(1).max(120),
+    promptVersionId: z.string().uuid().nullable().optional(),
+    trafficWeight: z.number().int().min(0).max(100).optional().default(50),
+    isControl: z.boolean().optional().default(false),
+  })).min(2).max(6),
+});
+
 function currentStage(project: {
   strategyCompletedAt: Date | null;
   strategyData: unknown;
@@ -131,6 +160,10 @@ function formatSubscription(sub: {
   };
 }
 
+function parseMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
 export const adminController = {
   async dashboard(_req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -164,6 +197,14 @@ export const adminController = {
         failedGenerations30d,
         missingPricingAlerts30d,
         highCostUsers30d,
+        revenueByPlan,
+        costsByPlanRaw,
+        cohortUsers,
+        activatedUsers,
+        retainedUsers7d,
+        retainedUsers30d,
+        promptVersionsCount,
+        runningPromptExperiments,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
@@ -277,6 +318,43 @@ export const adminController = {
           _sum: { actualCostUsd: true },
           having: { actualCostUsd: { _sum: { gte: 3 } } },
         }),
+        prisma.subscription.groupBy({
+          by: ['plan'],
+          _sum: { ltvRub: true },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: thirtyDaysAgo }, status: 'SUCCEEDED' },
+          _sum: { actualCostUsd: true },
+        }),
+        prisma.user.findMany({
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          select: { id: true, createdAt: true },
+        }),
+        prisma.project.groupBy({
+          by: ['userId'],
+          where: {
+            OR: [
+              { strategyCompletedAt: { not: null } },
+              { generatedTexts: { some: {} } },
+              { aiGenerations: { some: {} } },
+            ],
+          },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: sevenDaysAgo } },
+          _count: { _all: true },
+        }),
+        prisma.aIGeneration.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { _all: true },
+        }),
+        prisma.promptVersion.count(),
+        prisma.promptExperiment.count({ where: { status: 'RUNNING' } }),
       ]);
 
       const revenue = Number(revenueAgg._sum.amount ?? 0);
@@ -286,6 +364,29 @@ export const adminController = {
       const avgCostPerUser = activeUserCount > 0 ? aiCostUsd / activeUserCount : 0;
       const avgCostPerProject = projectsCount > 0 ? aiCostUsd / projectsCount : 0;
       const topFeature = costByFeature[0]?.featureCode ?? '—';
+      const subscriptionByUser = await prisma.subscription.findMany({
+        select: { userId: true, plan: true },
+      });
+      const planByUser = new Map(subscriptionByUser.map((item) => [item.userId, item.plan]));
+      const costsByPlan = new Map<string, number>();
+      for (const item of costsByPlanRaw) {
+        const plan = planByUser.get(item.userId) ?? 'FREE';
+        costsByPlan.set(plan, (costsByPlan.get(plan) ?? 0) + usd(item._sum.actualCostUsd));
+      }
+      const revenuePlanRows = revenueByPlan.map((item) => ({
+        plan: item.plan,
+        users: item._count._all,
+        revenueRub: rub(item._sum.ltvRub),
+        aiCostUsd: costsByPlan.get(item.plan) ?? 0,
+        marginRub: rub(item._sum.ltvRub) - (costsByPlan.get(item.plan) ?? 0) * 100,
+      }));
+      if (costsByPlan.has('FREE') && !revenuePlanRows.some((item) => item.plan === 'FREE')) {
+        revenuePlanRows.push({ plan: 'FREE', users: 0, revenueRub: 0, aiCostUsd: costsByPlan.get('FREE') ?? 0, marginRub: -(costsByPlan.get('FREE') ?? 0) * 100 });
+      }
+      const cohortCount = cohortUsers.length;
+      const activatedSet = new Set(activatedUsers.map((item) => item.userId));
+      const retained7Set = new Set(retainedUsers7d.map((item) => item.userId));
+      const retained30Set = new Set(retainedUsers30d.map((item) => item.userId));
 
       const workflowMap = new Map<string, {
         workflow: string;
@@ -333,6 +434,8 @@ export const adminController = {
           missingPricingAlerts30d,
           highCostUsers30d: highCostUsers30d.length,
           mostUsedFeature: topFeature,
+          promptVersionsCount,
+          runningPromptExperiments,
         },
         ai: {
           byProvider: aiByProvider.map((item) => ({ provider: item.provider, count: item._count._all })),
@@ -361,6 +464,24 @@ export const adminController = {
             ...item,
             successRate: item.count > 0 ? Math.round((item.success / item.count) * 100) : 0,
           })),
+          marginByPlan: revenuePlanRows.map((item) => ({
+            ...item,
+            aiCostRub: item.aiCostUsd * 100,
+            marginPercent: marginPercent(item.revenueRub, item.aiCostUsd),
+          })),
+          promptExperiments: {
+            versions: promptVersionsCount,
+            running: runningPromptExperiments,
+          },
+        },
+        retention: {
+          cohort30dUsers: cohortCount,
+          activatedUsers: activatedSet.size,
+          activationRate: cohortCount > 0 ? Math.round((activatedSet.size / cohortCount) * 100) : 0,
+          retained7dUsers: Array.from(activatedSet).filter((id) => retained7Set.has(id)).length,
+          retained30dUsers: Array.from(activatedSet).filter((id) => retained30Set.has(id)).length,
+          retention7dRate: activatedSet.size > 0 ? Math.round((Array.from(activatedSet).filter((id) => retained7Set.has(id)).length / activatedSet.size) * 100) : 0,
+          retention30dRate: activatedSet.size > 0 ? Math.round((Array.from(activatedSet).filter((id) => retained30Set.has(id)).length / activatedSet.size) * 100) : 0,
         },
         recentEvents: recentEvents.map((event) => ({
           id: event.id,
@@ -685,6 +806,124 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] grantPro:', err);
       res.status(500).json({ error: 'Ошибка выдачи PRO' });
+    }
+  },
+
+  async listPrompts(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const [versions, experiments] = await Promise.all([
+        prisma.promptVersion.findMany({ orderBy: { updatedAt: 'desc' }, take: 200 }),
+        prisma.promptExperiment.findMany({
+          orderBy: { updatedAt: 'desc' },
+          include: { variants: { include: { promptVersion: true } } },
+          take: 100,
+        }),
+      ]);
+      const registry = promptRegistry.list().map((prompt) => ({
+        id: prompt.id,
+        workflow: prompt.workflow,
+        step: prompt.step,
+        feature: prompt.feature,
+        model: prompt.model,
+        temperature: prompt.temperature,
+        maxTokens: prompt.maxTokens,
+        artifactType: prompt.artifactType,
+      }));
+      res.json({ registry, versions, experiments });
+    } catch (err) {
+      console.error('[Admin] listPrompts:', err);
+      res.status(500).json({ error: 'Ошибка загрузки prompt CMS' });
+    }
+  },
+
+  async createPromptVersion(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = createPromptVersionSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+    try {
+      const prompt = promptRegistry.get(parsed.data.workflow, parsed.data.step);
+      const version = await prisma.promptVersion.create({
+        data: promptCmsService.promptVersionData({ prompt, userId: req.userId!, data: parsed.data }),
+      });
+      res.status(201).json({ version });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка создания версии промпта';
+      res.status(message.includes('not found') ? 404 : 500).json({ error: message });
+    }
+  },
+
+  async createPromptExperiment(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = createPromptExperimentSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+    try {
+      promptRegistry.get(parsed.data.workflow, parsed.data.step);
+      const experiment = await prisma.promptExperiment.create({
+        data: {
+          name: parsed.data.name,
+          workflow: parsed.data.workflow,
+          step: parsed.data.step,
+          status: parsed.data.status,
+          trafficPct: parsed.data.trafficPct,
+          startedAt: parsed.data.status === 'RUNNING' ? new Date() : null,
+          createdById: req.userId!,
+          variants: {
+            create: parsed.data.variants.map((variant) => ({
+              name: variant.name,
+              promptVersionId: variant.promptVersionId ?? null,
+              trafficWeight: variant.trafficWeight,
+              isControl: variant.isControl,
+            })),
+          },
+        },
+        include: { variants: { include: { promptVersion: true } } },
+      });
+      res.status(201).json({ experiment });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка создания A/B теста';
+      res.status(message.includes('not found') ? 404 : 500).json({ error: message });
+    }
+  },
+
+  async promptExperimentStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const experiment = await prisma.promptExperiment.findUnique({
+        where: { id: req.params.id as string },
+        include: { variants: true },
+      });
+      if (!experiment) { res.status(404).json({ error: 'Эксперимент не найден' }); return; }
+
+      const generations = await prisma.aIGeneration.findMany({
+        where: {
+          createdAt: { gte: experiment.startedAt ?? experiment.createdAt },
+          metadata: { path: ['promptExperimentId'], equals: experiment.id },
+        },
+        select: { status: true, actualCostUsd: true, totalTokens: true, latencyMs: true, metadata: true },
+      });
+      const byVariant = new Map<string, { variantId: string; requests: number; succeeded: number; failed: number; costUsd: number; tokens: number; latency: number[] }>();
+      for (const generation of generations) {
+        const metadata = parseMetadata(generation.metadata);
+        const variantId = String(metadata.promptExperimentVariantId ?? 'unknown');
+        const item = byVariant.get(variantId) ?? { variantId, requests: 0, succeeded: 0, failed: 0, costUsd: 0, tokens: 0, latency: [] };
+        item.requests += 1;
+        if (generation.status === 'SUCCEEDED') item.succeeded += 1;
+        if (generation.status === 'FAILED') item.failed += 1;
+        item.costUsd += usd(generation.actualCostUsd);
+        item.tokens += generation.totalTokens;
+        if (generation.latencyMs) item.latency.push(generation.latencyMs);
+        byVariant.set(variantId, item);
+      }
+      res.json({
+        experiment,
+        stats: Array.from(byVariant.values()).map((item) => ({
+          ...item,
+          successRate: item.requests > 0 ? Math.round((item.succeeded / item.requests) * 100) : 0,
+          avgCostUsd: item.requests > 0 ? item.costUsd / item.requests : 0,
+          avgTokens: item.requests > 0 ? Math.round(item.tokens / item.requests) : 0,
+          avgLatencyMs: item.latency.length ? Math.round(item.latency.reduce((sum, value) => sum + value, 0) / item.latency.length) : 0,
+        })),
+      });
+    } catch (err) {
+      console.error('[Admin] promptExperimentStats:', err);
+      res.status(500).json({ error: 'Ошибка статистики A/B теста' });
     }
   },
 

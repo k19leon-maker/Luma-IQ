@@ -18,6 +18,10 @@ router.use(requireAuth, requireAdmin);
 router.use(adminLimiter);
 
 router.get('/dashboard', adminController.dashboard);
+router.get('/prompts', adminController.listPrompts);
+router.post('/prompts/versions', adminController.createPromptVersion);
+router.post('/prompts/experiments', adminController.createPromptExperiment);
+router.get('/prompts/experiments/:id/stats', adminController.promptExperimentStats);
 router.get('/users', adminController.listUsers);
 router.get('/users/:id', adminController.getUser);
 router.post('/users/grant-pro', adminController.grantPro);
