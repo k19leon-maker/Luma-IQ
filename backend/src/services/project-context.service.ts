@@ -38,6 +38,8 @@ const CONTENT_TYPE_BY_WORKFLOW: Record<string, GeneratedTextType[]> = {
   articles: ['ARTICLE'],
 };
 
+const EMPTY = 'Не заполнено.';
+
 function stringify(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
@@ -50,6 +52,39 @@ function compact(value: unknown, maxChars = 2200): string {
   const text = stringify(value).trim();
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}\n...[сокращено]`;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function field(source: Record<string, unknown>, keys: string[], fallback = ''): string {
+  for (const key of keys) {
+    const value = source[key];
+    const text = stringify(value).trim();
+    if (text) return text;
+  }
+  return fallback;
+}
+
+function lines(items: Array<[string, unknown]>, maxChars = 2200): string {
+  const text = items
+    .map(([label, value]) => {
+      const rendered = stringify(value).trim();
+      return rendered ? `- ${label}: ${rendered}` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+  return compact(text || EMPTY, maxChars);
+}
+
+function shortList(values: unknown[], maxItems: number, render: (item: unknown, index: number) => string): string {
+  const text = values
+    .slice(0, maxItems)
+    .map(render)
+    .filter(Boolean)
+    .join('\n\n');
+  return text || EMPTY;
 }
 
 function estimateTokens(text: string): number {
@@ -107,9 +142,195 @@ function contextBudgetFor(workflow: string, step?: string): number {
   return 8000;
 }
 
+function workflowGroup(workflow: string): string {
+  return workflow.split('.')[0] ?? workflow;
+}
+
+function shouldInclude(blockKey: string, workflow: string): boolean {
+  const group = workflowGroup(workflow);
+  const common = new Set(['project', 'expert_profile', 'workflow_inputs']);
+  if (common.has(blockKey)) return true;
+
+  if (workflow.startsWith('positioning.')) {
+    return ['strategy_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+  }
+
+  if (group === 'posts') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (group === 'reels') {
+    return ['positioning_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (group === 'articles') {
+    return ['positioning_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (group === 'chatbot' || group === 'video') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (group === 'product' || group === 'leadmagnet') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+  }
+
+  if (group === 'strategy') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+  }
+
+  return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+}
+
+function summarizeProject(project: {
+  name: string;
+  niche: string | null;
+  description: string | null;
+  strategySummary: string | null;
+}): string {
+  return lines([
+    ['Название', project.name],
+    ['Ниша', project.niche],
+    ['Описание', project.description],
+    ['Краткая стратегия', project.strategySummary],
+  ], 1200);
+}
+
+function summarizeExpert(about: Record<string, unknown>, projectName: string, projectNiche?: string | null): string {
+  return lines([
+    ['Имя / обращение', field(about, ['expertName', 'name', 'displayName'])],
+    ['Профессия / роль', field(about, ['profession', 'role', 'specialization'], projectNiche ?? projectName)],
+    ['Ниша', field(about, ['niche', 'sphere'], projectNiche ?? '')],
+    ['Опыт', field(about, ['experienceYears', 'experience', 'yearsInProfession'])],
+    ['Формат работы', field(about, ['workFormat', 'format', 'currentFormat'])],
+    ['Текущие продукты и цены', field(about, ['productsAndPrices', 'products', 'services'])],
+    ['Компетенции', field(about, ['competencies', 'strongTopics', 'expertise'])],
+    ['Не хочет делать / с кем не работает', field(about, ['dontWant', 'antiAudience', 'notFor'])],
+    ['Важно в работе', field(about, ['values', 'workValues', 'importantInWork'])],
+    ['Образование / регалии', field(about, ['education', 'certificates', 'credentials'])],
+    ['Опыт / достижения / цифры', field(about, ['achievements', 'cases', 'results', 'numbers'])],
+    ['Дополнительные материалы', field(about, ['uploadedFilesSummary', 'additionalMaterials', 'notes'])],
+  ], 2400);
+}
+
+function summarizeStrategy(strategyData: Record<string, unknown>, projectSummary?: string | null): string {
+  const finalPositioning = field(strategyData, [
+    'finalPositioning',
+    'selectedPositioning',
+    'positioning',
+    'positioningFormula',
+    'strategyPositioning',
+  ]);
+  const selectedVariant = field(strategyData, ['selectedVariant', 'chosenVariant', 'positioningVariant']);
+  return lines([
+    ['Финальное позиционирование', finalPositioning || projectSummary],
+    ['Выбранный стратегический вариант', selectedVariant],
+    ['Целевой сегмент / клиент', field(strategyData, ['chosenSegment', 'typicalClient', 'audience', 'targetAudience'])],
+    ['Ключевая проблема', field(strategyData, ['problem', 'mainProblem', 'clientProblem'])],
+    ['Результат для клиента', field(strategyData, ['keyResult', 'finalResult', 'result'])],
+    ['Механизм / подход', field(strategyData, ['mechanism', 'uniqueApproach', 'approach', 'method'])],
+    ['Дифференциация', field(strategyData, ['differentiation', 'difference', 'uniqueValue'])],
+    ['Доказательства доверия', field(strategyData, ['proof', 'trustProof', 'cases'])],
+  ], 2200);
+}
+
+function summarizeUtp(value: unknown): string {
+  const data = asRecord(value);
+  if (!Object.keys(data).length) return EMPTY;
+  return lines([
+    ['Главное УТП', field(data, ['finalUtp', 'utp', 'statement', 'formula'])],
+    ['Ключевая выгода', field(data, ['benefit', 'keyBenefit', 'result'])],
+    ['Механизм', field(data, ['mechanism', 'approach'])],
+    ['Доказательства', field(data, ['proof', 'reasonsToBelieve'])],
+    ['Возражения', field(data, ['objections', 'barriers'])],
+  ], 1600);
+}
+
+function summarizeAudience(avatars: unknown[], jtbdSessions: unknown[]): string {
+  const avatarText = shortList(avatars, 3, (item, index) => {
+    const avatar = asRecord(item);
+    return lines([
+      [`Сегмент ${index + 1}`, field(avatar, ['name', 'segment', 'subsegment'])],
+      ['Профиль', field(avatar, ['profileSummary', 'description'])],
+      ['Боли', field(avatar, ['pains'])],
+      ['Желания', field(avatar, ['desires'])],
+      ['Возражения / барьеры', field(avatar, ['objections', 'barriers', 'notes'])],
+    ], 900);
+  });
+
+  const jtbdText = shortList(jtbdSessions, 2, (item, index) => {
+    const session = asRecord(item);
+    return lines([
+      [`JTBD ${index + 1}`, field(session, ['title', 'finalJob'])],
+      ['Итоговый job', field(session, ['finalJob'])],
+      ['Summary', field(session, ['summary'])],
+      ['Ключевые ответы', compact(session.answers, 650)],
+    ], 900);
+  });
+
+  return compact(`Аватары / сегменты:\n${avatarText}\n\nJTBD:\n${jtbdText}`, 3000);
+}
+
+function summarizeProducts(products: unknown[]): string {
+  return shortList(products, 5, (item, index) => {
+    const product = asRecord(item);
+    return lines([
+      [`Продукт ${index + 1}`, field(product, ['title'])],
+      ['Тип', field(product, ['type'])],
+      ['Формат', field(product, ['format'])],
+      ['Краткое описание', field(product, ['shortDescription', 'description'])],
+      ['Трансформация', field(product, ['transformation'])],
+      ['Оффер', field(product, ['offer'])],
+      ['Цена', field(product, ['priceText', 'price'])],
+    ], 900);
+  });
+}
+
+function summarizeContentHistory(items: unknown[], workflow: string): string {
+  const group = workflowGroup(workflow);
+  const label = group === 'reels' ? 'Reels' : group === 'articles' ? 'Статья' : group === 'posts' ? 'Пост' : 'Контент';
+  return shortList(items, 5, (item, index) => {
+    const content = asRecord(item);
+    const metadata = asRecord(content.metadata);
+    return lines([
+      [`${label} ${index + 1}`, field(content, ['title'])],
+      ['Тип', field(content, ['type'])],
+      ['Тема / цель', field(metadata, ['topic', 'goal', 'platform'])],
+      ['Краткий фрагмент', compact(field(content, ['content']), 420)],
+    ], 700);
+  });
+}
+
+function summarizeWorkflowInputs(inputs: Record<string, unknown> | undefined, workflow: string): string {
+  const source = asRecord(inputs ?? {});
+  if (!Object.keys(source).length) return EMPTY;
+
+  const group = workflowGroup(workflow);
+  const allowByGroup: Record<string, string[]> = {
+    posts: ['platform', 'postType', 'goal', 'topic', 'cta', 'facture', 'selectedTopic'],
+    reels: ['platform', 'goal', 'tone', 'intensity', 'hook', 'cta', 'facture', 'selectedHook'],
+    articles: ['articleType', 'platform', 'tone', 'depth', 'topic', 'cta', 'facture', 'selectedTopic', 'outline'],
+    chatbot: ['botName', 'segment', 'leadMagnetFormat', 'meetingSchedule', 'goal', 'facture'],
+    video: ['duration', 'topic', 'segment', 'facture', 'cta'],
+    product: ['currentProduct', 'userRequest', 'prompt', 'selectedOption'],
+    leadmagnet: ['format', 'stepLabel', 'currentLeadMagnet', 'userRequest', 'prompt'],
+    positioning: ['currentHypothesis', 'analysis', 'variants', 'finalPositioning', 'selectedVariant'],
+    strategy: ['prompt', 'platform', 'section', 'selectedSegment'],
+  };
+
+  const allowed = allowByGroup[group] ?? Object.keys(source);
+  const selected = Object.fromEntries(
+    allowed
+      .filter((key) => source[key] !== undefined && source[key] !== null && stringify(source[key]).trim())
+      .map((key) => [key, source[key]]),
+  );
+
+  return compact(Object.keys(selected).length ? selected : source, group === 'product' || group === 'leadmagnet' ? 2400 : 1800);
+}
+
 export const projectContextService = {
   async build(input: BuildContextInput): Promise<ProjectContextBundle> {
-    const workflowGroup = input.workflow.split('.')[0] ?? input.workflow;
+    const workflowGroupName = workflowGroup(input.workflow);
     const tokenBudget = input.tokenBudget ?? contextBudgetFor(input.workflow, input.step);
 
     const project = await prisma.project.findFirst({
@@ -124,8 +345,8 @@ export const projectContextService = {
           take: 6,
         },
         generatedTexts: {
-          where: CONTENT_TYPE_BY_WORKFLOW[workflowGroup]
-            ? { type: { in: CONTENT_TYPE_BY_WORKFLOW[workflowGroup] } }
+          where: CONTENT_TYPE_BY_WORKFLOW[workflowGroupName]
+            ? { type: { in: CONTENT_TYPE_BY_WORKFLOW[workflowGroupName] } }
             : undefined,
           orderBy: { updatedAt: 'desc' },
           take: 6,
@@ -143,9 +364,16 @@ export const projectContextService = {
 
     const strategyData = (project.strategyData ?? {}) as Record<string, unknown>;
     const about = (strategyData.aboutExpert ?? strategyData.about ?? strategyData.expertProfile ?? {}) as Record<string, unknown>;
+    const projectSummary = summarizeProject(project);
+    const expertSummary = summarizeExpert(about, project.name, project.niche);
+    const strategySummary = summarizeStrategy(strategyData, project.strategySummary);
+    const audienceSummary = summarizeAudience(project.audienceAvatars, project.jtbdSessions);
+    const productsSummary = summarizeProducts(project.products);
+    const contentHistorySummary = summarizeContentHistory(project.generatedTexts, input.workflow);
+    const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);
     const profile = {
       expertName: stringify(about.expertName ?? about.name ?? about.displayName),
-      expertProfileSummary: compact(about, 1800),
+      expertProfileSummary: expertSummary,
       specialization: stringify(about.specialization ?? about.role ?? project.niche ?? project.name),
       niche: stringify(about.niche ?? project.niche ?? project.name),
       typicalClient: stringify(strategyData.chosenSegment ?? strategyData.typicalClient ?? strategyData.audience ?? ''),
@@ -155,90 +383,63 @@ export const projectContextService = {
     };
     const base = buildProjectContext(profile, project.name);
 
-    const blocks: ContextBlock[] = [
+    const allBlocks: ContextBlock[] = [
       {
         key: 'project',
         title: 'Проект',
         priority: 'critical',
-        content: compact({
-          name: project.name,
-          niche: project.niche,
-          description: project.description,
-          strategySummary: project.strategySummary,
-        }, 1400),
+        content: projectSummary,
       },
       {
         key: 'expert_profile',
         title: 'О себе / профиль эксперта',
         priority: 'critical',
-        content: compact(about, 2200),
+        content: expertSummary,
       },
       {
-        key: 'strategy',
-        title: 'Стратегия и позиционирование',
+        key: 'strategy_summary',
+        title: 'Краткая стратегия проекта',
         priority: 'high',
-        content: compact(strategyData, 2600),
+        content: strategySummary,
       },
       {
-        key: 'utp',
+        key: 'positioning_summary',
+        title: 'Позиционирование',
+        priority: 'high',
+        content: strategySummary,
+      },
+      {
+        key: 'utp_summary',
         title: 'УТП',
-        priority: workflowGroup === 'posts' || workflowGroup === 'reels' || workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 'high' : 'medium',
-        content: compact(project.utpData, 1800),
+        priority: workflowGroupName === 'posts' || workflowGroupName === 'reels' || workflowGroupName === 'product' || workflowGroupName === 'leadmagnet' ? 'high' : 'medium',
+        content: summarizeUtp(project.utpData),
       },
       {
-        key: 'audience',
+        key: 'audience_summary',
         title: 'ЦА / JTBD / боли',
         priority: 'high',
-        content: compact({
-          avatars: project.audienceAvatars.map((avatar) => ({
-            name: avatar.name,
-            segment: avatar.segment,
-            subsegment: avatar.subsegment,
-            profileSummary: avatar.profileSummary,
-            pains: avatar.pains,
-            desires: avatar.desires,
-            notes: avatar.notes,
-          })),
-          jtbd: project.jtbdSessions.map((session) => ({
-            title: session.title,
-            answers: session.answers,
-            summary: session.summary,
-            finalJob: session.finalJob,
-          })),
-        }, 3000),
+        content: audienceSummary,
       },
       {
-        key: 'products',
+        key: 'products_summary',
         title: 'Продукты и офферы',
-        priority: workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 'high' : 'medium',
-        content: compact(project.products.map((product) => ({
-          type: product.type,
-          title: product.title,
-          format: product.format,
-          shortDescription: product.shortDescription,
-          transformation: product.transformation,
-          offer: product.offer,
-          priceText: product.priceText,
-        })), 2400),
+        priority: workflowGroupName === 'product' || workflowGroupName === 'leadmagnet' ? 'high' : 'medium',
+        content: productsSummary,
       },
       {
         key: 'content_history',
         title: 'Предыдущий контент этого типа',
-        priority: workflowGroup === 'articles' || workflowGroup === 'reels' || workflowGroup === 'posts' ? 'medium' : 'low',
-        content: compact(project.generatedTexts.map((item) => ({
-          type: item.type,
-          title: item.title,
-          content: item.content.slice(0, 900),
-          metadata: item.metadata,
-        })), 3200),
+        priority: workflowGroupName === 'articles' || workflowGroupName === 'reels' || workflowGroupName === 'posts' ? 'medium' : 'low',
+        content: contentHistorySummary,
       },
       {
         key: 'workflow_inputs',
         title: 'Входные параметры текущего workflow',
         priority: 'critical',
-        content: compact(input.inputs ?? {}, workflowGroup === 'product' || workflowGroup === 'leadmagnet' ? 3600 : 2200),
+        content: workflowInputSummary,
       },
     ];
+    const blocks = allBlocks.filter((block) => shouldInclude(block.key, input.workflow));
 
     const selectedBlocks = selectBlocks(blocks, tokenBudget);
     const rendered = renderBlocks(selectedBlocks);
@@ -248,7 +449,7 @@ export const projectContextService = {
       projectName: project.name,
       workflow: input.workflow,
       step: input.step,
-      contextVersion: 'project-context-v1',
+      contextVersion: 'project-context-v2',
       base,
       blocks: selectedBlocks,
       rendered,

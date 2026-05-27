@@ -9,7 +9,12 @@ export interface WorkflowPromptInput {
 export interface ValidationRules {
   requiredIncludes?: string[];
   forbiddenIncludes?: string[];
+  requiredPatterns?: string[];
+  forbiddenPatterns?: string[];
   minLength?: number;
+  maxLength?: number;
+  minHeadings?: number;
+  minListItems?: number;
   structuredOutput?: 'text' | 'list' | 'article' | 'script';
 }
 

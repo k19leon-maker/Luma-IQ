@@ -36,6 +36,22 @@ function workflowGroup(workflow: string): string {
   return workflow.split('.')[0] ?? workflow;
 }
 
+function workflowStageType(workflow: string, step: string): 'analysis' | 'options' | 'final' {
+  if (workflow.includes('analysis') || workflow.includes('gap-analysis') || workflow.endsWith('.score')) {
+    return 'analysis';
+  }
+  if (workflow.includes('topic') || workflow.includes('hooks') || workflow.includes('models') || workflow.includes('variants')) {
+    return 'options';
+  }
+  if (step === 'generate' && (workflow === 'product.main' || workflow === 'product.mini' || workflow === 'leadmagnet')) {
+    return 'analysis';
+  }
+  if (step === 'names' || step === 'offer' || step === 'bestName') {
+    return 'options';
+  }
+  return 'final';
+}
+
 function buildRepairPrompt(content: string, errors: string[]): string {
   return `Исправь результат под ожидаемый формат.
 
@@ -125,11 +141,13 @@ export const aiWorkflowService = {
           metadata: {
             promptId: config.id,
             promptVersion: config.version,
+            stageType: workflowStageType(input.workflow, input.step),
           },
         },
       });
 
     if (!workflowRun) throw new Error('Workflow run не найден');
+    const stageType = workflowStageType(input.workflow, input.step);
 
     const stepStartedAt = Date.now();
     const workflowStep = await prisma.aIWorkflowStep.create({
@@ -175,6 +193,7 @@ export const aiWorkflowService = {
           promptId: config.id,
           contextBlocks: context.blocks.map((block) => block.key),
           contextApproxTokens: context.approxTokens,
+          stageType,
         },
         execute: async () => {
           let response = await chat({
@@ -242,6 +261,7 @@ export const aiWorkflowService = {
             validation,
             workflow: input.workflow,
             step: input.step,
+            stageType,
             inputs: input.inputs,
             provider: response.provider,
             model: response.model,
@@ -255,6 +275,7 @@ export const aiWorkflowService = {
             provider: response.provider,
             model: response.model,
             mock: response.mock,
+            stageType,
           } as unknown as Prisma.InputJsonValue,
         },
       });

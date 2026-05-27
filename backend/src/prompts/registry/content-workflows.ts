@@ -151,7 +151,7 @@ export const CONTENT_WORKFLOW_PROMPTS: PromptConfig[] = [
 ${contextAppendix(context)}
 
 Не объясняй логику. Верни только список тем.`,
-    validationRules: { minLength: 300, structuredOutput: 'list' },
+    validationRules: { minLength: 300, minListItems: 8, structuredOutput: 'list' },
   },
   {
     id: 'posts.post.write.v1',
@@ -176,7 +176,7 @@ CTA: ${value(inputs, 'cta', 'нативный CTA')}
 ${contextAppendix(context)}
 
 Верни только готовый пост без комментариев.`,
-    validationRules: { minLength: 600, structuredOutput: 'text' },
+    validationRules: { minLength: 600, requiredPatterns: ['CTA|призыв|следующ'], structuredOutput: 'text' },
   },
   {
     id: 'reels.hooks.generate.v1',
@@ -206,7 +206,7 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Не объясняй логику.`,
-    validationRules: { minLength: 700, structuredOutput: 'list' },
+    validationRules: { minLength: 700, minListItems: 20, requiredPatterns: ['score|Score|оцен'], structuredOutput: 'list' },
   },
   {
     id: 'reels.script.write.v1',
@@ -239,7 +239,13 @@ CTA: ${value(inputs, 'cta', 'нативный CTA')}
 ${contextAppendix(context)}
 
 Не объясняй логику. Сразу выдавай готовый сценарий.`,
-    validationRules: { requiredIncludes: ['## Хук', '## CTA'], minLength: 900, structuredOutput: 'script' },
+    validationRules: {
+      requiredIncludes: ['## Хук', '## CTA'],
+      requiredPatterns: ['## Сценарий|сцен[аы]', 'удержан|акцент'],
+      minLength: 900,
+      minHeadings: 4,
+      structuredOutput: 'script',
+    },
   },
   {
     id: 'articles.topic.generate.v1',
@@ -273,7 +279,7 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Не объясняй логику.`,
-    validationRules: { minLength: 1000, structuredOutput: 'list' },
+    validationRules: { minLength: 1000, minListItems: 12, requiredPatterns: ['SEO|intent|интент', 'score|Score|оцен'], structuredOutput: 'list' },
   },
   {
     id: 'articles.article.write.v1',
@@ -311,7 +317,13 @@ CTA: ${value(inputs, 'cta', 'soft editorial CTA')}
 ${contextAppendix(context)}
 
 Не объясняй логику. Сразу выдавай готовую статью.`,
-    validationRules: { requiredIncludes: ['##', 'SEO', 'CTA'], minLength: 2500, structuredOutput: 'article' },
+    validationRules: {
+      requiredIncludes: ['##', 'SEO', 'CTA'],
+      requiredPatterns: ['Meta|meta|description|slug', 'FAQ|Вопросы|вопрос'],
+      minLength: 2500,
+      minHeadings: 5,
+      structuredOutput: 'article',
+    },
   },
   {
     id: 'chatbot.chain.generate.v1',
@@ -345,7 +357,7 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Не объясняй логику. Сразу выдавай готовые посты.`,
-    validationRules: { minLength: 2200, structuredOutput: 'list' },
+    validationRules: { minLength: 2200, minListItems: 10, structuredOutput: 'list' },
   },
   {
     id: 'video.topic.generate.v1',
@@ -367,7 +379,7 @@ ${contextAppendix(context)}
 Верни только нумерованный список из 5 тем, одна тема — одна строка.
 
 ${contextAppendix(context)}`,
-    validationRules: { minLength: 150, structuredOutput: 'list' },
+    validationRules: { minLength: 150, minListItems: 5, structuredOutput: 'list' },
   },
   {
     id: 'video.script.write.v1',
@@ -401,7 +413,7 @@ CTA: ${value(inputs, 'cta', 'нативный CTA')}
 ${contextAppendix(context)}
 
 Верни только готовый сценарий.`,
-    validationRules: { minLength: 1200, structuredOutput: 'script' },
+    validationRules: { minLength: 1200, requiredPatterns: ['КРЮЧОК|Хук', 'ПРИЗЫВ|CTA'], structuredOutput: 'script' },
   },
   {
     id: 'product.main.generate.v1',
@@ -593,7 +605,7 @@ ${contextAppendix(context)}`,
 ${contextAppendix(context)}
 
 Не делай анкету. Не проси заново заполнить данные. Покажи, что ИИ уже изучил бизнес.`,
-    validationRules: { requiredIncludes: ['## Кто эксперт', '## Сильные стороны'], minLength: 700, structuredOutput: 'text' },
+    validationRules: { requiredIncludes: ['## Кто эксперт', '## Сильные стороны'], minLength: 700, minHeadings: 5, structuredOutput: 'text' },
   },
   {
     id: 'positioning.models.generate.v1',
@@ -632,7 +644,7 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Верни структурированный стратегический обзор без служебных комментариев.`,
-    validationRules: { minLength: 1000, structuredOutput: 'text' },
+    validationRules: { minLength: 1000, minListItems: 7, structuredOutput: 'text' },
   },
   {
     id: 'positioning.variants.generate.v1',
@@ -672,6 +684,7 @@ ${contextAppendix(context)}
       requiredIncludes: ['###', 'Формулировка:', 'Для кого:', 'Проблема:', 'Результат:', 'Механизм:'],
       forbiddenIncludes: ['ШАГ 1', 'ШАГ 2', 'ШАГ 3', 'Назовите 3–5', 'Назовите 3-5'],
       minLength: 1500,
+      minHeadings: 6,
       structuredOutput: 'text',
     },
   },
@@ -712,7 +725,7 @@ ${value(inputs, 'variants', 'нет')}
 ${contextAppendix(context)}
 
 Пиши как стратег, без воды и без поверхностного “увеличу продажи”.`,
-    validationRules: { requiredIncludes: ['## Перегретая зона', '## Рекомендуемое направление'], minLength: 800, structuredOutput: 'text' },
+    validationRules: { requiredIncludes: ['## Перегретая зона', '## Рекомендуемое направление'], minLength: 800, minHeadings: 4, structuredOutput: 'text' },
   },
   {
     id: 'positioning.score.generate.v1',
@@ -781,7 +794,7 @@ ${value(inputs, 'finalPositioning', 'нет')}
 ${contextAppendix(context)}
 
 Верни только готовые материалы.`,
-    validationRules: { requiredIncludes: ['## Короткое позиционирование', '## CTA'], minLength: 700, structuredOutput: 'text' },
+    validationRules: { requiredIncludes: ['## Короткое позиционирование', '## CTA'], minLength: 700, minHeadings: 5, structuredOutput: 'text' },
   },
   {
     id: 'strategy.audience.generate.v1',
