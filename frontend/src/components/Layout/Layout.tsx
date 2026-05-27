@@ -167,11 +167,9 @@ export default function Layout({ children }: LayoutProps) {
 
   const restoreAdminSession = useCallback(() => {
     const access = localStorage.getItem('adminAccessTokenBackup');
-    const refresh = localStorage.getItem('adminRefreshTokenBackup');
-    if (!access || !refresh) return;
+    if (!access) return;
     localStorage.removeItem('adminAccessTokenBackup');
-    localStorage.removeItem('adminRefreshTokenBackup');
-    setTokens(access, refresh);
+    setTokens(access);
     setHasAdminBackup(false);
     navigate('/admin');
   }, [navigate, setTokens]);

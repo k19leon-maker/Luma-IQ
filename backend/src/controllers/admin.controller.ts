@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { authService } from '../services/auth.service';
 import { creditLedgerService } from '../services/credit-ledger.service';
+import { setRefreshCookie } from '../utils/auth-cookies';
 
 const listSchema = z.object({
   q: z.string().optional(),
@@ -791,6 +792,7 @@ export const adminController = {
       }
 
       const tokens = await authService.issueTokens(user.id);
+      const csrfToken = setRefreshCookie(res, tokens.refreshToken);
       await prisma.userEvent.create({
         data: {
           userId: user.id,
@@ -800,7 +802,7 @@ export const adminController = {
         },
       });
 
-      res.json({ user, tokens });
+      res.json({ user, tokens: { accessToken: tokens.accessToken, csrfToken } });
     } catch (err) {
       console.error('[Admin] impersonateUser:', err);
       res.status(500).json({ error: 'Ошибка входа под пользователем' });

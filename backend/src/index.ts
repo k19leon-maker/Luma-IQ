@@ -29,7 +29,23 @@ const allowedOrigins = [...new Set([
   'http://localhost:5174',
 ])];
 
-app.use(helmet());
+app.set('trust proxy', 1);
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", ...allowedOrigins],
+      upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null,
+    },
+  },
+  crossOriginResourcePolicy: { policy: 'same-site' },
+}));
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,

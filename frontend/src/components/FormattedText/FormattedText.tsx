@@ -12,6 +12,11 @@ function normalizeAiText(value: string): string {
   const text = value
     .replace(/```(?:markdown|md|text)?/gi, '')
     .replace(/```/g, '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '')
     .replace(/\r\n/g, '\n')
     .trim();
 
@@ -57,6 +62,27 @@ function normalizeAiText(value: string): string {
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+
+const SAFE_MARKDOWN_ELEMENTS = [
+  'p',
+  'br',
+  'strong',
+  'em',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'code',
+  'pre',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'a',
+] as const;
 
 interface TextSegment {
   type: 'text';
@@ -151,7 +177,10 @@ function splitSegments(markdown: string): Segment[] {
 function InlineMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
+      allowedElements={SAFE_MARKDOWN_ELEMENTS}
+      unwrapDisallowed
       components={{
+        a: ({ children: linkChildren, href }) => <a href={href} target="_blank" rel="noreferrer">{linkChildren}</a>,
         p: ({ children: paragraphChildren }) => <>{paragraphChildren}</>,
       }}
     >
@@ -173,7 +202,18 @@ export default function FormattedText({ children, compact = false, inverse = fal
     <div className={classes}>
       {segments.map((segment, index) => {
         if (segment.type === 'text') {
-          return <ReactMarkdown key={`text-${index}`}>{segment.value}</ReactMarkdown>;
+          return (
+            <ReactMarkdown
+              key={`text-${index}`}
+              allowedElements={SAFE_MARKDOWN_ELEMENTS}
+              unwrapDisallowed
+              components={{
+                a: ({ children: linkChildren, href }) => <a href={href} target="_blank" rel="noreferrer">{linkChildren}</a>,
+              }}
+            >
+              {segment.value}
+            </ReactMarkdown>
+          );
         }
 
         return (

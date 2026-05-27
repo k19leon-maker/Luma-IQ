@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const DEV_TOKEN = 'dev-token';
+const CSRF_STORAGE_KEY = 'csrfToken';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
@@ -16,6 +17,11 @@ apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const csrfToken = localStorage.getItem(CSRF_STORAGE_KEY);
+  const method = config.method?.toUpperCase();
+  if (csrfToken && method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    config.headers['X-CSRF-Token'] = csrfToken;
   }
   return config;
 });
@@ -33,16 +39,17 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const accessToken  = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
+    const accessToken = localStorage.getItem('accessToken');
+    const csrfToken = localStorage.getItem(CSRF_STORAGE_KEY);
 
     // Dev mode: never redirect to login, just reject
-    if (accessToken === DEV_TOKEN || refreshToken === DEV_TOKEN) {
+    if (accessToken === DEV_TOKEN) {
       return Promise.reject(error);
     }
 
-    if (!refreshToken) {
+    if (!csrfToken) {
       localStorage.removeItem('accessToken');
+      localStorage.removeItem(CSRF_STORAGE_KEY);
       window.location.href = '/login';
       return Promise.reject(error);
     }
@@ -60,10 +67,13 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
-      const { accessToken: newAccess, refreshToken: newRefresh } = data.tokens;
+      const { data } = await axios.post(`${API_BASE}/auth/refresh`, undefined, {
+        withCredentials: true,
+        headers: { 'X-CSRF-Token': csrfToken },
+      });
+      const { accessToken: newAccess, csrfToken: newCsrf } = data.tokens;
       localStorage.setItem('accessToken', newAccess);
-      localStorage.setItem('refreshToken', newRefresh);
+      if (newCsrf) localStorage.setItem(CSRF_STORAGE_KEY, newCsrf);
 
       waitQueue.forEach((cb) => cb(newAccess));
       waitQueue = [];
@@ -72,7 +82,7 @@ apiClient.interceptors.response.use(
       return apiClient(original);
     } catch {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      localStorage.removeItem(CSRF_STORAGE_KEY);
       window.location.href = '/login';
       return Promise.reject(error);
     } finally {

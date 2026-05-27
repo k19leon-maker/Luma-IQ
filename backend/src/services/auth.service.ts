@@ -30,6 +30,10 @@ function signRefresh(userId: string): string {
   return jwt.sign({ sub: userId }, env.JWT_REFRESH_SECRET, options);
 }
 
+function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 function toAuthUser(user: { id: string; email: string; name: string | null; avatarUrl: string | null; role: string; isVerified: boolean }): AuthUser {
   return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, role: user.role, isVerified: user.isVerified };
 }
@@ -81,13 +85,14 @@ export const authService = {
       throw Object.assign(new Error('Невалидный refresh token'), { status: 401 });
     }
 
-    const stored = await prisma.refreshToken.findUnique({ where: { token } });
+    const tokenHash = hashRefreshToken(token);
+    const stored = await prisma.refreshToken.findUnique({ where: { token: tokenHash } });
     if (!stored || stored.expiresAt < new Date()) {
       throw Object.assign(new Error('Refresh token не найден или истёк'), { status: 401 });
     }
 
     // Rotate: delete old token
-    await prisma.refreshToken.delete({ where: { token } });
+    await prisma.refreshToken.delete({ where: { token: tokenHash } });
 
     const user = await prisma.user.findUniqueOrThrow({ where: { id: payload.sub } });
     const tokens = await authService.issueTokens(user.id);
@@ -95,7 +100,7 @@ export const authService = {
   },
 
   async logout(refreshToken: string): Promise<void> {
-    await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+    await prisma.refreshToken.deleteMany({ where: { token: hashRefreshToken(refreshToken) } });
   },
 
   async findOrCreateGoogleUser(profile: {
@@ -142,7 +147,7 @@ export const authService = {
     expiresAt.setDate(expiresAt.getDate() + days);
 
     await prisma.refreshToken.create({
-      data: { token: refreshToken, userId, expiresAt },
+      data: { token: hashRefreshToken(refreshToken), userId, expiresAt },
     });
 
     return { accessToken, refreshToken };

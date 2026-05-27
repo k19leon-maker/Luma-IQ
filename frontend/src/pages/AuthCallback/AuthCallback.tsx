@@ -22,7 +22,7 @@ export default function AuthCallback() {
     // Exchange httpOnly OAuth cookie for tokens — no tokens in URL
     authApi.oauthSession()
       .then(({ tokens }) => {
-        setTokens(tokens.accessToken, tokens.refreshToken);
+        setTokens(tokens.accessToken, tokens.csrfToken);
 
         const unsubscribe = useAuthStore.subscribe((state) => {
           if (state.isAuthenticated) {

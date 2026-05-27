@@ -238,13 +238,11 @@ export default function Admin() {
     setImpersonateLoading(true);
     try {
       const currentAccess = localStorage.getItem('accessToken');
-      const currentRefresh = localStorage.getItem('refreshToken');
-      if (currentAccess && currentRefresh) {
+      if (currentAccess) {
         localStorage.setItem('adminAccessTokenBackup', currentAccess);
-        localStorage.setItem('adminRefreshTokenBackup', currentRefresh);
       }
       const { tokens } = await adminApi.impersonateUser(selected.id);
-      setTokens(tokens.accessToken, tokens.refreshToken);
+      setTokens(tokens.accessToken, tokens.csrfToken);
       toast.success(`Вы вошли как ${selected.email}`);
       navigate('/dashboard');
     } catch {

@@ -13,7 +13,7 @@ export interface AuthUser {
 
 export interface TokenPair {
   accessToken: string;
-  refreshToken: string;
+  csrfToken?: string;
 }
 
 export interface AuthResponse {
@@ -28,11 +28,11 @@ export const authApi = {
   login: (email: string, password: string) =>
     apiClient.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data),
 
-  refresh: (refreshToken: string) =>
-    apiClient.post<AuthResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
+  refresh: () =>
+    apiClient.post<AuthResponse>('/auth/refresh').then((r) => r.data),
 
-  logout: (refreshToken: string) =>
-    apiClient.post('/auth/logout', { refreshToken }).then((r) => r.data),
+  logout: () =>
+    apiClient.post('/auth/logout').then((r) => r.data),
 
   me: () =>
     apiClient.get<{ user: AuthUser }>('/auth/me').then((r) => r.data.user),

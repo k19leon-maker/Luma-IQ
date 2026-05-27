@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { env } from '../config/env';
+import { assertRefreshCsrf, clearRefreshCookie, getRefreshCookie, setRefreshCookie } from '../utils/auth-cookies';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -31,6 +32,17 @@ function handleError(res: Response, err: unknown): void {
   }
 }
 
+function authPayload(result: Awaited<ReturnType<typeof authService.login>>, res: Response) {
+  const csrfToken = setRefreshCookie(res, result.tokens.refreshToken);
+  return {
+    user: result.user,
+    tokens: {
+      accessToken: result.tokens.accessToken,
+      csrfToken,
+    },
+  };
+}
+
 export const authController = {
   async register(req: Request, res: Response): Promise<void> {
     if (!env.REGISTRATION_ENABLED) {
@@ -47,7 +59,7 @@ export const authController = {
     try {
       const { email, password, name } = parsed.data;
       const result = await authService.register(email, password, name);
-      res.status(201).json(result);
+      res.status(201).json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
     }
@@ -63,32 +75,41 @@ export const authController = {
     try {
       const { email, password } = parsed.data;
       const result = await authService.login(email, password);
-      res.json(result);
+      res.json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
     }
   },
 
   async refresh(req: Request, res: Response): Promise<void> {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshCookie(req);
     if (!refreshToken) {
-      res.status(400).json({ error: 'refreshToken обязателен' });
+      res.status(401).json({ error: 'Refresh-сессия не найдена' });
+      return;
+    }
+    if (!assertRefreshCsrf(req, refreshToken)) {
+      res.status(403).json({ error: 'CSRF token недействителен' });
       return;
     }
 
     try {
       const result = await authService.refresh(refreshToken);
-      res.json(result);
+      res.json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
     }
   },
 
   async logout(req: Request, res: Response): Promise<void> {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshCookie(req);
     if (refreshToken) {
+      if (!assertRefreshCsrf(req, refreshToken)) {
+        res.status(403).json({ error: 'CSRF token недействителен' });
+        return;
+      }
       await authService.logout(refreshToken).catch(() => {});
     }
+    clearRefreshCookie(res);
     res.json({ message: 'Выход выполнен' });
   },
 
@@ -184,7 +205,7 @@ export const authController = {
       res.clearCookie('oauth_access',  COOKIE_OPTS);
       res.clearCookie('oauth_refresh', COOKIE_OPTS);
 
-      res.json({ user, tokens: { accessToken, refreshToken } });
+      res.json({ user, tokens: { accessToken, csrfToken: setRefreshCookie(res, refreshToken) } });
     } catch {
       res.clearCookie('oauth_access',  COOKIE_OPTS);
       res.clearCookie('oauth_refresh', COOKIE_OPTS);

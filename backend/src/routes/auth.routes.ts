@@ -6,13 +6,21 @@ import { authController } from '../controllers/auth.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { env } from '../config/env';
 
-// Max 10 login/register attempts per 15 minutes per IP
+// Max 5 login/register attempts per 15 minutes per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Попробуйте через 15 минут.' },
+});
+
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много refresh-запросов. Попробуйте позже.' },
 });
 
 const router = Router();
@@ -44,8 +52,8 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 // email/password
 router.post('/register', authLimiter, authController.register);
 router.post('/login', authLimiter, authController.login);
-router.post('/refresh', authController.refresh);
-router.post('/logout', authController.logout);
+router.post('/refresh', refreshLimiter, authController.refresh);
+router.post('/logout', refreshLimiter, authController.logout);
 router.get('/me', requireAuth, authController.me);
 
 // Email verification

@@ -5,10 +5,10 @@ import { aiWorkflowController } from '../controllers/ai-workflow.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 
-// 30 запросов в минуту на пользователя
+// 20 запросов в минуту на пользователя
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 20,
   keyGenerator: (req) => (req as AuthRequest).userId ?? req.ip ?? 'unknown',
   standardHeaders: true,
   legacyHeaders: false,

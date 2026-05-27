@@ -23,18 +23,19 @@ interface AuthState {
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
-  setTokens: (accessToken: string, refreshToken: string) => void;
+  setTokens: (accessToken: string, csrfToken?: string) => void;
   loginAsTestUser: () => void;
 }
 
-function saveTokens(accessToken: string, refreshToken: string) {
+function saveTokens(accessToken: string, csrfToken?: string) {
   localStorage.setItem('accessToken', accessToken);
-  localStorage.setItem('refreshToken', refreshToken);
+  if (csrfToken) localStorage.setItem('csrfToken', csrfToken);
 }
 
 function clearTokens() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
+  localStorage.removeItem('csrfToken');
 }
 
 function resetSessionStores() {
@@ -49,21 +50,21 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const { user, tokens } = await authApi.login(email, password);
     resetSessionStores();
-    saveTokens(tokens.accessToken, tokens.refreshToken);
+    saveTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
   register: async (email, password, name) => {
     const { user, tokens } = await authApi.register(email, password, name);
     resetSessionStores();
-    saveTokens(tokens.accessToken, tokens.refreshToken);
+    saveTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
   logout: async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken && refreshToken !== DEV_TOKEN) {
-      await authApi.logout(refreshToken).catch(() => {});
+    const accessToken = localStorage.getItem('accessToken');
+    if (accessToken && accessToken !== DEV_TOKEN) {
+      await authApi.logout().catch(() => {});
     }
     clearTokens();
     resetSessionStores();
@@ -96,9 +97,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  setTokens: (accessToken, refreshToken) => {
+  setTokens: (accessToken, csrfToken) => {
     resetSessionStores();
-    saveTokens(accessToken, refreshToken);
+    saveTokens(accessToken, csrfToken);
     // Fetch user info after OAuth callback
     authApi.me().then((user) => {
       set({ user, isAuthenticated: true });
