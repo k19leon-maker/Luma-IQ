@@ -72,6 +72,7 @@ const saveStrategySchema = z.object({
     }).passthrough()).optional(),
     updatedAt: z.string(),
   }).passthrough()).optional(),
+  generatedData: z.record(z.unknown()).optional(),
 });
 
 export const projectController = {

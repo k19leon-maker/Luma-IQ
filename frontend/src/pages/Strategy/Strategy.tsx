@@ -530,7 +530,7 @@ export default function Strategy() {
         completed: done,
       });
     } catch {
-      // silent — localStorage is primary
+      // keep in-memory progress; next successful save will persist to DB
     }
   }, [activeProjectId]);
 
@@ -574,7 +574,7 @@ export default function Strategy() {
       return;
     }
 
-    // Restore partial progress from localStorage
+    // Restore partial progress from in-memory store while DB request is loading
     if (localData.answers && Object.keys(localData.answers).length > 0) {
       answersRef.current = localData.answers ?? {};
       restorePartialDoc(localData.answers);

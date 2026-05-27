@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { aiApi } from '../api/ai';
 import { projectsApi } from '../api/projects.api';
 
@@ -103,7 +102,6 @@ ${material.content.slice(0, 6500)}`,
 }
 
 export const useMaterialsStore = create<MaterialsState>()(
-  persist(
     (set, get) => ({
       projects: {},
 
@@ -122,7 +120,7 @@ export const useMaterialsStore = create<MaterialsState>()(
             },
           }));
         } catch {
-          // localStorage remains the fallback source
+          // keep in-memory materials; next successful sync will persist to DB
         }
       },
 
@@ -223,6 +221,4 @@ export const useMaterialsStore = create<MaterialsState>()(
 
       getProjectMaterials: (projectId) => get().projects[projectId] ?? [],
     }),
-    { name: 'lumaiq-materials-v1' },
-  ),
 );

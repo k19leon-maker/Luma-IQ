@@ -421,7 +421,11 @@ export async function chat(req: AIRequest): Promise<AIResponse> {
     return callAnthropic(req);
   }
 
-  // Gemini / Grok — заглушка до появления ключей
+  if (env.isProd) {
+    throw new Error(`Провайдер "${provider}" не настроен для production`);
+  }
+
+  // Gemini / Grok — dev-заглушка до появления ключей
   await mockDelay();
   return {
     content: `Mock-ответ от провайдера "${provider}". Ключ не задан в .env.`,

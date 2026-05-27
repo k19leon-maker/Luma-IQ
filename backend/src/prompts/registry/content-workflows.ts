@@ -125,6 +125,46 @@ const LEAD_MAGNET_STEPS: Array<{ step: string; maxTokens: number; minLength: num
 
 export const CONTENT_WORKFLOW_PROMPTS: PromptConfig[] = [
   {
+    id: 'ai.dialog.message.v1',
+    version: 'v1',
+    feature: 'ai_chat',
+    workflow: 'ai.dialog',
+    step: 'message',
+    model: 'gpt-5.4',
+    temperature: 0.65,
+    maxTokens: 2600,
+    artifactType: 'ai_dialog_message',
+    systemPrompt: (context) => `Ты — AI-маркетолог Luma IQ внутри конкретного проекта.
+
+Работай как стратегический помощник по упаковке, продуктам, контенту и воронке.
+Отвечай на русском языке, конкретно и по делу.
+Опирайся только на selective context проекта ниже, не выдумывай нишу, опыт, цифры или продукты.
+Если данных не хватает, задай 1-3 точных уточняющих вопроса.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => {
+      const history = Array.isArray(inputs.history)
+        ? inputs.history
+          .slice(-12)
+          .map((item) => {
+            const msg = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+            return `${value(msg, 'role', 'user')}: ${value(msg, 'content')}`;
+          })
+          .filter(Boolean)
+          .join('\n')
+        : '';
+
+      return `История последних сообщений:
+${history || 'Пока нет.'}
+
+Сообщение пользователя:
+${value(inputs, 'message')}
+
+Ответь как AI-маркетолог проекта.`;
+    },
+    validationRules: { minLength: 80, maxLength: 9000, structuredOutput: 'text' },
+  },
+  {
     id: 'posts.topic.generate.v1',
     version: 'v1',
     feature: 'post',

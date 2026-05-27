@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { projectsApi } from '../api/projects.api';
 import { useAudienceStore, type AudienceAnswers } from '../store/audience.store';
+import { useGeneratedStore } from '../store/generated.store';
 import { useMaterialsStore } from '../store/materials.store';
 import { useProjectsStore } from '../store/projects.store';
 import { useUnpackingStore } from '../store/unpacking.store';
@@ -89,8 +90,10 @@ export function useProjectMarketingContext() {
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? 'Проект');
   const unpackingProfile = useUnpackingStore((s) => s.profileData);
   const audienceGet = useAudienceStore((s) => s.get);
+  const audienceSave = useAudienceStore((s) => s.save);
   const materials = useMaterialsStore((s) => s.projects[activeProjectId] ?? []);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
+  const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
 
   const [positioning, setPositioning] = useState<PositioningData | null>(null);
   const [expertProfile, setExpertProfile] = useState<ExpertProfileData | null>(null);
@@ -107,6 +110,7 @@ export function useProjectMarketingContext() {
     if (!activeProjectId || activeProjectId === 'default') return;
 
     void loadMaterialsFromDb(activeProjectId);
+    void loadGeneratedFromDb(activeProjectId);
 
     projectsApi.getStrategy(activeProjectId)
       .then((data) => {
@@ -114,12 +118,16 @@ export function useProjectMarketingContext() {
         const raw = data as Record<string, unknown>;
         setExpertProfile((raw.expertProfileData as ExpertProfileData | undefined) ?? null);
         setPositioning((raw.positioningData as PositioningData | undefined) ?? null);
-        setRemoteAudience((raw.answers as Partial<AudienceAnswers> | undefined) ?? {});
+        const answers = (raw.answers as Partial<AudienceAnswers> | undefined) ?? {};
+        setRemoteAudience(answers);
+        if (Object.keys(answers).length > 0) {
+          audienceSave(activeProjectId, answers, Boolean(raw.completed));
+        }
       })
       .catch(() => {});
 
     return () => { alive = false; };
-  }, [activeProjectId, loadMaterialsFromDb]);
+  }, [activeProjectId, audienceSave, loadGeneratedFromDb, loadMaterialsFromDb]);
 
   const audience = useMemo(
     () => ({ ...remoteAudience, ...localAudience }),

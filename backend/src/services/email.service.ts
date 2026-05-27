@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 
 function createTransport() {
-  if (!env.SMTP_HOST || !env.SMTP_USER) return null;
+  if (!emailService.isConfigured()) return null;
   return nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
@@ -21,6 +21,9 @@ export const emailService = {
     const transport = createTransport();
 
     if (!transport) {
+      if (env.isProd) {
+        throw new Error('SMTP не настроен на сервере');
+      }
       // No SMTP configured — log link for dev
       console.info(`[Email] Verification link for ${to}: ${link}`);
       return;

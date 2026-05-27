@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export interface StrategyMessage {
   role: 'ai' | 'user';
@@ -38,28 +37,14 @@ const INITIAL: Pick<StrategyState, 'messages' | 'answers' | 'stepIndex' | 'compl
   pendingAnswer: null,
 };
 
-export const useStrategyStore = create<StrategyState>()(
-  persist(
-    (set) => ({
-      ...INITIAL,
+export const useStrategyStore = create<StrategyState>()((set) => ({
+  ...INITIAL,
 
-      addMessage:       (msg) => set((s) => ({ messages: [...s.messages, msg] })),
-      setMessages:      (messages) => set({ messages }),
-      setAnswers:       (answers) => set({ answers }),
-      setStepIndex:     (stepIndex) => set({ stepIndex }),
-      setCompleted:     (completed) => set({ completed }),
-      setPendingAnswer: (pendingAnswer) => set({ pendingAnswer }),
-      reset:            () => set(INITIAL),
-    }),
-    {
-      name: 'strategy-store-v1',
-      partialize: (s) => ({
-        messages:      s.messages,
-        answers:       s.answers,
-        stepIndex:     s.stepIndex,
-        completed:     s.completed,
-        pendingAnswer: s.pendingAnswer,
-      }),
-    },
-  ),
-);
+  addMessage:       (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  setMessages:      (messages) => set({ messages }),
+  setAnswers:       (answers) => set({ answers }),
+  setStepIndex:     (stepIndex) => set({ stepIndex }),
+  setCompleted:     (completed) => set({ completed }),
+  setPendingAnswer: (pendingAnswer) => set({ pendingAnswer }),
+  reset:            () => set(INITIAL),
+}));

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { projectsApi } from '../api/projects.api';
 
 export interface UnpackingMessage {
@@ -92,7 +91,6 @@ function setData(
 }
 
 export const useUnpackingStore = create<UnpackingState>()(
-  persist(
     (set) => ({
       ...DEFAULT_DATA,
       projectData:      {},
@@ -111,9 +109,6 @@ export const useUnpackingStore = create<UnpackingState>()(
           const dbData = await projectsApi.getUnpacking(projectId) as Partial<UnpackingData> | null;
           if (!dbData || !dbData.messages?.length) return;
           set((s) => {
-            const localData = s.projectData[projectId];
-            // Only load from DB if local has no messages
-            if (localData?.messages?.length) return {};
             const merged: UnpackingData = { ...DEFAULT_DATA, ...dbData };
             return {
               projectData: { ...s.projectData, [projectId]: merged },
@@ -121,7 +116,7 @@ export const useUnpackingStore = create<UnpackingState>()(
             };
           });
         } catch {
-          // DB unavailable — local storage is fine
+          // keep in-memory state
         }
       },
 
@@ -167,17 +162,4 @@ export const useUnpackingStore = create<UnpackingState>()(
       reset: () =>
         setData(set, () => ({ ...DEFAULT_DATA })),
     }),
-    {
-      name: 'unpacking-store-v2',
-      partialize: (s) => ({
-        projectData:      s.projectData,
-        currentProjectId: s.currentProjectId,
-      }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        const data = state.projectData[state.currentProjectId] ?? { ...DEFAULT_DATA };
-        Object.assign(state, data);
-      },
-    },
-  ),
 );

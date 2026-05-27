@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { projectsApi } from '../api/projects.api';
 
 // ── Per-project flags ──────────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ interface ProgressState extends ProgressFlags {
 
   // Switch active project — loads its flags into the flat state
   switchProject: (projectId: string) => void;
+  loadFromDb: (projectId: string) => Promise<void>;
 
   // Actions (use currentProjectId internally — backwards compat for all callers)
   completePositioning: () => void;
@@ -66,6 +67,9 @@ function setFlag(
 ) {
   set((s) => {
     const updated: ProgressFlags = { ...getFlags(s), [flag]: true, ...(extra ?? {}) };
+    if (s.currentProjectId) {
+      projectsApi.saveStrategy(s.currentProjectId, { progressFlags: updated }).catch(() => {});
+    }
     return {
       [flag]: true,
       ...(extra ?? {}),
@@ -76,54 +80,55 @@ function setFlag(
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
-export const useProgressStore = create<ProgressState>()(
-  persist(
-    (set) => ({
-      ...DEFAULT_FLAGS,
-      projectFlags:     {},
-      currentProjectId: '',
+export const useProgressStore = create<ProgressState>()((set) => ({
+  ...DEFAULT_FLAGS,
+  projectFlags:     {},
+  currentProjectId: '',
 
-      switchProject: (projectId: string) => {
-        set((s) => {
-          const flags = { ...DEFAULT_FLAGS, ...(s.projectFlags[projectId] ?? {}) };
-          return { currentProjectId: projectId, ...flags };
-        });
-      },
+  switchProject: (projectId: string) => {
+    set((s) => {
+      const flags = { ...DEFAULT_FLAGS, ...(s.projectFlags[projectId] ?? {}) };
+      return { currentProjectId: projectId, ...flags };
+    });
+  },
 
-      completeExpertProfile: () => setFlag(set, 'expertProfileCompleted'),
-      completePositioning: () => setFlag(set, 'positioningCompleted'),
-      completeUnpacking:   () => setFlag(set, 'unpackingCompleted'),
-      completeAudience:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
-      completeUtp:         () => setFlag(set, 'utpCompleted'),
-      completeSocial:      () => setFlag(set, 'socialCompleted'),
-      completeStrategy:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
-      completeProductMain: () => setFlag(set, 'productMainCompleted'),
-      completeProductMini: () => setFlag(set, 'productMiniCompleted'),
-      completeLeadMagnet:  () => setFlag(set, 'leadMagnetCompleted'),
+  loadFromDb: async (projectId: string) => {
+    if (!projectId || projectId === 'default') return;
+    try {
+      const data = await projectsApi.getStrategy(projectId);
+      const flags = { ...DEFAULT_FLAGS, ...((data as Record<string, unknown> | null)?.progressFlags as Partial<ProgressFlags> | undefined ?? {}) };
+      set((s) => ({
+        ...flags,
+        projectFlags: { ...s.projectFlags, [projectId]: flags },
+      }));
+    } catch {
+      // keep in-memory flags
+    }
+  },
 
-      resetProgress: () => {
-        set((s) => ({
-          ...DEFAULT_FLAGS,
-          projectFlags: {
-            ...s.projectFlags,
-            [s.currentProjectId]: { ...DEFAULT_FLAGS },
-          },
-        }));
-      },
-    }),
-    {
-      name: 'lumaiq-progress-v2',
-      // Save projectFlags + currentProjectId; flat flags derived on load
-      partialize: (s) => ({
-        projectFlags:     s.projectFlags,
-        currentProjectId: s.currentProjectId,
-      }),
-      // On rehydrate, restore flat flags from currentProjectId
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        const flags = { ...DEFAULT_FLAGS, ...(state.projectFlags[state.currentProjectId] ?? {}) };
-        Object.assign(state, flags);
-      },
-    },
-  ),
-);
+  completeExpertProfile: () => setFlag(set, 'expertProfileCompleted'),
+  completePositioning: () => setFlag(set, 'positioningCompleted'),
+  completeUnpacking:   () => setFlag(set, 'unpackingCompleted'),
+  completeAudience:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
+  completeUtp:         () => setFlag(set, 'utpCompleted'),
+  completeSocial:      () => setFlag(set, 'socialCompleted'),
+  completeStrategy:    () => setFlag(set, 'audienceCompleted', { strategyCompleted: true }),
+  completeProductMain: () => setFlag(set, 'productMainCompleted'),
+  completeProductMini: () => setFlag(set, 'productMiniCompleted'),
+  completeLeadMagnet:  () => setFlag(set, 'leadMagnetCompleted'),
+
+  resetProgress: () => {
+    set((s) => {
+      if (s.currentProjectId) {
+        projectsApi.saveStrategy(s.currentProjectId, { progressFlags: DEFAULT_FLAGS }).catch(() => {});
+      }
+      return {
+        ...DEFAULT_FLAGS,
+        projectFlags: {
+          ...s.projectFlags,
+          [s.currentProjectId]: { ...DEFAULT_FLAGS },
+        },
+      };
+    });
+  },
+}));

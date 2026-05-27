@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
+import { useGeneratedStore } from '../../store/generated.store';
 import { PROJECTS_DATA, ProjectData, ProductDoc, StrategyDoc } from '../../data/projectsData';
 import { exportToDocx } from '../../utils/exportDocx';
 import s from './ProjectPage.module.css';
@@ -33,15 +34,6 @@ function buildStrategyFromAudienceStore(projectId: string): ProjectData | null {
     strategy,
     products: [],
   };
-}
-
-function countLocalProducts(projectId: string, type: 'main' | 'mini' | 'free'): number {
-  try {
-    const raw = localStorage.getItem(`products_${type}_${projectId}`);
-    if (!raw) return 0;
-    const arr = JSON.parse(raw) as unknown[];
-    return Array.isArray(arr) ? arr.length : 0;
-  } catch { return 0; }
 }
 
 const PANEL_WIDTH = 520;
@@ -196,11 +188,17 @@ export default function ProjectPage() {
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
   const renameProject    = useProjectsStore((s) => s.renameProject);
   const addProject       = useProjectsStore((s) => s.addProject);
+  const generatedData = useGeneratedStore((s) => id ? s.projects[id] : undefined);
+  const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
 
   // Activate this project when the page mounts / id changes
   useEffect(() => {
     if (id && id !== activeProjectId) setActiveProjectId(id);
   }, [id]);
+
+  useEffect(() => {
+    if (id) void loadGeneratedFromDb(id);
+  }, [id, loadGeneratedFromDb]);
 
   const data = id ? PROJECTS_DATA[id] : undefined;
   const localProject = projects.find((p) => p.id === id);
@@ -424,7 +422,11 @@ export default function ProjectPage() {
                     { type: 'mini' as const, icon: '⚡', label: 'Мини-продукт',     path: '/products/mini' },
                     { type: 'free' as const, icon: '🎁', label: 'Бесплатный',       path: '/products/lead-magnet' },
                   ]).map(({ type, icon, label, path }) => {
-                    const count = countLocalProducts(id, type);
+                    const count = type === 'main'
+                      ? Number(Boolean(generatedData?.productMain?.generated))
+                      : type === 'mini'
+                        ? Number(Boolean(generatedData?.productMini?.generated))
+                        : Number(Boolean(generatedData?.leadMagnet?.generated));
                     return (
                       <div key={type} className={s.productCard}>
                         <div className={s.productCardHeader}>

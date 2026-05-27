@@ -148,6 +148,7 @@ export default function Layout({ children }: LayoutProps) {
   const [hasAdminBackup, setHasAdminBackup] = useState(() => Boolean(localStorage.getItem('adminAccessTokenBackup')));
 
   const switchProgress    = useProgressStore((st) => st.switchProject);
+  const loadProgressFromDb = useProgressStore((st) => st.loadFromDb);
   const switchUnpacking   = useUnpackingStore((st) => st.switchProject);
 
   /* Projects from store */
@@ -178,8 +179,9 @@ export default function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!activeProjectId) return;
     switchProgress(activeProjectId);
+    void loadProgressFromDb(activeProjectId);
     switchUnpacking(activeProjectId);
-  }, [activeProjectId]); // eslint-disable-line
+  }, [activeProjectId, loadProgressFromDb, switchProgress, switchUnpacking]);
 
   const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
   const title = projectMatch

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export interface AudienceAnswers {
   segments:         string;
@@ -31,16 +30,11 @@ interface AudienceState {
 
 const DEFAULT: ProjectData = { answers: {}, completed: false };
 
-export const useAudienceStore = create<AudienceState>()(
-  persist(
-    (set, get) => ({
-      projects: {},
-      save: (projectId, answers, completed) =>
-        set((s) => ({ projects: { ...s.projects, [projectId]: { answers, completed } } })),
-      reset: (projectId) =>
-        set((s) => ({ projects: { ...s.projects, [projectId]: DEFAULT } })),
-      get: (projectId) => get().projects[projectId] ?? DEFAULT,
-    }),
-    { name: 'audience-store-v1' },
-  ),
-);
+export const useAudienceStore = create<AudienceState>()((set, get) => ({
+  projects: {},
+  save: (projectId, answers, completed) =>
+    set((s) => ({ projects: { ...s.projects, [projectId]: { answers, completed } } })),
+  reset: (projectId) =>
+    set((s) => ({ projects: { ...s.projects, [projectId]: DEFAULT } })),
+  get: (projectId) => get().projects[projectId] ?? DEFAULT,
+}));

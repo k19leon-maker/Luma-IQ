@@ -140,15 +140,16 @@ export default function AIDialog() {
         content: m.content,
       }));
       const settings = getSettings('ai-dialog');
-      const response = await aiApi.chat({
-        model: settings.provider,
+      const response = await aiApi.startWorkflow('ai.dialog.message', {
+        projectId: activeProjectId,
+        provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        section: 'ai-dialog',
-        projectId: activeProjectId,
-        projectName,
-        message: text,
-        conversationHistory: history,
+        inputs: {
+          message: text,
+          history,
+          projectName,
+        },
       });
       setMessages((prev) => {
         const withAnswer = [...prev, { role: 'assistant' as const, content: response.content, time: nowTime() }];

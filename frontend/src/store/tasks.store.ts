@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type TaskColumn   = 'backlog' | 'week' | 'today' | 'done';
 export type TaskCategory = 'strategy' | 'products' | 'content' | 'planning';
@@ -127,24 +126,19 @@ interface TasksState {
   moveTask:   (id: string, column: TaskColumn) => void;
 }
 
-export const useTasksStore = create<TasksState>()(
-  persist(
-    (set) => ({
-      tasks: DEFAULT_TASKS,
+export const useTasksStore = create<TasksState>()((set) => ({
+  tasks: DEFAULT_TASKS,
 
-      addTask: (task) => {
-        const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        set((s) => ({ tasks: [...s.tasks, { ...task, id }] }));
-      },
+  addTask: (task) => {
+    const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    set((s) => ({ tasks: [...s.tasks, { ...task, id }] }));
+  },
 
-      removeTask: (id) =>
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+  removeTask: (id) =>
+    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
 
-      moveTask: (id, column) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) => (t.id === id ? { ...t, column } : t)),
-        })),
-    }),
-    { name: 'tasks' },
-  ),
-);
+  moveTask: (id, column) =>
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, column } : t)),
+    })),
+}));

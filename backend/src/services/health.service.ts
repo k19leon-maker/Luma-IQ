@@ -28,7 +28,10 @@ export const healthService = {
     checks.anthropic = configured(env.ANTHROPIC_API_KEY);
     checks.smtp = emailService.isConfigured()
       ? { status: 'ok' }
-      : { status: 'warn', details: { configured: false } };
+      : {
+        status: env.isProd && env.REGISTRATION_ENABLED ? 'fail' : 'warn',
+        details: { configured: false, required: env.REGISTRATION_ENABLED },
+      };
 
     try {
       const missingPricingAlerts = await prisma.aIUsageEvent.count({
