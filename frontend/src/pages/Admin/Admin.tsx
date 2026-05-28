@@ -155,6 +155,7 @@ export default function Admin() {
   const maxModelCost = Math.max(...(dashboard?.ai.byModel.map((item) => item.costUsd) ?? [0]), 0);
 
   async function loadDashboard() {
+    if (!isAdmin) return;
     try {
       setDashboard(await adminApi.dashboard());
     } catch {
@@ -163,6 +164,7 @@ export default function Admin() {
   }
 
   async function loadPrompts() {
+    if (!isAdmin) return;
     try {
       const data = await adminApi.prompts();
       setPromptRegistry(data.registry);
@@ -179,6 +181,10 @@ export default function Admin() {
   }
 
   async function loadUsers() {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await adminApi.listUsers({ q: q || undefined, plan, status, limit: 100 });
@@ -219,12 +225,19 @@ export default function Admin() {
   }
 
   useEffect(() => {
+    if (currentUser && !isAdmin) {
+      navigate('/dashboard', { replace: true });
+      setLoading(false);
+      return;
+    }
+    if (!isAdmin) return;
     void loadDashboard();
     void loadUsers();
     void loadPrompts();
-  }, []);
+  }, [currentUser, isAdmin, navigate]);
 
   async function refreshAll() {
+    if (!isAdmin) return;
     await Promise.all([loadDashboard(), loadUsers(), loadPrompts()]);
     if (selected) {
       const detail = await adminApi.getUser(selected.id).catch(() => null);
