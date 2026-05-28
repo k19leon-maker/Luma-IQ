@@ -42,7 +42,7 @@ const STEPS = [
 
 // ─── MainContent ──────────────────────────────────────────────────────────────
 
-function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
+function MainContent({ onStartAbout }: { onStartAbout: () => void }) {
   const activeId    = useProjectsStore((s) => s.activeProjectId);
   const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === activeId)?.name ?? 'Мой проект');
 
@@ -81,21 +81,6 @@ function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
           }}>
             <SettingsIcon />
             Настройки
-          </button>
-          <button
-            onClick={onStartUnpacking}
-            style={{
-              padding: '8px 18px',
-              borderRadius: 8,
-              border: 'none',
-              backgroundColor: '#D4A847',
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            Заполнить бриф
           </button>
         </div>
       </header>
@@ -145,8 +130,8 @@ function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
           lineHeight: 1.6,
           margin: '0 0 40px',
         }}>
-          Начните с распаковки вашей экспертизы — AI-маркетолог поможет выявить
-          сильные стороны и сформировать стратегию продвижения.
+          Начните с раздела «О себе»: добавьте базовую информацию об эксперте,
+          чтобы LumaIQ дальше точнее собрал стратегию, продукты и контент.
         </p>
 
         {/* Steps */}
@@ -197,7 +182,7 @@ function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <button
-            onClick={onStartUnpacking}
+            onClick={onStartAbout}
             style={{
               padding: '12px 24px',
               borderRadius: 8,
@@ -209,7 +194,7 @@ function MainContent({ onStartUnpacking }: { onStartUnpacking: () => void }) {
               cursor: 'pointer',
             }}
           >
-            Начать с распаковки →
+            Начать с раздела «О себе» →
           </button>
           <button style={{
             background: 'none',
@@ -238,7 +223,7 @@ interface DashboardEmptyProps {
 export default function DashboardEmpty({ onStartUnpacking }: DashboardEmptyProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-      <MainContent onStartUnpacking={() => onStartUnpacking?.()} />
+      <MainContent onStartAbout={() => onStartUnpacking?.()} />
     </div>
   );
 }

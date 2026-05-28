@@ -6,6 +6,7 @@ import { authApi } from '../../api/auth.api';
 import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
+import { useTasksStore } from '../../store/tasks.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import AddToPlanModal from '../AddToPlanModal/AddToPlanModal';
 import ModelSelector from '../ModelSelector/ModelSelector';
@@ -151,6 +152,7 @@ export default function Layout({ children }: LayoutProps) {
   const switchProgress    = useProgressStore((st) => st.switchProject);
   const loadProgressFromDb = useProgressStore((st) => st.loadFromDb);
   const switchUnpacking   = useUnpackingStore((st) => st.switchProject);
+  const unfinishedTasksCount = useTasksStore((st) => st.tasks.filter((t) => !t.done && t.column !== 'done').length);
 
   /* Projects from store */
   const projects           = useProjectsStore((s) => s.projects);
@@ -345,6 +347,11 @@ export default function Layout({ children }: LayoutProps) {
             >
               <span className={s.navIcon}>📋</span>
               <span className={s.navLinkLabel}>План задач</span>
+              {unfinishedTasksCount > 0 && (
+                <span className={s.taskBadge} aria-label={`Незавершенных задач: ${unfinishedTasksCount}`}>
+                  {unfinishedTasksCount > 99 ? '99+' : unfinishedTasksCount}
+                </span>
+              )}
             </NavLink>
           </div>
 

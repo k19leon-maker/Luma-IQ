@@ -30,7 +30,7 @@ export interface NextStep {
 }
 
 export function getNextStep(f: SectionFlags): NextStep {
-  if (!f.about)     return { route: '/strategy/about',        label: 'О себе',              hint: 'Заполните короткий бриф об эксперте: роль, опыт, продукты, регалии и ограничения', btnText: 'Заполнить бриф →' };
+  if (!f.about)     return { route: '/strategy/about',        label: 'О себе',              hint: 'Заполните базовую информацию об эксперте: роль, опыт, продукты, регалии и ограничения', btnText: 'Открыть «О себе» →' };
   if (!f.positioning) return { route: '/strategy/positioning', label: 'Позиционирование',    hint: 'Выберите стратегический вектор упаковки на базе брифа',            btnText: 'Выбрать вектор →' };
   if (!f.audience)  return { route: '/strategy/audience',     label: 'Целевую аудиторию',   hint: 'AI проанализирует и определит идеальный сегмент клиентов',         btnText: 'Анализировать ЦА →'    };
   if (!f.utp)       return { route: '/strategy/utp',          label: 'УТП',                 hint: 'На основе брифа, позиционирования и ЦА AI создаст УТП',             btnText: 'Создать УТП →'         };

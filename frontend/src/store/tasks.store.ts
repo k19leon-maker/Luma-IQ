@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 
-export type TaskColumn   = 'backlog' | 'week' | 'today' | 'done';
+export type TaskColumn   = 'all' | 'week' | 'today' | 'done';
 export type TaskCategory = 'strategy' | 'products' | 'content' | 'planning';
+export type TaskPriority = 'high' | 'medium' | 'low';
 
 export interface Task {
   id:           string;
@@ -9,6 +10,9 @@ export interface Task {
   description?: string;
   category:     TaskCategory;
   link?:        string;
+  dueLabel:     string;
+  priority:     TaskPriority;
+  done:         boolean;
   column:       TaskColumn;
 }
 
@@ -19,6 +23,9 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Добавьте базовую информацию об эксперте: роль, нишу, опыт, продукты, компетенции, регалии и ограничения.',
     category: 'strategy',
     link: '/strategy/about',
+    dueLabel: 'Сегодня',
+    priority: 'high',
+    done: false,
     column: 'today',
   },
   {
@@ -27,6 +34,9 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Определите, как эксперт должен звучать на рынке и какие стратегические векторы упаковки подходят проекту.',
     category: 'strategy',
     link: '/strategy/positioning',
+    dueLabel: 'Сегодня',
+    priority: 'high',
+    done: false,
     column: 'today',
   },
   {
@@ -35,7 +45,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Пройдите анализ ЦА, выберите сегмент и подсегмент, на который будет собираться вся упаковка.',
     category: 'strategy',
     link: '/strategy/audience',
-    column: 'backlog',
+    dueLabel: 'Следующий шаг',
+    priority: 'high',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-4',
@@ -43,7 +56,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Соберите короткое обещание: кому помогаете, какую проблему решаете, какой результат даете и за счет чего.',
     category: 'strategy',
     link: '/strategy/utp',
-    column: 'backlog',
+    dueLabel: 'После ЦА',
+    priority: 'high',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-5',
@@ -51,6 +67,9 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Сгенерируйте упаковку профиля для Instagram, Telegram и VK на основе стратегии и УТП.',
     category: 'strategy',
     link: '/strategy/social',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
     column: 'week',
   },
   {
@@ -59,7 +78,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Создайте флагманский продукт: название, оффер, описание, модули программы и продуктовое обещание.',
     category: 'products',
     link: '/products/main',
-    column: 'backlog',
+    dueLabel: 'После стратегии',
+    priority: 'high',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-7',
@@ -67,7 +89,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Разработайте входной продукт на 7 дней / 3 занятия, который дает первый управляемый результат.',
     category: 'products',
     link: '/products/mini',
-    column: 'backlog',
+    dueLabel: 'После основного',
+    priority: 'medium',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-8',
@@ -75,6 +100,9 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Выберите формат и соберите материал, который ведет аудиторию к следующему шагу воронки.',
     category: 'products',
     link: '/products/lead-magnet',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
     column: 'week',
   },
   {
@@ -83,7 +111,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Создайте 3-5 постов для Telegram или Instagram: боль, инсайт, история, доверие и CTA.',
     category: 'content',
     link: '/posts',
-    column: 'backlog',
+    dueLabel: 'После продуктов',
+    priority: 'medium',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-10',
@@ -91,6 +122,9 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Сгенерируйте хуки, выберите сильные варианты, добавьте фактуру и получите сценарии роликов.',
     category: 'content',
     link: '/reels',
+    dueLabel: 'На неделе',
+    priority: 'medium',
+    done: false,
     column: 'week',
   },
   {
@@ -99,7 +133,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Создайте тему, структуру и статью для VC, Дзена, Habr, LinkedIn или блога.',
     category: 'content',
     link: '/articles',
-    column: 'backlog',
+    dueLabel: 'Позже',
+    priority: 'low',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-12',
@@ -107,7 +144,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Сгенерируйте Telegram-цепочку, которая продает лидмагнит, следующий шаг и возвращает аудиторию.',
     category: 'content',
     link: '/chatbot-chains',
-    column: 'backlog',
+    dueLabel: 'Позже',
+    priority: 'low',
+    done: false,
+    column: 'all',
   },
   {
     id: 'onboarding-13',
@@ -115,7 +155,10 @@ const DEFAULT_TASKS: Task[] = [
     description: 'Перенесите готовые посты, рилсы, статьи и сценарии в календарь публикаций.',
     category: 'planning',
     link: '/content-plan',
-    column: 'backlog',
+    dueLabel: 'Финальный шаг',
+    priority: 'medium',
+    done: false,
+    column: 'all',
   },
 ];
 
@@ -124,6 +167,7 @@ interface TasksState {
   addTask:    (task: Omit<Task, 'id'>) => void;
   removeTask: (id: string)            => void;
   moveTask:   (id: string, column: TaskColumn) => void;
+  toggleTaskDone: (id: string) => void;
 }
 
 export const useTasksStore = create<TasksState>()((set) => ({
@@ -139,6 +183,17 @@ export const useTasksStore = create<TasksState>()((set) => ({
 
   moveTask: (id, column) =>
     set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, column } : t)),
+      tasks: s.tasks.map((t) => (
+        t.id === id ? { ...t, column, done: column === 'done' } : t
+      )),
+    })),
+
+  toggleTaskDone: (id) =>
+    set((s) => ({
+      tasks: s.tasks.map((t) => {
+        if (t.id !== id) return t;
+        const done = !t.done;
+        return { ...t, done, column: done ? 'done' : 'all' };
+      }),
     })),
 }));

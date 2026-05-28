@@ -12,6 +12,7 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
+import { useTasksStore } from '../../store/tasks.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,154 +52,6 @@ const COLUMNS: { id: Column; label: string; dot: string }[] = [
   { id: 'today', label: 'Сегодня',    dot: '#D4A847' },
   { id: 'week',  label: 'На неделе',  dot: '#2563EB' },
   { id: 'done',  label: 'Выполнено',  dot: '#4A7C59' },
-];
-
-// ─── Initial tasks ────────────────────────────────────────────────────────────
-
-const INITIAL_TASKS: Task[] = [
-  {
-    id: 'onboarding-1',
-    title: 'Заполнить раздел “О себе”',
-    description: 'Добавьте базовую информацию об эксперте: роль, нишу, опыт, продукты, компетенции, регалии и ограничения.',
-    category: 'strategy',
-    link: '/strategy/about',
-    dueLabel: 'Сегодня',
-    priority: 'high',
-    done: false,
-    column: 'today',
-  },
-  {
-    id: 'onboarding-2',
-    title: 'Собрать базовое позиционирование',
-    description: 'Определите, как эксперт должен звучать на рынке и какие стратегические векторы упаковки подходят проекту.',
-    category: 'strategy',
-    link: '/strategy/positioning',
-    dueLabel: 'Сегодня',
-    priority: 'high',
-    done: false,
-    column: 'today',
-  },
-  {
-    id: 'onboarding-3',
-    title: 'Выбрать целевую аудиторию и сегмент',
-    description: 'Пройдите анализ ЦА, выберите сегмент и подсегмент, на который будет собираться вся упаковка.',
-    category: 'strategy',
-    link: '/strategy/audience',
-    dueLabel: 'Следующий шаг',
-    priority: 'high',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-4',
-    title: 'Сформулировать УТП',
-    description: 'Соберите короткое обещание: кому помогаете, какую проблему решаете, какой результат даете и за счет чего.',
-    category: 'strategy',
-    link: '/strategy/utp',
-    dueLabel: 'После ЦА',
-    priority: 'high',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-5',
-    title: 'Подготовить описание соцсетей',
-    description: 'Сгенерируйте упаковку профиля для Instagram, Telegram и VK на основе стратегии и УТП.',
-    category: 'strategy',
-    link: '/strategy/social',
-    dueLabel: 'На неделе',
-    priority: 'medium',
-    done: false,
-    column: 'week',
-  },
-  {
-    id: 'onboarding-6',
-    title: 'Собрать основной продукт',
-    description: 'Создайте флагманский продукт: название, оффер, описание, модули программы и продуктовое обещание.',
-    category: 'products',
-    link: '/products/main',
-    dueLabel: 'После стратегии',
-    priority: 'high',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-7',
-    title: 'Собрать мини-продукт',
-    description: 'Разработайте входной продукт на 7 дней / 3 занятия, который дает первый управляемый результат.',
-    category: 'products',
-    link: '/products/mini',
-    dueLabel: 'После основного',
-    priority: 'medium',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-8',
-    title: 'Создать лид-магнит',
-    description: 'Выберите формат и соберите материал, который ведет аудиторию к следующему шагу воронки.',
-    category: 'products',
-    link: '/products/lead-magnet',
-    dueLabel: 'На неделе',
-    priority: 'medium',
-    done: false,
-    column: 'week',
-  },
-  {
-    id: 'onboarding-9',
-    title: 'Сгенерировать первые посты',
-    description: 'Создайте 3-5 постов для Telegram или Instagram: боль, инсайт, история, доверие и CTA.',
-    category: 'content',
-    link: '/posts',
-    dueLabel: 'После продуктов',
-    priority: 'medium',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-10',
-    title: 'Собрать Reels-сценарии',
-    description: 'Сгенерируйте хуки, выберите сильные варианты, добавьте фактуру и получите сценарии роликов.',
-    category: 'content',
-    link: '/reels',
-    dueLabel: 'На неделе',
-    priority: 'medium',
-    done: false,
-    column: 'week',
-  },
-  {
-    id: 'onboarding-11',
-    title: 'Подготовить экспертную статью',
-    description: 'Создайте тему, структуру и статью для VC, Дзена, Habr, LinkedIn или блога.',
-    category: 'content',
-    link: '/articles',
-    dueLabel: 'Позже',
-    priority: 'low',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-12',
-    title: 'Собрать цепочку сообщений',
-    description: 'Сгенерируйте Telegram-цепочку, которая продает лидмагнит, следующий шаг и возвращает аудиторию.',
-    category: 'content',
-    link: '/chatbot-chains',
-    dueLabel: 'Позже',
-    priority: 'low',
-    done: false,
-    column: 'all',
-  },
-  {
-    id: 'onboarding-13',
-    title: 'Собрать контент-план',
-    description: 'Перенесите готовые посты, рилсы, статьи и сценарии в календарь публикаций.',
-    category: 'planning',
-    link: '/content-plan',
-    dueLabel: 'Финальный шаг',
-    priority: 'medium',
-    done: false,
-    column: 'all',
-  },
 ];
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -467,7 +320,10 @@ function DroppableColumn({ col, tasks, onToggle, onOpen, onAddClick }: {
 
 export default function Tasks() {
   const navigate = useNavigate();
-  const [tasks,     setTasks]     = useState<Task[]>(INITIAL_TASKS);
+  const tasks = useTasksStore((s) => s.tasks) as Task[];
+  const addTask = useTasksStore((s) => s.addTask);
+  const moveTask = useTasksStore((s) => s.moveTask);
+  const toggleTaskDone = useTasksStore((s) => s.toggleTaskDone);
   const [addColumn, setAddColumn] = useState<Column | null>(null);
   const [activeId,  setActiveId]  = useState<string | null>(null);
 
@@ -480,21 +336,14 @@ export default function Tasks() {
   const pct        = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   function handleToggle(id: string) {
-    setTasks((prev) => {
-      const task = prev.find((t) => t.id === id);
-      if (!task) return prev;
-      const nowDone = !task.done;
-      if (nowDone) toast.success('Задача выполнена 🎉');
-      return prev.map((t) =>
-        t.id === id
-          ? { ...t, done: nowDone, column: nowDone ? 'done' : t.column === 'done' ? 'all' : t.column }
-          : t
-      );
-    });
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    if (!task.done) toast.success('Задача выполнена');
+    toggleTaskDone(id);
   }
 
   function handleAdd(task: Omit<Task, 'id'>) {
-    setTasks((prev) => [...prev, { ...task, id: crypto.randomUUID() }]);
+    addTask(task);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -511,13 +360,10 @@ export default function Tasks() {
     const validCols = new Set<Column>(['all', 'today', 'week', 'done']);
     if (!validCols.has(targetCol)) return;
 
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t;
-      if (t.column === targetCol) return t;
-      const nowDone = targetCol === 'done';
-      if (nowDone && !t.done) toast.success('Задача выполнена 🎉');
-      return { ...t, column: targetCol, done: nowDone };
-    }));
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || task.column === targetCol) return;
+    if (targetCol === 'done' && !task.done) toast.success('Задача выполнена');
+    moveTask(taskId, targetCol);
   }
 
   const tasksByColumn: Record<Column, Task[]> = {
