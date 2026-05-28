@@ -1,4 +1,4 @@
-import { AIProvider as DbAIProvider, Prisma } from '@prisma/client';
+import { AIGenerationStatus, AIProvider as DbAIProvider, Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 import { prisma } from '../lib/prisma';
@@ -9,6 +9,8 @@ import { aiValidationService } from './ai-validation.service';
 import { projectContextService } from './project-context.service';
 import { promptCmsService } from './prompt-cms.service';
 import { structuredOutputService } from './structured-output.service';
+
+const RUNNING_GENERATION_STALE_AFTER_MS = 10 * 60 * 1000;
 
 export interface RunWorkflowInput {
   userId: string;
@@ -92,6 +94,51 @@ function makeIdempotencyKey(input: RunWorkflowInput): string {
   return `workflow:${crypto.createHash('sha256').update(raw).digest('hex')}`;
 }
 
+function isStaleRunningGeneration(generation: { startedAt: Date | null; createdAt: Date }): boolean {
+  const referenceTime = generation.startedAt ?? generation.createdAt;
+  return Date.now() - referenceTime.getTime() > RUNNING_GENERATION_STALE_AFTER_MS;
+}
+
+async function releaseReplayGeneration(
+  generation: {
+    id: string;
+    workflowRunId: string | null;
+    workflowStepId: string | null;
+    status: AIGenerationStatus;
+  },
+  reason: string,
+) {
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.aIGeneration.update({
+      where: { id: generation.id },
+      data: {
+        status: generation.status === 'RUNNING' ? AIGenerationStatus.TIMEOUT : generation.status,
+        idempotencyKey: null,
+        errorCode: generation.status === 'RUNNING' ? 'STALE_WORKFLOW_RUN' : undefined,
+        errorMessage: generation.status === 'RUNNING' ? reason : undefined,
+        finishedAt: generation.status === 'RUNNING' ? now : undefined,
+      },
+    }),
+    ...(generation.workflowStepId
+      ? [
+        prisma.aIWorkflowStep.updateMany({
+          where: { id: generation.workflowStepId, status: { in: ['QUEUED', 'RUNNING'] } },
+          data: { status: 'FAILED', error: reason, completedAt: now },
+        }),
+      ]
+      : []),
+    ...(generation.workflowRunId
+      ? [
+        prisma.aIWorkflowRun.updateMany({
+          where: { id: generation.workflowRunId, status: { in: ['QUEUED', 'RUNNING'] } },
+          data: { status: 'FAILED', completedAt: now },
+        }),
+      ]
+      : []),
+  ]);
+}
+
 export const aiWorkflowService = {
   async run(input: RunWorkflowInput) {
     const config = promptRegistry.get(input.workflow, input.step);
@@ -127,7 +174,18 @@ export const aiWorkflowService = {
       }
     }
     if (replayGeneration?.status === 'RUNNING') {
-      throw Object.assign(new Error('Этот workflow step уже выполняется'), { status: 409, code: 'WORKFLOW_IN_PROGRESS' });
+      if (!isStaleRunningGeneration(replayGeneration)) {
+        throw Object.assign(new Error('Этот workflow step уже выполняется'), { status: 409, code: 'WORKFLOW_IN_PROGRESS' });
+      }
+      await releaseReplayGeneration(
+        replayGeneration,
+        'Предыдущий запуск workflow завис и был автоматически остановлен перед повторной генерацией',
+      );
+    } else if (replayGeneration) {
+      await releaseReplayGeneration(
+        replayGeneration,
+        'Предыдущий запуск workflow завершился неуспешно, ключ повторного запуска освобожден',
+      );
     }
 
     const workflowRun = input.workflowRunId

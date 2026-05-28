@@ -35,6 +35,7 @@ export interface WorkflowRequest {
   provider?:      ChatModel;
   openaiModel?:   string;
   claudeModel?:   string;
+  idempotencyKey?: string;
 }
 
 export interface WorkflowResponse {

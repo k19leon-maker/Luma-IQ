@@ -38,6 +38,13 @@ interface ExpertProfileData {
   achievements?: string;
 }
 
+function getApiErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const response = (error as { response?: { data?: { error?: unknown; message?: unknown } } }).response;
+  const message = response?.data?.error ?? response?.data?.message;
+  return typeof message === 'string' && message.trim() ? message : null;
+}
+
 const POSITIONING_MODELS = [
   {
     title: 'По нише',
@@ -342,6 +349,7 @@ export default function Positioning() {
       toast.loading('ИИ генерирует варианты позиционирования...', { id: 'positioning-variants' });
       const variantsResp = await aiApi.startWorkflow('positioning.variants.generate', {
         projectId: activeProjectId,
+        idempotencyKey: `positioning-variants:${activeProjectId}:${Date.now()}`,
         inputs: { currentHypothesis: finalStatement },
       });
       setVariants(variantsResp.content);
@@ -359,8 +367,8 @@ export default function Positioning() {
       });
       setActiveTab('variants');
       toast.success('Варианты позиционирования готовы', { id: 'positioning-variants' });
-    } catch {
-      toast.error('Не удалось сгенерировать варианты позиционирования', { id: 'positioning-variants' });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error) ?? 'Не удалось сгенерировать варианты позиционирования', { id: 'positioning-variants' });
     } finally {
       setRunning(false);
     }
@@ -382,6 +390,7 @@ export default function Positioning() {
       toast.loading('ИИ формулирует финальное позиционирование...', { id: 'positioning-final' });
       const resp = await aiApi.startWorkflow('positioning.final.generate', {
         projectId: activeProjectId,
+        idempotencyKey: `positioning-final:${activeProjectId}:${Date.now()}`,
         inputs: {
           selectedVariant,
           currentDraft: finalStatement,
@@ -406,8 +415,8 @@ export default function Positioning() {
       setProof(nextProof);
       setActiveTab('final');
       toast.success('Финальная сборка обновлена', { id: 'positioning-final' });
-    } catch {
-      toast.error('Не удалось сформулировать финальное позиционирование', { id: 'positioning-final' });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error) ?? 'Не удалось сформулировать финальное позиционирование', { id: 'positioning-final' });
     } finally {
       setRunning(false);
     }
