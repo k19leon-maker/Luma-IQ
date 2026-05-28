@@ -5,6 +5,7 @@ import { aiApi, ConversationMessage } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useModelStore } from '../../store/model.store';
+import { useProjectsStore } from '../../store/projects.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ function uid() {
 export default function Chat() {
   const [active, setActive] = useState(false);
   const getSettings = useModelStore((st) => st.getSettings);
+  const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<ConversationMessage[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -77,13 +79,21 @@ export default function Chat() {
     ];
 
     try {
+      if (!activeProjectId) {
+        throw new Error('Сначала выберите проект');
+      }
       const settings = getSettings('strategy');
-      const res = await aiApi.chat({
-        message: trimmed,
-        model: settings.provider,
+      const res = await aiApi.startWorkflow('ai.dialog', {
+        projectId: activeProjectId,
+        step: 'message',
+        provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        conversationHistory: history,
+        inputs: {
+          message: trimmed,
+          history,
+          source: 'legacy-chat',
+        },
       });
 
       setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: res.content }]);

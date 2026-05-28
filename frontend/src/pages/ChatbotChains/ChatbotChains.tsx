@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
 import { useContentPlanStore } from '../../store/contentPlan.store';
@@ -594,22 +595,8 @@ export default function ChatbotChains() {
         if (item) setChain((current) => ({ ...current, dbId: item.id }));
       });
     } catch (err) {
-      console.warn('[ChatbotChains] AI error, using fallback:', err);
-      const messages = buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null);
-      const newChain: StoredChain = { format, botName, meetingSchedule, messages };
-      updateChain(newChain);
-      setActiveId(messages[0]?.id ?? '');
-      setEditMap({});
-      setPhase('step2');
-      const fullText = messages.map((m, i) => `Сообщение ${i + 1}\n${m.content}`).join('\n\n---\n\n');
-      void saveToApi({
-        title: `Цепочка бота: ${botName || 'Telegram'}`,
-        content: fullText,
-        platform: 'Telegram',
-        metadata: chainMetadata(newChain),
-      }).then((item) => {
-        if (item) setChain((current) => ({ ...current, dbId: item.id }));
-      });
+      console.warn('[ChatbotChains] AI error:', err);
+      toast.error('AI не сгенерировал цепочку. Шаблонный текст не сохранен, попробуйте еще раз.');
     } finally {
       finishGenerationTask(activeProjectId, 'chatbot-chains');
     }

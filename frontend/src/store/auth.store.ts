@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi, AuthUser } from '../api/auth.api';
+import { clearSessionTokens, getAccessToken, getCsrfToken, isDevSession, setSessionTokens } from '../api/token-session';
 import { useProjectsStore } from './projects.store';
 
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
@@ -27,17 +28,6 @@ interface AuthState {
   loginAsTestUser: () => void;
 }
 
-function saveTokens(accessToken: string, csrfToken?: string) {
-  localStorage.setItem('accessToken', accessToken);
-  if (csrfToken) localStorage.setItem('csrfToken', csrfToken);
-}
-
-function clearTokens() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('csrfToken');
-}
-
 function resetSessionStores() {
   useProjectsStore.getState().resetProjects();
 }
@@ -50,48 +40,45 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const { user, tokens } = await authApi.login(email, password);
     resetSessionStores();
-    saveTokens(tokens.accessToken, tokens.csrfToken);
+    setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
   register: async (email, password, name) => {
     const { user, tokens } = await authApi.register(email, password, name);
     resetSessionStores();
-    saveTokens(tokens.accessToken, tokens.csrfToken);
+    setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
   logout: async () => {
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken && accessToken !== DEV_TOKEN) {
+    const accessToken = getAccessToken();
+    if (accessToken && !isDevSession()) {
       await authApi.logout().catch(() => {});
     }
-    clearTokens();
+    clearSessionTokens();
     resetSessionStores();
     set({ user: null, isAuthenticated: false });
   },
 
   restoreSession: async () => {
-    const accessToken = localStorage.getItem('accessToken');
-    if (!accessToken) {
-      resetSessionStores();
-      set({ isLoading: false });
-      return;
-    }
-
     // Dev mode: restore mock session without backend call
-    if (DEV_MODE && accessToken === DEV_TOKEN) {
+    if (DEV_MODE && isDevSession()) {
       resetSessionStores();
       set({ user: DEV_USER, isAuthenticated: true, isLoading: false });
       return;
     }
 
     try {
+      if (!getAccessToken() && getCsrfToken()) {
+        const refreshed = await authApi.refresh();
+        setSessionTokens(refreshed.tokens.accessToken, refreshed.tokens.csrfToken);
+      }
       const user = await authApi.me();
       resetSessionStores();
       set({ user, isAuthenticated: true, isLoading: false });
     } catch {
-      clearTokens();
+      clearSessionTokens();
       resetSessionStores();
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
@@ -99,7 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setTokens: (accessToken, csrfToken) => {
     resetSessionStores();
-    saveTokens(accessToken, csrfToken);
+    setSessionTokens(accessToken, csrfToken);
     // Fetch user info after OAuth callback
     authApi.me().then((user) => {
       set({ user, isAuthenticated: true });
@@ -109,7 +96,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loginAsTestUser: () => {
     if (!DEV_MODE) return;
     resetSessionStores();
-    saveTokens(DEV_TOKEN, DEV_TOKEN);
+    setSessionTokens(DEV_TOKEN, DEV_TOKEN);
     set({ user: DEV_USER, isAuthenticated: true });
   },
 }));

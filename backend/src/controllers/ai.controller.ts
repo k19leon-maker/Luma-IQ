@@ -7,6 +7,7 @@ import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
 import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
 import { aiGenerationService } from '../services/ai-generation.service';
+import { aiWorkflowService } from '../services/ai-workflow.service';
 import { AccessPolicyError } from '../services/access-policy.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
@@ -106,6 +107,50 @@ export const aiController = {
       ...conversationHistory,
       { role: 'user' as const, content: message },
     ];
+
+    if (projectId) {
+      try {
+        const workflow = await aiWorkflowService.run({
+          userId: req.userId!,
+          projectId,
+          workflow: 'ai.dialog',
+          step: 'message',
+          provider: model,
+          openaiModel,
+          claudeModel,
+          idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
+          inputs: {
+            message,
+            history: conversationHistory,
+            section: section ?? 'ai-dialog',
+            fileContext: fileContext ?? '',
+            projectName: projectName ?? '',
+            source: 'legacy-ai-chat',
+          },
+        });
+        res.json({
+          content: workflow.content,
+          mock: workflow.mock,
+          workflowRunId: workflow.workflowRunId,
+          workflowStepId: workflow.workflowStepId,
+          artifactId: workflow.artifactId,
+          generationId: workflow.generationId,
+        });
+        return;
+      } catch (err) {
+        console.error('[AI workflow chat] Error:', err);
+        if (err instanceof AccessPolicyError) {
+          res.status(err.status).json({ error: err.message });
+          return;
+        }
+        if (typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number') {
+          res.status((err as { status: number }).status).json({ error: err instanceof Error ? err.message : 'Ошибка AI-сервиса' });
+          return;
+        }
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Ошибка AI-сервиса' });
+        return;
+      }
+    }
 
     // Build system prompt: dynamic if profile provided, static from SYSTEM_PROMPTS otherwise
     let systemPrompt: string | undefined;

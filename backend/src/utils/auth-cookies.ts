@@ -3,6 +3,7 @@ import { CookieOptions, Request, Response } from 'express';
 import { env } from '../config/env';
 
 export const REFRESH_COOKIE = 'refresh_token';
+export const CSRF_COOKIE = 'csrf_token';
 export const CSRF_HEADER = 'x-csrf-token';
 
 const cookieOptions: CookieOptions = {
@@ -10,6 +11,13 @@ const cookieOptions: CookieOptions = {
   secure: env.NODE_ENV === 'production',
   sameSite: 'lax',
   path: '/api/v1/auth',
+};
+
+const csrfCookieOptions: CookieOptions = {
+  httpOnly: false,
+  secure: env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
 };
 
 export function csrfTokenFor(refreshToken: string): string {
@@ -25,11 +33,16 @@ export function setRefreshCookie(res: Response, refreshToken: string): string {
     ...cookieOptions,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
+  res.cookie(CSRF_COOKIE, csrfToken, {
+    ...csrfCookieOptions,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
   return csrfToken;
 }
 
 export function clearRefreshCookie(res: Response): void {
   res.clearCookie(REFRESH_COOKIE, cookieOptions);
+  res.clearCookie(CSRF_COOKIE, csrfCookieOptions);
 }
 
 export function getRefreshCookie(req: Request): string | undefined {

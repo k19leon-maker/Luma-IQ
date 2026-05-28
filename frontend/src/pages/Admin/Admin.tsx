@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
+import { getAccessToken, setAdminAccessTokenBackup } from '../../api/token-session';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Admin.module.css';
 
@@ -269,9 +270,9 @@ export default function Admin() {
     if (!ok) return;
     setImpersonateLoading(true);
     try {
-      const currentAccess = localStorage.getItem('accessToken');
+      const currentAccess = getAccessToken();
       if (currentAccess) {
-        localStorage.setItem('adminAccessTokenBackup', currentAccess);
+        setAdminAccessTokenBackup(currentAccess);
       }
       const { tokens } = await adminApi.impersonateUser(selected.id);
       setTokens(tokens.accessToken, tokens.csrfToken);

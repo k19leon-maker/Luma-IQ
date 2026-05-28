@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { authApi } from '../../api/auth.api';
+import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
@@ -145,7 +146,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigate  = useNavigate();
   const user      = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
-  const [hasAdminBackup, setHasAdminBackup] = useState(() => Boolean(localStorage.getItem('adminAccessTokenBackup')));
+  const [hasAdminBackup, setHasAdminBackup] = useState(() => hasAdminAccessTokenBackup());
 
   const switchProgress    = useProgressStore((st) => st.switchProject);
   const loadProgressFromDb = useProgressStore((st) => st.loadFromDb);
@@ -167,13 +168,18 @@ export default function Layout({ children }: LayoutProps) {
   }, [user?.id, loadProjects]);
 
   const restoreAdminSession = useCallback(() => {
-    const access = localStorage.getItem('adminAccessTokenBackup');
+    const access = consumeAdminAccessTokenBackup();
     if (!access) return;
-    localStorage.removeItem('adminAccessTokenBackup');
     setTokens(access);
     setHasAdminBackup(false);
     navigate('/admin');
   }, [navigate, setTokens]);
+
+  useEffect(() => {
+    const syncBackup = () => setHasAdminBackup(hasAdminAccessTokenBackup());
+    window.addEventListener('admin-session-backup-changed', syncBackup);
+    return () => window.removeEventListener('admin-session-backup-changed', syncBackup);
+  }, []);
 
   // Sync per-project stores when active project changes
   useEffect(() => {

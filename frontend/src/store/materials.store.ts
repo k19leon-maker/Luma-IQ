@@ -77,14 +77,15 @@ function normalizeMaterial(material: ProjectMaterial): ProjectMaterial {
   };
 }
 
-async function buildAiSummary(material: ProjectMaterial): Promise<string> {
-  const resp = await aiApi.chat({
-    model: 'claude',
+async function buildAiSummary(projectId: string, material: ProjectMaterial): Promise<string> {
+  const resp = await aiApi.startWorkflow('ai.dialog', {
+    projectId,
+    step: 'message',
+    provider: 'claude',
     claudeModel: 'claude-haiku-4-5-20251001',
-    section: 'materials-summary',
-    conversationHistory: [],
-    projectName: material.title,
-    message: `Сделай короткое рабочее саммари материала для AI knowledge base.
+    inputs: {
+      source: 'materials-summary',
+      message: `Сделай короткое рабочее саммари материала для AI knowledge base.
 
 Формат строго:
 Суть: ...
@@ -97,6 +98,7 @@ async function buildAiSummary(material: ProjectMaterial): Promise<string> {
 
 Материал:
 ${material.content.slice(0, 6500)}`,
+    },
   });
   return resp.content.trim().slice(0, 1800);
 }
@@ -185,7 +187,7 @@ export const useMaterialsStore = create<MaterialsState>()(
         });
 
         try {
-          const summary = await buildAiSummary(material);
+          const summary = await buildAiSummary(projectId, material);
           set((s) => {
             const current = s.projects[projectId] ?? [];
             const next = current.map((item) =>

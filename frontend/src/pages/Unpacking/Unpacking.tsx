@@ -9,17 +9,6 @@ import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useModelStore } from '../../store/model.store';
 
-// ─── Fallback replies ─────────────────────────────────────────────────────────
-
-const FALLBACK_REPLIES = [
-  'Интересно! Уточните — с какими конкретными проблемами приходят ваши клиенты?',
-  'Понял. А какой результат получают клиенты после работы с вами? Конкретный, измеримый.',
-  'Отлично. Теперь про аудиторию — это больше женщины или мужчины? Какой возраст, жизненная ситуация?',
-  'Хорошо. Как вы сейчас продвигаетесь? Какие каналы используете?',
-  'Почти готово. Назовите 3 главных преимущества работы именно с вами.',
-  'Отлично! У меня достаточно информации чтобы сформировать вашу стратегию. Нажмите кнопку ниже чтобы завершить распаковку.',
-];
-
 const WELCOME_MSG =
   'Привет! Я ваш AI-маркетолог.\nЧтобы создать стратегию продвижения, мне нужно познакомиться с вашей практикой.\n\nРасскажите о себе: кто вы, чем занимаетесь, кому помогаете и какой результат получают ваши клиенты. Можете писать в свободной форме — я задам уточняющие вопросы.';
 
@@ -74,7 +63,6 @@ export default function Unpacking() {
   });
   const [inputText,    setInputText]    = useState('');
   const [sending,      setSending]      = useState(false);
-  const [fallbackIdx,  setFallbackIdx]  = useState(0);
   const [userMsgCount, setUserMsgCount] = useState(0);
   const [aiSuggestedFinish, setAiSuggestedFinish] = useState(false);
 
@@ -159,12 +147,8 @@ export default function Unpacking() {
         setAiSuggestedFinish(true);
       }
     } catch (err) {
-      console.warn('[Unpacking] AI error, using fallback:', err);
-      const replyText = FALLBACK_REPLIES[Math.min(fallbackIdx, FALLBACK_REPLIES.length - 1)];
-      setFallbackIdx((i) => Math.min(i + 1, FALLBACK_REPLIES.length - 1));
-      const aiMsg: ChatMsg = { role: 'ai', text: replyText, time: nowTime() };
-      setMessages((prev) => [...prev, aiMsg]);
-      toast('AI временно недоступен', { icon: '⚠️', duration: 2500 });
+      console.warn('[Unpacking] AI error:', err);
+      toast.error('AI не ответил. Сообщение не заменено шаблоном, попробуйте еще раз.');
     } finally {
       setSending(false);
     }
@@ -199,12 +183,7 @@ export default function Unpacking() {
         setAiSuggestedFinish(true);
       }
     } catch {
-      const aiMsg: ChatMsg = {
-        role: 'ai',
-        text: `Получил файл «${file.name}». Изучу и учту при формировании стратегии.`,
-        time: nowTime(),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      toast.error('Не удалось отправить файл в AI. Попробуйте еще раз.');
     } finally {
       setSending(false);
     }

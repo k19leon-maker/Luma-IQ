@@ -1,7 +1,11 @@
 import axios from 'axios';
-
-const DEV_TOKEN = 'dev-token';
-const CSRF_STORAGE_KEY = 'csrfToken';
+import {
+  clearSessionTokens,
+  getAccessToken,
+  getCsrfToken,
+  isDevSession,
+  setSessionTokens,
+} from './token-session';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
@@ -14,11 +18,11 @@ export const apiClient = axios.create({
 
 // Attach access token to every request
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  const csrfToken = localStorage.getItem(CSRF_STORAGE_KEY);
+  const csrfToken = getCsrfToken();
   const method = config.method?.toUpperCase();
   if (csrfToken && method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     config.headers['X-CSRF-Token'] = csrfToken;
@@ -39,17 +43,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const accessToken = localStorage.getItem('accessToken');
-    const csrfToken = localStorage.getItem(CSRF_STORAGE_KEY);
-
     // Dev mode: never redirect to login, just reject
-    if (accessToken === DEV_TOKEN) {
+    if (isDevSession()) {
       return Promise.reject(error);
     }
 
+    const csrfToken = getCsrfToken();
     if (!csrfToken) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem(CSRF_STORAGE_KEY);
+      clearSessionTokens();
       window.location.href = '/login';
       return Promise.reject(error);
     }
@@ -72,8 +73,7 @@ apiClient.interceptors.response.use(
         headers: { 'X-CSRF-Token': csrfToken },
       });
       const { accessToken: newAccess, csrfToken: newCsrf } = data.tokens;
-      localStorage.setItem('accessToken', newAccess);
-      if (newCsrf) localStorage.setItem(CSRF_STORAGE_KEY, newCsrf);
+      setSessionTokens(newAccess, newCsrf);
 
       waitQueue.forEach((cb) => cb(newAccess));
       waitQueue = [];
@@ -81,8 +81,7 @@ apiClient.interceptors.response.use(
       original.headers.Authorization = `Bearer ${newAccess}`;
       return apiClient(original);
     } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem(CSRF_STORAGE_KEY);
+      clearSessionTokens();
       window.location.href = '/login';
       return Promise.reject(error);
     } finally {
