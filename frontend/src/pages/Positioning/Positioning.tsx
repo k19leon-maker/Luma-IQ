@@ -130,11 +130,6 @@ function variantType(text: string): string {
   return getFieldValue(text, 'Тип') || 'Стратегический вариант';
 }
 
-function extractFirstSentence(text: string): string {
-  const clean = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-  return clean.split(/(?<=[.!?])\s+/)[0] || clean;
-}
-
 function renderLineWithAccent(line: string) {
   const labelMatch = line.match(/^([^:]{2,42}):\s*(.+)$/);
   if (!labelMatch) return line;
@@ -176,24 +171,6 @@ function buildStatement(data: {
   return framework;
 }
 
-function parseSections(content: string) {
-  if (!content.trim()) return [];
-  const chunks = content
-    .split(/\n(?=##+\s+|[А-ЯA-ZЁ][^:\n]{2,80}:\s*$)/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
-
-  return chunks.map((chunk) => {
-    const lines = chunk.split('\n').map((line) => line.trim()).filter(Boolean);
-    const rawTitle = lines[0] ?? 'Раздел';
-    const hasHeading = /^##+\s+/.test(rawTitle) || /:\s*$/.test(rawTitle);
-    return {
-      title: hasHeading ? cleanMarkdownLabel(rawTitle).replace(/:\s*$/, '') : 'Ключевой вывод',
-      body: hasHeading ? lines.slice(1).join('\n') : lines.join('\n'),
-    };
-  });
-}
-
 function MarkdownBlock({ content, compact = false }: { content: string; compact?: boolean }) {
   if (!content.trim()) return null;
   const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -232,18 +209,13 @@ export default function Positioning() {
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [briefExpanded, setBriefExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'models' | 'variants' | 'gap' | 'final'>('analysis');
+  const [activeTab, setActiveTab] = useState<'models' | 'variants' | 'final'>('variants');
 
-  const [analysis, setAnalysis] = useState('');
-  const [models, setModels] = useState('');
   const [variants, setVariants] = useState('');
-  const [marketGap, setMarketGap] = useState('');
   const [selectedVariant, setSelectedVariant] = useState('');
   const [previewVariant, setPreviewVariant] = useState('');
   const [variantDraft, setVariantDraft] = useState('');
   const [activeModelIndex, setActiveModelIndex] = useState(0);
-  const [activeAnalysisIndex, setActiveAnalysisIndex] = useState(0);
-  const [activeGapIndex, setActiveGapIndex] = useState(0);
   const [role, setRole] = useState('');
   const [audience, setAudience] = useState('');
   const [problem, setProblem] = useState('');
@@ -256,10 +228,6 @@ export default function Positioning() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const parsedVariants = useMemo(() => parseVariants(variants), [variants]);
-  const analysisSections = useMemo(() => parseSections(analysis), [analysis]);
-  const marketSections = useMemo(() => parseSections(marketGap), [marketGap]);
-  const activeAnalysisSection = analysisSections[Math.min(activeAnalysisIndex, Math.max(analysisSections.length - 1, 0))];
-  const activeGapSection = marketSections[Math.min(activeGapIndex, Math.max(marketSections.length - 1, 0))];
   const activeModel = POSITIONING_MODELS[activeModelIndex] ?? POSITIONING_MODELS[0];
   const effectivePreviewVariant = previewVariant || parsedVariants[0] || selectedVariant;
   const finalStatement = useMemo(() => buildStatement({
@@ -282,21 +250,15 @@ export default function Positioning() {
     differentiation: differentiation.trim(),
     proof: proof.trim(),
     selectedVariant: selectedVariant.trim(),
-    strategicAnalysis: analysis,
-    positioningModels: models,
     variants,
-    marketGap,
     score,
     assets,
     statement: finalStatement.trim(),
     completed: canFinalize,
     updatedAt: new Date().toISOString(),
-  }), [analysis, assets, audience, canFinalize, differentiation, finalStatement, marketGap, mechanism, models, problem, proof, result, role, score, selectedVariant, variants]);
+  }), [assets, audience, canFinalize, differentiation, finalStatement, mechanism, problem, proof, result, role, score, selectedVariant, variants]);
   const hasPositioningDraft = Boolean(
-    analysis.trim() ||
-    models.trim() ||
     variants.trim() ||
-    marketGap.trim() ||
     selectedVariant.trim() ||
     finalStatement.trim(),
   );
@@ -320,14 +282,6 @@ export default function Positioning() {
   useEffect(() => {
     setVariantDraft(effectivePreviewVariant);
   }, [effectivePreviewVariant]);
-
-  useEffect(() => {
-    if (activeAnalysisIndex >= analysisSections.length) setActiveAnalysisIndex(0);
-  }, [activeAnalysisIndex, analysisSections.length]);
-
-  useEffect(() => {
-    if (activeGapIndex >= marketSections.length) setActiveGapIndex(0);
-  }, [activeGapIndex, marketSections.length]);
 
   useEffect(() => {
     if (!activeProjectId || loading || !hasPositioningDraft) return;
@@ -369,10 +323,7 @@ export default function Positioning() {
         setProof(saved.proof ?? '');
         setSelectedVariant(saved.selectedVariant ?? '');
         setPreviewVariant(saved.selectedVariant ?? '');
-        setAnalysis(saved.strategicAnalysis ?? '');
-        setModels(saved.positioningModels ?? '');
         setVariants(saved.variants ?? '');
-        setMarketGap(saved.marketGap ?? '');
         setScore(saved.score ?? '');
         setAssets(saved.assets ?? '');
       })
@@ -380,7 +331,7 @@ export default function Positioning() {
       .finally(() => setLoading(false));
   }, [activeProjectId]);
 
-  async function runLab() {
+  async function runVariants() {
     if (!activeProjectId) {
       toast.error('Сначала создайте проект');
       return;
@@ -388,95 +339,75 @@ export default function Positioning() {
 
     setRunning(true);
     try {
-      toast.loading('ИИ изучает бриф и собирает стратегический анализ...', { id: 'positioning-lab' });
-      const analysisResp = await aiApi.startWorkflow('positioning.analysis.generate', {
-        projectId: activeProjectId,
-        inputs: { currentHypothesis: finalStatement },
-      });
-      setAnalysis(analysisResp.content);
-
-      toast.loading('ИИ сравнивает модели позиционирования...', { id: 'positioning-lab' });
-      const modelsResp = await aiApi.startWorkflow('positioning.models.generate', {
-        projectId: activeProjectId,
-        inputs: { analysis: analysisResp.content },
-      });
-      setModels(modelsResp.content);
-
-      toast.loading('ИИ генерирует стратегические варианты...', { id: 'positioning-lab' });
+      toast.loading('ИИ генерирует варианты позиционирования...', { id: 'positioning-variants' });
       const variantsResp = await aiApi.startWorkflow('positioning.variants.generate', {
         projectId: activeProjectId,
-        inputs: { analysis: analysisResp.content },
+        inputs: { currentHypothesis: finalStatement },
       });
       setVariants(variantsResp.content);
       const nextVariants = parseVariants(variantsResp.content);
       setPreviewVariant(nextVariants[0] ?? '');
       setVariantDraft(nextVariants[0] ?? '');
 
-      toast.loading('ИИ ищет рыночные возможности и премиальные углы...', { id: 'positioning-lab' });
-      const gapResp = await aiApi.startWorkflow('positioning.gap-analysis.generate', {
-        projectId: activeProjectId,
-        inputs: { variants: variantsResp.content },
-      });
-      setMarketGap(gapResp.content);
       await projectsApi.saveStrategy(activeProjectId, {
         positioningData: {
           ...positioningDraft,
-          strategicAnalysis: analysisResp.content,
-          positioningModels: modelsResp.content,
           variants: variantsResp.content,
-          marketGap: gapResp.content,
           completed: canFinalize,
           updatedAt: new Date().toISOString(),
         },
       });
       setActiveTab('variants');
-      toast.success('Лаборатория позиционирования собрана', { id: 'positioning-lab' });
+      toast.success('Варианты позиционирования готовы', { id: 'positioning-variants' });
     } catch {
-      toast.error('Не удалось собрать лабораторию позиционирования', { id: 'positioning-lab' });
+      toast.error('Не удалось сгенерировать варианты позиционирования', { id: 'positioning-variants' });
     } finally {
       setRunning(false);
     }
   }
 
-  async function runScore() {
-    if (!activeProjectId || !canFinalize) {
-      toast.error('Сначала выберите или соберите финальное позиционирование');
+  async function runFinalAssembly() {
+    if (!activeProjectId) {
+      toast.error('Сначала создайте проект');
+      return;
+    }
+    if (!selectedVariant.trim()) {
+      toast.error('Сначала выберите вариант позиционирования');
+      setActiveTab('variants');
       return;
     }
 
     setRunning(true);
     try {
-      const resp = await aiApi.startWorkflow('positioning.score.generate', {
+      toast.loading('ИИ формулирует финальное позиционирование...', { id: 'positioning-final' });
+      const resp = await aiApi.startWorkflow('positioning.final.generate', {
         projectId: activeProjectId,
-        inputs: { finalPositioning: finalStatement },
+        inputs: {
+          selectedVariant,
+          currentDraft: finalStatement,
+        },
       });
-      setScore(resp.content);
-      setActiveTab('final');
-      toast.success('Скоринг обновлен');
-    } catch {
-      toast.error('Не удалось оценить позиционирование');
-    } finally {
-      setRunning(false);
-    }
-  }
 
-  async function runAssets() {
-    if (!activeProjectId || !canFinalize) {
-      toast.error('Сначала выберите или соберите финальное позиционирование');
-      return;
-    }
+      const content = resp.content;
+      const nextRole = getFieldValue(content, 'Кто вы') || role;
+      const nextAudience = getFieldValue(content, 'Для кого') || audience;
+      const nextProblem = getFieldValue(content, 'Проблема') || getFieldValue(content, 'С какой проблемой') || problem;
+      const nextResult = getFieldValue(content, 'Результат') || getFieldValue(content, 'К какому результату') || result;
+      const nextMechanism = getFieldValue(content, 'Механизм') || getFieldValue(content, 'Через какой механизм') || mechanism;
+      const nextDifferentiation = getFieldValue(content, 'Отличие') || getFieldValue(content, 'Чем отличаетесь') || getFieldValue(content, 'Дифференциация') || differentiation;
+      const nextProof = getFieldValue(content, 'Почему доверять') || proof;
 
-    setRunning(true);
-    try {
-      const resp = await aiApi.startWorkflow('positioning.assets.generate', {
-        projectId: activeProjectId,
-        inputs: { finalPositioning: finalStatement },
-      });
-      setAssets(resp.content);
+      setRole(nextRole);
+      setAudience(nextAudience);
+      setProblem(nextProblem);
+      setResult(nextResult);
+      setMechanism(nextMechanism);
+      setDifferentiation(nextDifferentiation);
+      setProof(nextProof);
       setActiveTab('final');
-      toast.success('Материалы позиционирования сгенерированы');
+      toast.success('Финальная сборка обновлена', { id: 'positioning-final' });
     } catch {
-      toast.error('Не удалось сгенерировать assets');
+      toast.error('Не удалось сформулировать финальное позиционирование', { id: 'positioning-final' });
     } finally {
       setRunning(false);
     }
@@ -574,14 +505,14 @@ export default function Positioning() {
       <div className={s.shell}>
         <div className={s.hero}>
           <div>
-            <div className={s.kicker}>Лаборатория позиционирования</div>
+            <div className={s.kicker}>Позиционирование</div>
             <h1 className={s.title}>Позиционирование</h1>
             <p className={s.subtitle}>
-              ИИ анализирует бриф «О себе», предлагает стратегические углы, показывает рыночные возможности и помогает зафиксировать позиционирование как ядро проекта.
+              Сначала выберите подходящую модель, затем сгенерируйте варианты и зафиксируйте финальную формулировку на основе раздела «О себе».
             </p>
           </div>
-          <button className={s.primaryButton} onClick={() => void runLab()} disabled={running || loading || !activeProjectId}>
-            {running ? 'ИИ работает...' : analysis ? 'Пересобрать лабораторию' : 'Запустить ИИ-анализ'}
+          <button className={s.primaryButton} onClick={() => void runVariants()} disabled={running || loading || !activeProjectId}>
+            {running ? 'ИИ работает...' : variants ? 'Пересобрать варианты' : 'Сгенерировать варианты'}
           </button>
         </div>
 
@@ -608,7 +539,7 @@ export default function Positioning() {
           <div className={s.contextBar}>
             <div>
               <div className={s.contextLabel}>Бриф «О себе» пока пустой</div>
-              <div className={s.contextText}>Лаборатория станет точнее, если ИИ будет знать опыт, регалии, продукты, ограничения и сильные кейсы.</div>
+              <div className={s.contextText}>Варианты позиционирования станут точнее, если ИИ будет знать опыт, регалии, продукты, ограничения и сильные кейсы.</div>
             </div>
             <button className={s.textButton} onClick={() => navigate('/strategy/about')}>Заполнить «О себе»</button>
           </div>
@@ -616,8 +547,6 @@ export default function Positioning() {
 
         <div className={s.grid}>
           <aside className={s.sidebar}>
-            <button className={`${s.tab} ${activeTab === 'analysis' ? s.activeTab : ''}`} onClick={() => setActiveTab('analysis')}>Стратегический анализ</button>
-            <button className={`${s.tab} ${activeTab === 'gap' ? s.activeTab : ''}`} onClick={() => setActiveTab('gap')}>Анализ рынка</button>
             <button className={`${s.tab} ${activeTab === 'models' ? s.activeTab : ''}`} onClick={() => setActiveTab('models')}>Модели позиционирования</button>
             <button className={`${s.tab} ${activeTab === 'variants' ? s.activeTab : ''}`} onClick={() => setActiveTab('variants')}>Варианты позиционирования</button>
             <button className={`${s.tab} ${activeTab === 'final' ? s.activeTab : ''}`} onClick={() => setActiveTab('final')}>Финальная сборка</button>
@@ -625,7 +554,6 @@ export default function Positioning() {
             <div className={s.sideCard}>
               <div className={s.sideTitle}>Статус</div>
               <div className={s.statusList}>
-                <span className={analysis ? s.done : ''}>Анализ</span>
                 <span className={variants ? s.done : ''}>Варианты</span>
                 <span className={selectedVariant ? s.done : ''}>Выбор</span>
                 <span className={finalStatement ? s.done : ''}>Финал</span>
@@ -636,36 +564,6 @@ export default function Positioning() {
           <main className={s.panel}>
             {loading ? (
               <div className={s.empty}>Загрузка...</div>
-            ) : activeTab === 'analysis' ? (
-              <section>
-                <div className={s.sectionHead}>
-                  <div>
-                    <h2>Стратегический анализ</h2>
-                    <p>ИИ показывает, где у эксперта сильная ценность, авторитет, дифференциация и премиальный потенциал.</p>
-                  </div>
-                </div>
-                {analysisSections.length ? (
-                  <div className={s.workbench}>
-                    <div className={s.centerColumn}>
-                      {analysisSections.map((section, index) => (
-                        <button
-                          className={`${s.itemCard} ${index === activeAnalysisIndex ? s.activeItemCard : ''}`}
-                          key={`${section.title}-${index}`}
-                          onClick={() => setActiveAnalysisIndex(index)}
-                        >
-                          <span>{section.title}</span>
-                          <small>{extractFirstSentence(section.body).slice(0, 150)}</small>
-                        </button>
-                      ))}
-                    </div>
-                    <aside className={s.detailColumn}>
-                      <div className={s.detailLabel}>Разбор</div>
-                      <h3>{activeAnalysisSection?.title}</h3>
-                      <MarkdownBlock content={activeAnalysisSection?.body ?? ''} compact />
-                    </aside>
-                  </div>
-                ) : <EmptyState onRun={runLab} />}
-              </section>
             ) : activeTab === 'models' ? (
               <section>
                 <div className={s.sectionHead}>
@@ -697,15 +595,8 @@ export default function Positioning() {
                       <div><strong>Минусы</strong><span>{activeModel.cons}</span></div>
                       <div><strong>Чек</strong><span>{activeModel.money}</span></div>
                     </div>
-                    {models ? (
-                      <div className={s.miniNote}>
-                        <strong>AI-комментарий по проекту</strong>
-                        <MarkdownBlock content={models.slice(0, 950)} compact />
-                      </div>
-                    ) : null}
                   </aside>
                 </div>
-                {!models ? <EmptyState onRun={runLab} /> : null}
               </section>
             ) : activeTab === 'variants' ? (
               <section>
@@ -749,37 +640,7 @@ export default function Positioning() {
                       <p className={s.helperText}>Переключение карточек не тратит токены. Токены понадобятся только для новых AI-запросов.</p>
                     </aside>
                   </div>
-                ) : <EmptyState onRun={runLab} />}
-              </section>
-            ) : activeTab === 'gap' ? (
-              <section>
-                <div className={s.sectionHead}>
-                  <div>
-                    <h2>Анализ рынка</h2>
-                    <p>Где рынок перегрет, какие фразы ослабляют упаковку и где есть шанс занять более сильную позицию.</p>
-                  </div>
-                </div>
-                {marketSections.length ? (
-                  <div className={s.workbench}>
-                    <div className={s.marketCards}>
-                      {marketSections.map((section, index) => (
-                        <button
-                          className={`${s.marketCard} ${index === activeGapIndex ? s.activeItemCard : ''}`}
-                          key={`${section.title}-${index}`}
-                          onClick={() => setActiveGapIndex(index)}
-                        >
-                          <span>{section.title}</span>
-                          <small>{extractFirstSentence(section.body).slice(0, 160)}</small>
-                        </button>
-                      ))}
-                    </div>
-                    <aside className={s.detailColumn}>
-                      <div className={s.detailLabel}>Фокус анализа</div>
-                      <h3>{activeGapSection?.title}</h3>
-                      <MarkdownBlock content={activeGapSection?.body ?? ''} compact />
-                    </aside>
-                  </div>
-                ) : <EmptyState onRun={runLab} />}
+                ) : <EmptyState onRun={runVariants} />}
               </section>
             ) : (
               <section>
@@ -817,8 +678,9 @@ export default function Positioning() {
                 </div>
 
                 <div className={s.actionRow}>
-                  <button className={s.secondaryButton} onClick={() => void runScore()} disabled={running || !canFinalize}>Оценить позиционирование</button>
-                  <button className={s.secondaryButton} onClick={() => void runAssets()} disabled={running || !canFinalize}>Сгенерировать материалы</button>
+                  <button className={s.secondaryButton} onClick={() => void runFinalAssembly()} disabled={running || !selectedVariant.trim()}>
+                    {running ? 'ИИ работает...' : 'Сформулировать итог с ИИ'}
+                  </button>
                   <button className={s.secondaryButton} onClick={() => void save(false)} disabled={saving || !canFinalize}>Сохранить</button>
                   <button className={s.primaryButton} onClick={() => void save(true)} disabled={saving || !canFinalize}>
                     {saving ? 'Сохраняю...' : 'Сохранить и перейти к ЦА'}
@@ -951,9 +813,9 @@ function AutoGrowInput({ value, onChange, className }: {
 function EmptyState({ onRun }: { onRun: () => void }) {
   return (
     <div className={s.empty}>
-      <div className={s.emptyTitle}>Лаборатория еще не собрана</div>
-      <p>Запустите ИИ-анализ, чтобы получить стратегический обзор, модели, варианты и анализ рынка.</p>
-      <button className={s.primaryButton} onClick={() => void onRun()}>Запустить ИИ-анализ</button>
+      <div className={s.emptyTitle}>Варианты еще не готовы</div>
+      <p>Сгенерируйте варианты позиционирования на основе раздела «О себе».</p>
+      <button className={s.primaryButton} onClick={() => void onRun()}>Сгенерировать варианты</button>
     </div>
   );
 }
