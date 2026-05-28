@@ -42,6 +42,10 @@ export function setAdminAccessTokenBackup(token: string | null): void {
   window.dispatchEvent(new Event('admin-session-backup-changed'));
 }
 
+export function clearAdminAccessTokenBackup(): void {
+  setAdminAccessTokenBackup(null);
+}
+
 export function consumeAdminAccessTokenBackup(): string | null {
   const token = adminAccessTokenBackup;
   adminAccessTokenBackup = null;

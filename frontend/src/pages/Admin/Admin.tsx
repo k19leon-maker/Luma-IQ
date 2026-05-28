@@ -271,11 +271,12 @@ export default function Admin() {
     setImpersonateLoading(true);
     try {
       const currentAccess = getAccessToken();
+      const { tokens } = await adminApi.impersonateUser(selected.id);
+      setTokens(tokens.accessToken, tokens.csrfToken);
+      // Set after setTokens, because normal auth token updates clear impersonation state.
       if (currentAccess) {
         setAdminAccessTokenBackup(currentAccess);
       }
-      const { tokens } = await adminApi.impersonateUser(selected.id);
-      setTokens(tokens.accessToken, tokens.csrfToken);
       toast.success(`Вы вошли как ${selected.email}`);
       navigate('/dashboard');
     } catch {

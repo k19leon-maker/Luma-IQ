@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { authApi, AuthUser } from '../api/auth.api';
-import { clearSessionTokens, getAccessToken, getCsrfToken, isDevSession, setSessionTokens } from '../api/token-session';
+import {
+  clearAdminAccessTokenBackup,
+  clearSessionTokens,
+  getAccessToken,
+  getCsrfToken,
+  isDevSession,
+  setSessionTokens,
+} from '../api/token-session';
 import { useProjectsStore } from './projects.store';
 
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
@@ -40,6 +47,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const { user, tokens } = await authApi.login(email, password);
     resetSessionStores();
+    clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
@@ -47,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (email, password, name) => {
     const { user, tokens } = await authApi.register(email, password, name);
     resetSessionStores();
+    clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
@@ -57,6 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await authApi.logout().catch(() => {});
     }
     clearSessionTokens();
+    clearAdminAccessTokenBackup();
     resetSessionStores();
     set({ user: null, isAuthenticated: false });
   },
@@ -72,6 +82,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       if (!getAccessToken() && getCsrfToken()) {
         const refreshed = await authApi.refresh();
+        clearAdminAccessTokenBackup();
         setSessionTokens(refreshed.tokens.accessToken, refreshed.tokens.csrfToken);
       }
       const user = await authApi.me();
@@ -79,6 +90,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user, isAuthenticated: true, isLoading: false });
     } catch {
       clearSessionTokens();
+      clearAdminAccessTokenBackup();
       resetSessionStores();
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
@@ -86,6 +98,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setTokens: (accessToken, csrfToken) => {
     resetSessionStores();
+    clearAdminAccessTokenBackup();
     setSessionTokens(accessToken, csrfToken);
     // Fetch user info after OAuth callback
     authApi.me().then((user) => {
