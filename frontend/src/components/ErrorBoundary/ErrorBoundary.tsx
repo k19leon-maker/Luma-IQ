@@ -10,6 +10,23 @@ interface State {
   error?: Error;
 }
 
+function isChunkLoadError(error: Error): boolean {
+  const message = `${error.name} ${error.message}`.toLowerCase();
+  return message.includes('failed to fetch dynamically imported module')
+    || message.includes('loading chunk')
+    || message.includes('chunkloaderror')
+    || message.includes('importing a module script failed');
+}
+
+function reloadOnceForFreshAssets(): void {
+  const key = 'lumaiq_chunk_reload_at';
+  const last = Number(sessionStorage.getItem(key) ?? '0');
+  const now = Date.now();
+  if (now - last < 30_000) return;
+  sessionStorage.setItem(key, String(now));
+  window.location.reload();
+}
+
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
 
@@ -19,6 +36,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] caught:', error.message, info.componentStack);
+    if (isChunkLoadError(error)) {
+      reloadOnceForFreshAssets();
+    }
   }
 
   render() {
@@ -42,7 +62,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
             Что-то пошло не так
           </p>
           <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #6b6b8a)', maxWidth: 360 }}>
-            {this.state.error?.message ?? 'Неизвестная ошибка'}
+            {isChunkLoadError(this.state.error ?? new Error())
+              ? 'Раздел обновился на сервере. Если страница не перезагрузилась автоматически, нажмите кнопку ниже.'
+              : (this.state.error?.message ?? 'Неизвестная ошибка')}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: undefined })}

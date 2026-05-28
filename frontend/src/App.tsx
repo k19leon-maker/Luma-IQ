@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
 import AdminRoute from './components/AdminRoute/AdminRoute';
 import Onboarding from './components/Onboarding/Onboarding';
+import { useAuthStore } from './store/auth.store';
 
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 
@@ -68,6 +69,12 @@ function page(element: React.ReactNode) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const restoreSession = useAuthStore((s) => s.restoreSession);
+
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
+
   return (
     <>
       <Routes>

@@ -14,6 +14,7 @@ const API_BASE = import.meta.env.VITE_API_URL
 export const apiClient = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
+  timeout: 25_000,
 });
 
 // Attach access token to every request
@@ -39,7 +40,7 @@ apiClient.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status !== 401 || original._retry) {
+    if (!error.response || error.response.status !== 401 || original._retry) {
       return Promise.reject(error);
     }
 

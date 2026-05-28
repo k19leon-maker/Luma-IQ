@@ -80,6 +80,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     try {
+      if (!getAccessToken() && !getCsrfToken()) {
+        resetSessionStores();
+        set({ user: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
       if (!getAccessToken() && getCsrfToken()) {
         const refreshed = await authApi.refresh();
         clearAdminAccessTokenBackup();
@@ -102,7 +107,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     setSessionTokens(accessToken, csrfToken);
     // Fetch user info after OAuth callback
     authApi.me().then((user) => {
-      set({ user, isAuthenticated: true });
+      set({ user, isAuthenticated: true, isLoading: false });
+    }).catch(() => {
+      clearSessionTokens();
+      set({ user: null, isAuthenticated: false, isLoading: false });
     });
   },
 

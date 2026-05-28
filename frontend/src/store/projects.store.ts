@@ -131,10 +131,18 @@ export const useProjectsStore = create<ProjectsState>()(
       addProject: async (name: string) => {
         const { projects } = get();
         const color = colorForIndex(projects.length);
-        const project = await projectsApi.create({ name });
+        let project: Project;
+        try {
+          project = await projectsApi.create({ name });
+        } catch (error) {
+          const freshProjects = await projectsApi.list().catch(() => []);
+          const existing = freshProjects.find((item) => item.name.trim().toLowerCase() === name.trim().toLowerCase());
+          if (!existing) throw error;
+          project = existing;
+        }
         const local: LocalProject = { id: project.id, name: project.name, color };
         set((s) => ({
-          projects: [...s.projects, local],
+          projects: s.projects.some((item) => item.id === local.id) ? s.projects : [...s.projects, local],
           activeProjectId: local.id,
         }));
         return local;
