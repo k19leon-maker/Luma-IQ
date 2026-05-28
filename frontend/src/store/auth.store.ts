@@ -87,7 +87,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
       if (!getAccessToken() && getCsrfToken()) {
         const refreshed = await authApi.refresh();
-        clearAdminAccessTokenBackup();
         setSessionTokens(refreshed.tokens.accessToken, refreshed.tokens.csrfToken);
       }
       const user = await authApi.me();
