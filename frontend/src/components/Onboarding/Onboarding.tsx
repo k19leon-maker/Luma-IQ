@@ -87,7 +87,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
       <div className={s.icon}>🧠</div>
       <h2 className={s.heading}>Добро пожаловать в LumaIQ</h2>
       <p className={s.text}>
-        Сервис помогает психологам упаковать свои услуги и создать маркетинговые
+        Сервис помогает экспертам упаковать свои услуги и создать маркетинговые
         материалы по JTBD-фреймворку. Всё что нужно — описать свою нишу.
       </p>
       <button className={s.primaryBtn} onClick={onNext}>Начать →</button>

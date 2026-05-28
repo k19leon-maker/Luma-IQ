@@ -500,7 +500,7 @@ export default function ChatbotChains() {
     setPhase('generating');
     try {
       const settings    = getSettings('chatbot-chains');
-      const seg         = strat.chosenSegment ?? strat.chosenSubsegment ?? 'аудитория психолога';
+      const seg         = strat.chosenSegment ?? strat.chosenSubsegment ?? 'аудитория эксперта';
       const formatLabel = format === 'article' ? 'статью' : 'видео-урок';
       const meet        = meetingSchedule.trim() || 'каждую пятницу в 19:00';
       const bot         = botName.trim() || 'Telegram-бот';

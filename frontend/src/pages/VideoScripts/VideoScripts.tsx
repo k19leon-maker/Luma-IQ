@@ -476,7 +476,7 @@ export default function VideoScripts() {
     setPhase('step2-loading');
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
-      const prompt   = `Ты контент-стратег для психолога. Предложи 5 тем для YouTube-видео (~${duration} минут).
+      const prompt   = `Ты контент-стратег для эксперта. Предложи 5 тем для YouTube-видео (~${duration} минут).
 Целевой сегмент: ${seg}
 
 Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
@@ -523,14 +523,14 @@ export default function VideoScripts() {
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
       const ctaText  = ctaType === 'telegram'
-        ? 'CTA: подписаться на Telegram-канал психолога'
+        ? 'CTA: подписаться на Telegram-канал эксперта'
         : `CTA: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
 
-      const prompt = `Ты сценарист для психолога. Напиши сценарий YouTube-видео (~${duration} минут).
+      const prompt = `Ты сценарист для эксперта. Напиши сценарий YouTube-видео (~${duration} минут).
 
 Тема: ${selectedTheme}
 ${seg ? `Целевой сегмент: ${seg}` : ''}
-${facture.trim() ? `Материал из практики психолога: ${facture.trim()}` : ''}
+${facture.trim() ? `Материал из практики эксперта: ${facture.trim()}` : ''}
 ${ctaText}
 
 Структура сценария:

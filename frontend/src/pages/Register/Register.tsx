@@ -45,7 +45,7 @@ export default function Register() {
       <div className={styles.card}>
         <div className={styles.logo}>
           <div className={styles.logoText}>LumaIQ</div>
-          <div className={styles.logoSub}>Маркетинговая упаковка психолога</div>
+          <div className={styles.logoSub}>ИИ платформа для маркетинговой упаковки и разработки контента</div>
         </div>
 
         <h1 className={styles.title}>Создать аккаунт</h1>

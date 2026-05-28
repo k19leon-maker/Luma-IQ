@@ -36,7 +36,7 @@ export const buildAudiencePrompt = (ctx: ProjectContext) => `
 
 Все сегменты и боли должны быть релевантны "${ctx.specialization}".
 НЕ используй примеры из чужих ниш.
-${ctx.specialization.toLowerCase().includes('психолог') ? '' : 'НЕ упоминай психологов — речь идёт о другой нише.'}
+${ctx.specialization.toLowerCase().includes('психолог') ? '' : 'Не привязывай ответ к психологии, если пользователь описал другую нишу.'}
 Отвечай только на русском языке.
 `.trim();
 

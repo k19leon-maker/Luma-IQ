@@ -3,7 +3,7 @@ import s from './Texts.module.css';
 const templates = [
   { id: 'post', label: 'Пост для соцсетей', icon: '📝' },
   { id: 'landing', label: 'Текст лендинга', icon: '🖥️' },
-  { id: 'bio', label: 'Биография психолога', icon: '👤' },
+  { id: 'bio', label: 'Биография эксперта', icon: '👤' },
   { id: 'offer', label: 'Описание услуги', icon: '💼' },
 ];
 
