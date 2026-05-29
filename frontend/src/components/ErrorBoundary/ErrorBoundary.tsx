@@ -44,6 +44,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
+      const isAssetRefreshError = isChunkLoadError(this.state.error ?? new Error());
       return (
         <div style={{
           display: 'flex',
@@ -53,47 +54,79 @@ export class ErrorBoundary extends React.Component<Props, State> {
           height: '100%',
           minHeight: 300,
           gap: 16,
-          color: 'var(--text-secondary, #a0a0b8)',
+          background: '#f7f3ea',
+          color: '#77736f',
           padding: 32,
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 32 }}>⚠️</div>
-          <p style={{ margin: 0, fontSize: 15, color: 'var(--text-primary, #e8e8f0)' }}>
-            Что-то пошло не так
+          <div style={{
+            width: 52,
+            height: 52,
+            borderRadius: 16,
+            background: '#fff',
+            border: '1px solid #e6ded0',
+            color: '#d8aa3d',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 26,
+            fontWeight: 800,
+            boxShadow: '0 10px 30px rgba(40, 36, 30, 0.08)',
+          }}>
+            !
+          </div>
+          <p style={{ margin: 0, fontSize: 22, lineHeight: 1.25, fontWeight: 700, color: '#292723' }}>
+            Раздел временно не открылся
           </p>
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #6b6b8a)', maxWidth: 360 }}>
-            {isChunkLoadError(this.state.error ?? new Error())
-              ? 'Раздел обновился на сервере. Если страница не перезагрузилась автоматически, нажмите кнопку ниже.'
-              : (this.state.error?.message ?? 'Неизвестная ошибка')}
+          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: '#6f6a63', maxWidth: 460 }}>
+            {isAssetRefreshError
+              ? 'Похоже, сервис обновился. Попробуйте перезагрузить страницу, чтобы открыть свежую версию раздела.'
+              : 'Мы сохранили рабочее пространство. Попробуйте открыть раздел заново или перезагрузить страницу.'}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: undefined })}
             style={{
-              padding: '8px 20px',
-              background: 'var(--accent, #7c6cfc)',
+              padding: '12px 24px',
+              background: '#d8aa3d',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: 10,
               color: '#fff',
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: 600,
               cursor: 'pointer',
+              minWidth: 190,
             }}
           >
-            Попробовать снова
+            Открыть раздел заново
           </button>
           <button
             onClick={() => window.location.reload()}
             style={{
-              padding: '6px 16px',
-              background: 'none',
-              border: '1px solid var(--border, #2d2d4e)',
-              borderRadius: 8,
-              color: 'var(--text-muted, #6b6b8a)',
-              fontSize: 12,
+              padding: '10px 20px',
+              background: '#fff',
+              border: '1px solid #e1d8c8',
+              borderRadius: 10,
+              color: '#6b6258',
+              fontSize: 14,
               cursor: 'pointer',
+              minWidth: 190,
             }}
           >
             Перезагрузить страницу
+          </button>
+          <button
+            onClick={() => { window.location.href = '/dashboard'; }}
+            style={{
+              padding: '8px 16px',
+              background: 'transparent',
+              border: 'none',
+              color: '#9a7a2c',
+              fontSize: 14,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            Вернуться на главный экран
           </button>
         </div>
       );

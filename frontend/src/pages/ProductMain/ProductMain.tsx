@@ -306,7 +306,7 @@ async function downloadProductPresentationPdf(product: ProductState, projectName
 export default function ProductMain() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
-  const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
+  const savedProductMain = useGeneratedStore((s) => activeProjectId ? s.projects[activeProjectId]?.productMain : undefined);
   const saveProductMain = useGeneratedStore((s) => s.setProductMain);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeProductMain = useProgressStore((s) => s.completeProductMain);
@@ -316,17 +316,16 @@ export default function ProductMain() {
   const [chatInput, setChatInput] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const loadedProductKeyRef = useRef('');
 
   useEffect(() => {
-    const savedProduct = normalizeProduct(savedData.productMain);
+    if (loading) return;
+    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(savedProductMain ?? null)}`;
+    if (loadedProductKeyRef.current === nextKey) return;
+    loadedProductKeyRef.current = nextKey;
+    const savedProduct = normalizeProduct(savedProductMain);
     setState(savedProduct);
-    if (activeProjectId && savedProduct.generated) {
-      upsertMaterial(activeProjectId, {
-        ...buildProductMaterial('product-main', 'Основной продукт', savedProduct),
-        summaryStatus: 'fresh',
-      });
-    }
-  }, [activeProjectId, savedData.productMain, upsertMaterial]);
+  }, [activeProjectId, loading, savedProductMain]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
