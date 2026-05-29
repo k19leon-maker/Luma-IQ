@@ -1,22 +1,22 @@
 .inputWrapper {
   border: 1px solid var(--border-color);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--input-bg);
   overflow: visible;
-  box-shadow: 0 8px 24px rgba(31, 29, 24, 0.06);
+  box-shadow: 0 6px 18px rgba(31, 29, 24, 0.05);
 }
 
 .textarea {
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 14px 8px;
   background: transparent;
   border: none;
   outline: none;
   color: var(--text-primary);
   font-size: 14px;
   resize: none;
-  min-height: 44px;
-  max-height: 200px;
+  min-height: 38px;
+  max-height: 160px;
   font-family: inherit;
   line-height: 1.5;
   box-sizing: border-box;
@@ -31,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 8px 8px;
+  padding: 5px 7px 7px;
   border-top: 1px solid var(--border-color);
 }
 
@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--border-color);
   background: transparent;
@@ -71,7 +71,7 @@
 
 .modelSelect {
   max-width: 154px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--border-color);
   background: var(--bg-elevated, var(--input-bg));
@@ -86,8 +86,8 @@
 }
 
 .sendBtn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: none;
   background: #D4A847;
@@ -102,8 +102,8 @@
 }
 
 .iconBtn {
-  min-width: 30px;
-  height: 30px;
+  min-width: 28px;
+  height: 28px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;

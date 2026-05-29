@@ -73,6 +73,18 @@ const pageTitles: Record<string, string> = {
   '/admin':           'Админка',
 };
 
+const aiWorkspacePaths = new Set([
+  '/ai-dialog',
+  '/products/main',
+  '/products/mini',
+  '/products/lead-magnet',
+  '/posts',
+  '/reels',
+  '/articles',
+  '/video-scripts',
+  '/chatbot-chains',
+]);
+
 function lastActiveProjectKey(userId: string): string {
   return `lumaiq:last-active-project:${userId}`;
 }
@@ -240,6 +252,7 @@ export default function Layout({ children }: LayoutProps) {
   }, [activeProjectId, loadProgressFromDb, switchProgress, switchUnpacking]);
 
   const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
+  const isAiWorkspace = aiWorkspacePaths.has(location.pathname);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
     : (pageTitles[location.pathname] ?? 'LumaIQ');
@@ -516,6 +529,13 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className={s.sidebarFooter}>
+          {hasAdminBackup && (
+            <div className={s.impersonationCard}>
+              <div className={s.impersonationLabel}>Просмотр как</div>
+              <div className={s.impersonationEmail}>{user?.email}</div>
+              <button onClick={restoreAdminSession}>Вернуться в админку</button>
+            </div>
+          )}
           <div className={s.userCard}>
             <div className={s.avatar}>{initials}</div>
             <div>
@@ -528,17 +548,11 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        {hasAdminBackup && (
-          <div className={s.impersonationBanner}>
-            <span>Вы просматриваете сервис под пользователем {user?.email}.</span>
-            <button onClick={restoreAdminSession}>Вернуться в админку</button>
-          </div>
-        )}
         {/* Email verification banner */}
         {user && user.isVerified === false && (
           <EmailBanner email={user.email} />
         )}
-        {location.pathname !== '/dashboard' && location.pathname !== '/ai-dialog' && (
+        {location.pathname !== '/dashboard' && !isAiWorkspace && (
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>
             <div className={s.topbarActions}>
@@ -546,7 +560,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </header>
         )}
-        <main className={location.pathname === '/dashboard' ? s.contentFull : s.content}>
+        <main className={location.pathname === '/dashboard' || isAiWorkspace ? s.contentFull : s.content}>
           {projectsLoading && projects.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
               Загрузка…

@@ -348,6 +348,50 @@
   transition: background var(--transition);
 }
 
+.impersonationCard {
+  margin-bottom: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgba(212,168,71,0.28);
+  border-radius: var(--radius-md);
+  background: rgba(212,168,71,0.10);
+  color: rgba(255,255,255,0.82);
+}
+
+.impersonationLabel {
+  font-size: 10px;
+  line-height: 1.2;
+  color: #D4A847;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.impersonationEmail {
+  font-size: 12px;
+  line-height: 1.25;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 7px;
+}
+
+.impersonationCard button {
+  width: 100%;
+  border: 1px solid rgba(212,168,71,0.55);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.06);
+  color: #D4A847;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.impersonationCard button:hover {
+  background: rgba(212,168,71,0.15);
+}
+
 .userCard:hover {
   background: #2a2a2a;
 }
@@ -390,28 +434,6 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-}
-
-.impersonationBanner {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 9px 16px;
-  background: #fff8e7;
-  border-bottom: 1px solid #ead391;
-  color: #765b10;
-  font-size: 13px;
-}
-
-.impersonationBanner button {
-  border: 1px solid #d4a847;
-  border-radius: 6px;
-  background: #fff;
-  color: #765b10;
-  padding: 4px 10px;
-  font-weight: 700;
 }
 
 .topbar {

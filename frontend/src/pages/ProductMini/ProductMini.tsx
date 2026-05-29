@@ -937,25 +937,7 @@ ${currentProduct}
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{
-          padding: '20px 28px 16px',
-          borderBottom: '1px solid #F0EEE8',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <div>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>
-              Мини-продуктовая упаковка
-            </h2>
-            <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>
-              {projectName} · быстрый результат, 3 занятия и бонусы
-            </p>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 12px', minHeight: 0 }}>
           {!state.chatMessages?.length ? (
             <div style={{
               display: 'flex',
@@ -1072,7 +1054,7 @@ ${currentProduct}
           flexShrink: 0,
           borderTop: '1px solid #E5E3DC',
           background: '#fff',
-          padding: '16px 28px',
+          padding: '10px 28px 8px',
         }}>
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
             <MessageInput
@@ -1087,7 +1069,7 @@ ${currentProduct}
                 : 'Сначала создайте мини-продукт, затем здесь можно будет редактировать его через ИИ...'}
             />
           </div>
-          <div style={{ maxWidth: 900, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
+          <div style={{ maxWidth: 900, margin: '5px auto 0', color: '#aaa', fontSize: 10.5, textAlign: 'right' }}>
             Enter — отправить · Shift+Enter — перенос строки
           </div>
         </div>
