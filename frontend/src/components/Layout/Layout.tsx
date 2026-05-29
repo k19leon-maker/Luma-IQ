@@ -73,6 +73,28 @@ const pageTitles: Record<string, string> = {
   '/admin':           'Админка',
 };
 
+function lastActiveProjectKey(userId: string): string {
+  return `lumaiq:last-active-project:${userId}`;
+}
+
+function readLastActiveProjectId(userId?: string): string {
+  if (!userId) return '';
+  try {
+    return localStorage.getItem(lastActiveProjectKey(userId)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveLastActiveProjectId(userId: string | undefined, projectId: string): void {
+  if (!userId || !projectId) return;
+  try {
+    localStorage.setItem(lastActiveProjectKey(userId), projectId);
+  } catch {
+    // localStorage can be unavailable in private or restricted browser modes.
+  }
+}
+
 /* ── Email verification banner ─────────────────────────────── */
 
 function EmailBanner({ email }: { email: string }) {
@@ -163,11 +185,37 @@ export default function Layout({ children }: LayoutProps) {
   const renameProject      = useProjectsStore((s) => s.renameProject);
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
   const projectsLoading    = useProjectsStore((s) => s.loading);
+  const activeProjectRestoreRef = useRef({ userId: '', preferredProjectId: '', applied: false });
 
   useEffect(() => {
     if (!user?.id) return;
+    activeProjectRestoreRef.current = {
+      userId: user.id,
+      preferredProjectId: readLastActiveProjectId(user.id),
+      applied: false,
+    };
     void loadProjects();
   }, [user?.id, loadProjects]);
+
+  useEffect(() => {
+    if (!user?.id || !activeProjectId) return;
+    const restoreState = activeProjectRestoreRef.current;
+    if (restoreState.userId !== user.id || !restoreState.applied) return;
+    saveLastActiveProjectId(user.id, activeProjectId);
+  }, [activeProjectId, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || projectsLoading || projects.length === 0) return;
+    const restoreState = activeProjectRestoreRef.current;
+    if (restoreState.userId !== user.id || restoreState.applied) return;
+
+    const preferredProjectId = restoreState.preferredProjectId;
+    if (preferredProjectId && projects.some((project) => project.id === preferredProjectId)) {
+      if (activeProjectId !== preferredProjectId) setActiveProjectId(preferredProjectId);
+    }
+
+    restoreState.applied = true;
+  }, [activeProjectId, projects, projectsLoading, setActiveProjectId, user?.id]);
 
   const restoreAdminSession = useCallback(() => {
     const access = consumeAdminAccessTokenBackup();
