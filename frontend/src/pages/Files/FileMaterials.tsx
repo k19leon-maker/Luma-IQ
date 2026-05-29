@@ -5,7 +5,7 @@ import { ApiProduct, productsApi } from '../../api/products.api';
 import { filesApi, ProjectFile } from '../../api/ai';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
-import { useMaterialsStore } from '../../store/materials.store';
+import { useMaterialsStore, type ProjectMaterial } from '../../store/materials.store';
 import s from './Files.module.css';
 
 interface FileEntry {
@@ -45,6 +45,8 @@ const MATERIAL_TYPES: Record<string, string> = {
   'lead-magnet': 'Лид-магнит',
   content: 'Контент',
 };
+
+const EMPTY_PROJECT_MATERIALS: ProjectMaterial[] = [];
 
 const CONTENT_LABELS: Record<string, { icon: string; type: string }> = {
   POST: { icon: '📱', type: 'Пост' },
@@ -118,7 +120,7 @@ function download(title: string, content: string) {
 export default function FileMaterials() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const audienceAnswers = useAudienceStore((s) => s.projects[activeProjectId ?? '']?.answers);
-  const projectMaterials = useMaterialsStore((s) => s.projects[activeProjectId ?? ''] ?? []);
+  const projectMaterials = useMaterialsStore((s) => activeProjectId ? (s.projects[activeProjectId] ?? EMPTY_PROJECT_MATERIALS) : EMPTY_PROJECT_MATERIALS);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
   const refreshSummary = useMaterialsStore((s) => s.refreshSummary);
   const [generatedFiles, setGeneratedFiles] = useState<FileEntry[]>([]);

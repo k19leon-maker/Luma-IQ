@@ -504,7 +504,7 @@ export default function Layout({ children }: LayoutProps) {
               Загрузка…
             </div>
           ) : (
-            <ErrorBoundary key={activeProjectId}>
+            <ErrorBoundary key={`${activeProjectId ?? 'no-project'}:${location.pathname}`}>
               {children}
             </ErrorBoundary>
           )}

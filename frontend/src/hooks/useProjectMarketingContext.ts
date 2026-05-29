@@ -31,6 +31,9 @@ interface ExpertProfileData {
   summary?: string;
 }
 
+const EMPTY_MATERIALS: ReturnType<typeof useMaterialsStore.getState>['projects'][string] = [];
+const EMPTY_AUDIENCE: Partial<AudienceAnswers> = {};
+
 function formatRecord(title: string, data: Record<string, unknown>): string {
   const body = Object.entries(data)
     .filter(([, value]) => typeof value === 'string' && value.trim())
@@ -91,7 +94,7 @@ export function useProjectMarketingContext() {
   const unpackingProfile = useUnpackingStore((s) => s.profileData);
   const audienceGet = useAudienceStore((s) => s.get);
   const audienceSave = useAudienceStore((s) => s.save);
-  const materials = useMaterialsStore((s) => s.projects[activeProjectId] ?? []);
+  const materials = useMaterialsStore((s) => activeProjectId ? (s.projects[activeProjectId] ?? EMPTY_MATERIALS) : EMPTY_MATERIALS);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
   const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
 
@@ -99,7 +102,7 @@ export function useProjectMarketingContext() {
   const [expertProfile, setExpertProfile] = useState<ExpertProfileData | null>(null);
   const [remoteAudience, setRemoteAudience] = useState<Partial<AudienceAnswers>>({});
 
-  const localAudience = activeProjectId ? audienceGet(activeProjectId).answers : {};
+  const localAudience = activeProjectId ? audienceGet(activeProjectId).answers : EMPTY_AUDIENCE;
 
   useEffect(() => {
     let alive = true;

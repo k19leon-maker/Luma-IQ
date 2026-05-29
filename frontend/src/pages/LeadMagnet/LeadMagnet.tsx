@@ -388,6 +388,7 @@ export default function LeadMagnet() {
   const [chatInput, setChatInput] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const loadedLeadMagnetKeyRef = useRef('');
 
   const selectedFormat = state.selectedFormat;
   const steps = useMemo(
@@ -396,15 +397,13 @@ export default function LeadMagnet() {
   );
 
   useEffect(() => {
+    if (loading) return;
+    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(savedData.leadMagnet ?? null)}`;
+    if (loadedLeadMagnetKeyRef.current === nextKey) return;
+    loadedLeadMagnetKeyRef.current = nextKey;
     const savedLeadMagnet = normalizeLeadMagnet(savedData.leadMagnet);
     setState(savedLeadMagnet);
-    if (activeProjectId && savedLeadMagnet.generated) {
-      upsertMaterial(activeProjectId, {
-        ...buildProductMaterial('lead-magnet', 'Лид-магнит', savedLeadMagnet),
-        summaryStatus: 'fresh',
-      });
-    }
-  }, [activeProjectId, savedData.leadMagnet, upsertMaterial]);
+  }, [activeProjectId, loading, savedData.leadMagnet]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });

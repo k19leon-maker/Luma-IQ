@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useGeneratedStore } from '../../store/generated.store';
@@ -22,14 +22,15 @@ export default function UTP() {
   const [copied,    setCopied]    = useState(false);
   const [loading,   setLoading]   = useState(false);
   const [materialStatus, setMaterialStatus] = useState('');
+  const loadedUtpKeyRef = useRef('');
 
   useEffect(() => {
+    const nextKey = `${activeProjectId ?? 'none'}:${savedData.utp ?? ''}`;
+    if (loadedUtpKeyRef.current === nextKey) return;
+    loadedUtpKeyRef.current = nextKey;
     const savedUtp = savedData.utp ?? '';
     setUtpText(savedUtp);
-    if (activeProjectId && savedUtp.trim()) {
-      upsertMaterial(activeProjectId, buildUtpMaterial(savedUtp));
-    }
-  }, [activeProjectId, savedData.utp, upsertMaterial]);
+  }, [activeProjectId, savedData.utp]);
 
   function persistUtp(value: string) {
     setUtpText(value);

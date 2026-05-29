@@ -381,17 +381,16 @@ export default function ProductMini() {
   const [chatInput, setChatInput] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const loadedProductKeyRef = useRef('');
 
   useEffect(() => {
+    if (loading) return;
+    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(savedData.productMini ?? null)}`;
+    if (loadedProductKeyRef.current === nextKey) return;
+    loadedProductKeyRef.current = nextKey;
     const savedProduct = normalizeProduct(savedData.productMini);
     setState(savedProduct);
-    if (activeProjectId && savedProduct.generated) {
-      upsertMaterial(activeProjectId, {
-        ...buildProductMaterial('product-mini', 'Мини-продукт', savedProduct),
-        summaryStatus: 'fresh',
-      });
-    }
-  }, [activeProjectId, savedData.productMini, upsertMaterial]);
+  }, [activeProjectId, loading, savedData.productMini]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });

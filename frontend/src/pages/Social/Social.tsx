@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
@@ -53,18 +53,19 @@ export default function Social() {
   const [states, setStates] = useState<Record<string, PlatformState>>(INIT_STATE);
   const [copied, setCopied] = useState('');
   const [materialStatus, setMaterialStatus] = useState('');
+  const loadedSocialKeyRef = useRef('');
 
   useEffect(() => {
     const social = savedData.social ?? {};
+    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(social)}`;
+    if (loadedSocialKeyRef.current === nextKey) return;
+    loadedSocialKeyRef.current = nextKey;
     setStates({
       instagram: { generated: Boolean(social.instagram), text: social.instagram ?? '', loading: false },
       telegram:  { generated: Boolean(social.telegram),  text: social.telegram  ?? '', loading: false },
       vk:        { generated: Boolean(social.vk),        text: social.vk        ?? '', loading: false },
     });
-    if (activeProjectId && (social.instagram || social.telegram || social.vk)) {
-      upsertMaterial(activeProjectId, buildSocialMaterial(social));
-    }
-  }, [activeProjectId, savedData.social, upsertMaterial]);
+  }, [activeProjectId, savedData.social]);
 
   async function handleGenerate(key: string) {
     const state = states[key];
