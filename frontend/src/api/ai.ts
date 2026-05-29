@@ -54,17 +54,17 @@ export interface WorkflowResponse {
 export const aiApi = {
   chat: (req: ChatRequest) =>
     apiClient
-      .post<ChatResponse>('/ai/chat', req)
+      .post<ChatResponse>('/ai/chat', req, { timeout: 180_000 })
       .then((r) => r.data),
 
   startWorkflow: (workflow: string, req: WorkflowRequest) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/start`, req)
+      .post<WorkflowResponse>(`/ai/workflows/${workflow}/start`, req, { timeout: 180_000 })
       .then((r) => r.data),
 
   runWorkflowStep: (workflow: string, req: WorkflowRequest) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, req)
+      .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, req, { timeout: 180_000 })
       .then((r) => r.data),
 
   extractFileText: (file: File) => {

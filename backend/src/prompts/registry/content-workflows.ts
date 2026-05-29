@@ -694,12 +694,12 @@ ${contextAppendix(context)}
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.65,
-    maxTokens: 3800,
+    maxTokens: 2800,
     artifactType: 'positioning_variants',
     systemPrompt: () => buildPositioningLabPrompt(),
     userPromptBuilder: ({ inputs, context }) => `Ты — senior стратег по позиционированию.
 
-Сгенерируй 6-8 вариантов стратегического позиционирования на основе брифа «О себе» и текущего контекста проекта.
+Сгенерируй 5 сильных вариантов стратегического позиционирования на основе брифа «О себе» и текущего контекста проекта.
 
 Для каждого варианта верни:
 ### [Название варианта]
@@ -724,8 +724,8 @@ ${contextAppendix(context)}
     validationRules: {
       requiredIncludes: ['###', 'Формулировка:', 'Для кого:', 'Проблема:', 'Результат:', 'Механизм:'],
       forbiddenIncludes: ['ШАГ 1', 'ШАГ 2', 'ШАГ 3', 'Назовите 3–5', 'Назовите 3-5'],
-      minLength: 1500,
-      minHeadings: 6,
+      minLength: 1000,
+      minHeadings: 4,
       structuredOutput: 'text',
     },
   },

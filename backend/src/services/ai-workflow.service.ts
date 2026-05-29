@@ -99,6 +99,80 @@ function isStaleRunningGeneration(generation: { startedAt: Date | null; createdA
   return Date.now() - referenceTime.getTime() > RUNNING_GENERATION_STALE_AFTER_MS;
 }
 
+function getTextField(content: string, label: string): string {
+  const pattern = new RegExp(`(?:^|\\n)${label}:\\s*([\\s\\S]*?)(?=\\n(?:Кто вы|Для кого|Проблема|Результат|Механизм|Отличие|Почему доверять):|$)`, 'i');
+  const match = content.match(pattern);
+  return match?.[1]?.trim() ?? '';
+}
+
+function buildPositioningStatement(data: Record<string, unknown>): string {
+  const parts = [
+    ['Кто вы', data.role],
+    ['Для кого', data.audience],
+    ['Проблема', data.problem],
+    ['Результат', data.result],
+    ['Механизм', data.mechanism],
+    ['Отличие', data.differentiation],
+    ['Почему доверять', data.proof],
+  ]
+    .filter(([, value]) => typeof value === 'string' && value.trim())
+    .map(([label, value]) => `${label}: ${String(value).trim()}`);
+  return parts.join('\n');
+}
+
+async function persistPositioningWorkflowResult(input: {
+  userId: string;
+  projectId: string;
+  workflow: string;
+  content: string;
+}) {
+  if (input.workflow !== 'positioning.variants' && input.workflow !== 'positioning.final') return;
+
+  const project = await prisma.project.findFirst({
+    where: { id: input.projectId, userId: input.userId },
+    select: { id: true, strategyData: true },
+  });
+  if (!project) return;
+
+  const existingStrategy = (project.strategyData && typeof project.strategyData === 'object' && !Array.isArray(project.strategyData))
+    ? project.strategyData as Record<string, unknown>
+    : {};
+  const existingPositioning = (existingStrategy.positioningData && typeof existingStrategy.positioningData === 'object' && !Array.isArray(existingStrategy.positioningData))
+    ? existingStrategy.positioningData as Record<string, unknown>
+    : {};
+
+  const nextPositioning: Record<string, unknown> = {
+    ...existingPositioning,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (input.workflow === 'positioning.variants') {
+    nextPositioning.variants = input.content;
+  }
+
+  if (input.workflow === 'positioning.final') {
+    nextPositioning.role = getTextField(input.content, 'Кто вы') || existingPositioning.role || '';
+    nextPositioning.audience = getTextField(input.content, 'Для кого') || existingPositioning.audience || '';
+    nextPositioning.problem = getTextField(input.content, 'Проблема') || existingPositioning.problem || '';
+    nextPositioning.result = getTextField(input.content, 'Результат') || existingPositioning.result || '';
+    nextPositioning.mechanism = getTextField(input.content, 'Механизм') || existingPositioning.mechanism || '';
+    nextPositioning.differentiation = getTextField(input.content, 'Отличие') || existingPositioning.differentiation || '';
+    nextPositioning.proof = getTextField(input.content, 'Почему доверять') || existingPositioning.proof || '';
+    nextPositioning.statement = buildPositioningStatement(nextPositioning);
+    nextPositioning.completed = Boolean(nextPositioning.statement);
+  }
+
+  await prisma.project.update({
+    where: { id: project.id },
+    data: {
+      strategyData: {
+        ...existingStrategy,
+        positioningData: nextPositioning,
+      } as Prisma.InputJsonValue,
+    },
+  });
+}
+
 async function releaseReplayGeneration(
   generation: {
     id: string;
@@ -391,6 +465,15 @@ export const aiWorkflowService = {
         metadata: { validation, stageType },
       }).catch((error) => {
         console.error('[AIWorkflow] structured output save failed:', error);
+      });
+
+      await persistPositioningWorkflowResult({
+        userId: input.userId,
+        projectId: input.projectId,
+        workflow: input.workflow,
+        content: response.content,
+      }).catch((error) => {
+        console.error('[AIWorkflow] positioning result persist failed:', error);
       });
 
       await prisma.aIWorkflowStep.update({
