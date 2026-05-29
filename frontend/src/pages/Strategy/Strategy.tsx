@@ -1064,8 +1064,6 @@ export default function Strategy() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-
   const runBtnDisabled = isRunning || completed;
   const activeStepEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
   const activeStepTitle = activeStepEntry ? STEP_TITLES[activeStepEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
@@ -1210,19 +1208,8 @@ export default function Strategy() {
       <div
         style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}
       >
-        {/* Doc header */}
-        <div style={{
-          padding: '20px 28px 16px', borderBottom: '1px solid #F0EEE8',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-        }}>
-          <div>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>Мета-упаковка</h2>
-            <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>{activeProjectName} · {today}</p>
-          </div>
-        </div>
-
         {/* Chat body */}
-        <div ref={docColRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minHeight: 0 }}>
+        <div ref={docColRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 12px', minHeight: 0 }}>
           {docEntries.length === 0 ? (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -1401,7 +1388,7 @@ export default function Strategy() {
 
         <div style={{
           flexShrink: 0, borderTop: '1px solid #E5E3DC',
-          background: '#fff', padding: '16px 28px',
+          background: '#fff', padding: '10px 28px 8px',
         }}>
           {activeStepEntry?.type === 'choice' && !activeStepEntry.chosen && pendingCustomChoice && (
             <div style={{
@@ -1436,7 +1423,7 @@ export default function Strategy() {
               placeholder={activeStepEntry ? `Спросите по шагу: ${activeStepTitle.toLowerCase()}...` : 'Сначала запустите анализ, затем можно будет уточнять каждый шаг...'}
             />
           </div>
-          <div style={{ maxWidth: 900, margin: '8px auto 0', color: '#aaa', fontSize: 11, textAlign: 'right' }}>
+          <div style={{ maxWidth: 900, margin: '5px auto 0', color: '#aaa', fontSize: 10.5, textAlign: 'right' }}>
             Enter — отправить · Shift+Enter — перенос строки
           </div>
         </div>

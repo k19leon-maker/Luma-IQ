@@ -75,6 +75,7 @@ const pageTitles: Record<string, string> = {
 
 const aiWorkspacePaths = new Set([
   '/ai-dialog',
+  '/strategy/audience',
   '/products/main',
   '/products/mini',
   '/products/lead-magnet',
