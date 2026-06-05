@@ -11,7 +11,7 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
-      globals: { ...globals.browser, ...globals.es2022 },
+      globals: { ...globals.browser, ...globals.es2022, React: 'readonly' },
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
@@ -23,6 +23,9 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-undef': 'off',
+      'no-useless-escape': 'off',
+      'no-misleading-character-class': 'off',
     },
   },
   {

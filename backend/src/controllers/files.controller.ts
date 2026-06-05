@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import { PDFParse } from 'pdf-parse';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -11,6 +12,20 @@ const projectFileSchema = z.object({
 });
 
 const SUPPORTED_EXTENSIONS = new Set(['.txt', '.doc', '.docx', '.pdf', '.md']);
+const PDF_PARSE_TIMEOUT_MS = 15_000;
+const MAX_EXTRACTED_TEXT_CHARS = 50_000;
+
+const ALLOWED_MIME_BY_EXTENSION: Record<string, Set<string>> = {
+  '.txt': new Set(['text/plain', 'text/markdown', 'application/octet-stream']),
+  '.md': new Set(['text/markdown', 'text/plain', 'application/octet-stream']),
+  '.pdf': new Set(['application/pdf', 'application/octet-stream']),
+  '.doc': new Set(['application/msword', 'application/octet-stream']),
+  '.docx': new Set([
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/zip',
+    'application/octet-stream',
+  ]),
+};
 
 function summarize(text: string): string {
   const compact = text.replace(/\s+/g, ' ').trim();
@@ -22,14 +37,81 @@ async function assertProjectOwner(userId: string, projectId: string): Promise<bo
   return Boolean(project);
 }
 
-async function extractTextFromUploadedFile(file: Express.Multer.File): Promise<string> {
+function startsWith(buffer: Buffer, signature: number[]): boolean {
+  return signature.every((byte, index) => buffer[index] === byte);
+}
+
+function looksLikeText(buffer: Buffer): boolean {
+  if (buffer.length === 0) return true;
+  const sample = buffer.subarray(0, Math.min(buffer.length, 4096));
+  if (sample.includes(0)) return false;
+
+  const decoded = sample.toString('utf8');
+  const replacementCount = decoded.split('\uFFFD').length - 1;
+  return replacementCount <= Math.max(1, Math.floor(decoded.length * 0.02));
+}
+
+function validateUploadedFile(file: Express.Multer.File, buffer: Buffer): string {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!SUPPORTED_EXTENSIONS.has(ext)) {
     throw Object.assign(new Error('Поддерживаются только .txt, .md, .doc, .docx, .pdf'), { status: 400 });
   }
 
+  const allowedMime = ALLOWED_MIME_BY_EXTENSION[ext];
+  if (file.mimetype && allowedMime && !allowedMime.has(file.mimetype)) {
+    throw Object.assign(new Error('Тип файла не соответствует расширению'), { status: 400 });
+  }
+
+  const isPdf = startsWith(buffer, [0x25, 0x50, 0x44, 0x46]); // %PDF
+  const isZip = startsWith(buffer, [0x50, 0x4b, 0x03, 0x04]) || startsWith(buffer, [0x50, 0x4b, 0x05, 0x06]) || startsWith(buffer, [0x50, 0x4b, 0x07, 0x08]);
+  const isOle = startsWith(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
+  if (ext === '.pdf' && !isPdf) {
+    throw Object.assign(new Error('Файл не похож на PDF'), { status: 400 });
+  }
+  if (ext === '.docx' && !isZip) {
+    throw Object.assign(new Error('Файл не похож на DOCX'), { status: 400 });
+  }
+  if (ext === '.doc' && !isOle) {
+    throw Object.assign(new Error('Файл не похож на DOC'), { status: 400 });
+  }
+  if ((ext === '.txt' || ext === '.md') && !looksLikeText(buffer)) {
+    throw Object.assign(new Error('Файл не похож на текстовый документ'), { status: 400 });
+  }
+
+  return ext;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error(message), { status: 422 })), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await withTimeout(parser.getText(), PDF_PARSE_TIMEOUT_MS, 'PDF слишком долго обрабатывается');
+    return result.text.trim() || '[PDF-файл загружен, но текст в нем не найден.]';
+  } finally {
+    await parser.destroy().catch(() => {});
+  }
+}
+
+async function extractTextFromUploadedFile(file: Express.Multer.File): Promise<string> {
+  const buffer = fs.readFileSync(file.path);
+  const ext = validateUploadedFile(file, buffer);
+
   if (ext === '.txt' || ext === '.md') {
-    return fs.readFileSync(file.path, 'utf-8');
+    return buffer.toString('utf-8');
   }
 
   if (ext === '.docx' || ext === '.doc') {
@@ -38,15 +120,7 @@ async function extractTextFromUploadedFile(file: Express.Multer.File): Promise<s
     return result.value;
   }
 
-  const buffer = fs.readFileSync(file.path);
-  const raw = buffer.toString('latin1');
-  const matches = raw.match(/\(([^\)]{2,200})\)/g) ?? [];
-  const text = matches
-    .map((m) => m.slice(1, -1))
-    .filter((s) => /[а-яёa-z]/i.test(s))
-    .join(' ');
-
-  return text.trim() || '[PDF-файл загружен. Текст не удалось извлечь точно, но файл сохранен как материал проекта.]';
+  return extractPdfText(buffer);
 }
 
 function cleanup(file?: Express.Multer.File): void {
@@ -113,11 +187,11 @@ export const filesController = {
           mimeType: file.mimetype || null,
           sizeBytes: file.size,
           extension,
-          textContent: text.slice(0, 50000),
+          textContent: text.slice(0, MAX_EXTRACTED_TEXT_CHARS),
           summary: summarize(text),
           metadata: {
             extractedChars: text.length,
-            truncated: text.length > 50000,
+            truncated: text.length > MAX_EXTRACTED_TEXT_CHARS,
           } as Prisma.InputJsonValue,
         },
       });

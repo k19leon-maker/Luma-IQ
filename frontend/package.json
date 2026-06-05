@@ -16,7 +16,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@types/file-saver": "^2.0.7",
     "@types/html2pdf.js": "^0.10.0",
-    "axios": "^1.7.9",
+    "axios": "^1.16.1",
     "docx": "^9.6.1",
     "file-saver": "^2.0.5",
     "html2pdf.js": "^0.14.0",
@@ -36,6 +36,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.16.0",
     "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^14.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.3"
   }
