@@ -3,9 +3,14 @@ const CSRF_COOKIE = 'csrf_token';
 const CSRF_SESSION_KEY = 'lumaiq_csrf_token';
 const ADMIN_BACKUP_SESSION_KEY = 'lumaiq_admin_access_backup';
 
+export interface AdminSessionBackup {
+  accessToken: string;
+  csrfToken?: string;
+}
+
 let accessToken: string | null = null;
 let csrfToken: string | null = null;
-let adminAccessTokenBackup: string | null = null;
+let adminAccessTokenBackup: AdminSessionBackup | null = null;
 
 function readSessionValue(key: string): string | null {
   if (typeof window === 'undefined') return null;
@@ -54,9 +59,23 @@ export function isDevSession(): boolean {
   return accessToken === ACCESS_TOKEN_DEV;
 }
 
-export function setAdminAccessTokenBackup(token: string | null): void {
-  adminAccessTokenBackup = token;
-  writeSessionValue(ADMIN_BACKUP_SESSION_KEY, token);
+function parseAdminSessionBackup(raw: string | null): AdminSessionBackup | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<AdminSessionBackup>;
+    return parsed.accessToken ? { accessToken: parsed.accessToken, csrfToken: parsed.csrfToken } : null;
+  } catch {
+    return { accessToken: raw };
+  }
+}
+
+function serializeAdminSessionBackup(backup: AdminSessionBackup | null): string | null {
+  return backup ? JSON.stringify(backup) : null;
+}
+
+export function setAdminAccessTokenBackup(token: string | AdminSessionBackup | null): void {
+  adminAccessTokenBackup = typeof token === 'string' ? { accessToken: token } : token;
+  writeSessionValue(ADMIN_BACKUP_SESSION_KEY, serializeAdminSessionBackup(adminAccessTokenBackup));
   window.dispatchEvent(new Event('admin-session-backup-changed'));
 }
 
@@ -64,8 +83,8 @@ export function clearAdminAccessTokenBackup(): void {
   setAdminAccessTokenBackup(null);
 }
 
-export function consumeAdminAccessTokenBackup(): string | null {
-  const token = adminAccessTokenBackup ?? readSessionValue(ADMIN_BACKUP_SESSION_KEY);
+export function consumeAdminAccessTokenBackup(): AdminSessionBackup | null {
+  const token = adminAccessTokenBackup ?? parseAdminSessionBackup(readSessionValue(ADMIN_BACKUP_SESSION_KEY));
   adminAccessTokenBackup = null;
   writeSessionValue(ADMIN_BACKUP_SESSION_KEY, null);
   window.dispatchEvent(new Event('admin-session-backup-changed'));
@@ -73,5 +92,5 @@ export function consumeAdminAccessTokenBackup(): string | null {
 }
 
 export function hasAdminAccessTokenBackup(): boolean {
-  return Boolean(adminAccessTokenBackup ?? readSessionValue(ADMIN_BACKUP_SESSION_KEY));
+  return Boolean(adminAccessTokenBackup ?? parseAdminSessionBackup(readSessionValue(ADMIN_BACKUP_SESSION_KEY)));
 }

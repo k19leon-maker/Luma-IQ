@@ -31,7 +31,7 @@ interface AuthState {
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
-  setTokens: (accessToken: string, csrfToken?: string) => void;
+  setTokens: (accessToken: string, csrfToken?: string) => Promise<AuthUser | null>;
   loginAsTestUser: () => void;
 }
 
@@ -100,17 +100,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  setTokens: (accessToken, csrfToken) => {
+  setTokens: async (accessToken, csrfToken) => {
     resetSessionStores();
     clearAdminAccessTokenBackup();
     setSessionTokens(accessToken, csrfToken);
-    // Fetch user info after OAuth callback
-    authApi.me().then((user) => {
+    try {
+      const user = await authApi.me();
       set({ user, isAuthenticated: true, isLoading: false });
-    }).catch(() => {
+      return user;
+    } catch {
       clearSessionTokens();
       set({ user: null, isAuthenticated: false, isLoading: false });
-    });
+      return null;
+    }
   },
 
   loginAsTestUser: () => {

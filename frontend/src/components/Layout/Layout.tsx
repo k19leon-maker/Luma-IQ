@@ -230,13 +230,27 @@ export default function Layout({ children }: LayoutProps) {
     restoreState.applied = true;
   }, [activeProjectId, projects, projectsLoading, setActiveProjectId, user?.id]);
 
-  const restoreAdminSession = useCallback(() => {
-    const access = consumeAdminAccessTokenBackup();
-    if (!access) return;
-    setTokens(access);
+  const restoreAdminSession = useCallback(async () => {
+    const backup = consumeAdminAccessTokenBackup();
+    if (!backup) return;
     setHasAdminBackup(false);
-    navigate('/admin');
-  }, [navigate, setTokens]);
+
+    const restoredUser = await setTokens(backup.accessToken, backup.csrfToken);
+    if (restoredUser?.role !== 'ADMIN') {
+      toast.error('Не удалось восстановить админскую сессию');
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    activeProjectRestoreRef.current = {
+      userId: restoredUser.id,
+      preferredProjectId: readLastActiveProjectId(restoredUser.id),
+      applied: false,
+    };
+    await loadProjects();
+    toast.success('Вы вернулись в админку');
+    navigate('/admin', { replace: true });
+  }, [loadProjects, navigate, setTokens]);
 
   useEffect(() => {
     const syncBackup = () => setHasAdminBackup(hasAdminAccessTokenBackup());
