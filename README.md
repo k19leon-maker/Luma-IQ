@@ -7,8 +7,8 @@ AI SaaS для экспертов, маркетологов и продюсер�
 - Production frontend: `https://www.lumaiq.ru`
 - Production API: `https://api.lumaiq.ru`
 - Backend: Hetzner VPS, PM2 process `lumaiq-backend`
-- Frontend deploy: Vercel after push to `main`
-- Backend deploy: SSH to `/app`, pull `main`, migrate, build, restart PM2
+- Frontend deploy: Vercel production deploy from repo root with `npx vercel --prod --yes`
+- Backend deploy: SSH to `/app`, pull `main`, migrate, generate Prisma client, build, restart PM2
 
 ## Stack
 
@@ -24,7 +24,7 @@ AI SaaS для экспертов, маркетологов и продюсер�
 
 - Strategy: About Expert, Positioning, Audience, UTP, Social profiles
 - Product Builder: Main Product, Mini Product, Lead Magnet
-- Content: Posts, Reels, Articles, Video Scripts, Chatbot Chains, Content Plan
+- Content: Posts, Reels, Articles, Video Scripts, Chatbot Chains, Threads ИИ, Content Plan
 - AI Dialog: project-aware AI marketing assistant
 - Admin: users, manual access, subscriptions/payments, AI usage analytics
 - AI Economy: usage tracking, model pricing, cost accounting
@@ -48,12 +48,42 @@ POST /api/v1/ai/workflows/:workflow/step
 
 Current workflow prompt configs:
 
+- `ai.dialog.message`
 - `posts.topic.generate`
 - `posts.post.write`
 - `reels.hooks.generate`
 - `reels.script.write`
 - `articles.topic.generate`
 - `articles.article.write`
+- `chatbot.chain.generate`
+- `video.topic.generate`
+- `video.script.write`
+- `product.main.generate`
+- `product.mini.generate`
+- `leadmagnet.generate`
+- `positioning.analysis.generate`
+- `positioning.models.generate`
+- `positioning.variants.generate`
+- `positioning.gap-analysis.generate`
+- `positioning.final.generate`
+- `positioning.score.generate`
+- `positioning.assets.generate`
+- `strategy.audience.generate`
+- `strategy.utp.generate`
+- `strategy.social.generate`
+- `strategy.positioning.generate`
+- `threads.plan.generate`
+- `threads.post.regenerate`
+
+## Threads ИИ
+
+`/threads` is a specialized content section for Threads.
+
+- Generates a fixed 7-day plan plus ready posts/threads.
+- Uses active project strategy, audience/JTBD, UTP, products and previous content context.
+- Uses backend workflow API, not frontend prompt assembly.
+- Full plan generation and single-post regeneration are counted through the shared AI economy as feature `threads`.
+- Saved separately as `GeneratedText.type = THREADS`; it does not overwrite universal Content Plan items.
 
 ## Local Start
 

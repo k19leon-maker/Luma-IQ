@@ -1,6 +1,6 @@
 # Luma IQ — актуальный контекст проекта
 
-Обновлено: 2026-05-20
+Обновлено: 2026-06-09
 
 ## Что это
 
@@ -21,10 +21,21 @@ Luma IQ — vertical AI SaaS для экспертов, маркетологов
 Backend deploy:
 
 ```bash
-ssh root@128.140.111.43 "cd /app && git fetch origin main && git reset --hard origin/main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
+ssh root@128.140.111.43 "cd /app && git pull --ff-only origin main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
 ```
 
-Frontend deploys automatically through Vercel after push to `main`.
+Frontend deploy:
+
+```bash
+npx vercel --prod --yes
+```
+
+Git push to `main` may also trigger Vercel depending on current project integration, but the reliable manual production deploy is the CLI command above from the repo root.
+Latest production deployment verified through Vercel CLI:
+
+- commit: `f9de7c9`
+- Vercel deployment: `dpl_HREBfaRrxkdwyy3uNBFPQAMbFZUJ`
+- aliases: `https://www.lumaiq.ru`, `https://lumaiq.ru`
 
 ## Stack
 
@@ -66,7 +77,8 @@ Product sections use project context, audience, UTP and product/leadmagnet logic
 - `/articles`: Articles Engine MVP: article type, platform, tone, depth, CTA, 20 topics, facture, article with SEO/meta/FAQ/scoring.
 - `/video-scripts`
 - `/chatbot-chains`: Telegram chain prompt for direct-response posts.
-- `/content-plan`
+- `/threads`: Threads ИИ. Generates and saves a 7-day Threads plan plus posts/threads from project strategy. Uses workflow API and stores results as `GeneratedText.type = THREADS`.
+- `/content-plan`: universal content planning section. Threads ИИ is separate and should not overwrite content-plan items.
 
 ### AI Dialog
 
@@ -88,7 +100,7 @@ Current intended model split:
 - AI dialog: `gpt-5.4`
 - Positioning / audience / UTP: `gpt-5.5`
 - Main product / mini product / lead magnet: `gpt-5.5`
-- Posts / Reels / scripts / content: `gpt-5.4`
+- Posts / Reels / scripts / Threads / content: `gpt-5.4`
 - Anthropic is supported for reasoning/heavier tasks and user-selected provider flows.
 
 AI provider calls live in `backend/src/services/ai.service.ts`.
@@ -118,7 +130,7 @@ Token usage is captured from OpenAI/Anthropic responses and stored in `ai_genera
 
 ## AI Orchestration Foundation
 
-Implemented first backend foundation, not yet fully wired to every frontend screen.
+Implemented backend foundation. Some screens still use legacy `/ai/chat`; newer/specialized flows use workflow API.
 
 New DB tables:
 
@@ -154,14 +166,34 @@ POST /api/v1/ai/workflows/:workflow/step
 
 Registered workflow prompts:
 
+- `ai.dialog.message.v1`
 - `posts.topic.generate.v1`
 - `posts.post.write.v1`
 - `reels.hooks.generate.v1`
 - `reels.script.write.v1`
 - `articles.topic.generate.v1`
 - `articles.article.write.v1`
+- `chatbot.chain.generate.v1`
+- `video.topic.generate.v1`
+- `video.script.write.v1`
+- `product.main.generate.v1`
+- `product.mini.generate.v1`
+- `leadmagnet.generate.v1`
+- `positioning.analysis.generate.v1`
+- `positioning.models.generate.v1`
+- `positioning.variants.generate.v1`
+- `positioning.gap-analysis.generate.v1`
+- `positioning.final.generate.v1`
+- `positioning.score.generate.v1`
+- `positioning.assets.generate.v1`
+- `strategy.audience.generate.v1`
+- `strategy.utp.generate.v1`
+- `strategy.social.generate.v1`
+- `strategy.positioning.generate.v1`
+- `threads.plan.generate.v1`
+- `threads.post.regenerate.v1`
 
-Important: old `/api/v1/ai/chat` remains active. Frontend migration to workflow API should be gradual.
+Important: old `/api/v1/ai/chat` remains active for legacy flows. New production AI features should use workflow API unless there is a deliberate compatibility reason.
 
 ## Prompt Strategy
 
@@ -244,6 +276,12 @@ AI:
 - `AIWorkflowStep`
 - `AIArtifact`
 
+Content persistence:
+
+- `GeneratedText.type` includes `POST`, `REEL`, `ARTICLE`, `VIDEO_SCRIPT`, `CHATBOT_CHAIN`, `THREADS`, `OTHER`.
+- Threads ИИ saves JSON in `GeneratedText.content`, with `metadata.kind = "threads_plan"` and `metadata.contentType = "threads"`.
+- Threads results should not be saved into universal content-plan unless a separate product decision explicitly connects those features.
+
 ## Access And Payments
 
 Current mode: pilot/manual access.
@@ -278,10 +316,9 @@ curl -s -i https://api.lumaiq.ru/api/v1/health
 
 ## Current Next Engineering Step
 
-Migrate frontend content sections gradually to workflow API:
+Backend-side workflow foundation and Threads ИИ are live. Next useful engineering work:
 
-1. Reels hooks/script
-2. Articles topic/article
-3. Posts topic/post
-
-Each migration should create `AIWorkflowRun`, `AIWorkflowStep`, `AIArtifact` and still save final user-visible content through the existing content/localStorage flow until UI persistence is redesigned.
+1. Continue migrating legacy content UI calls from `/ai/chat` to workflow API where still needed.
+2. Replace remaining localStorage-first content persistence with DB-first persistence.
+3. Connect frontend limit widgets to real backend usage balances instead of tariff defaults.
+4. Add workflow/artifact observability in admin.

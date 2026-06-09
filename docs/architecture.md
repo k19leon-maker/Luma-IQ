@@ -1,6 +1,6 @@
 # Архитектура Luma IQ
 
-Обновлено: 2026-05-20
+Обновлено: 2026-06-09
 
 ## Production
 
@@ -21,7 +21,13 @@ Backend process:
 Deploy backend:
 
 ```bash
-ssh root@128.140.111.43 "cd /app && git fetch origin main && git reset --hard origin/main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
+ssh root@128.140.111.43 "cd /app && git pull --ff-only origin main && cd backend && npm install && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart lumaiq-backend --update-env && pm2 save"
+```
+
+Deploy frontend:
+
+```bash
+npx vercel --prod --yes
 ```
 
 ## API Groups
@@ -48,7 +54,8 @@ All production APIs use `/api/v1`.
 Current state is hybrid:
 
 - Existing screens still use `/api/v1/ai/chat`.
-- New orchestration foundation exists on backend and will be adopted gradually by Posts/Reels/Articles.
+- Workflow API is live and used by newer/specialized flows, including Threads ИИ.
+- New production AI features should use workflow API rather than assembling prompts in frontend.
 
 ### Legacy AI Flow
 
@@ -86,12 +93,32 @@ POST /api/v1/ai/workflows/:workflow/step
 
 Prompt configs currently registered:
 
+- `ai.dialog.message.v1`
 - `posts.topic.generate.v1`
 - `posts.post.write.v1`
 - `reels.hooks.generate.v1`
 - `reels.script.write.v1`
 - `articles.topic.generate.v1`
 - `articles.article.write.v1`
+- `chatbot.chain.generate.v1`
+- `video.topic.generate.v1`
+- `video.script.write.v1`
+- `product.main.generate.v1`
+- `product.mini.generate.v1`
+- `leadmagnet.generate.v1`
+- `positioning.analysis.generate.v1`
+- `positioning.models.generate.v1`
+- `positioning.variants.generate.v1`
+- `positioning.gap-analysis.generate.v1`
+- `positioning.final.generate.v1`
+- `positioning.score.generate.v1`
+- `positioning.assets.generate.v1`
+- `strategy.audience.generate.v1`
+- `strategy.utp.generate.v1`
+- `strategy.social.generate.v1`
+- `strategy.positioning.generate.v1`
+- `threads.plan.generate.v1`
+- `threads.post.regenerate.v1`
 
 ## Core Backend Files
 
@@ -138,6 +165,18 @@ AI orchestration:
 
 `AIGeneration` now optionally links to `workflowRunId` and `workflowStepId`.
 
+Generated content types:
+
+- `POST`
+- `REEL`
+- `ARTICLE`
+- `VIDEO_SCRIPT`
+- `CHATBOT_CHAIN`
+- `THREADS`
+- `OTHER`
+
+Threads ИИ stores generated 7-day plans in `GeneratedText` with `type = THREADS`. The JSON result lives in `content`; `metadata` stores `kind`, `contentType`, source snapshot, settings and workflow/artifact/generation ids.
+
 ## Important Principles
 
 - Do not build autonomous agents or AGI behavior.
@@ -147,3 +186,4 @@ AI orchestration:
 - Use selective context injection through `project-context.service.ts`.
 - Treat AI outputs as artifacts, not only text blobs.
 - Keep existing screens working while gradually migrating them to workflow API.
+- Do not save specialized Threads results into universal content-plan without an explicit product decision.

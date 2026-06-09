@@ -1,6 +1,6 @@
 # Prompt And AI Orchestration Audit
 
-Обновлено: 2026-05-20
+Обновлено: 2026-06-09
 
 ## Current AI Layer
 
@@ -31,7 +31,7 @@ Frontend inputs
   -> artifact + usage accounting
 ```
 
-This path is implemented as backend foundation and should gradually replace frontend prompt assembly.
+This path is implemented and active. It should remain the default path for new production AI features.
 
 ## Backend Files
 
@@ -56,6 +56,19 @@ This path is implemented as backend foundation and should gradually replace fron
 | `reels.script.write.v1` | reel | Write Reels script |
 | `articles.topic.generate.v1` | article | Generate article topics |
 | `articles.article.write.v1` | article | Write final article |
+| `chatbot.chain.generate.v1` | chatbot_chain | Generate Telegram/direct-response text chain |
+| `video.topic.generate.v1` | video_script | Generate video topics |
+| `video.script.write.v1` | video_script | Write video script |
+| `product.main.generate.v1` | product_main | Generate main product sections |
+| `product.mini.generate.v1` | product_mini | Generate mini-product sections |
+| `leadmagnet.generate.v1` | lead_magnet | Generate lead magnet sections |
+| `positioning.*.generate.v1` | positioning | Positioning analysis, models, variants, final assets |
+| `strategy.audience.generate.v1` | audience | Generate audience/JTBD blocks |
+| `strategy.utp.generate.v1` | utp | Generate UTP blocks |
+| `strategy.social.generate.v1` | social | Generate social packaging |
+| `strategy.positioning.generate.v1` | positioning | Generate positioning block |
+| `threads.plan.generate.v1` | threads | Generate 7-day Threads plan and posts |
+| `threads.post.regenerate.v1` | threads | Regenerate one Threads post |
 
 ## Current Content Prompts
 
@@ -76,9 +89,7 @@ Important qualities:
 - no psychology hardcode;
 - strong hook, tension, CTA.
 
-Migration needed:
-
-- move UI from `/ai/chat` to workflow API.
+Workflow prompts exist. Keep old UI stable while gradually removing frontend prompt assembly.
 
 ### Reels
 
@@ -95,9 +106,7 @@ Capabilities:
 - facture;
 - 45-60 sec script.
 
-Migration needed:
-
-- use `reels.hooks.generate` and `reels.script.write`.
+Workflow prompts exist.
 
 ### Articles
 
@@ -114,27 +123,37 @@ Capabilities:
 - facture;
 - SEO/meta/FAQ/scoring.
 
-Migration needed:
-
-- use `articles.topic.generate` and `articles.article.write`.
+Workflow prompts exist.
 
 ### Chatbot Chains
 
-Status: improved.
+Status: workflow prompt exists.
 
 Prompt creates Telegram-native direct-response chain posts. Goal: sell next action in funnel.
 
-Migration needed:
+### Threads ИИ
 
-- add workflow prompt configs and artifact storage.
+Status: live.
+
+Threads ИИ uses backend workflow prompts and strict JSON output:
+
+- `threads.plan.generate.v1`
+- `threads.post.regenerate.v1`
+
+Result persistence:
+
+- `GeneratedText.type = THREADS`
+- `metadata.kind = "threads_plan"`
+- `metadata.contentType = "threads"`
+- source snapshot, settings and workflow ids in metadata/content
 
 ## Known Legacy Risks
 
 1. Some frontend screens still assemble prompts directly.
-2. `ai.service.ts` still contains old fallback prompts with psychology language.
-3. `dynamic.prompts.ts` is large and should gradually become legacy.
-4. LocalStorage still stores many content results on frontend.
-5. Project materials and DB context are not yet unified into one perfect memory layer.
+2. `dynamic.prompts.ts` is large and should gradually become legacy.
+3. Some content areas still keep localStorage compatibility.
+4. Project materials and DB context are not yet unified into one perfect memory layer.
+5. JSON workflows need stronger schema-level validation beyond basic parse checks.
 
 ## Rules For New Work
 
@@ -149,8 +168,7 @@ Migration needed:
 ## Next Audit Tasks
 
 1. Identify all frontend `aiApi.chat` calls and rank by migration priority.
-2. Migrate Reels first.
-3. Migrate Articles second.
-4. Migrate Posts third.
-5. Add workflow configs for Chains and Video Scripts.
-6. Replace old psychology fallback in `ai.service.ts`.
+2. Identify which production screens still assemble complex prompts in frontend.
+3. Move those screens to workflow API in small safe increments.
+4. Add structured JSON schemas for Threads and other JSON workflows.
+5. Add admin workflow/artifact observability.

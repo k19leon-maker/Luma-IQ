@@ -1,6 +1,6 @@
 # Luma IQ Roadmap
 
-Обновлено: 2026-05-20
+Обновлено: 2026-06-09
 
 ## Current State
 
@@ -12,8 +12,10 @@
 | OpenAI + Anthropic integration | Done |
 | AI usage/token/cost accounting | Foundation done |
 | Prompt improvements for Posts/Reels/Articles/Chains | MVP done |
-| AI orchestration foundation | Phase 1A/1B done |
-| Frontend migration to workflow API | Not done |
+| AI orchestration foundation | Live |
+| Frontend migration to workflow API | Partial |
+| Threads ИИ | Live |
+| Frontend limits display | UI foundation live |
 | Subscription/autobilling | Future |
 | Social import/style analysis | Future |
 
@@ -27,6 +29,16 @@
 - Chatbot Chains prompt replaced with Telegram direct-response logic.
 - Reels Engine MVP added: goals, hooks, facture, scripts.
 - Articles Engine MVP added: topic generation, platform/tone/depth, SEO article output.
+- Threads ИИ added:
+  - route `/threads`;
+  - sidebar item in Content group;
+  - fixed 7-day Threads plan;
+  - ready posts/threads;
+  - strict JSON workflow prompts;
+  - `GeneratedText.type = THREADS`;
+  - shared AI economy feature `threads`.
+- Frontend limit summary added to the service UI; it currently shows tariff limits, with real usage balances still planned.
+- Credit ledger race condition fixed with project-level advisory lock / transaction protection.
 - AI orchestration foundation added:
   - prompt registry;
   - project context builder;
@@ -36,22 +48,17 @@
 
 ## Next Engineering Priorities
 
-### P0 — Migrate Content Engines To Workflow API
+### P0 — Backend-Backed Limits In UI
 
-1. Reels:
-   - use `reels.hooks.generate`;
-   - use `reels.script.write`;
-   - save selected hooks/scripts as `AIArtifact`.
+- Replace frontend tariff-only limit display with real backend balances.
+- Show actual monthly credits remaining, daily AI generations used/left, plan and reset dates.
+- Keep copy/view/save operations free; generation/regeneration should spend limits through AI economy.
 
-2. Articles:
-   - use `articles.topic.generate`;
-   - use `articles.article.write`;
-   - save topics/articles as `AIArtifact`.
+### P0 — Finish Prompt/Workflow Migration
 
-3. Posts:
-   - use `posts.topic.generate`;
-   - use `posts.post.write`;
-   - remove remaining frontend prompt assembly.
+- Identify remaining complex frontend prompt assembly.
+- Move screens to workflow API without breaking existing UX.
+- Keep DB persistence and localStorage compatibility where necessary during migration.
 
 ### P1 — Workflow Observability
 
@@ -60,21 +67,18 @@
 - Cost per workflow and feature.
 - Basic filters: user, project, workflow, status, date.
 
-### P1 — Access And Limits
+### P1 — Threads ИИ Follow-Up
 
-- Connect workflow API to credit limits more strictly.
-- Add per-workflow costs.
-- Add heavy/light classification by workflow step.
+- Add history/version picker for previous Threads generations.
+- Add quick rewrite actions: softer, sharper, shorter, more expert.
+- Add stronger JSON schema validation for Threads result shape.
+- Optionally connect selected Threads items to universal content-plan after explicit product decision.
 
-### P2 — Prompt Registry Expansion
+### P2 — Prompt Registry Hardening
 
-- Add workflow configs for:
-  - chatbot chains;
-  - video scripts;
-  - positioning;
-  - audience/JTBD;
-  - UTP/social;
-  - product-main/product-mini/lead-magnet.
+- Add schema-level structured output validation, not only JSON parse checks.
+- Add prompt version visibility in admin.
+- Add repair telemetry by workflow/step.
 
 ### P2 — Memory Optimization
 

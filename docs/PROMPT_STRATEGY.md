@@ -1,6 +1,6 @@
 # Prompt Strategy Luma IQ
 
-Обновлено: 2026-05-20
+Обновлено: 2026-06-09
 
 ## Главная идея
 
@@ -60,6 +60,8 @@ POST /api/v1/ai/chat
 - `video-scripts`
 - `chatbot-chains`
 
+Legacy prompt path remains available for compatibility. New production AI features should be added through the workflow registry.
+
 ### 3. Workflow Prompt Registry
 
 Files: `backend/src/prompts/registry/*`
@@ -89,12 +91,32 @@ POST /api/v1/ai/workflows/:workflow/step
 
 Current configs:
 
+- `ai.dialog.message.v1`
 - `posts.topic.generate.v1`
 - `posts.post.write.v1`
 - `reels.hooks.generate.v1`
 - `reels.script.write.v1`
 - `articles.topic.generate.v1`
 - `articles.article.write.v1`
+- `chatbot.chain.generate.v1`
+- `video.topic.generate.v1`
+- `video.script.write.v1`
+- `product.main.generate.v1`
+- `product.mini.generate.v1`
+- `leadmagnet.generate.v1`
+- `positioning.analysis.generate.v1`
+- `positioning.models.generate.v1`
+- `positioning.variants.generate.v1`
+- `positioning.gap-analysis.generate.v1`
+- `positioning.final.generate.v1`
+- `positioning.score.generate.v1`
+- `positioning.assets.generate.v1`
+- `strategy.audience.generate.v1`
+- `strategy.utp.generate.v1`
+- `strategy.social.generate.v1`
+- `strategy.positioning.generate.v1`
+- `threads.plan.generate.v1`
+- `threads.post.regenerate.v1`
 
 ## AI Roles By Area
 
@@ -110,6 +132,7 @@ Current configs:
 | Reels | Vertical video strategist + direct-response scriptwriter | Generate hooks and scripts for business goals |
 | Articles | Editorial strategist + SEO editor + journalist | Generate expert editorial/SEO assets |
 | Chatbot Chains | Telegram direct-response copywriter | Sell the next action in funnel |
+| Threads ИИ | Senior content strategist + direct-response copywriter for Threads | Generate a project-aware 7-day Threads plan and ready posts/threads |
 
 ## Content Engines
 
@@ -121,9 +144,10 @@ Current behavior:
 - System prompt emphasizes social strategy, direct response, JTBD, platform adaptation, CTA.
 - No hardcoded psychology.
 
-Next migration:
+Workflow prompts exist:
 
-- Move frontend prompt assembly to `posts.topic.generate` and `posts.post.write` workflow API.
+- `posts.topic.generate`
+- `posts.post.write`
 
 ### Reels Engine
 
@@ -143,9 +167,10 @@ Workflow prompts already exist:
 - `reels.hooks.generate`
 - `reels.script.write`
 
-Next migration:
+Workflow prompts exist:
 
-- Frontend should call workflow API and save hook/script artifacts.
+- `reels.hooks.generate`
+- `reels.script.write`
 
 ### Articles Engine
 
@@ -165,13 +190,34 @@ Workflow prompts already exist:
 - `articles.topic.generate`
 - `articles.article.write`
 
-Next migration:
+Workflow prompts exist:
 
-- Frontend should call workflow API and save topic/article artifacts.
+- `articles.topic.generate`
+- `articles.article.write`
 
 ### Chatbot Chains
 
 System prompt creates Telegram-native direct-response posts for chains. Goal is to sell the next action: lead magnet, video, application, consultation, closed channel, mini-product, return after lead magnet.
+
+Workflow prompt exists:
+
+- `chatbot.chain.generate`
+
+### Threads ИИ
+
+Specialized Threads content engine:
+
+- fixed 7-day plan;
+- THREADS-7 framework;
+- H-C-M-I-C post structure;
+- strict JSON output;
+- source snapshot saved with the result;
+- plan and post regeneration counted through AI economy feature `threads`.
+
+Workflow prompts:
+
+- `threads.plan.generate`
+- `threads.post.regenerate`
 
 ## Context Rules
 
@@ -217,6 +263,7 @@ Current checks:
 - list-like output;
 - article heading structure;
 - script scene structure.
+- JSON parsing for `structuredOutput: "json"`.
 
 If output fails validation, workflow service performs one repair attempt.
 
@@ -243,9 +290,7 @@ Do not hardcode provider-specific logic in frontend for new workflows.
 
 ## Next Prompt Work
 
-1. Migrate Reels UI to workflow API.
-2. Migrate Articles UI to workflow API.
-3. Migrate Posts UI to workflow API.
-4. Add workflow prompts for chatbot chains and video scripts.
-5. Add prompt configs for strategy/product sections.
-6. Add admin/prompt observability views later.
+1. Audit remaining frontend `aiApi.chat` usage and migrate where it still assembles complex production prompts.
+2. Add richer structured-output schemas for JSON workflows, especially Threads.
+3. Add admin/prompt observability views.
+4. Continue shrinking legacy `dynamic.prompts.ts` as screens move to workflow API.
