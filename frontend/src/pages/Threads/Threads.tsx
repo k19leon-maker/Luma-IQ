@@ -186,7 +186,8 @@ export default function Threads() {
   const activeProjectId = useProjectsStore((state) => state.activeProjectId);
   const hasActiveProject = Boolean(activeProjectId && activeProjectId !== 'default');
   const { projectName, context, positioning, expertProfile, audience, mergedProfile } = useProjectMarketingContext();
-  const modelSettings = useModelStore((state) => state.getSettings('threads'));
+  const getModelSettings = useModelStore((state) => state.getSettings);
+  const modelSettings = useMemo(() => getModelSettings('threads'), [getModelSettings]);
   const { dbItems, loaded, saveItem, updateItem } = useContentApi({ projectId: hasActiveProject ? activeProjectId! : '', type: 'THREADS' });
   const profileRecord = mergedProfile as Record<string, unknown>;
   const projectTone = typeof profileRecord.tone === 'string' ? profileRecord.tone.trim() : '';
