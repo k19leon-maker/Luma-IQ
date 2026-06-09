@@ -189,6 +189,7 @@ export default function Threads() {
   const modelSettings = useModelStore((state) => state.getSettings('threads'));
   const { dbItems, loaded, saveItem, updateItem } = useContentApi({ projectId: hasActiveProject ? activeProjectId! : '', type: 'THREADS' });
   const profileRecord = mergedProfile as Record<string, unknown>;
+  const projectTone = typeof profileRecord.tone === 'string' ? profileRecord.tone.trim() : '';
 
   const [settings, setSettings] = useState<ThreadsSettings>({
     goal: 'Прогрев доверия',
@@ -204,11 +205,10 @@ export default function Threads() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const projectTone = typeof profileRecord.tone === 'string' ? profileRecord.tone.trim() : '';
     if (projectTone) {
-      setSettings((current) => ({ ...current, tone: projectTone }));
+      setSettings((current) => current.tone === projectTone ? current : { ...current, tone: projectTone });
     }
-  }, [profileRecord]);
+  }, [projectTone]);
 
   useEffect(() => {
     if (!loaded || dbItems.length === 0) return;
