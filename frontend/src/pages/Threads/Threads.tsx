@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { aiApi } from '../../api/ai';
 import { ContentItem } from '../../api/content.api';
+import { projectsApi } from '../../api/projects.api';
 import { useContentApi } from '../../hooks/useContentApi';
-import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import s from './Threads.module.css';
@@ -182,15 +182,29 @@ function postText(post: ThreadsPost): string {
   return post.text;
 }
 
+function hasAnyStrategyValue(source: Record<string, unknown> | null, keys: string[]): boolean {
+  if (!source) return false;
+  return keys.some((key) => hasMeaningfulValue(source[key]));
+}
+
+function findFirstString(source: Record<string, unknown> | null, keys: string[]): string {
+  if (!source) return '';
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 export default function Threads() {
   const activeProjectId = useProjectsStore((state) => state.activeProjectId);
+  const projectName = useProjectsStore((state) => state.projects.find((project) => project.id === state.activeProjectId)?.name ?? 'Проект');
   const hasActiveProject = Boolean(activeProjectId && activeProjectId !== 'default');
-  const { projectName, context, positioning, expertProfile, audience, mergedProfile } = useProjectMarketingContext();
   const getModelSettings = useModelStore((state) => state.getSettings);
   const modelSettings = useMemo(() => getModelSettings('threads'), [getModelSettings]);
   const { dbItems, loaded, saveItem, updateItem } = useContentApi({ projectId: hasActiveProject ? activeProjectId! : '', type: 'THREADS' });
-  const profileRecord = mergedProfile as Record<string, unknown>;
-  const projectTone = typeof profileRecord.tone === 'string' ? profileRecord.tone.trim() : '';
+  const [strategyData, setStrategyData] = useState<Record<string, unknown> | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState(false);
 
   const [settings, setSettings] = useState<ThreadsSettings>({
     goal: 'Прогрев доверия',
@@ -206,10 +220,32 @@ export default function Threads() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (projectTone) {
-      setSettings((current) => current.tone === projectTone ? current : { ...current, tone: projectTone });
-    }
-  }, [projectTone]);
+    let alive = true;
+    setStrategyData(null);
+    if (!hasActiveProject || !activeProjectId) return;
+
+    setStrategyLoading(true);
+    projectsApi.getStrategy(activeProjectId)
+      .then((data) => {
+        if (!alive) return;
+        const next = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+        setStrategyData(next);
+        const projectTone = findFirstString(next, ['tone', 'toneOfVoice', 'communicationTone', 'socialTone']);
+        if (projectTone) {
+          setSettings((current) => current.tone === projectTone ? current : { ...current, tone: projectTone });
+        }
+      })
+      .catch(() => {
+        if (alive) setStrategyData(null);
+      })
+      .finally(() => {
+        if (alive) setStrategyLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [activeProjectId, hasActiveProject]);
 
   useEffect(() => {
     if (!loaded || dbItems.length === 0) return;
@@ -223,30 +259,21 @@ export default function Threads() {
 
   const sourceSnapshot = useMemo(() => ({
     projectName,
-    expertProfile,
-    positioning,
-    audience,
-    mergedProfile,
-    context: compactText(context, 2600),
-  }), [audience, context, expertProfile, mergedProfile, positioning, projectName]);
+    strategyData: compactText(strategyData, 3200),
+    strategyLoadedAt: strategyData ? new Date().toISOString() : null,
+  }), [projectName, strategyData]);
 
   const strategyStatus = useMemo<StrategyStatus[]>(() => {
-    const productsText = [
-      profileRecord.productsAndPrices,
-      context.includes('product-main.md') ? context : '',
-      context.includes('Основной продукт') ? context : '',
-      context.includes('Мини-продукт') ? context : '',
-      context.includes('Лид-магнит') ? context : '',
-    ].filter(Boolean).join('\n');
+    const strategyText = compactText(strategyData, 8000);
 
     return [
-      { key: 'positioning', label: 'Позиционирование', filled: hasMeaningfulValue(positioning) || hasMeaningfulValue(profileRecord.positioning) },
-      { key: 'audience', label: 'Целевая аудитория', filled: hasMeaningfulValue(audience) },
-      { key: 'utp', label: 'УТП', filled: /утп|уникаль|оффер|offer/i.test(context) },
-      { key: 'products', label: 'Продукты', filled: hasMeaningfulValue(productsText) },
-      { key: 'tone', label: 'Тональность', filled: hasMeaningfulValue(profileRecord.tone) || settings.tone !== 'Тёплая экспертная' },
+      { key: 'positioning', label: 'Позиционирование', filled: hasAnyStrategyValue(strategyData, ['positioningData', 'positioning', 'finalPositioning', 'selectedPositioning']) },
+      { key: 'audience', label: 'Целевая аудитория', filled: hasAnyStrategyValue(strategyData, ['answers', 'audience', 'audienceData', 'chosenSegment', 'targetAudience']) },
+      { key: 'utp', label: 'УТП', filled: hasAnyStrategyValue(strategyData, ['utpData', 'utp', 'finalUtp']) || /утп|уникаль|оффер|offer/i.test(strategyText) },
+      { key: 'products', label: 'Продукты', filled: /основной продукт|мини-продукт|лид-магнит|product|productsAndPrices/i.test(strategyText) },
+      { key: 'tone', label: 'Тональность', filled: hasAnyStrategyValue(strategyData, ['tone', 'toneOfVoice', 'communicationTone', 'socialTone']) || settings.tone !== 'Тёплая экспертная' },
     ];
-  }, [audience, context, positioning, profileRecord, settings.tone]);
+  }, [settings.tone, strategyData]);
 
   const missingSections = strategyStatus.filter((item) => !item.filled).map((item) => item.label);
 
@@ -426,7 +453,7 @@ export default function Threads() {
         <div className={s.card}>
           <div className={s.cardHeader}>
             <h2>Данные проекта</h2>
-            <span>{projectName}</span>
+            <span>{strategyLoading ? 'Загружаю...' : projectName}</span>
           </div>
           <div className={s.statusList}>
             {strategyStatus.map((item) => (
