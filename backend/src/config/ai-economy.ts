@@ -14,6 +14,7 @@ export type FeatureCode =
   | 'video_script'
   | 'article'
   | 'chatbot_chain'
+  | 'threads'
   | 'content_plan'
   | 'jtbd';
 
@@ -141,6 +142,14 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     includedTokens: 8000,
     maxContextTokens: 16000,
   },
+  threads: {
+    featureCode: 'threads',
+    featureGroup: 'content',
+    generationClass: 'MEDIUM',
+    creditPrice: 3,
+    includedTokens: 10000,
+    maxContextTokens: 24000,
+  },
   content_plan: {
     featureCode: 'content_plan',
     featureGroup: 'planning',
@@ -186,6 +195,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
       video_script: false,
       article: false,
       chatbot_chain: false,
+      threads: false,
       content_plan: false,
       jtbd: true,
     },

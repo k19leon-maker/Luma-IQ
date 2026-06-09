@@ -1,16 +1,17 @@
 /*
- * SplitEditor — two-panel layout: scrollable card list (320px) + editor (flex:1)
- * Usage: place inside Layout's .content (padding: 24px).
- * The negative margin undoes that padding so panels fill edge-to-edge.
+ * SplitEditor — two-panel layout: scrollable card list (320px) + editor (flex:1).
+ * It must fit inside Layout.contentFull safe area and never cancel parent padding.
  */
 
 .root {
   display: flex;
-  /* undo the 24px padding from Layout .content on all sides */
-  margin: -24px;
-  height: calc(100% + 48px);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-base);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.04);
 }
 
 /* ── List panel ────────────────────────────────────────────────── */

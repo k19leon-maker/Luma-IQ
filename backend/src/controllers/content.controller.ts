@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 
-const ALLOWED_TYPES = ['POST', 'REEL', 'ARTICLE', 'VIDEO_SCRIPT', 'CHATBOT_CHAIN', 'OTHER'] as const;
+const ALLOWED_TYPES = ['POST', 'REEL', 'ARTICLE', 'VIDEO_SCRIPT', 'CHATBOT_CHAIN', 'THREADS', 'OTHER'] as const;
 
 const createSchema = z.object({
   projectId: z.string().uuid(),

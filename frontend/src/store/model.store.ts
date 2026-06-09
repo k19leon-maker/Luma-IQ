@@ -46,6 +46,7 @@ const SECTION_DEFAULTS: Record<string, ClaudeModelId> = {
   articles:        'claude-haiku-4-5-20251001',
   'video-scripts': 'claude-haiku-4-5-20251001',
   'chatbot-chains':'claude-haiku-4-5-20251001',
+  threads:         'claude-haiku-4-5-20251001',
   'content-plan':  'claude-haiku-4-5-20251001',
 };
 
@@ -61,6 +62,7 @@ const OPENAI_SECTION_DEFAULTS: Record<string, OpenAIModelId> = {
   posts:           'gpt-5.4',
   reels:           'gpt-5.4',
   'video-scripts': 'gpt-5.4',
+  threads:         'gpt-5.4',
 };
 
 const SELECTOR_SECTIONS = new Set(Object.keys(SECTION_DEFAULTS));
@@ -81,6 +83,7 @@ const INLINE_SELECTOR_SECTIONS = new Set([
   'articles',       // ModelBar below textarea
   'video-scripts',  // ModelBar below textarea
   'chatbot-chains', // ModelBar near generate
+  'threads',        // page-level generation controls
   'lead-magnet',    // MessageInput
   'content-plan',   // no AI text input
 ]);

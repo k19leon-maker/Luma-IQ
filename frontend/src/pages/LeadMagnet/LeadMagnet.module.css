@@ -1,9 +1,94 @@
 .root {
   display: flex;
   flex-direction: column;
-  height: calc(100% + 48px);
-  margin: -24px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
+}
+
+.formatShell {
+  min-height: 100%;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 32px 40px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.04);
+}
+
+.formatTitle {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 10px;
+}
+
+.formatSubtitle {
+  color: #777;
+  font-size: 14px;
+  margin: 0 0 28px;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+.formatGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 18px;
+  max-width: 1120px;
+}
+
+.formatCard {
+  text-align: left;
+  min-height: 190px;
+  padding: 22px;
+  border-radius: 12px;
+  border: 1px solid #E5E3DC;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 26px rgba(0,0,0,0.04);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.formatCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+.formatIcon {
+  font-size: 30px;
+  margin-bottom: 18px;
+}
+
+.formatCardTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.formatCardText {
+  font-size: 13px;
+  color: #777;
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .formatGrid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .formatShell {
+    padding: 22px 18px 30px;
+  }
+
+  .formatGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Tab bar ────────────────────────────────────────────────────── */

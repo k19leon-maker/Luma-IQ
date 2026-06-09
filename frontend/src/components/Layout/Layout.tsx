@@ -2,14 +2,21 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
-import { authApi } from '../../api/auth.api';
 import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
+import { paymentApi } from '../../api/projects.api';
+import {
+  FRONTEND_PLAN_LIMITS,
+  PLAN_LABELS,
+  SubscriptionInfo,
+  formatAccessUntil,
+  formatLimitNumber,
+  normalizePlan,
+} from '../../utils/planLimits';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useTasksStore } from '../../store/tasks.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import AddToPlanModal from '../AddToPlanModal/AddToPlanModal';
-import ModelSelector from '../ModelSelector/ModelSelector';
 import { ErrorBoundary } from '../ErrorBoundary/ErrorBoundary';
 import s from './Layout.module.css';
 
@@ -41,6 +48,7 @@ const contentNav: NavItem[] = [
   { path: '/articles',        label: 'Статьи',              icon: '📝' },
   { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥' },
   { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖' },
+  { path: '/threads',         label: 'Threads ИИ',           icon: '🧵' },
 ];
 
 const filesNav: NavItem[] = [
@@ -64,12 +72,14 @@ const pageTitles: Record<string, string> = {
   '/articles':        'Статьи',
   '/video-scripts':   'Сценарии видео',
   '/chatbot-chains':  'Цепочка текстов',
+  '/threads':         'Threads ИИ',
   '/tasks':           'План задач',
   '/content-plan':    'Контент-план',
   '/files/materials': 'Материалы',
   '/files/products':  'Продукты',
   '/history':         'История',
   '/settings':        'Настройки',
+  '/limits':          'Лимиты',
   '/admin':           'Админка',
 };
 
@@ -84,7 +94,65 @@ const aiWorkspacePaths = new Set([
   '/articles',
   '/video-scripts',
   '/chatbot-chains',
+  '/threads',
 ]);
+
+function LimitsPreview({ subscription, loading }: { subscription: SubscriptionInfo | null; loading: boolean }) {
+  const plan = normalizePlan(subscription?.plan);
+  const limits = FRONTEND_PLAN_LIMITS[plan];
+  const status = subscription?.status ?? 'ACTIVE';
+  const inactive = status !== 'ACTIVE';
+
+  return (
+    <div className={`${s.limitsPreview}${inactive ? ' ' + s.limitsPreviewWarning : ''}`}>
+      <div className={s.limitsPreviewTop}>
+        <span>{loading ? 'Загрузка' : PLAN_LABELS[plan]}</span>
+        <span>{inactive ? 'неактивен' : formatAccessUntil(subscription?.expiresAt ?? null)}</span>
+      </div>
+      <div className={s.limitsPreviewGrid}>
+        <div>
+          <strong>{formatLimitNumber(limits.monthlyCredits)}</strong>
+          <span>credits/токены</span>
+        </div>
+        <div>
+          <strong>{formatLimitNumber(limits.dailyGenerationLimit)}</strong>
+          <span>AI/день</span>
+        </div>
+        <div>
+          <strong>{formatLimitNumber(limits.chatDailyLimit)}</strong>
+          <span>чат/день</span>
+        </div>
+        <div>
+          <strong>{formatLimitNumber(limits.projectLimit)}</strong>
+          <span>проектов</span>
+        </div>
+      </div>
+      <p className={s.limitsPreviewNote}>Фактические остатки подключим после backend-учета usage.</p>
+    </div>
+  );
+}
+
+function LimitSummary({ subscription, loading }: { subscription: SubscriptionInfo | null; loading: boolean }) {
+  const plan = normalizePlan(subscription?.plan);
+  const limits = FRONTEND_PLAN_LIMITS[plan];
+
+  return (
+    <div className={s.limitSummary} title="Показаны лимиты тарифа. Остатки подключим после backend-учета usage.">
+      <div className={s.limitSummaryItem}>
+        <span>Кредитов всего</span>
+        <strong>{formatLimitNumber(limits.monthlyCredits)}</strong>
+      </div>
+      <div className={s.limitSummaryItem}>
+        <span>ИИ генерации</span>
+        <strong>{formatLimitNumber(limits.dailyGenerationLimit)}</strong>
+      </div>
+      <div className={s.limitSummaryPlan}>
+        <span>Тариф</span>
+        <strong>{loading ? '...' : PLAN_LABELS[plan]}</strong>
+      </div>
+    </div>
+  );
+}
 
 function lastActiveProjectKey(userId: string): string {
   return `lumaiq:last-active-project:${userId}`;
@@ -106,48 +174,6 @@ function saveLastActiveProjectId(userId: string | undefined, projectId: string):
   } catch {
     // localStorage can be unavailable in private or restricted browser modes.
   }
-}
-
-/* ── Email verification banner ─────────────────────────────── */
-
-function EmailBanner({ email }: { email: string }) {
-  const [sending, setSending] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
-  if (dismissed) return null;
-
-  async function resend() {
-    setSending(true);
-    try {
-      await authApi.resendVerification();
-      toast.success('Письмо отправлено на ' + email);
-    } catch {
-      toast.error('Не удалось отправить письмо');
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div style={{
-      background: '#FFF8E7', borderBottom: '1px solid #F0E0A0',
-      padding: '10px 20px', display: 'flex', alignItems: 'center',
-      gap: 12, fontSize: 13, color: '#7A6000',
-    }}>
-      <span>📧 Подтвердите email <b>{email}</b>, чтобы получить доступ ко всем функциям.</span>
-      <button onClick={resend} disabled={sending} style={{
-        background: 'none', border: '1px solid #D4A847', borderRadius: 6,
-        padding: '3px 10px', cursor: sending ? 'not-allowed' : 'pointer',
-        color: '#7A6000', fontSize: 12, fontWeight: 500,
-      }}>
-        {sending ? 'Отправка...' : 'Отправить письмо'}
-      </button>
-      <button onClick={() => setDismissed(true)} style={{
-        background: 'none', border: 'none', cursor: 'pointer',
-        color: '#AAA', fontSize: 16, marginLeft: 'auto', lineHeight: 1,
-      }}>×</button>
-    </div>
-  );
 }
 
 /* ── Collapsible section component ────────────────────────────── */
@@ -183,6 +209,10 @@ export default function Layout({ children }: LayoutProps) {
   const user      = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
   const [hasAdminBackup, setHasAdminBackup] = useState(() => hasAdminAccessTokenBackup());
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const switchProgress    = useProgressStore((st) => st.switchProject);
   const loadProgressFromDb = useProgressStore((st) => st.loadFromDb);
@@ -209,6 +239,30 @@ export default function Layout({ children }: LayoutProps) {
     };
     void loadProjects();
   }, [user?.id, loadProjects]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setSubscription(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSubscriptionLoading(true);
+    paymentApi.getSubscription()
+      .then((next) => {
+        if (!cancelled) setSubscription(next);
+      })
+      .catch(() => {
+        if (!cancelled) setSubscription(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSubscriptionLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id || !activeProjectId) return;
@@ -257,6 +311,16 @@ export default function Layout({ children }: LayoutProps) {
     window.addEventListener('admin-session-backup-changed', syncBackup);
     return () => window.removeEventListener('admin-session-backup-changed', syncBackup);
   }, []);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (accountMenuRef.current?.contains(event.target as Node)) return;
+      setAccountMenuOpen(false);
+    }
+    window.addEventListener('mousedown', onPointerDown);
+    return () => window.removeEventListener('mousedown', onPointerDown);
+  }, [accountMenuOpen]);
 
   // Sync per-project stores when active project changes
   useEffect(() => {
@@ -323,6 +387,13 @@ export default function Layout({ children }: LayoutProps) {
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'П';
+  const plan = normalizePlan(subscription?.plan ?? (user as { plan?: string })?.plan);
+  const userPlanLabel = PLAN_LABELS[plan] ?? (user as { tariff?: string })?.tariff ?? 'Бесплатный тариф';
+
+  const goToAccountSection = (path: string) => {
+    setAccountMenuOpen(false);
+    navigate(path);
+  };
 
   return (
     <div className={s.root}>
@@ -551,29 +622,57 @@ export default function Layout({ children }: LayoutProps) {
               <button onClick={restoreAdminSession}>Вернуться в админку</button>
             </div>
           )}
-          <div className={s.userCard}>
-            <div className={s.avatar}>{initials}</div>
-            <div>
-              <div className={s.userName}>{user?.name ?? user?.email ?? 'Психолог'}</div>
-              <div className={s.userPlan}>{(user as { tariff?: string })?.tariff ?? 'Бесплатный тариф'}</div>
-            </div>
+          <div className={s.accountMenuWrap} ref={accountMenuRef}>
+            {accountMenuOpen && (
+              <div className={s.accountMenu}>
+                <button className={s.accountMenuItem} onClick={() => goToAccountSection('/settings#profile')}>
+                  <span>Профиль</span>
+                </button>
+                <div className={s.accountMenuItemWrap}>
+                  <button className={s.accountMenuItem} onClick={() => goToAccountSection('/limits')}>
+                    <span>Лимиты</span>
+                  </button>
+                  <LimitsPreview subscription={subscription} loading={subscriptionLoading} />
+                </div>
+                <button className={s.accountMenuItem} onClick={() => goToAccountSection('/pricing')}>
+                  <span>Тариф и оплата</span>
+                </button>
+              </div>
+            )}
+            <button
+              className={`${s.userCard}${accountMenuOpen ? ' ' + s.userCardActive : ''}`}
+              onClick={() => setAccountMenuOpen(true)}
+              onMouseEnter={() => setAccountMenuOpen(true)}
+              onFocus={() => setAccountMenuOpen(true)}
+              aria-expanded={accountMenuOpen}
+              aria-haspopup="menu"
+              title="Профиль, лимиты, тариф и оплата"
+            >
+              <div className={s.avatar}>{initials}</div>
+              <div className={s.userMeta}>
+                <div className={s.userName}>{user?.name ?? user?.email ?? 'Психолог'}</div>
+                <div className={s.userPlan}>{userPlanLabel}</div>
+              </div>
+              <span className={s.accountGear} aria-hidden="true">⚙</span>
+            </button>
           </div>
         </div>
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        {/* Email verification banner */}
-        {user && user.isVerified === false && (
-          <EmailBanner email={user.email} />
-        )}
         {location.pathname !== '/dashboard' && !isAiWorkspace && (
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>
             <div className={s.topbarActions}>
-              <ModelSelector />
+              <LimitSummary subscription={subscription} loading={subscriptionLoading} />
             </div>
           </header>
+        )}
+        {(location.pathname === '/dashboard' || isAiWorkspace) && (
+          <div className={s.limitSummaryFixed}>
+            <LimitSummary subscription={subscription} loading={subscriptionLoading} />
+          </div>
         )}
         <main className={location.pathname === '/dashboard' || isAiWorkspace ? s.contentFull : s.content}>
           {projectsLoading && projects.length === 0 ? (

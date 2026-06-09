@@ -1,0 +1,459 @@
+.root {
+  min-height: 100%;
+  padding: 32px 40px 56px;
+  background: #f7f6f2;
+  color: #1f1f1f;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 32px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #b98b25;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0 0 10px;
+  font-size: 36px;
+  line-height: 1.1;
+}
+
+.subtitle {
+  max-width: 920px;
+  margin: 0 0 12px;
+  color: #4d4d4d;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.description {
+  max-width: 980px;
+  margin: 0;
+  color: #6f6f6f;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.heroActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #e3ddd0;
+  border-radius: 8px;
+  background: #fffdf8;
+  box-shadow: 0 12px 28px rgba(41, 34, 20, 0.06);
+}
+
+.primaryBtn,
+.postActions button,
+.tabs button {
+  border: 1px solid #d7b15a;
+  border-radius: 8px;
+  background: #d8a93f;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+.primaryBtn:disabled,
+.postActions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.saveStatus,
+.generatedAt {
+  color: #7a756b;
+  font-size: 13px;
+}
+
+.warning,
+.error {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.warning {
+  border: 1px solid #e7cf8f;
+  background: #fff8df;
+  color: #71530f;
+}
+
+.error {
+  border: 1px solid #f0b6b6;
+  background: #fff1f1;
+  color: #9c2d2d;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.card,
+.result,
+.emptyState {
+  border: 1px solid #e3e0d8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(38, 32, 20, 0.04);
+}
+
+.card {
+  padding: 20px;
+}
+
+.cardHeader,
+.resultTop,
+.postHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.cardHeader {
+  margin-bottom: 16px;
+}
+
+.cardHeader h2,
+.resultTop h2,
+.emptyState h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.cardHeader span {
+  color: #8a867d;
+  font-size: 13px;
+}
+
+.statusList {
+  display: grid;
+  gap: 10px;
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #efede8;
+  color: #4d4d4d;
+}
+
+.statusRow:last-child {
+  border-bottom: 0;
+}
+
+.statusOk,
+.statusMiss {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.statusOk {
+  color: #277a42;
+}
+
+.statusMiss {
+  color: #a05d19;
+}
+
+.settingGroup {
+  margin-bottom: 18px;
+}
+
+.settingGroup:last-child {
+  margin-bottom: 0;
+}
+
+.settingLabel {
+  margin-bottom: 8px;
+  color: #4d4d4d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.segmented button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e2ded4;
+  border-radius: 999px;
+  background: #faf9f5;
+  color: #4c4a45;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmented .segmentActive {
+  border-color: #d7b15a;
+  background: #fff4d6;
+  color: #9a6d12;
+}
+
+.result {
+  padding: 22px;
+}
+
+.resultTop {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #eeeae1;
+}
+
+.resultTop p {
+  max-width: 920px;
+  margin: 8px 0 0;
+  color: #6f6f6f;
+  line-height: 1.5;
+}
+
+.tabs {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e2ded4;
+  border-radius: 8px;
+  background: #f7f5ee;
+}
+
+.tabs button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-color: transparent;
+  background: transparent;
+  color: #6d695f;
+}
+
+.tabs .tabActive {
+  border-color: #d7b15a;
+  background: #fff;
+  color: #1f1f1f;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.planTable {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+.planTable th,
+.planTable td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #eeeae1;
+  text-align: left;
+  vertical-align: top;
+}
+
+.planTable th {
+  color: #777268;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.planTable td {
+  color: #2a2926;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.postsList {
+  display: grid;
+  gap: 16px;
+}
+
+.postCard {
+  padding: 18px;
+  border: 1px solid #e6e1d8;
+  border-radius: 8px;
+  background: #fffdf9;
+}
+
+.postHeader {
+  margin-bottom: 14px;
+}
+
+.postHeader h3 {
+  margin: 8px 0 0;
+  font-size: 19px;
+}
+
+.dayBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #fff1c8;
+  color: #a36f11;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.postMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.postMeta span {
+  padding: 6px 10px;
+  border: 1px solid #e3ded1;
+  border-radius: 999px;
+  color: #6b675f;
+  font-size: 12px;
+}
+
+.postText,
+.threadItem p {
+  white-space: pre-wrap;
+  color: #2b2a27;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.threadList {
+  display: grid;
+  gap: 10px;
+}
+
+.threadItem {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #eee9dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.threadItem b {
+  color: #b27d18;
+}
+
+.threadItem p {
+  margin: 0;
+}
+
+.cta,
+.comment {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cta {
+  background: #f5f1e6;
+  color: #4e4636;
+}
+
+.comment {
+  background: #f8f8f6;
+  color: #6d6961;
+}
+
+.postActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.postActions button {
+  min-height: 36px;
+  padding: 0 13px;
+}
+
+.postActions button:first-child {
+  border-color: #ddd7c9;
+  background: #fff;
+  color: #3d3a34;
+}
+
+.emptyState {
+  padding: 36px;
+  text-align: center;
+}
+
+.emptyState p {
+  max-width: 620px;
+  margin: 10px auto 0;
+  color: #6f6f6f;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .root {
+    padding: 24px;
+  }
+
+  .hero,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .root {
+    padding: 18px;
+  }
+
+  .hero h1 {
+    font-size: 30px;
+  }
+
+  .subtitle {
+    font-size: 16px;
+  }
+
+  .cardHeader,
+  .resultTop,
+  .postHeader {
+    flex-direction: column;
+  }
+
+  .postMeta {
+    justify-content: flex-start;
+  }
+
+  .threadItem {
+    grid-template-columns: 1fr;
+  }
+}

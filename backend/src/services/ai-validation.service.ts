@@ -66,6 +66,18 @@ export const aiValidationService = {
       if (!text.toLowerCase().includes('сцен')) errors.push('Expected scene-based script');
     }
 
+    if (rules.structuredOutput === 'json') {
+      const normalized = text
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      try {
+        JSON.parse(normalized);
+      } catch {
+        errors.push('Expected valid JSON output');
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
 };

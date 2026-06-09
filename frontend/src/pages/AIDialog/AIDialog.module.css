@@ -30,17 +30,6 @@
   color: #777;
 }
 
-.contextPill {
-  border: 1px solid #ead8a6;
-  background: #fff8e7;
-  color: #8b6a1d;
-  border-radius: 999px;
-  padding: 7px 11px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .chat {
   flex: 1;
   overflow-y: auto;

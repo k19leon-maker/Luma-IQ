@@ -617,7 +617,7 @@
 .scriptTextarea::placeholder { color: var(--text-muted); }
 
 .scriptFooter {
-  padding: 12px 24px;
+  padding: 14px 24px 18px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -625,7 +625,7 @@
   flex-shrink: 0;
   gap: 8px;
   flex-wrap: wrap;
-  min-height: 56px;
+  min-height: 72px;
 }
 
 .charCount {
@@ -737,7 +737,7 @@
 .step3Root {
   display: flex;
   flex-direction: column;
-  margin: -24px;
-  height: calc(100vh - var(--topbar-height));
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }

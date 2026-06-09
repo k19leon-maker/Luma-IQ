@@ -15,7 +15,7 @@ export interface ValidationRules {
   maxLength?: number;
   minHeadings?: number;
   minListItems?: number;
-  structuredOutput?: 'text' | 'list' | 'article' | 'script';
+  structuredOutput?: 'text' | 'list' | 'article' | 'script' | 'json';
 }
 
 export interface PromptConfig {

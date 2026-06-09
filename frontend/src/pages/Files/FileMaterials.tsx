@@ -54,6 +54,7 @@ const CONTENT_LABELS: Record<string, { icon: string; type: string }> = {
   ARTICLE: { icon: '📝', type: 'Статья' },
   VIDEO_SCRIPT: { icon: '🎥', type: 'Сценарий' },
   CHATBOT_CHAIN: { icon: '🤖', type: 'Цепочка текстов' },
+  THREADS: { icon: '🧵', type: 'Threads ИИ' },
   OTHER: { icon: '📄', type: 'Материал' },
 };
 

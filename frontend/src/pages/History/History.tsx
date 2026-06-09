@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<string, string> = {
   ARTICLE:       'Статья',
   VIDEO_SCRIPT:  'Видео',
   CHATBOT_CHAIN: 'Цепочка',
+  THREADS:       'Threads ИИ',
   OTHER:         'Другое',
 };
 
@@ -22,6 +23,7 @@ const TYPE_FILTERS = [
   { key: 'ARTICLE',       label: 'Статьи' },
   { key: 'VIDEO_SCRIPT',  label: 'Видео' },
   { key: 'CHATBOT_CHAIN', label: 'Цепочки' },
+  { key: 'THREADS',       label: 'Threads' },
 ];
 
 function formatDate(iso: string): string {

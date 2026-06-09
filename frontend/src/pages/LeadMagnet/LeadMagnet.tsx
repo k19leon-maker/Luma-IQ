@@ -11,6 +11,7 @@ import { buildProductMaterial } from '../../utils/projectMaterials';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import html2pdf from 'html2pdf.js';
+import s from './LeadMagnet.module.css';
 
 type StepStatus = 'idle' | 'running' | 'done';
 type LeadMagnetFormat = 'pdf-guide' | 'video-lesson' | 'sales-longread';
@@ -985,33 +986,24 @@ ${currentMarkdown || 'Пока пусто.'}`;
 
   if (!selectedFormat) {
     return (
-      <div style={{ background: '#fff', minHeight: '100%', padding: 4 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a', marginBottom: 8, marginTop: 0 }}>
+      <div className={s.formatShell}>
+        <h1 className={s.formatTitle}>
           Лид-магнит
         </h1>
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 24, marginTop: 0, maxWidth: 720, lineHeight: 1.55 }}>
+        <p className={s.formatSubtitle}>
           Выберите формат. После выбора откроется AI-чеклист с чатом, как в разделах ЦА, основного продукта и мини-продукта.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, maxWidth: 1080 }}>
+        <div className={s.formatGrid}>
           {FORMAT_OPTIONS.map((format) => (
             <button
               key={format.id}
               onClick={() => selectFormat(format.id)}
-              style={{
-                textAlign: 'left',
-                minHeight: 190,
-                padding: 20,
-                borderRadius: 12,
-                border: '1px solid #E5E3DC',
-                background: '#fff',
-                cursor: 'pointer',
-                boxShadow: '0 8px 26px rgba(0,0,0,0.04)',
-              }}
+              className={s.formatCard}
             >
-              <div style={{ fontSize: 30, marginBottom: 18 }}>{format.icon}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{format.title}</div>
-              <div style={{ fontSize: 13, color: '#777', lineHeight: 1.55 }}>{format.description}</div>
+              <div className={s.formatIcon}>{format.icon}</div>
+              <div className={s.formatCardTitle}>{format.title}</div>
+              <div className={s.formatCardText}>{format.description}</div>
             </button>
           ))}
         </div>

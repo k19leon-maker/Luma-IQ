@@ -29,6 +29,7 @@ const Reels = lazy(() => import('./pages/Reels/Reels'));
 const Articles = lazy(() => import('./pages/Articles/Articles'));
 const VideoScripts = lazy(() => import('./pages/VideoScripts/VideoScripts'));
 const ChatbotChains = lazy(() => import('./pages/ChatbotChains/ChatbotChains'));
+const Threads = lazy(() => import('./pages/Threads/Threads'));
 const ContentPlan = lazy(() => import('./pages/ContentPlan/ContentPlan'));
 const FileMaterials = lazy(() => import('./pages/Files/FileMaterials'));
 const FileProducts = lazy(() => import('./pages/Files/FileProducts'));
@@ -36,6 +37,7 @@ const ProjectPage = lazy(() => import('./pages/Project/ProjectPage'));
 const Tasks = lazy(() => import('./pages/Tasks/Tasks'));
 const History = lazy(() => import('./pages/History/History'));
 const Settings = lazy(() => import('./pages/Settings/Settings'));
+const Limits = lazy(() => import('./pages/Limits/Limits'));
 const Admin = lazy(() => import('./pages/Admin/Admin'));
 
 // ── Layout wrapper with Onboarding ────────────────────────────────────────────
@@ -115,6 +117,7 @@ export default function App() {
                   <Route path="/articles"       element={page(<Articles />)} />
                   <Route path="/video-scripts"  element={page(<VideoScripts />)} />
                   <Route path="/chatbot-chains" element={page(<ChatbotChains />)} />
+                  <Route path="/threads"        element={page(<Threads />)} />
 
                   {/* Контент-план */}
                   <Route path="/content-plan" element={page(<ContentPlan />)} />
@@ -130,6 +133,7 @@ export default function App() {
                   <Route path="/tasks"    element={page(<Tasks />)} />
                   <Route path="/history"  element={page(<History />)} />
                   <Route path="/settings" element={page(<Settings />)} />
+                  <Route path="/limits"   element={page(<Limits />)} />
                   <Route path="/pricing"  element={page(<Pricing />)} />
                   <Route path="/admin"    element={page(<AdminRoute><Admin /></AdminRoute>)} />
 

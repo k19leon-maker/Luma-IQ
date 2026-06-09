@@ -961,4 +961,166 @@ ${contextAppendix(context)}
 Ответь только по задаче пользователя. Без служебных комментариев.`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
+  {
+    id: 'threads.plan.generate.v1',
+    version: 'v1',
+    feature: 'threads',
+    workflow: 'threads.plan',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.68,
+    maxTokens: 9000,
+    artifactType: 'threads_plan',
+    systemPrompt: (context) => `Ты — senior content strategist и direct-response copywriter для Threads.
+
+Ты создаёшь короткий экспертный контент, который строится на стратегии проекта, целевой аудитории, болях, желаниях, УТП и продуктовой линейке.
+
+Главный принцип: это не генератор случайных постов. Контент должен быть частью маркетинговой системы Luma IQ.
+
+Правила:
+- Не выдумывай факты об эксперте, кейсах, клиентах, результатах и продукте.
+- Если данных не хватает, используй только доступную информацию.
+- Не обещай гарантированных результатов, если их нет в стратегии.
+- Не используй реальные клиентские истории, если они не переданы явно.
+- Для чувствительных ниш используй типовые ситуации вместо конкретных кейсов.
+- Пиши живым русским языком, как эксперт, который каждый день работает с этой аудиторией.
+- Каждый пост содержит одну главную мысль.
+- Контент пригоден для публикации в Threads.
+- План всегда ровно на 7 дней.
+- Не добавляй хэштеги и эмодзи по умолчанию.
+- Не используй канцелярит и шаблоны: "в современном мире", "ни для кого не секрет", "важно понимать", "данный пост", "экспертный эксперт".
+
+Фреймворк THREADS-7:
+1. Position Threads — позиция эксперта.
+2. Pain Recognition Threads — узнавание боли.
+3. Mistake Threads — ошибки аудитории.
+4. Mechanism Threads — механизм проблемы.
+5. Case-Like Threads — типовая ситуация без выдуманных кейсов.
+6. Contrast Threads — слабый vs сильный подход.
+7. Soft CTA Threads — мягкий переход к следующему шагу.
+
+Структура поста H-C-M-I-C:
+H — Hook, C — Context, M — Mechanism, I — Insight, C — CTA.
+
+Ограничения:
+- single_post: 400-900 знаков.
+- mini_thread: 3-5 сообщений, каждое до 700 знаков.
+- deep_thread: 6-10 сообщений, каждое до 700 знаков.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Создай 7-дневный контент-план для Threads и готовые тексты постов/веток.
+
+Настройки:
+- Цель контента: ${value(inputs, 'goal', 'Прогрев доверия')}
+- Формат: ${value(inputs, 'formatMix', 'Смешанный план')}
+- Интенсивность продаж: ${value(inputs, 'salesIntensity', 'Мягкие CTA')}
+- Тональность: ${value(inputs, 'tone', 'Тёплая экспертная')}
+
+Недостающие стратегические данные:
+${value(inputs, 'missingSections', 'Не указаны')}
+
+Снимок данных, который видит интерфейс:
+${value(inputs, 'sourceSnapshot', 'Не передан')}
+
+Верни строго JSON без markdown, без комментариев, без code fence.
+
+JSON-структура:
+{
+  "title": "Threads-план на 7 дней",
+  "strategySummary": "Краткое описание логики серии",
+  "contentPlan": [
+    {
+      "dayNumber": 1,
+      "contentType": "Pain Recognition Threads",
+      "topic": "Тема дня",
+      "mainIdea": "Главная мысль",
+      "goal": "Прогрев доверия",
+      "format": "single_post",
+      "ctaType": "Без CTA",
+      "funnelRole": "Узнавание боли"
+    }
+  ],
+  "posts": [
+    {
+      "dayNumber": 1,
+      "title": "Заголовок",
+      "format": "single_post",
+      "contentType": "Pain Recognition Threads",
+      "text": "Текст готового поста",
+      "threadItems": [],
+      "cta": "",
+      "authorComment": "Почему этот пост нужен в контентной системе",
+      "status": "draft"
+    }
+  ]
+}
+
+Требования к JSON:
+- contentPlan должен содержать ровно 7 элементов.
+- posts должен содержать ровно 7 элементов.
+- dayNumber от 1 до 7.
+- format только: "single_post", "mini_thread" или "deep_thread".
+- Если format не single_post, основной контент положи в threadItems: [{ "order": 1, "text": "..." }].
+- status всегда "draft".`,
+    validationRules: {
+      minLength: 1200,
+      maxLength: 60000,
+      requiredIncludes: ['"contentPlan"', '"posts"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'threads.post.regenerate.v1',
+    version: 'v1',
+    feature: 'threads',
+    workflow: 'threads.post',
+    step: 'regenerate',
+    model: 'gpt-5.5',
+    temperature: 0.7,
+    maxTokens: 3600,
+    artifactType: 'threads_post',
+    systemPrompt: (context) => `Ты — senior content strategist и редактор Threads-контента.
+
+Переписывай один пост так, чтобы он оставался частью 7-дневной серии и не противоречил стратегии проекта.
+Не выдумывай факты, кейсы, цифры и результаты. Сохраняй одну главную мысль.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Перегенерируй один пост Threads.
+
+День: ${value(inputs, 'dayNumber')}
+Действие: ${value(inputs, 'rewriteAction', 'regenerate')}
+Настройки серии:
+- Цель: ${value(inputs, 'goal', 'Прогрев доверия')}
+- Формат: ${value(inputs, 'formatMix', 'Смешанный план')}
+- Интенсивность продаж: ${value(inputs, 'salesIntensity', 'Мягкие CTA')}
+- Тональность: ${value(inputs, 'tone', 'Тёплая экспертная')}
+
+Текущий пост:
+${value(inputs, 'existingPost', 'Нет')}
+
+Снимок стратегии:
+${value(inputs, 'sourceSnapshot', 'Не передан')}
+
+Верни строго JSON одного поста без markdown и code fence:
+{
+  "dayNumber": 1,
+  "title": "Заголовок",
+  "format": "single_post",
+  "contentType": "Pain Recognition Threads",
+  "text": "Текст поста",
+  "threadItems": [],
+  "cta": "",
+  "authorComment": "Почему пост нужен",
+  "status": "draft"
+}
+
+format только: "single_post", "mini_thread" или "deep_thread".
+Если это ветка, основной контент положи в threadItems.`,
+    validationRules: {
+      minLength: 250,
+      maxLength: 18000,
+      requiredIncludes: ['"dayNumber"', '"title"', '"format"'],
+      structuredOutput: 'json',
+    },
+  },
 ];

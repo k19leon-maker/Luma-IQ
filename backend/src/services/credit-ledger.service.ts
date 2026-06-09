@@ -6,10 +6,14 @@ type Tx = Prisma.TransactionClient;
 async function currentBalance(userId: string, tx: Tx = prisma): Promise<number> {
   const last = await tx.creditLedgerEntry.findFirst({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { balanceAfter: true },
   });
   return last?.balanceAfter ?? 0;
+}
+
+async function lockUserLedger(userId: string, tx: Tx): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(734125, hashtext(${userId}))`;
 }
 
 export const creditLedgerService = {
@@ -28,6 +32,7 @@ export const creditLedgerService = {
     metadata?: Prisma.InputJsonValue;
   }) {
     return prisma.$transaction(async (tx) => {
+      await lockUserLedger(input.userId, tx);
       const balance = await currentBalance(input.userId, tx);
       const balanceAfter = balance + input.amount;
       if (balanceAfter < 0) {

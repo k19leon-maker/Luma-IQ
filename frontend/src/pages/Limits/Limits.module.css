@@ -1,0 +1,131 @@
+.root {
+  max-width: 880px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.subtitle {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.planCard {
+  min-width: 180px;
+  padding: 12px 14px;
+  border: 1px solid rgba(212,168,71,0.26);
+  border-radius: 8px;
+  background: rgba(212,168,71,0.08);
+}
+
+.planCardWarning {
+  border-color: rgba(229,72,77,0.35);
+  background: rgba(229,72,77,0.08);
+}
+
+.planCard span {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.planCard strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.limitCard {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.limitLabel {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.limitValue {
+  display: block;
+  margin-top: 12px;
+  color: var(--text-primary);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.limitHint {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.note {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(212,168,71,0.22);
+  border-radius: 8px;
+  background: rgba(212,168,71,0.06);
+}
+
+.note h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.note p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .planCard {
+    width: 100%;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

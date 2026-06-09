@@ -104,7 +104,7 @@ export default function Settings() {
       <div className={s.sections}>
 
         {/* ── Профиль ─────────────────────────────────── */}
-        <div className={s.section}>
+        <div className={s.section} id="profile">
           <h3 className={s.sectionTitle}>Профиль</h3>
 
           <div className={s.avatarRow}>

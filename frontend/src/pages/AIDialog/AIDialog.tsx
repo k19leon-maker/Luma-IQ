@@ -180,7 +180,6 @@ export default function AIDialog() {
           <h1 className={s.title}>Диалог с ИИ</h1>
           <p className={s.subtitle}>Постоянный AI-маркетолог по текущему проекту, запуску и воронке</p>
         </div>
-        <div className={s.contextPill}>{projectName}</div>
       </header>
 
       <div className={s.chat}>

@@ -2,9 +2,13 @@
 
 .root {
   display: flex;
-  margin: -24px;
-  height: calc(100vh - var(--topbar-height));
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-base);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.04);
 }
 
 /* ── Step 1 page (wizard) ────────────────────────────────────────────────── */

@@ -776,6 +776,7 @@ enum GeneratedTextType {
   ARTICLE
   VIDEO_SCRIPT
   CHATBOT_CHAIN
+  THREADS
   OTHER
 }
 
