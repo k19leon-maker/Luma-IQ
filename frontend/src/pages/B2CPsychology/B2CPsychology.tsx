@@ -17,6 +17,9 @@ import { useSeo } from '../../utils/seo';
 import s from './B2CPsychology.module.css';
 
 const MESSAGE_LIMIT = 10;
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -250,7 +253,7 @@ export function B2CPsychologyChat() {
     setIsSending(true);
 
     try {
-      const response = await fetch('/api/v1/b2c/psychologist/chat', {
+      const response = await fetch(`${API_BASE}/b2c/psychologist/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
