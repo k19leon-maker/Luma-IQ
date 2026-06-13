@@ -21,7 +21,7 @@ export default function VerifyEmail() {
       .then(async () => {
         await restoreSession(); // refresh user with isVerified=true
         setStatus('success');
-        setTimeout(() => navigate('/dashboard'), 2500);
+        setTimeout(() => navigate('/app/dashboard'), 2500);
       })
       .catch((err) => {
         setStatus('error');
@@ -59,7 +59,7 @@ export default function VerifyEmail() {
             <div style={styles.icon}>❌</div>
             <div style={styles.title}>Не удалось подтвердить</div>
             <div style={styles.text}>{message}</div>
-            <button style={styles.btn} onClick={() => navigate('/dashboard')}>На главную</button>
+            <button style={styles.btn} onClick={() => navigate('/app/dashboard')}>На главную</button>
           </>
         )}
       </div>

@@ -503,11 +503,11 @@ export default function ContentPlan() {
           <span className={s.infoBannerIcon}>💡</span>
           <span className={s.infoBannerText}>
             Добавляйте контент из разделов{' '}
-            <NavLink to="/posts" className={s.infoBannerLink}>Посты</NavLink>,{' '}
-            <NavLink to="/reels" className={s.infoBannerLink}>Рилсы</NavLink>,{' '}
-            <NavLink to="/articles" className={s.infoBannerLink}>Статьи</NavLink>,{' '}
-            <NavLink to="/video-scripts" className={s.infoBannerLink}>Сценарии видео</NavLink>,{' '}
-            <NavLink to="/chatbot-chains" className={s.infoBannerLink}>Цепочка текстов</NavLink>{' '}
+            <NavLink to="/app/posts" className={s.infoBannerLink}>Посты</NavLink>,{' '}
+            <NavLink to="/app/reels" className={s.infoBannerLink}>Рилсы</NavLink>,{' '}
+            <NavLink to="/app/articles" className={s.infoBannerLink}>Статьи</NavLink>,{' '}
+            <NavLink to="/app/video-scripts" className={s.infoBannerLink}>Сценарии видео</NavLink>,{' '}
+            <NavLink to="/app/chatbot-chains" className={s.infoBannerLink}>Цепочка текстов</NavLink>{' '}
             через кнопку «📅 Включить в контент-план»
           </span>
         </div>
@@ -569,7 +569,7 @@ export default function ContentPlan() {
               Создайте посты, рилсы или статьи в разделе Контент
               <br />и добавьте их в план через кнопку «Включить в контент-план»
             </div>
-            <NavLink to="/posts" className={s.emptyStateBtn}>
+            <NavLink to="/app/posts" className={s.emptyStateBtn}>
               Перейти в Посты →
             </NavLink>
           </div>

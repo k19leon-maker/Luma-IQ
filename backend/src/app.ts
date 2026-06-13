@@ -17,6 +17,7 @@ import filesRouter from './routes/files.routes';
 import paymentRouter from './routes/payment.routes';
 import adminRouter from './routes/admin.routes';
 import artifactRouter from './routes/artifact.routes';
+import b2cRouter from './routes/b2c.routes';
 import { env } from './config/env';
 import { errorHandler } from './middleware/error.middleware';
 import { healthService } from './services/health.service';
@@ -76,6 +77,7 @@ export function createApp() {
   app.use('/api/v1/payments', paymentRouter);
   app.use('/api/v1/admin', adminRouter);
   app.use('/api/v1/artifacts', artifactRouter);
+  app.use('/api/v1/b2c', b2cRouter);
 
   app.use(errorHandler);
 

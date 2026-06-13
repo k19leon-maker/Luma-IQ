@@ -86,7 +86,7 @@ export default function Settings() {
     try {
       await usersApi.deleteMe();
       await logout();
-      navigate('/login');
+      navigate('/auth');
     } catch {
       toast.error('Ошибка при удалении аккаунта');
     }
@@ -213,7 +213,7 @@ export default function Settings() {
           <div className={s.dangerRow}>
             <button
               className={s.dangerOutlineBtn}
-              onClick={() => void logout().then(() => navigate('/login'))}
+              onClick={() => void logout().then(() => navigate('/auth'))}
             >
               Выйти из аккаунта
             </button>

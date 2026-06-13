@@ -15,7 +15,7 @@ export default function AuthCallback() {
     // Check for OAuth error param (set by passport failureRedirect)
     const error = new URLSearchParams(window.location.search).get('error');
     if (error) {
-      navigate('/login?error=oauth_failed', { replace: true });
+      navigate('/auth?error=oauth_failed', { replace: true });
       return;
     }
 
@@ -27,19 +27,19 @@ export default function AuthCallback() {
         const unsubscribe = useAuthStore.subscribe((state) => {
           if (state.isAuthenticated) {
             unsubscribe();
-            navigate('/', { replace: true });
+            navigate('/app/dashboard', { replace: true });
           }
         });
 
         const timeout = setTimeout(() => {
           unsubscribe();
-          navigate('/', { replace: true });
+          navigate('/app/dashboard', { replace: true });
         }, 3000);
 
         return () => clearTimeout(timeout);
       })
       .catch(() => {
-        navigate('/login?error=oauth_failed', { replace: true });
+        navigate('/auth?error=oauth_failed', { replace: true });
       });
   }, [navigate, setTokens]);
 

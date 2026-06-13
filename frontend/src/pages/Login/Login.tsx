@@ -22,7 +22,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/chat', { replace: true });
+      navigate('/app/ai-dialog', { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Ошибка входа. Попробуйте снова.');
@@ -97,7 +97,7 @@ export default function Login() {
               className={styles.devBtn}
               onClick={() => {
                 loginAsTestUser();
-                navigate('/chat', { replace: true });
+                navigate('/app/ai-dialog', { replace: true });
               }}
             >
               Войти как тестовый пользователь

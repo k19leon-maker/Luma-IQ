@@ -18,6 +18,7 @@ import { useTasksStore } from '../../store/tasks.store';
 import { useUnpackingStore } from '../../store/unpacking.store';
 import AddToPlanModal from '../AddToPlanModal/AddToPlanModal';
 import { ErrorBoundary } from '../ErrorBoundary/ErrorBoundary';
+import { appPath, stripAppPrefix } from '../../utils/appRoutes';
 import s from './Layout.module.css';
 
 /* ── Types ─────────────────────────────────────────────────────── */
@@ -206,6 +207,7 @@ interface LayoutProps { children: React.ReactNode; }
 export default function Layout({ children }: LayoutProps) {
   const location  = useLocation();
   const navigate  = useNavigate();
+  const appLocationPath = stripAppPrefix(location.pathname);
   const user      = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
   const [hasAdminBackup, setHasAdminBackup] = useState(() => hasAdminAccessTokenBackup());
@@ -292,7 +294,7 @@ export default function Layout({ children }: LayoutProps) {
     const restoredUser = await setTokens(backup.accessToken, backup.csrfToken);
     if (restoredUser?.role !== 'ADMIN') {
       toast.error('Не удалось восстановить админскую сессию');
-      navigate('/dashboard', { replace: true });
+      navigate(appPath('/dashboard'), { replace: true });
       return;
     }
 
@@ -330,11 +332,11 @@ export default function Layout({ children }: LayoutProps) {
     switchUnpacking(activeProjectId);
   }, [activeProjectId, loadProgressFromDb, switchProgress, switchUnpacking]);
 
-  const projectMatch = location.pathname.match(/^\/projects\/(.+)$/);
-  const isAiWorkspace = aiWorkspacePaths.has(location.pathname);
+  const projectMatch = appLocationPath.match(/^\/projects\/(.+)$/);
+  const isAiWorkspace = aiWorkspacePaths.has(appLocationPath);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
-    : (pageTitles[location.pathname] ?? 'LumaIQ');
+    : (pageTitles[appLocationPath] ?? 'LumaIQ');
 
   /* New project modal */
   const [showModal,       setShowModal]       = useState(false);
@@ -375,7 +377,7 @@ export default function Layout({ children }: LayoutProps) {
       const proj = await addProject(name);
       setNewProjectName('');
       setShowModal(false);
-      navigate(`/projects/${proj.id}`);
+      navigate(appPath(`/projects/${proj.id}`));
     } catch {
       setCreateError('Не удалось создать проект. Проверьте соединение с сервером.');
     } finally {
@@ -392,14 +394,14 @@ export default function Layout({ children }: LayoutProps) {
 
   const goToAccountSection = (path: string) => {
     setAccountMenuOpen(false);
-    navigate(path);
+    navigate(appPath(path));
   };
 
   return (
     <div className={s.root}>
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside className={s.sidebar}>
-        <div className={s.logo} onClick={() => navigate('/dashboard')}>
+        <div className={s.logo} onClick={() => navigate(appPath('/dashboard'))}>
           <div className={s.logoIcon}>✦</div>
           <span className={s.logoText}>
             <span style={{ color: '#D4A847' }}>Luma</span>IQ
@@ -430,7 +432,7 @@ export default function Layout({ children }: LayoutProps) {
                 ) : (
                   <button
                     className={s.projectBtn}
-                    onClick={() => { setActiveProjectId(p.id); navigate('/dashboard'); }}
+                    onClick={() => { setActiveProjectId(p.id); navigate(appPath('/dashboard')); }}
                   >
                     <span className={s.projectDot} style={{ background: p.color }} />
                     <span className={s.projectName}>{p.name}</span>
@@ -478,7 +480,7 @@ export default function Layout({ children }: LayoutProps) {
           {/* План задач */}
           <div className={s.navSection}>
             <NavLink
-              to="/ai-dialog"
+              to={appPath('/ai-dialog')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.aiDialogLink}${isActive ? ' ' + s.active : ''}`
               }
@@ -487,7 +489,7 @@ export default function Layout({ children }: LayoutProps) {
               <span className={s.navLinkLabel}>Диалог с ИИ</span>
             </NavLink>
             <NavLink
-              to="/tasks"
+              to={appPath('/tasks')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
               }
@@ -507,7 +509,7 @@ export default function Layout({ children }: LayoutProps) {
             {strategyNav.map((item) => (
               <NavLink
                 key={item.path}
-                to={item.path}
+                to={appPath(item.path)}
                 className={({ isActive }) =>
                   `${s.navLink}${isActive ? ' ' + s.active : ''}`
                 }
@@ -523,7 +525,7 @@ export default function Layout({ children }: LayoutProps) {
             {productNav.map((item) => (
               <NavLink
                 key={item.path}
-                to={item.path}
+                to={appPath(item.path)}
                 className={({ isActive }) =>
                   `${s.navLink}${isActive ? ' ' + s.active : ''}`
                 }
@@ -539,7 +541,7 @@ export default function Layout({ children }: LayoutProps) {
             {contentNav.map((item) => (
               <NavLink
                 key={item.path}
-                to={item.path}
+                to={appPath(item.path)}
                 className={({ isActive }) =>
                   `${s.navLink}${isActive ? ' ' + s.active : ''}`
                 }
@@ -553,7 +555,7 @@ export default function Layout({ children }: LayoutProps) {
           {/* Контент-план — отдельный пункт */}
           <div className={s.navSection}>
             <NavLink
-              to="/content-plan"
+              to={appPath('/content-plan')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
               }
@@ -568,7 +570,7 @@ export default function Layout({ children }: LayoutProps) {
             {filesNav.map((item) => (
               <NavLink
                 key={item.path}
-                to={item.path}
+                to={appPath(item.path)}
                 className={({ isActive }) =>
                   `${s.navLink}${isActive ? ' ' + s.active : ''}`
                 }
@@ -593,7 +595,7 @@ export default function Layout({ children }: LayoutProps) {
               </NavLink>
             )}
             <NavLink
-              to="/settings"
+              to={appPath('/settings')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
               }
@@ -602,7 +604,7 @@ export default function Layout({ children }: LayoutProps) {
               <span className={s.navLinkLabel}>Настройки</span>
             </NavLink>
             <NavLink
-              to="/history"
+              to={appPath('/history')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
               }

@@ -52,7 +52,6 @@ apiClient.interceptors.response.use(
     const csrfToken = getCsrfToken();
     if (!csrfToken) {
       clearSessionTokens();
-      window.location.href = '/login';
       return Promise.reject(error);
     }
 
@@ -83,7 +82,6 @@ apiClient.interceptors.response.use(
       return apiClient(original);
     } catch {
       clearSessionTokens();
-      window.location.href = '/login';
       return Promise.reject(error);
     } finally {
       isRefreshing = false;

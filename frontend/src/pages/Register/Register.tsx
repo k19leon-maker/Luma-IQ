@@ -31,7 +31,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register(email, password, name.trim() || undefined);
-      navigate('/chat', { replace: true });
+      navigate('/app/ai-dialog', { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Ошибка регистрации. Попробуйте снова.');
@@ -127,7 +127,7 @@ export default function Register() {
 
         <div className={styles.footer}>
           Уже есть аккаунт?{' '}
-          <Link to="/login" className={styles.link}>Войти</Link>
+          <Link to="/auth" className={styles.link}>Войти</Link>
         </div>
       </div>
     </div>
