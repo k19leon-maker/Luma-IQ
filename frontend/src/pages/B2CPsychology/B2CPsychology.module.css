@@ -17,6 +17,15 @@
   padding: 56px 0 80px;
 }
 
+.chatPage {
+  min-height: calc(100vh - 88px);
+}
+
+.chatShell {
+  width: min(1500px, calc(100% - 48px));
+  padding: 36px 0 56px;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -243,9 +252,10 @@
 
 .chatLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 20px;
-  align-items: start;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+  min-height: calc(100vh - 190px);
 }
 
 .chatPanel,
@@ -257,39 +267,57 @@
 }
 
 .chatPanel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
 }
 
 .chatHeader {
-  padding: 22px 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 30px 34px;
   border-bottom: 1px solid var(--border);
 }
 
 .chatHeader h1 {
   font-family: var(--serif);
-  font-size: 34px;
+  font-size: clamp(38px, 3.2vw, 54px);
   line-height: 1.1;
 }
 
 .chatHeader p {
   margin-top: 8px;
   color: var(--muted);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.chatHeader > span {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .messages {
   display: grid;
   gap: 14px;
-  max-height: 58vh;
+  align-content: start;
+  min-height: 520px;
+  max-height: none;
   overflow: auto;
-  padding: 24px;
+  padding: 34px;
 }
 
 .message {
-  max-width: 82%;
+  max-width: min(760px, 86%);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 16px 18px;
-  line-height: 1.65;
+  padding: 20px 24px;
+  font-size: 17px;
+  line-height: 1.72;
 }
 
 .message h2,
@@ -318,14 +346,14 @@
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  padding: 18px 24px 24px;
+  gap: 16px;
+  padding: 24px 34px 24px;
   border-top: 1px solid var(--border);
 }
 
 .textarea {
-  min-height: 54px;
-  max-height: 140px;
+  min-height: 82px;
+  max-height: 190px;
   resize: vertical;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -335,18 +363,25 @@
 }
 
 .limitNote {
-  padding: 0 24px 18px;
+  padding: 0 34px 24px;
   color: var(--muted);
   font-size: 13px;
 }
 
 .profilePanel {
-  padding: 22px;
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  padding: 26px;
 }
 
 .profilePanel h2 {
   font-family: var(--serif);
-  font-size: 26px;
+  font-size: 34px;
+}
+
+.profileTitle {
+  margin: 34px 0 12px;
 }
 
 .profileRow {
@@ -411,10 +446,19 @@
 @media (max-width: 900px) {
   .chatLayout {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 
   .profilePanel {
-    order: -1;
+    min-height: auto;
+  }
+
+  .chatHeader {
+    display: grid;
+  }
+
+  .messages {
+    min-height: 420px;
   }
 }
 

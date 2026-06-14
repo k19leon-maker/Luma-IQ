@@ -436,18 +436,30 @@ export function B2CPsychologyChat() {
   }
 
   return (
-    <main className={s.page}>
-      <section className={s.shell}>
-        <div className={s.topbar}>
-          <Link className={s.backLink} to="/">← На главную</Link>
-          <span>{remaining} сообщений осталось</span>
-        </div>
+    <main className={`${s.page} ${s.chatPage}`}>
+      <section className={`${s.shell} ${s.chatShell}`}>
         <div className={s.chatLayout}>
+          <aside className={s.profilePanel}>
+            <Link className={s.backLink} to="/">← На главную</Link>
+            <div className={s.profileTitle}>
+              <p className={s.eyebrow}>Личный кабинет</p>
+              <h2>Профиль</h2>
+            </div>
+            <ProfileRow label="Имя" value={profile.name} />
+            <ProfileRow label="Контекст" value={profile.role} />
+            <ProfileRow label="Тема" value={profile.mainProblem} />
+            <ProfileRow label="Длительность" value={profile.duration} />
+            <ProfileRow label="Цель" value={profile.supportGoal} />
+          </aside>
+
           <div className={s.chatPanel}>
             <div className={s.chatHeader}>
-              <p className={s.eyebrow}>Диалог с ИИ психологом</p>
-              <h1>Разговор по вашей ситуации</h1>
-              <p>Можно отправить до {MESSAGE_LIMIT} сообщений. После этого мы предложим сохранить историю в B2C-кабинете.</p>
+              <div>
+                <p className={s.eyebrow}>Диалог с ИИ психологом</p>
+                <h1>Разговор по вашей ситуации</h1>
+                <p>Можно отправить до {MESSAGE_LIMIT} сообщений. После этого мы предложим сохранить историю в B2C-кабинете.</p>
+              </div>
+              <span>{remaining} сообщений осталось</span>
             </div>
 
             <div className={s.messages}>
@@ -502,15 +514,6 @@ export function B2CPsychologyChat() {
             </div>
             <p className={s.limitNote}>ИИ-психолог не заменяет медицинскую, кризисную или экстренную помощь.</p>
           </div>
-
-          <aside className={s.profilePanel}>
-            <h2>Профиль</h2>
-            <ProfileRow label="Имя" value={profile.name} />
-            <ProfileRow label="Контекст" value={profile.role} />
-            <ProfileRow label="Тема" value={profile.mainProblem} />
-            <ProfileRow label="Длительность" value={profile.duration} />
-            <ProfileRow label="Цель" value={profile.supportGoal} />
-          </aside>
         </div>
       </section>
     </main>
