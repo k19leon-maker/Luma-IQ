@@ -5,7 +5,8 @@ import {
   buildFallbackPsychologistReply,
   buildPsychologistOpening,
   buildPsychologyProfile,
-  psychologyQuestions,
+  getPsychologyQuestion,
+  psychologyQuestionCount,
   psychologyStorageKeys,
   updatePsychologyProfileFromMessage,
   type PsychologyAnswer,
@@ -37,27 +38,26 @@ function wait(ms: number) {
 }
 
 function hasAnswer(answer: PsychologyAnswer | undefined) {
-  return Array.isArray(answer) ? answer.length > 0 : Boolean(answer);
+  return Boolean(answer);
 }
 
 function formatAnswer(value: PsychologyAnswer | undefined) {
   if (!value) return 'Не указано';
-  return Array.isArray(value) ? value.join(', ') : value;
+  return value;
 }
 
 export function B2CPsychologyAssessment() {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<PsychologyAnswers>({});
   const [stepIndex, setStepIndex] = useState(0);
-  const [phase, setPhase] = useState<'quiz' | 'analyzing'>('quiz');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
   const [consentError, setConsentError] = useState('');
   const [submitError, setSubmitError] = useState('');
-  const totalSteps = psychologyQuestions.length + 1;
-  const isContactStep = stepIndex === psychologyQuestions.length;
-  const question = isContactStep ? null : psychologyQuestions[stepIndex];
+  const totalSteps = psychologyQuestionCount + 1;
+  const isContactStep = stepIndex === psychologyQuestionCount;
+  const question = isContactStep ? null : getPsychologyQuestion(stepIndex, answers);
   const currentAnswer = question ? answers[question.id] : undefined;
   const progress = Math.round(((stepIndex + 1) / totalSteps) * 100);
 
@@ -71,7 +71,7 @@ export function B2CPsychologyAssessment() {
     const savedAnswers = window.localStorage.getItem(psychologyStorageKeys.answers);
     const savedStep = window.localStorage.getItem(psychologyStorageKeys.step);
     if (savedAnswers) setAnswers(JSON.parse(savedAnswers) as PsychologyAnswers);
-    if (savedStep) setStepIndex(Math.min(Number(savedStep), psychologyQuestions.length));
+    if (savedStep) setStepIndex(Math.min(Number(savedStep), psychologyQuestionCount));
   }, []);
 
   useEffect(() => {
@@ -84,12 +84,14 @@ export function B2CPsychologyAssessment() {
 
   const setAnswer = (answer: PsychologyAnswer) => {
     if (!question) return;
-    setAnswers((current) => ({ ...current, [question.id]: answer }));
-  };
-
-  const toggleMulti = (option: string) => {
-    const current = Array.isArray(currentAnswer) ? currentAnswer : [];
-    setAnswer(current.includes(option) ? current.filter((item) => item !== option) : [...current, option]);
+    setAnswers((current) => {
+      const next = { ...current, [question.id]: answer };
+      if (question.id === 'mainConcern') {
+        delete next.specificSituation;
+        delete next.desiredChange;
+      }
+      return next;
+    });
   };
 
   const completeAssessment = async () => {
@@ -121,13 +123,12 @@ export function B2CPsychologyAssessment() {
       return;
     }
 
-    const profile = buildPsychologyProfile(answers);
+    const profile = buildPsychologyProfile(answers, { email, phone });
     const firstMessage: PsychologyChatMessage = {
       id: createId(),
       role: 'psychologist',
       text: buildPsychologistOpening(profile),
     };
-    setPhase('analyzing');
     window.localStorage.setItem(psychologyStorageKeys.profile, JSON.stringify(profile));
     window.localStorage.setItem(psychologyStorageKeys.messages, JSON.stringify([firstMessage]));
     window.localStorage.setItem(psychologyStorageKeys.user, JSON.stringify({
@@ -139,37 +140,25 @@ export function B2CPsychologyAssessment() {
       createdAt: new Date().toISOString(),
     }));
 
-    window.setTimeout(() => navigate('/diagnostics/ai-psychologist/chat'), 1800);
+    navigate('/diagnostics/ai-psychologist/chat');
   };
 
   const goNext = () => {
-    if (isContactStep) {
-      void completeAssessment();
-      return;
-    }
-    setStepIndex((index) => index + 1);
+    if (isContactStep) void completeAssessment();
+    else setStepIndex((index) => index + 1);
   };
-
-  if (phase === 'analyzing') {
-    return (
-      <main className={s.page}>
-        <section className={s.analyzing}>
-          <div className={s.card}>
-            <div className={s.body}>
-              <div className={s.spinner} />
-              <p className={s.eyebrow}>ИИ-психолог Luma IQ</p>
-              <h1 className={s.title}>Собираем контекст перед диалогом</h1>
-              <p className={s.helper}>Через несколько секунд откроется чат с ИИ-психологом.</p>
-            </div>
-          </div>
-        </section>
-      </main>
-    );
-  }
 
   return (
     <main className={s.page}>
       <section className={s.shell}>
+        <div className={s.quizIntro}>
+          <p className={s.eyebrow}>Первый этап диагностики</p>
+          <h1>Помогите нам лучше понять вашу ситуацию</h1>
+          <p>
+            Ответьте на несколько коротких вопросов. Это поможет ИИ-психологу быстрее разобраться
+            в вашей ситуации и подготовить персональные рекомендации.
+          </p>
+        </div>
         <div className={s.topbar}>
           <Link className={s.backLink} to="/">← На главную</Link>
           <span>{isContactStep ? 'Сохранение анкеты' : formatAnswer(currentAnswer)}</span>
@@ -188,12 +177,12 @@ export function B2CPsychologyAssessment() {
           <div className={s.body}>
             <p className={s.eyebrow}>Диагностика с ИИ психологом</p>
             <h1 className={s.title}>
-              {isContactStep ? 'Сохраните анкету и результаты диагностики' : question?.title}
+              {isContactStep ? 'Ваш персональный маршрут почти готов' : question?.title}
             </h1>
             <p className={s.helper}>
               {isContactStep
-                ? 'Чтобы мы сохранили вашу анкету и результаты диагностики, заполните короткую форму. Данные будут строго конфиденциальны.'
-                : question?.helper}
+                ? 'Спасибо за ответы. На основе ваших ответов ИИ-психолог подготовит персональную диагностику вашей ситуации.'
+                : question?.helper ?? 'Ответьте коротко — это займет несколько секунд.'}
             </p>
 
             {!isContactStep && question && (
@@ -223,31 +212,14 @@ export function B2CPsychologyAssessment() {
                 </div>
                 )}
 
-                {question.type === 'multi' && (
-                <div className={`${s.options} ${s.optionsMulti}`}>
-                  {question.options?.map((option) => {
-                    const selected = Array.isArray(currentAnswer) && currentAnswer.includes(option);
-                    return (
-                      <button
-                        className={`${s.option}${selected ? ' ' + s.optionSelected : ''}`}
-                        key={option}
-                        onClick={() => toggleMulti(option)}
-                        type="button"
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-                )}
               </div>
             )}
 
             {isContactStep && (
               <div className={s.contactStep}>
                 <p className={s.contactNote}>
-                  На основании этих данных мы создадим для вас личный кабинет, где сохранится анкета,
-                  результаты диагностики и история диалога. Вы сможете вернуться к ним в любое время.
+                  Создайте личный кабинет, чтобы сохранить результаты, продолжить общение с ИИ-психологом
+                  и получить рекомендации именно под вашу ситуацию. Данные будут строго конфиденциальны.
                 </p>
                 <div className={s.contactFields}>
                   <label>
@@ -292,7 +264,7 @@ export function B2CPsychologyAssessment() {
               onClick={goNext}
               type="button"
             >
-              {isContactStep ? 'Начать ИИ-диагностику' : 'Далее'} →
+              {isContactStep ? 'Получить доступ к результатам' : 'Далее'} →
             </button>
           </div>
         </div>

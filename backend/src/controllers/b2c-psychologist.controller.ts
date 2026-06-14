@@ -5,6 +5,11 @@ import { b2cPsychologistSystemPrompt } from '../prompts/b2c-psychologist.prompt'
 
 type PsychologyProfile = {
   name?: string | null;
+  mainConcern?: string | null;
+  specificSituation?: string | null;
+  desiredChange?: string | null;
+  email?: string | null;
+  phone?: string | null;
   role?: string | null;
   mainProblem?: string | null;
   duration?: string | null;
@@ -29,6 +34,11 @@ const chatSchema = z.object({
   })).default([]),
   profile: z.object({
     name: z.string().nullable().optional(),
+    mainConcern: z.string().nullable().optional(),
+    specificSituation: z.string().nullable().optional(),
+    desiredChange: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
     role: z.string().nullable().optional(),
     mainProblem: z.string().nullable().optional(),
     duration: z.string().nullable().optional(),
@@ -97,6 +107,9 @@ function extractOutputText(data: unknown) {
 function profileContext(profile: PsychologyProfile) {
   return JSON.stringify({
     name: profile.name ?? null,
+    mainConcern: profile.mainConcern ?? null,
+    specificSituation: profile.specificSituation ?? null,
+    desiredChange: profile.desiredChange ?? null,
     role: profile.role ?? null,
     mainProblem: profile.mainProblem ?? null,
     duration: profile.duration ?? null,

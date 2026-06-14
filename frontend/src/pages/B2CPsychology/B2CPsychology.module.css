@@ -34,6 +34,27 @@
   margin-bottom: 26px;
 }
 
+.quizIntro {
+  max-width: 920px;
+  margin: 0 auto 28px;
+  text-align: center;
+}
+
+.quizIntro h1 {
+  color: #111111;
+  font-family: var(--serif);
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1.08;
+}
+
+.quizIntro p:last-child {
+  max-width: 760px;
+  margin: 18px auto 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
 .backLink {
   color: var(--accent);
   font-weight: 700;
