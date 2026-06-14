@@ -22,7 +22,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </nav>
           <div className={s.headerActions}>
             <Link className={s.authLink} to="/auth">Личный кабинет</Link>
-            <Link className={s.startLink} to="/diagnostics/ai-psychologist">Пройти диагностику с ИИ психологом</Link>
+            <Link className={s.startLink} to="/diagnostics/ai-psychologist">Начать диагностику</Link>
           </div>
         </div>
       </header>
