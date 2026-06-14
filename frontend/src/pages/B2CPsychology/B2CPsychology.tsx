@@ -46,6 +46,44 @@ function formatAnswer(value: PsychologyAnswer | undefined) {
   return value;
 }
 
+function isPlainSectionHeading(line: string) {
+  const clean = line.trim();
+  if (!clean || clean.startsWith('#') || clean.startsWith('- ') || clean.startsWith('* ')) return false;
+  if (/[.;,]$/.test(clean) || clean.length > 72) return false;
+
+  return /^(Что|Чего|Как|С чего|Почему|Главный|Первый|Следующий|Важно|Итог)\b/.test(clean);
+}
+
+function isPlainListItem(line: string) {
+  const clean = line.trim();
+  if (!clean || clean.startsWith('- ') || clean.startsWith('* ') || clean.startsWith('#')) return false;
+  return /^[а-яё]/.test(clean) && /[;,:.]?$/.test(clean);
+}
+
+function formatPsychologistMarkdown(text: string) {
+  const lines = text.split('\n');
+  let listContext = false;
+
+  return lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return line;
+    }
+
+    if (isPlainSectionHeading(trimmed)) {
+      listContext = true;
+      return `## ${trimmed}`;
+    }
+
+    if (listContext && isPlainListItem(trimmed)) {
+      return `${line.match(/^\s*/)?.[0] ?? ''}- ${trimmed}`;
+    }
+
+    listContext = trimmed.endsWith(':');
+    return line;
+  }).join('\n');
+}
+
 export function B2CPsychologyAssessment() {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<PsychologyAnswers>({});
@@ -458,7 +496,9 @@ export function B2CPsychologyChat() {
                   className={`${s.message} ${message.role === 'client' ? s.clientMessage : s.psychologistMessage}`}
                   key={message.id}
                 >
-                  {message.role === 'psychologist' ? <ReactMarkdown>{message.text}</ReactMarkdown> : message.text}
+                  {message.role === 'psychologist' ? (
+                    <ReactMarkdown>{formatPsychologistMarkdown(message.text)}</ReactMarkdown>
+                  ) : message.text}
                 </div>
               ))}
               {isAiThinking && (
