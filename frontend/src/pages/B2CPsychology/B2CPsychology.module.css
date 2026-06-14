@@ -104,6 +104,39 @@
   margin-top: 28px;
 }
 
+.contactStep {
+  display: grid;
+  gap: 22px;
+  margin-top: 30px;
+}
+
+.contactNote {
+  border: 1px solid rgba(200, 169, 107, 0.45);
+  border-radius: 12px;
+  background: #fffefa;
+  padding: 18px 20px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.contactFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.contactFields label {
+  display: grid;
+  gap: 8px;
+}
+
+.contactFields span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .input {
   width: 100%;
   min-height: 54px;
@@ -395,6 +428,7 @@
   }
 
   .optionsMulti,
+  .contactFields,
   .composer {
     grid-template-columns: 1fr;
   }

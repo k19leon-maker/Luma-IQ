@@ -46,13 +46,16 @@ export function B2CPsychologyAssessment() {
   const [answers, setAnswers] = useState<PsychologyAnswers>({});
   const [stepIndex, setStepIndex] = useState(0);
   const [phase, setPhase] = useState<'quiz' | 'analyzing'>('quiz');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
   const [consentError, setConsentError] = useState('');
   const [submitError, setSubmitError] = useState('');
-  const question = psychologyQuestions[stepIndex];
-  const currentAnswer = answers[question.id];
-  const progress = Math.round(((stepIndex + 1) / psychologyQuestions.length) * 100);
-  const isLastStep = stepIndex === psychologyQuestions.length - 1;
+  const totalSteps = psychologyQuestions.length + 1;
+  const isContactStep = stepIndex === psychologyQuestions.length;
+  const question = isContactStep ? null : psychologyQuestions[stepIndex];
+  const currentAnswer = question ? answers[question.id] : undefined;
+  const progress = Math.round(((stepIndex + 1) / totalSteps) * 100);
 
   useSeo({
     title: 'Диагностика с ИИ психологом',
@@ -64,7 +67,7 @@ export function B2CPsychologyAssessment() {
     const savedAnswers = window.localStorage.getItem(psychologyStorageKeys.answers);
     const savedStep = window.localStorage.getItem(psychologyStorageKeys.step);
     if (savedAnswers) setAnswers(JSON.parse(savedAnswers) as PsychologyAnswers);
-    if (savedStep) setStepIndex(Math.min(Number(savedStep), psychologyQuestions.length - 1));
+    if (savedStep) setStepIndex(Math.min(Number(savedStep), psychologyQuestions.length));
   }, []);
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export function B2CPsychologyAssessment() {
   }, [stepIndex]);
 
   const setAnswer = (answer: PsychologyAnswer) => {
+    if (!question) return;
     setAnswers((current) => ({ ...current, [question.id]: answer }));
   };
 
@@ -86,6 +90,12 @@ export function B2CPsychologyAssessment() {
 
   const completeAssessment = async () => {
     setSubmitError('');
+    const email = contactEmail.trim();
+    const phone = contactPhone.trim();
+    if (!email || !phone) {
+      setSubmitError('Заполните email и телефон, чтобы мы могли сохранить результаты диагностики.');
+      return;
+    }
     if (!areLegalConsentsAccepted(consents)) {
       setConsentError('Для продолжения необходимо принять условия документов.');
       return;
@@ -96,6 +106,7 @@ export function B2CPsychologyAssessment() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        email,
         source: 'b2c_diagnostic',
         consents: legalConsentPayload(consents),
       }),
@@ -115,8 +126,24 @@ export function B2CPsychologyAssessment() {
     setPhase('analyzing');
     window.localStorage.setItem(psychologyStorageKeys.profile, JSON.stringify(profile));
     window.localStorage.setItem(psychologyStorageKeys.messages, JSON.stringify([firstMessage]));
+    window.localStorage.setItem(psychologyStorageKeys.user, JSON.stringify({
+      id: `b2c-local-${Date.now()}`,
+      email,
+      phone,
+      name: profile.name,
+      type: 'B2C_CLIENT',
+      createdAt: new Date().toISOString(),
+    }));
 
     window.setTimeout(() => navigate('/diagnostics/ai-psychologist/chat'), 1800);
+  };
+
+  const goNext = () => {
+    if (isContactStep) {
+      void completeAssessment();
+      return;
+    }
+    setStepIndex((index) => index + 1);
   };
 
   if (phase === 'analyzing') {
@@ -141,12 +168,12 @@ export function B2CPsychologyAssessment() {
       <section className={s.shell}>
         <div className={s.topbar}>
           <Link className={s.backLink} to="/">← На главную</Link>
-          <span>{formatAnswer(currentAnswer)}</span>
+          <span>{isContactStep ? 'Сохранение анкеты' : formatAnswer(currentAnswer)}</span>
         </div>
         <div className={s.card}>
           <div className={s.progressHeader}>
             <div className={s.progressLine}>
-              <span>Шаг {stepIndex + 1} из {psychologyQuestions.length}</span>
+              <span>Шаг {stepIndex + 1} из {totalSteps}</span>
               <span>{progress}%</span>
             </div>
             <div className={s.progressTrack}>
@@ -156,11 +183,18 @@ export function B2CPsychologyAssessment() {
 
           <div className={s.body}>
             <p className={s.eyebrow}>Диагностика с ИИ психологом</p>
-            <h1 className={s.title}>{question.title}</h1>
-            <p className={s.helper}>{question.helper}</p>
+            <h1 className={s.title}>
+              {isContactStep ? 'Сохраните анкету и результаты диагностики' : question?.title}
+            </h1>
+            <p className={s.helper}>
+              {isContactStep
+                ? 'Чтобы мы сохранили вашу анкету и результаты диагностики, заполните короткую форму. Данные будут строго конфиденциальны.'
+                : question?.helper}
+            </p>
 
-            <div className={s.answerArea}>
-              {question.type === 'text' && (
+            {!isContactStep && question && (
+              <div className={s.answerArea}>
+                {question.type === 'text' && (
                 <input
                   className={s.input}
                   onChange={(event) => setAnswer(event.target.value)}
@@ -168,9 +202,9 @@ export function B2CPsychologyAssessment() {
                   type="text"
                   value={typeof currentAnswer === 'string' ? currentAnswer : ''}
                 />
-              )}
+                )}
 
-              {question.type === 'single' && (
+                {question.type === 'single' && (
                 <div className={s.options}>
                   {question.options?.map((option) => (
                     <button
@@ -183,9 +217,9 @@ export function B2CPsychologyAssessment() {
                     </button>
                   ))}
                 </div>
-              )}
+                )}
 
-              {question.type === 'multi' && (
+                {question.type === 'multi' && (
                 <div className={`${s.options} ${s.optionsMulti}`}>
                   {question.options?.map((option) => {
                     const selected = Array.isArray(currentAnswer) && currentAnswer.includes(option);
@@ -201,11 +235,38 @@ export function B2CPsychologyAssessment() {
                     );
                   })}
                 </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {isLastStep && (
-              <div className={s.diagnosticConsents}>
+            {isContactStep && (
+              <div className={s.contactStep}>
+                <p className={s.contactNote}>
+                  На основании этих данных мы создадим для вас личный кабинет, где сохранится анкета,
+                  результаты диагностики и история диалога. Вы сможете вернуться к ним в любое время.
+                </p>
+                <div className={s.contactFields}>
+                  <label>
+                    <span>Email</span>
+                    <input
+                      className={s.input}
+                      onChange={(event) => setContactEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      type="email"
+                      value={contactEmail}
+                    />
+                  </label>
+                  <label>
+                    <span>Телефон</span>
+                    <input
+                      className={s.input}
+                      onChange={(event) => setContactPhone(event.target.value)}
+                      placeholder="+7 900 000-00-00"
+                      type="tel"
+                      value={contactPhone}
+                    />
+                  </label>
+                </div>
                 <LegalConsents value={consents} onChange={setConsents} error={consentError} />
                 {submitError && <div className={s.formError}>{submitError}</div>}
               </div>
@@ -223,15 +284,11 @@ export function B2CPsychologyAssessment() {
             </button>
             <button
               className={s.buttonPrimary}
-              disabled={!hasAnswer(currentAnswer)}
-              onClick={() => (
-                isLastStep
-                  ? void completeAssessment()
-                  : setStepIndex((index) => index + 1)
-              )}
+              disabled={isContactStep ? !contactEmail.trim() || !contactPhone.trim() : !hasAnswer(currentAnswer)}
+              onClick={goNext}
               type="button"
             >
-              {stepIndex === psychologyQuestions.length - 1 ? 'Перейти в диалог' : 'Далее'} →
+              {isContactStep ? 'Начать ИИ-диагностику' : 'Далее'} →
             </button>
           </div>
         </div>
