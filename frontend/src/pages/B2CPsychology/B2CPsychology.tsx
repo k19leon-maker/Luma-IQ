@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -30,6 +30,10 @@ const API_BASE = import.meta.env.VITE_API_URL
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function hasAnswer(answer: PsychologyAnswer | undefined) {
@@ -302,10 +306,12 @@ export function B2CPsychologyChat() {
   const [messages, setMessages] = useState<PsychologyChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const [b2cEmail, setB2cEmail] = useState('');
   const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
   const [consentError, setConsentError] = useState('');
   const [accountError, setAccountError] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
   useSeo({
@@ -335,9 +341,26 @@ export function B2CPsychologyChat() {
     if (messages.length) window.localStorage.setItem(psychologyStorageKeys.messages, JSON.stringify(messages));
   }, [messages]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, isAiThinking]);
+
   const messagesUsed = useMemo(() => messages.filter((message) => message.role === 'client').length, [messages]);
   const remaining = Math.max(MESSAGE_LIMIT - messagesUsed, 0);
   const isLocked = remaining <= 0;
+
+  const typePsychologistReply = async (reply: string) => {
+    const replyId = createId();
+    setMessages((current) => [...current, { id: replyId, role: 'psychologist', text: '' }]);
+
+    for (let index = 0; index < reply.length; index += 3) {
+      const visibleText = reply.slice(0, index + 3);
+      setMessages((current) => current.map((message) => (
+        message.id === replyId ? { ...message, text: visibleText } : message
+      )));
+      await wait(14);
+    }
+  };
 
   const sendMessage = async () => {
     const trimmed = input.trim();
@@ -350,6 +373,7 @@ export function B2CPsychologyChat() {
     setProfile(updatedProfile);
     setInput('');
     setIsSending(true);
+    setIsAiThinking(true);
 
     try {
       const response = await fetch(`${API_BASE}/b2c/psychologist/chat`, {
@@ -371,16 +395,11 @@ export function B2CPsychologyChat() {
       };
       const mergedProfile = { ...updatedProfile, ...data.updatedProfile };
       setProfile(mergedProfile);
-      setMessages((current) => [...current, { id: createId(), role: 'psychologist', text: data.reply }]);
+      setIsAiThinking(false);
+      await typePsychologistReply(data.reply);
     } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: createId(),
-          role: 'psychologist',
-          text: buildFallbackPsychologistReply(updatedProfile, trimmed, messagesUsed + 1),
-        },
-      ]);
+      setIsAiThinking(false);
+      await typePsychologistReply(buildFallbackPsychologistReply(updatedProfile, trimmed, messagesUsed + 1));
     } finally {
       setIsSending(false);
     }
@@ -459,7 +478,6 @@ export function B2CPsychologyChat() {
                 <h1>Разговор по вашей ситуации</h1>
                 <p>Можно отправить до {MESSAGE_LIMIT} сообщений. После этого мы предложим сохранить историю в B2C-кабинете.</p>
               </div>
-              <span>{remaining} сообщений осталось</span>
             </div>
 
             <div className={s.messages}>
@@ -471,6 +489,15 @@ export function B2CPsychologyChat() {
                   {message.role === 'psychologist' ? <ReactMarkdown>{message.text}</ReactMarkdown> : message.text}
                 </div>
               ))}
+              {isAiThinking && (
+                <div className={`${s.message} ${s.psychologistMessage} ${s.thinkingMessage}`}>
+                  <span>ИИ-психолог думает</span>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
             {isLocked && (
@@ -509,10 +536,13 @@ export function B2CPsychologyChat() {
                 value={input}
               />
               <button className={s.buttonPrimary} disabled={isLocked || isSending || !input.trim()} onClick={() => void sendMessage()} type="button">
-                {isSending ? 'Думаю...' : 'Отправить'}
+                Отправить сообщение
               </button>
             </div>
-            <p className={s.limitNote}>ИИ-психолог не заменяет медицинскую, кризисную или экстренную помощь.</p>
+            <div className={s.composerMeta}>
+              <span>{remaining} сообщений осталось</span>
+              <span>ИИ-психолог не заменяет медицинскую, кризисную или экстренную помощь.</span>
+            </div>
           </div>
         </div>
       </section>
