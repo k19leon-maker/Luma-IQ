@@ -162,16 +162,17 @@
   min-height: calc(100vh - 88px);
   align-items: center;
   justify-content: center;
-  padding: 42px 0 46px;
+  padding: 24px 0 78px;
   text-align: center;
 }
 
 .heroContent {
-  width: min(1360px, 100%);
+  width: min(1180px, 100%);
+  transform: translateY(-28px);
 }
 
 .eyebrow {
-  margin-bottom: 16px;
+  margin-bottom: 28px;
   color: var(--portal-gold);
   font-size: 13px;
   font-weight: 800;
@@ -180,22 +181,22 @@
 }
 
 .hero h1 {
-  max-width: 1320px;
+  max-width: 1120px;
   margin: 0 auto;
   color: #111111;
   font-family: var(--portal-serif);
-  font-size: clamp(38px, 4.2vw, 64px);
+  font-size: clamp(36px, 3.55vw, 58px);
   font-weight: 700;
   letter-spacing: 0;
-  line-height: 1.08;
+  line-height: 1.12;
 }
 
 .lead {
-  max-width: 980px;
-  margin: 22px auto 0;
+  max-width: 860px;
+  margin: 30px auto 0;
   color: var(--portal-muted);
-  font-size: clamp(18px, 1.6vw, 25px);
-  line-height: 1.48;
+  font-size: clamp(18px, 1.45vw, 23px);
+  line-height: 1.58;
 }
 
 .heroNote {
@@ -211,7 +212,7 @@
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 28px;
 }
 
 .primaryBtn,
@@ -271,15 +272,28 @@
 }
 
 .familyBenefits {
-  display: flex;
-  max-width: 980px;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px 22px;
-  margin: 28px auto 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 920px;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: var(--portal-border);
+  margin: 34px auto 0;
   color: var(--portal-accent);
   font-size: 15px;
   font-weight: 750;
+}
+
+.familyBenefits div {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: 16px 18px;
+  line-height: 1.35;
 }
 
 .section {
@@ -819,6 +833,10 @@
   .stepsGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .familyBenefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -863,11 +881,16 @@
     padding: 54px 0 68px;
   }
 
+  .heroContent {
+    transform: none;
+  }
+
   .lead {
     font-size: 20px;
   }
 
   .trustGrid,
+  .familyBenefits,
   .concernGrid,
   .situationColumns,
   .stepsGrid,

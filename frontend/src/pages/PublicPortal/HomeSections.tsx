@@ -23,11 +23,10 @@ export function FamilyHero() {
           <p className={s.lead}>{familyHero.subtitle}</p>
           <div className={s.actions}>
             <Link className={s.primaryBtn} to={DIAGNOSTIC_PATH}>{familyHero.primaryCta} <span>→</span></Link>
-            <a className={s.secondaryBtn} href="#solutions">{familyHero.secondaryCta}</a>
           </div>
           <div className={s.familyBenefits}>
             {familyHero.benefits.map((benefit) => (
-              <span key={benefit}>✓ {benefit}</span>
+              <div key={benefit}>✓ {benefit}</div>
             ))}
           </div>
         </div>
