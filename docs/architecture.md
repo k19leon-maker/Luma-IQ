@@ -1,12 +1,14 @@
 # Архитектура Luma IQ
 
-Обновлено: 2026-06-09
+Обновлено: 2026-06-14
 
 ## Production
 
 ```text
 Browser
   -> Frontend: Vercel / https://www.lumaiq.ru
+     -> Public B2C portal
+     -> B2B SaaS app routes
   -> Backend API: Hetzner VPS / https://api.lumaiq.ru
   -> PostgreSQL
   -> OpenAI / Anthropic
@@ -48,6 +50,59 @@ All production APIs use `/api/v1`.
 | `/admin` | Admin dashboard/users/access/analytics |
 | `/strategy/export-pdf` | Strategy export |
 | `/files` | Project materials/files views |
+| `/b2c/psychologist/chat` | Public B2C AI psychologist chat |
+| `/b2c/consents` | Public/B2C consent logging |
+
+## Route Architecture
+
+### Public B2C
+
+```text
+/                                   public family-focused homepage
+/articles, /articles/[slug]         SEO articles
+/categories, /categories/[slug]     SEO categories
+/problems, /problems/[slug]         SEO problem pages
+/experts, /experts/[slug]           expert templates
+/programs, /programs/[slug]         program templates
+/webinars, /webinars/[slug]         webinar templates
+/tests, /tests/[slug]               test/diagnostic templates
+/diagnostics/ai-psychologist        short B2C quiz
+/diagnostics/ai-psychologist/chat   B2C AI psychologist chat workspace
+/client                             early B2C client cabinet
+/contacts                           public contacts
+/legal/*                            public legal pages
+```
+
+### Existing B2B SaaS
+
+```text
+/auth        B2B login/register
+/app         B2B application shell / dashboard
+/admin       B2B/admin operations
+```
+
+Do not redirect `/` to auth. Root is the public B2C portal.
+Do not route the public header CTA to B2B auth. Public CTA is B2C diagnostic/chat only.
+
+## B2C State And Return Logic
+
+B2C completion is currently detected client-side through localStorage:
+
+- `lumaiq.b2c.psychology.profile`
+- `lumaiq.b2c.psychology.messages`
+- `lumaiq.b2c.user`
+
+Helper:
+
+- `frontend/src/hooks/useB2CDiagnosticState.ts`
+
+Behavior:
+
+- no completed diagnostic -> CTA points to `/diagnostics/ai-psychologist`;
+- completed diagnostic + contact + messages -> CTA points to `/diagnostics/ai-psychologist/chat`;
+- completed user opening the quiz route is redirected to chat.
+
+This is an MVP persistence layer. Future B2C account work should move profile/history to backend storage.
 
 ## AI Architecture
 
@@ -119,6 +174,25 @@ Prompt configs currently registered:
 - `strategy.positioning.generate.v1`
 - `threads.plan.generate.v1`
 - `threads.post.regenerate.v1`
+
+### B2C AI Psychologist Flow
+
+```text
+Short quiz
+  -> local B2C profile and contact
+  -> personalized opening message
+  -> /diagnostics/ai-psychologist/chat
+  -> POST /api/v1/b2c/psychologist/chat
+  -> b2c-psychologist.prompt.ts
+  -> separate OpenAI B2C key/model
+```
+
+Important:
+
+- B2C AI psychologist is separate from B2B `/api/v1/ai/chat` and workflow API.
+- B2C should use `OPENAI_B2C_PSYCHOLOGY_API_KEY`.
+- Do not send phone/email into the AI context unless there is a deliberate future product/legal decision.
+- AI outputs render through markdown normalization in the chat UI.
 
 ## Core Backend Files
 

@@ -1,12 +1,18 @@
 # Luma IQ — актуальный контекст проекта
 
-Обновлено: 2026-06-09
+Обновлено: 2026-06-14
 
 ## Что это
 
-Luma IQ — vertical AI SaaS для экспертов, маркетологов и продюсеров. Сервис помогает пользователю вести проект от базового описания эксперта и позиционирования до ЦА, УТП, продуктовой линейки, лидмагнитов, контента, воронок и AI-диалога.
+Luma IQ сейчас состоит из двух контуров.
 
-Главная продуктовая идея: Luma IQ должен ощущаться не как GPT wrapper, а как context-aware AI marketing operating system.
+1. B2C публичный контур: пространство для родителей, которые хотят сохранить отношения в семье. Включает лендинг, SEO-страницы, короткий квиз, B2C-кабинет и диалог с ИИ-психологом.
+2. B2B AI SaaS: продукт для экспертов, маркетологов и продюсеров. Включает проекты, стратегию, ЦА, УТП, продуктовую линейку, лидмагниты, контент, воронки, AI workflows, админку, пользователей и подписки.
+
+Главный принцип: B2C-контур добавлен поверх существующего B2B-сервиса. Не ломать и не переписывать B2B SaaS.
+
+Главная B2B-идея: Luma IQ должен ощущаться не как GPT wrapper, а как context-aware AI marketing operating system.
+Главная B2C-идея: Luma IQ должен ощущаться как спокойное премиальное семейное пространство, ближе к семейному центру/частной клинике/образовательному продукту, а не как инфобизнес или каталог психологов.
 
 ## Production
 
@@ -31,10 +37,10 @@ npx vercel --prod --yes
 ```
 
 Git push to `main` may also trigger Vercel depending on current project integration, but the reliable manual production deploy is the CLI command above from the repo root.
-Latest production deployment verified through Vercel CLI:
+Latest Luma IQ production deployment verified through Vercel CLI:
 
-- commit: `f9de7c9`
-- Vercel deployment: `dpl_HREBfaRrxkdwyy3uNBFPQAMbFZUJ`
+- commit: `8b6c0ab`
+- Vercel deployment: `dpl_ApfF5b7A4gEBdEsKSusxMRxaUyMe`
 - aliases: `https://www.lumaiq.ru`, `https://lumaiq.ru`
 
 ## Stack
@@ -51,6 +57,101 @@ Latest production deployment verified through Vercel CLI:
 Redis/Bull are not active production dependencies right now.
 
 ## Main Product Areas
+
+### Public B2C Portal
+
+Routes:
+
+- `/` — family-focused public homepage.
+- `/articles`, `/articles/[slug]`
+- `/categories`, `/categories/[slug]`
+- `/problems`, `/problems/[slug]`
+- `/experts`, `/experts/[slug]`
+- `/programs`, `/programs/[slug]`
+- `/webinars`, `/webinars/[slug]`
+- `/tests`, `/tests/[slug]`
+- `/contacts`
+- `/legal/privacy-policy`
+- `/legal/personal-data`
+- `/legal/offer`
+- `/legal/cookies`
+
+Current public positioning:
+
+- Do not position the homepage as a generic psychological portal.
+- Do not make the public homepage about catalog structure, articles, webinars or services.
+- Position Luma IQ as a space for parents who want to preserve family relationships.
+- Psychology is the instrument, not the communication object.
+
+Important files:
+
+- `frontend/src/pages/PublicPortal/*`
+- `frontend/src/data/public/home.ts`
+- `frontend/src/data/public/content.ts`
+- `frontend/src/hooks/useB2CDiagnosticState.ts`
+
+### B2C Diagnostic And AI Psychologist
+
+Routes:
+
+- `/diagnostics/ai-psychologist`
+- `/diagnostics/ai-psychologist/chat`
+- `/client`
+
+Current flow:
+
+1. User starts short quiz.
+2. Quiz collects name, family situation, specific problem, duration, desired change.
+3. Final step collects email and phone plus legal consents.
+4. User is sent directly into chat, no intermediate report/PDF/loading screen.
+5. First AI message is personalized from quiz answers.
+6. Chat uses the quiz answers as AI context.
+7. Profile and messages are saved locally for return sessions.
+
+CTA return logic:
+
+- If no completed B2C diagnostic exists, public CTA says `Начать диагностику` / `Пройти диагностику`.
+- If profile + contact + messages exist, CTA says `Вернуться к ИИ-психологу`.
+- Completed users opening `/diagnostics/ai-psychologist` are redirected to `/diagnostics/ai-psychologist/chat`.
+- The old public header `Личный кабинет` link to B2B auth was removed.
+
+Chat UX:
+
+- Left sidebar profile.
+- Wide chat workspace.
+- Message limit displayed below the composer.
+- AI thinking bubble appears inside the conversation.
+- AI reply appears progressively as typed text.
+- AI markdown is normalized and rendered with clear headings/lists.
+
+Important files:
+
+- `frontend/src/data/b2c/psychology.ts`
+- `frontend/src/pages/B2CPsychology/B2CPsychology.tsx`
+- `frontend/src/pages/B2CPsychology/B2CPsychology.module.css`
+- `backend/src/controllers/b2c-psychologist.controller.ts`
+- `backend/src/prompts/b2c-psychologist.prompt.ts`
+- `backend/B2C_OPENAI_KEY_SETUP.md`
+
+B2C OpenAI key:
+
+```env
+OPENAI_B2C_PSYCHOLOGY_API_KEY=
+OPENAI_B2C_PSYCHOLOGY_MODEL=gpt-5.4
+```
+
+Use a separate OpenAI key from the B2B SaaS key.
+
+### Legal Layer
+
+Current legal infrastructure:
+
+- public legal pages exist;
+- footer includes privacy, personal data, offer, cookies, contacts;
+- forms include required consent checkboxes;
+- consent log infrastructure exists;
+- cookie banner exists;
+- document version is stored with consents.
 
 ### Strategy
 
@@ -316,9 +417,11 @@ curl -s -i https://api.lumaiq.ru/api/v1/health
 
 ## Current Next Engineering Step
 
-Backend-side workflow foundation and Threads ИИ are live. Next useful engineering work:
+Backend-side workflow foundation, Threads ИИ and B2C AI psychologist are live. Next useful engineering work:
 
 1. Continue migrating legacy content UI calls from `/ai/chat` to workflow API where still needed.
 2. Replace remaining localStorage-first content persistence with DB-first persistence.
 3. Connect frontend limit widgets to real backend usage balances instead of tariff defaults.
 4. Add workflow/artifact observability in admin.
+5. Move B2C profile/chat persistence from localStorage to backend user/session storage when the B2C cabinet is formalized.
+6. Replace B2C mock content with CMS/content storage when editorial workflow is ready.
