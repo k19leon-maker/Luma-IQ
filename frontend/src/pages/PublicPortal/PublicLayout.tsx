@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
 import LegalFooter from '../../components/LegalFooter/LegalFooter';
 import { publicNav } from '../../data/public/content';
+import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
 import s from './PublicPortal.module.css';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
+  const diagnosticCta = useB2CDiagnosticState();
+
   return (
     <div className={s.page}>
       <header className={s.header}>
@@ -21,8 +24,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             ))}
           </nav>
           <div className={s.headerActions}>
-            <Link className={s.authLink} to="/auth">Личный кабинет</Link>
-            <Link className={s.startLink} to="/diagnostics/ai-psychologist">Начать диагностику</Link>
+            <Link className={s.startLink} to={diagnosticCta.path}>{diagnosticCta.headerLabel}</Link>
           </div>
         </div>
       </header>

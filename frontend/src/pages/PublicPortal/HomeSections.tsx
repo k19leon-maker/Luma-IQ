@@ -9,9 +9,17 @@ import {
   howItWorksSteps,
   situationColumns,
 } from '../../data/public/home';
+import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
 import s from './PublicPortal.module.css';
 
-const DIAGNOSTIC_PATH = '/diagnostics/ai-psychologist';
+function DiagnosticCta({ className = s.primaryBtn }: { className?: string }) {
+  const diagnosticCta = useB2CDiagnosticState();
+  return (
+    <Link className={className} to={diagnosticCta.path}>
+      {diagnosticCta.label} <span>→</span>
+    </Link>
+  );
+}
 
 export function FamilyHero() {
   return (
@@ -22,7 +30,7 @@ export function FamilyHero() {
           <h1>{familyHero.title}</h1>
           <p className={s.lead}>{familyHero.subtitle}</p>
           <div className={s.actions}>
-            <Link className={s.primaryBtn} to={DIAGNOSTIC_PATH}>{familyHero.primaryCta} <span>→</span></Link>
+            <DiagnosticCta />
           </div>
           <div className={s.familyBenefits}>
             {familyHero.benefits.map((benefit) => (
@@ -100,7 +108,7 @@ export function DiagnosticOutcomeSection() {
               <li key={benefit}>✓ {benefit}</li>
             ))}
           </ul>
-          <Link className={s.primaryBtn} to={DIAGNOSTIC_PATH}>Пройти диагностику <span>→</span></Link>
+          <DiagnosticCta />
         </div>
       </FamilySection>
     </div>
@@ -166,7 +174,7 @@ export function FinalCtaSection() {
       <div>
         <h2>Сделайте первый шаг к спокойным отношениям в семье</h2>
         <p>Пройдите диагностику и получите персональный маршрут решения вашей ситуации.</p>
-        <Link className={s.primaryBtn} to={DIAGNOSTIC_PATH}>Пройти диагностику <span>→</span></Link>
+        <DiagnosticCta />
       </div>
     </section>
   );

@@ -21,6 +21,7 @@ import {
   legalConsentPayload,
   type LegalConsentState,
 } from '../../data/legal';
+import { B2C_CHAT_PATH, hasCompletedB2CDiagnostic } from '../../hooks/useB2CDiagnosticState';
 import { useSeo } from '../../utils/seo';
 import s from './B2CPsychology.module.css';
 
@@ -104,6 +105,12 @@ export function B2CPsychologyAssessment() {
     description: 'Короткая B2C-диагностика Luma IQ перед диалогом с ИИ-психологом.',
     canonical: '/diagnostics/ai-psychologist',
   });
+
+  useEffect(() => {
+    if (hasCompletedB2CDiagnostic()) {
+      navigate(B2C_CHAT_PATH, { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const savedAnswers = window.localStorage.getItem(psychologyStorageKeys.answers);

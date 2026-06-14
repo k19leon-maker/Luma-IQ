@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import Breadcrumbs from './Breadcrumbs';
+import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
 import { breadcrumbSchema, useSeo } from '../../utils/seo';
 import s from './PublicPortal.module.css';
 
@@ -21,6 +22,8 @@ export default function ListPage({
   basePath: string;
   items: ListItem[];
 }) {
+  const diagnosticCta = useB2CDiagnosticState();
+
   useSeo({
     title,
     description,
@@ -37,7 +40,7 @@ export default function ListPage({
         <Breadcrumbs items={[{ label: title }]} />
         <h1>{title}</h1>
         <p>{description}</p>
-        <Link className={s.primaryBtn} to="/diagnostics/ai-psychologist">Пройти диагностику с ИИ психологом</Link>
+        <Link className={s.primaryBtn} to={diagnosticCta.path}>{diagnosticCta.label}</Link>
       </section>
       <section className={s.section}>
         <div className={s.grid}>

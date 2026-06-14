@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import Breadcrumbs from './Breadcrumbs';
+import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
 import { breadcrumbSchema, useSeo } from '../../utils/seo';
 import s from './PublicPortal.module.css';
 
@@ -24,6 +25,7 @@ export default function DetailPage({
 }) {
   const { slug } = useParams();
   const item = items.find((candidate) => candidate.slug === slug);
+  const diagnosticCta = useB2CDiagnosticState();
 
   useSeo({
     title: item?.title ?? fallbackTitle,
@@ -60,7 +62,7 @@ export default function DetailPage({
         <div className={s.content}>
           <p>{item.content ?? 'Подробный контент этой страницы будет добавлен на следующем этапе. Сейчас маршрут, метаданные, хлебные крошки и SEO-шаблон уже подготовлены.'}</p>
         </div>
-        <Link className={s.primaryBtn} to="/diagnostics/ai-psychologist">Пройти диагностику с ИИ психологом</Link>
+        <Link className={s.primaryBtn} to={diagnosticCta.path}>{diagnosticCta.label}</Link>
       </article>
     </main>
   );
