@@ -98,6 +98,12 @@
   margin-top: 32px;
 }
 
+.diagnosticConsents {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
 .input {
   width: 100%;
   min-height: 54px;
@@ -347,6 +353,20 @@
 .signupBox p {
   color: var(--muted);
   line-height: 1.6;
+}
+
+.signupConsents {
+  padding: 0 24px 18px;
+}
+
+.formError {
+  margin: 0 24px 18px;
+  border: 1px solid rgba(207, 65, 65, 0.28);
+  border-radius: 10px;
+  background: rgba(207, 65, 65, 0.08);
+  padding: 10px 12px;
+  color: #b3261e;
+  font-size: 13px;
 }
 
 @keyframes spin {

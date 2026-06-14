@@ -23,6 +23,9 @@ import HomePage from './pages/PublicPortal/HomePage';
 import ListPage from './pages/PublicPortal/ListPage';
 import DetailPage from './pages/PublicPortal/DetailPage';
 import NotFoundPage from './pages/PublicPortal/NotFoundPage';
+import LegalPage from './pages/PublicPortal/LegalPage';
+import ContactsPage from './pages/PublicPortal/ContactsPage';
+import CookieConsent from './components/CookieConsent/CookieConsent';
 import {
   B2CClientCabinet,
   B2CPsychologyAssessment,
@@ -169,9 +172,14 @@ export default function App() {
       <Routes>
         {/* ── Public B2C portal ───────────────────────────────── */}
         <Route path="/" element={publicPage(<HomePage />)} />
-        <Route path="/diagnostics/ai-psychologist" element={<B2CPsychologyAssessment />} />
-        <Route path="/diagnostics/ai-psychologist/chat" element={<B2CPsychologyChat />} />
-        <Route path="/client" element={<B2CClientCabinet />} />
+        <Route path="/diagnostics/ai-psychologist" element={publicPage(<B2CPsychologyAssessment />)} />
+        <Route path="/diagnostics/ai-psychologist/chat" element={publicPage(<B2CPsychologyChat />)} />
+        <Route path="/client" element={publicPage(<B2CClientCabinet />)} />
+        <Route path="/legal/privacy-policy" element={publicPage(<LegalPage />)} />
+        <Route path="/legal/personal-data" element={publicPage(<LegalPage />)} />
+        <Route path="/legal/offer" element={publicPage(<LegalPage />)} />
+        <Route path="/legal/cookies" element={publicPage(<LegalPage />)} />
+        <Route path="/contacts" element={publicPage(<ContactsPage />)} />
         <Route
           path="/articles"
           element={publicPage(<ListPage title="Статьи" description="Материалы о психологических трудностях, отношениях, тревоге, разводе и восстановлении ресурса." basePath="/articles" items={articleItems} />)}
@@ -298,6 +306,7 @@ export default function App() {
         <Route path="*" element={publicPage(<NotFoundPage />)} />
       </Routes>
 
+      <CookieConsent />
       <Toaster
         position="bottom-right"
         toastOptions={{

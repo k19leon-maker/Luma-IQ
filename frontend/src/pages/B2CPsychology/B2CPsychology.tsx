@@ -13,6 +13,13 @@ import {
   type PsychologyChatMessage,
   type PsychologyProfile,
 } from '../../data/b2c/psychology';
+import LegalConsents from '../../components/LegalConsents/LegalConsents';
+import {
+  areLegalConsentsAccepted,
+  initialLegalConsentState,
+  legalConsentPayload,
+  type LegalConsentState,
+} from '../../data/legal';
 import { useSeo } from '../../utils/seo';
 import s from './B2CPsychology.module.css';
 
@@ -39,9 +46,13 @@ export function B2CPsychologyAssessment() {
   const [answers, setAnswers] = useState<PsychologyAnswers>({});
   const [stepIndex, setStepIndex] = useState(0);
   const [phase, setPhase] = useState<'quiz' | 'analyzing'>('quiz');
+  const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
+  const [consentError, setConsentError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const question = psychologyQuestions[stepIndex];
   const currentAnswer = answers[question.id];
   const progress = Math.round(((stepIndex + 1) / psychologyQuestions.length) * 100);
+  const isLastStep = stepIndex === psychologyQuestions.length - 1;
 
   useSeo({
     title: 'Диагностика с ИИ психологом',
@@ -73,7 +84,28 @@ export function B2CPsychologyAssessment() {
     setAnswer(current.includes(option) ? current.filter((item) => item !== option) : [...current, option]);
   };
 
-  const completeAssessment = () => {
+  const completeAssessment = async () => {
+    setSubmitError('');
+    if (!areLegalConsentsAccepted(consents)) {
+      setConsentError('Для продолжения необходимо принять условия документов.');
+      return;
+    }
+    setConsentError('');
+
+    const consentResponse = await fetch(`${API_BASE}/b2c/consents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'b2c_diagnostic',
+        consents: legalConsentPayload(consents),
+      }),
+    }).catch(() => null);
+
+    if (!consentResponse?.ok) {
+      setSubmitError('Не удалось сохранить согласия. Попробуйте еще раз.');
+      return;
+    }
+
     const profile = buildPsychologyProfile(answers);
     const firstMessage: PsychologyChatMessage = {
       id: createId(),
@@ -171,6 +203,13 @@ export function B2CPsychologyAssessment() {
                 </div>
               )}
             </div>
+
+            {isLastStep && (
+              <div className={s.diagnosticConsents}>
+                <LegalConsents value={consents} onChange={setConsents} error={consentError} />
+                {submitError && <div className={s.formError}>{submitError}</div>}
+              </div>
+            )}
           </div>
 
           <div className={s.footer}>
@@ -186,8 +225,8 @@ export function B2CPsychologyAssessment() {
               className={s.buttonPrimary}
               disabled={!hasAnswer(currentAnswer)}
               onClick={() => (
-                stepIndex === psychologyQuestions.length - 1
-                  ? completeAssessment()
+                isLastStep
+                  ? void completeAssessment()
                   : setStepIndex((index) => index + 1)
               )}
               type="button"
@@ -207,6 +246,9 @@ export function B2CPsychologyChat() {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [b2cEmail, setB2cEmail] = useState('');
+  const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
+  const [consentError, setConsentError] = useState('');
+  const [accountError, setAccountError] = useState('');
   const navigate = useNavigate();
 
   useSeo({
@@ -287,11 +329,31 @@ export function B2CPsychologyChat() {
     }
   };
 
-  const createB2CAccount = () => {
+  const createB2CAccount = async () => {
     const email = b2cEmail.trim();
     if (!email) return;
+    setAccountError('');
+    if (!areLegalConsentsAccepted(consents)) {
+      setConsentError('Для продолжения необходимо принять условия документов.');
+      return;
+    }
+    setConsentError('');
+    const userId = `b2c-local-${Date.now()}`;
+    const response = await fetch(`${API_BASE}/b2c/consents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        source: 'b2c_client_signup',
+        consents: legalConsentPayload(consents),
+      }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setAccountError('Не удалось сохранить согласия. Попробуйте еще раз.');
+      return;
+    }
     window.localStorage.setItem(psychologyStorageKeys.user, JSON.stringify({
-      id: `b2c-local-${Date.now()}`,
+      id: userId,
       email,
       type: 'B2C_CLIENT',
       createdAt: new Date().toISOString(),
@@ -354,8 +416,12 @@ export function B2CPsychologyChat() {
                     type="email"
                     value={b2cEmail}
                   />
-                  <button className={s.buttonPrimary} onClick={createB2CAccount} type="button">Создать кабинет</button>
+                  <button className={s.buttonPrimary} onClick={() => void createB2CAccount()} type="button">Создать кабинет</button>
                 </div>
+                <div className={s.signupConsents}>
+                  <LegalConsents value={consents} onChange={setConsents} error={consentError} compact />
+                </div>
+                {accountError && <div className={s.formError}>{accountError}</div>}
               </div>
             )}
 

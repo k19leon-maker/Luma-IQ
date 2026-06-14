@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import LegalFooter from '../../components/LegalFooter/LegalFooter';
 import { publicNav } from '../../data/public/content';
 import s from './PublicPortal.module.css';
 
@@ -26,12 +27,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
       {children}
-      <footer className={s.footer}>
-        <div className={s.footerInner}>
-          <span>Luma IQ</span>
-          <span>Психологические программы, материалы и специалисты</span>
-        </div>
-      </footer>
+      <LegalFooter />
     </div>
   );
 }

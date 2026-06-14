@@ -5,6 +5,7 @@ import { authService } from '../services/auth.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { env } from '../config/env';
 import { assertRefreshCsrf, clearRefreshCookie, getRefreshCookie, setRefreshCookie } from '../utils/auth-cookies';
+import { legalConsentSchema, logConsent } from '../services/consent-log.service';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -16,11 +17,13 @@ const registerSchema = z.object({
   email: z.string().email('Неверный формат email'),
   password: z.string().min(8, 'Пароль должен быть не менее 8 символов'),
   name: z.string().min(1).max(100).optional(),
+  consents: legalConsentSchema,
 });
 
 const loginSchema = z.object({
   email: z.string().email('Неверный формат email'),
   password: z.string().min(1, 'Введите пароль'),
+  consents: legalConsentSchema,
 });
 
 function handleError(res: Response, err: unknown): void {
@@ -57,8 +60,9 @@ export const authController = {
     }
 
     try {
-      const { email, password, name } = parsed.data;
+      const { email, password, name, consents } = parsed.data;
       const result = await authService.register(email, password, name);
+      await logConsent({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_register' });
       res.status(201).json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
@@ -73,8 +77,9 @@ export const authController = {
     }
 
     try {
-      const { email, password } = parsed.data;
+      const { email, password, consents } = parsed.data;
       const result = await authService.login(email, password);
+      await logConsent({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_login' });
       res.json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
@@ -142,6 +147,21 @@ export const authController = {
       };
 
       const result = await authService.findOrCreateGoogleUser(profile);
+      const legalConsentCookie = (req as Request & { cookies: Record<string, string> }).cookies?.legal_consent;
+      if (legalConsentCookie === '1') {
+        await logConsent({
+          req,
+          userId: result.user.id,
+          email: result.user.email,
+          consents: {
+            privacyAccepted: true,
+            personalDataAccepted: true,
+            offerAccepted: true,
+            documentVersion: 'v1',
+          },
+          source: 'google_oauth',
+        });
+      }
 
       // Set tokens as httpOnly cookies — no tokens in URL
       res.cookie('oauth_access', result.tokens.accessToken, {
@@ -152,6 +172,7 @@ export const authController = {
         ...COOKIE_OPTS,
         maxAge: 5 * 60 * 1000,
       });
+      res.clearCookie('legal_consent', COOKIE_OPTS);
 
       res.redirect(`${env.FRONTEND_URL}/auth/callback`);
     } catch (err) {

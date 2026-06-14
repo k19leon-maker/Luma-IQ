@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi, AuthUser } from '../api/auth.api';
+import type { LegalConsentState } from '../data/legal';
 import {
   clearAdminAccessTokenBackup,
   clearSessionTokens,
@@ -27,8 +28,8 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  login: (email: string, password: string, consents: LegalConsentState) => Promise<void>;
+  register: (email: string, password: string, name: string | undefined, consents: LegalConsentState) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setTokens: (accessToken: string, csrfToken?: string) => Promise<AuthUser | null>;
@@ -44,16 +45,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  login: async (email, password) => {
-    const { user, tokens } = await authApi.login(email, password);
+  login: async (email, password, consents) => {
+    const { user, tokens } = await authApi.login(email, password, consents);
     resetSessionStores();
     clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
-  register: async (email, password, name) => {
-    const { user, tokens } = await authApi.register(email, password, name);
+  register: async (email, password, name, consents) => {
+    const { user, tokens } = await authApi.register(email, password, name, consents);
     resetSessionStores();
     clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);

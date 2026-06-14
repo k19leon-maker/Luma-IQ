@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import rateLimit from 'express-rate-limit';
@@ -24,6 +24,20 @@ const refreshLimiter = rateLimit({
 });
 
 const router = Router();
+
+function requireGoogleLegalConsent(req: Request, res: Response, next: () => void) {
+  if (req.query.legalConsent !== '1') {
+    res.status(400).json({ error: 'Для продолжения необходимо принять условия документов.' });
+    return;
+  }
+  res.cookie('legal_consent', '1', {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+  });
+  next();
+}
 
 // Configure Google Strategy (only if credentials provided)
 if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
@@ -66,6 +80,7 @@ router.get('/oauth/session', authController.oauthSession);
 // Google OAuth
 router.get(
   '/google',
+  requireGoogleLegalConsent,
   passport.authenticate('google', { scope: ['profile', 'email'], session: false }),
 );
 router.get(

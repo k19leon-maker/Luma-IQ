@@ -41,8 +41,30 @@ model User {
   projectFiles        ProjectFile[]
   promptVersions      PromptVersion[]
   promptExperiments   PromptExperiment[]
+  consentLogs         ConsentLog[]
 
   @@map("users")
+}
+
+model ConsentLog {
+  id                   String   @id @default(uuid())
+  userId               String?
+  email                String?
+  ip                   String?
+  userAgent            String?
+  privacyAccepted      Boolean  @default(false)
+  personalDataAccepted Boolean  @default(false)
+  offerAccepted        Boolean  @default(false)
+  documentVersion      String
+  source               String?
+  acceptedAt           DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, acceptedAt])
+  @@index([email, acceptedAt])
+  @@index([documentVersion])
+  @@map("consent_logs")
 }
 
 model VerificationToken {

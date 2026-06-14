@@ -1,4 +1,7 @@
 import { apiClient } from './client';
+import { legalConsentPayload, type LegalConsentState } from '../data/legal';
+
+const API_ORIGIN = import.meta.env.VITE_API_URL ?? '';
 
 export interface AuthUser {
   id:             string;
@@ -22,11 +25,11 @@ export interface AuthResponse {
 }
 
 export const authApi = {
-  register: (email: string, password: string, name?: string) =>
-    apiClient.post<AuthResponse>('/auth/register', { email, password, name }).then((r) => r.data),
+  register: (email: string, password: string, name: string | undefined, consents: LegalConsentState) =>
+    apiClient.post<AuthResponse>('/auth/register', { email, password, name, consents: legalConsentPayload(consents) }).then((r) => r.data),
 
-  login: (email: string, password: string) =>
-    apiClient.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data),
+  login: (email: string, password: string, consents: LegalConsentState) =>
+    apiClient.post<AuthResponse>('/auth/login', { email, password, consents: legalConsentPayload(consents) }).then((r) => r.data),
 
   refresh: () =>
     apiClient.post<AuthResponse>('/auth/refresh').then((r) => r.data),
@@ -47,6 +50,6 @@ export const authApi = {
     apiClient.post<{ message: string }>('/auth/resend-verification').then((r) => r.data),
 
   googleLogin: () => {
-    window.location.href = '/api/v1/auth/google';
+    window.location.href = `${API_ORIGIN}/api/v1/auth/google?legalConsent=1`;
   },
 };

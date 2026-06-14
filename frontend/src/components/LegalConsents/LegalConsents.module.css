@@ -1,0 +1,40 @@
+.consents {
+  display: grid;
+  gap: 10px;
+  color: var(--text-secondary, #5f6368);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.compact {
+  font-size: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.row input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accent, #14213d);
+}
+
+.row a {
+  color: var(--accent, #14213d);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.error {
+  border: 1px solid rgba(242, 92, 92, 0.3);
+  border-radius: 8px;
+  background: rgba(242, 92, 92, 0.08);
+  padding: 9px 11px;
+  color: var(--error, #d14343);
+}

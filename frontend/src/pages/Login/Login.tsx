@@ -2,6 +2,12 @@ import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { authApi } from '../../api/auth.api';
+import LegalConsents from '../../components/LegalConsents/LegalConsents';
+import {
+  areLegalConsentsAccepted,
+  initialLegalConsentState,
+  type LegalConsentState,
+} from '../../data/legal';
 import styles from './Login.module.css';
 
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
@@ -14,14 +20,26 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [consentError, setConsentError] = useState('');
+  const [consents, setConsents] = useState<LegalConsentState>(initialLegalConsentState);
   const [loading, setLoading] = useState(false);
+
+  const validateConsents = () => {
+    if (areLegalConsentsAccepted(consents)) {
+      setConsentError('');
+      return true;
+    }
+    setConsentError('Для продолжения необходимо принять условия документов.');
+    return false;
+  };
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (!validateConsents()) return;
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, consents);
       navigate('/app/ai-dialog', { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -30,6 +48,12 @@ export default function Login() {
       setLoading(false);
     }
   }
+
+  const handleGoogleLogin = () => {
+    setError('');
+    if (!validateConsents()) return;
+    authApi.googleLogin();
+  };
 
   return (
     <div className={styles.page}>
@@ -72,13 +96,15 @@ export default function Login() {
             />
           </div>
 
+          <LegalConsents value={consents} onChange={setConsents} error={consentError} compact />
+
           <button type="submit" className={styles.submitBtn} disabled={loading}>
             {loading ? 'Вход...' : 'Войти'}
           </button>
 
           <div className={styles.divider}>или</div>
 
-          <button type="button" className={styles.googleBtn} onClick={authApi.googleLogin}>
+          <button type="button" className={styles.googleBtn} onClick={handleGoogleLogin}>
             <svg className={styles.googleIcon} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
