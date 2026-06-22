@@ -23,7 +23,7 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email('Неверный формат email'),
   password: z.string().min(1, 'Введите пароль'),
-  consents: legalConsentSchema,
+  consents: legalConsentSchema.optional(),
 });
 
 function handleError(res: Response, err: unknown): void {
@@ -46,6 +46,14 @@ function authPayload(result: Awaited<ReturnType<typeof authService.login>>, res:
   };
 }
 
+async function logConsentSafely(params: Parameters<typeof logConsent>[0]) {
+  try {
+    await logConsent(params);
+  } catch (err) {
+    console.warn('[Auth] Failed to log legal consent:', err instanceof Error ? err.message : err);
+  }
+}
+
 export const authController = {
   async register(req: Request, res: Response): Promise<void> {
     if (!env.REGISTRATION_ENABLED) {
@@ -62,7 +70,7 @@ export const authController = {
     try {
       const { email, password, name, consents } = parsed.data;
       const result = await authService.register(email, password, name);
-      await logConsent({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_register' });
+      await logConsentSafely({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_register' });
       res.status(201).json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
@@ -79,7 +87,9 @@ export const authController = {
     try {
       const { email, password, consents } = parsed.data;
       const result = await authService.login(email, password);
-      await logConsent({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_login' });
+      if (consents) {
+        await logConsentSafely({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_login' });
+      }
       res.json(authPayload(result, res));
     } catch (err) {
       handleError(res, err);
@@ -149,7 +159,7 @@ export const authController = {
       const result = await authService.findOrCreateGoogleUser(profile);
       const legalConsentCookie = (req as Request & { cookies: Record<string, string> }).cookies?.legal_consent;
       if (legalConsentCookie === '1') {
-        await logConsent({
+        await logConsentSafely({
           req,
           userId: result.user.id,
           email: result.user.email,
