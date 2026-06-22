@@ -26,6 +26,7 @@ router.get('/users', adminController.listUsers);
 router.get('/users/:id', adminController.getUser);
 router.post('/users/grant-pro', adminController.grantPro);
 router.patch('/users/:id/access', adminController.updateUserAccess);
+router.patch('/users/:id/archive', adminController.archiveUser);
 router.post('/users/:id/credits', adminController.addUserCredits);
 router.post('/users/:id/impersonate', adminController.impersonateUser);
 

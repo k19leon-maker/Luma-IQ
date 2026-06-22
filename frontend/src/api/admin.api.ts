@@ -18,6 +18,9 @@ export interface AdminUserListItem {
   name: string | null;
   role: string;
   isVerified: boolean;
+  archivedAt: string | null;
+  archivedById: string | null;
+  archiveReason: string | null;
   createdAt: string;
   updatedAt: string;
   subscription: AdminSubscription;
@@ -230,7 +233,7 @@ export const adminApi = {
       .get<AdminDashboard>('/admin/dashboard')
       .then((r) => r.data),
 
-  listUsers: (params?: { q?: string; plan?: string; status?: string; limit?: number; offset?: number }) =>
+  listUsers: (params?: { q?: string; plan?: string; status?: string; archive?: 'ACTIVE' | 'ARCHIVED' | 'ALL'; limit?: number; offset?: number }) =>
     apiClient
       .get<{ users: AdminUserListItem[]; total: number; limit: number; offset: number }>('/admin/users', { params })
       .then((r) => r.data),
@@ -282,6 +285,11 @@ export const adminApi = {
   }) =>
     apiClient
       .patch<{ ok: boolean; subscription: AdminSubscription }>(`/admin/users/${id}/access`, data)
+      .then((r) => r.data),
+
+  archiveUser: (id: string, data: { archived: boolean; reason?: string | null }) =>
+    apiClient
+      .patch<{ ok: boolean; user: Pick<AdminUserDetail, 'id' | 'email' | 'name' | 'archivedAt' | 'archivedById' | 'archiveReason'> }>(`/admin/users/${id}/archive`, data)
       .then((r) => r.data),
 
   addUserCredits: (id: string, data: { amount: number; reason?: string }) =>

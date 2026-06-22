@@ -14,6 +14,7 @@ const listSchema = z.object({
   q: z.string().optional(),
   plan: z.enum(['ALL', 'FREE', 'PRO', 'ANNUAL']).optional().default('ALL'),
   status: z.enum(['ALL', 'ACTIVE', 'INACTIVE', 'HIGH_COST']).optional().default('ALL'),
+  archive: z.enum(['ACTIVE', 'ARCHIVED', 'ALL']).optional().default('ACTIVE'),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
@@ -86,6 +87,11 @@ const updateAccessSchema = z.object({
 const addCreditsSchema = z.object({
   amount: z.number().int().min(-1_000_000).max(1_000_000).refine((value) => value !== 0, 'amount не должен быть 0'),
   reason: z.string().max(500).optional(),
+});
+
+const archiveUserSchema = z.object({
+  archived: z.boolean(),
+  reason: z.string().max(1000).nullable().optional(),
 });
 
 const createPromptVersionSchema = z.object({
@@ -171,6 +177,7 @@ export const adminController = {
       const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const nonArchivedUser = { archivedAt: null };
 
       const [
         totalUsers,
@@ -206,65 +213,69 @@ export const adminController = {
         promptVersionsCount,
         runningPromptExperiments,
       ] = await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-        prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+        prisma.user.count({ where: nonArchivedUser }),
+        prisma.user.count({ where: { ...nonArchivedUser, createdAt: { gte: sevenDaysAgo } } }),
+        prisma.user.count({ where: { ...nonArchivedUser, createdAt: { gte: thirtyDaysAgo } } }),
         prisma.subscription.count({
           where: {
+            user: nonArchivedUser,
             status: 'ACTIVE',
             plan: { in: ['PRO', 'ANNUAL'] },
             OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
           },
         }),
         prisma.payment.aggregate({
-          where: { status: 'SUCCEEDED' },
+          where: { status: 'SUCCEEDED', user: nonArchivedUser },
           _sum: { amount: true },
         }),
-        prisma.aIUsage.aggregate({ _sum: { count: true } }),
+        prisma.aIUsage.aggregate({ where: { user: nonArchivedUser }, _sum: { count: true } }),
         prisma.aIUsage.aggregate({
-          where: { date: startOfDay.toISOString().slice(0, 10) },
+          where: { user: nonArchivedUser, date: startOfDay.toISOString().slice(0, 10) },
           _sum: { count: true },
         }),
         prisma.aIGeneration.aggregate({
-          where: { status: 'SUCCEEDED', createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, status: 'SUCCEEDED', createdAt: { gte: thirtyDaysAgo } },
           _sum: { actualCostUsd: true, totalTokens: true },
           _count: { _all: true },
         }),
         prisma.aIGeneration.aggregate({
-          where: { status: 'SUCCEEDED', createdAt: { gte: startOfDay } },
+          where: { user: nonArchivedUser, status: 'SUCCEEDED', createdAt: { gte: startOfDay } },
           _sum: { actualCostUsd: true, totalTokens: true },
           _count: { _all: true },
         }),
         prisma.aIGeneration.aggregate({
-          where: { createdAt: { gte: startOfDay } },
+          where: { user: nonArchivedUser, createdAt: { gte: startOfDay } },
           _sum: { totalTokens: true },
         }),
-        prisma.aIGeneration.count({ where: { createdAt: { gte: startOfDay } } }),
+        prisma.aIGeneration.count({ where: { user: nonArchivedUser, createdAt: { gte: startOfDay } } }),
         prisma.aIGeneration.groupBy({
           by: ['userId'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
         }),
-        prisma.project.count(),
+        prisma.project.count({ where: { user: nonArchivedUser } }),
         prisma.userEvent.findMany({
-          where: { type: { in: ['admin_user_created', 'admin_pro_granted', 'admin_impersonation_started'] } },
+          where: {
+            type: { in: ['admin_user_created', 'admin_pro_granted', 'admin_impersonation_started', 'admin_user_archived', 'admin_user_unarchived'] },
+            OR: [{ userId: null }, { user: nonArchivedUser }],
+          },
           orderBy: { createdAt: 'desc' },
           take: 12,
           include: { user: { select: { email: true, name: true } } },
         }),
         prisma.aIRequestLog.groupBy({
           by: ['provider'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
         }),
         prisma.aIRequestLog.groupBy({
           by: ['status'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
         }),
         prisma.aIGeneration.groupBy({
           by: ['featureCode'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _sum: { actualCostUsd: true, totalTokens: true },
           _count: { _all: true },
           orderBy: { _count: { featureCode: 'desc' } },
@@ -272,7 +283,7 @@ export const adminController = {
         }),
         prisma.aIGeneration.groupBy({
           by: ['provider', 'model'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _sum: { actualCostUsd: true, totalTokens: true },
           _count: { _all: true },
           orderBy: { _count: { model: 'desc' } },
@@ -280,7 +291,7 @@ export const adminController = {
         }),
         prisma.aIGeneration.groupBy({
           by: ['featureCode'],
-          where: { createdAt: { gte: thirtyDaysAgo }, workflowRunId: { not: null } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo }, workflowRunId: { not: null } },
           _sum: { actualCostUsd: true, totalTokens: true },
           _avg: { latencyMs: true },
           _count: { _all: true },
@@ -289,24 +300,25 @@ export const adminController = {
         }),
         prisma.aIWorkflowRun.groupBy({
           by: ['workflow', 'status'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
           orderBy: { _count: { workflow: 'desc' } },
           take: 30,
         }),
         prisma.aIWorkflowStep.groupBy({
           by: ['step', 'status'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { workflowRun: { user: nonArchivedUser }, createdAt: { gte: thirtyDaysAgo } },
           _avg: { latencyMs: true, retryCount: true },
           _count: { _all: true },
           orderBy: { _count: { step: 'desc' } },
           take: 30,
         }),
         prisma.aIGeneration.count({
-          where: { status: 'FAILED', createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, status: 'FAILED', createdAt: { gte: thirtyDaysAgo } },
         }),
         prisma.aIUsageEvent.count({
           where: {
+            user: nonArchivedUser,
             eventType: 'FAILED',
             metadata: { path: ['code'], equals: 'MODEL_PRICING_MISSING' },
             createdAt: { gte: thirtyDaysAgo },
@@ -314,27 +326,29 @@ export const adminController = {
         }),
         prisma.aIGeneration.groupBy({
           by: ['userId'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _sum: { actualCostUsd: true },
           having: { actualCostUsd: { _sum: { gte: 3 } } },
         }),
         prisma.subscription.groupBy({
           by: ['plan'],
+          where: { user: nonArchivedUser },
           _sum: { ltvRub: true },
           _count: { _all: true },
         }),
         prisma.aIGeneration.groupBy({
           by: ['userId'],
-          where: { createdAt: { gte: thirtyDaysAgo }, status: 'SUCCEEDED' },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo }, status: 'SUCCEEDED' },
           _sum: { actualCostUsd: true },
         }),
         prisma.user.findMany({
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { ...nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           select: { id: true, createdAt: true },
         }),
         prisma.project.groupBy({
           by: ['userId'],
           where: {
+            user: nonArchivedUser,
             OR: [
               { strategyCompletedAt: { not: null } },
               { generatedTexts: { some: {} } },
@@ -345,12 +359,12 @@ export const adminController = {
         }),
         prisma.aIGeneration.groupBy({
           by: ['userId'],
-          where: { createdAt: { gte: sevenDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: sevenDaysAgo } },
           _count: { _all: true },
         }),
         prisma.aIGeneration.groupBy({
           by: ['userId'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
+          where: { user: nonArchivedUser, createdAt: { gte: thirtyDaysAgo } },
           _count: { _all: true },
         }),
         prisma.promptVersion.count(),
@@ -365,6 +379,7 @@ export const adminController = {
       const avgCostPerProject = projectsCount > 0 ? aiCostUsd / projectsCount : 0;
       const topFeature = costByFeature[0]?.featureCode ?? '—';
       const subscriptionByUser = await prisma.subscription.findMany({
+        where: { user: nonArchivedUser },
         select: { userId: true, plan: true },
       });
       const planByUser = new Map(subscriptionByUser.map((item) => [item.userId, item.plan]));
@@ -503,10 +518,12 @@ export const adminController = {
     const parsed = listSchema.safeParse(req.query);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
 
-    const { q, plan, status, limit, offset } = parsed.data;
+    const { q, plan, status, archive, limit, offset } = parsed.data;
 
     try {
       const where: Prisma.UserWhereInput = {
+        ...(archive === 'ACTIVE' ? { archivedAt: null } : {}),
+        ...(archive === 'ARCHIVED' ? { archivedAt: { not: null } } : {}),
         ...(q ? {
           OR: [
             { email: { contains: q, mode: 'insensitive' as const } },
@@ -577,6 +594,9 @@ export const adminController = {
           name: user.name,
           role: user.role,
           isVerified: user.isVerified,
+          archivedAt: user.archivedAt,
+          archivedById: user.archivedById,
+          archiveReason: user.archiveReason,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           subscription: formatSubscription(user.subscription),
@@ -666,6 +686,9 @@ export const adminController = {
           role: user.role,
           isVerified: user.isVerified,
           specialization: user.specialization,
+          archivedAt: user.archivedAt,
+          archivedById: user.archivedById,
+          archiveReason: user.archiveReason,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           subscription: formatSubscription(user.subscription),
@@ -1003,6 +1026,64 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] updateUserAccess:', err);
       res.status(500).json({ error: 'Ошибка обновления доступа' });
+    }
+  },
+
+  async archiveUser(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = archiveUserSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+
+    try {
+      const target = await prisma.user.findUnique({
+        where: { id: req.params.id as string },
+        select: { id: true, email: true, name: true, archivedAt: true },
+      });
+      if (!target) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
+      if (target.id === req.userId && parsed.data.archived) {
+        res.status(400).json({ error: 'Нельзя архивировать текущего администратора' });
+        return;
+      }
+
+      const now = new Date();
+      const user = await prisma.user.update({
+        where: { id: target.id },
+        data: parsed.data.archived
+          ? {
+              archivedAt: target.archivedAt ?? now,
+              archivedById: req.userId!,
+              archiveReason: parsed.data.reason?.trim() || null,
+            }
+          : {
+              archivedAt: null,
+              archivedById: null,
+              archiveReason: null,
+            },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          archivedAt: true,
+          archivedById: true,
+          archiveReason: true,
+        },
+      });
+
+      await prisma.userEvent.create({
+        data: {
+          userId: target.id,
+          actorId: req.userId!,
+          type: parsed.data.archived ? 'admin_user_archived' : 'admin_user_unarchived',
+          metadata: {
+            email: target.email,
+            reason: parsed.data.reason ?? null,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      res.json({ ok: true, user });
+    } catch (err) {
+      console.error('[Admin] archiveUser:', err);
+      res.status(500).json({ error: 'Ошибка архивирования пользователя' });
     }
   },
 

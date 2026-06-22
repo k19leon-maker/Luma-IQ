@@ -61,6 +61,10 @@ function fmtStatus(status: string): string {
   return status;
 }
 
+function archiveClass(archivedAt: string | null): string {
+  return archivedAt ? `${s.badge} ${s.badgeMuted}` : `${s.badge} ${s.badgeSuccess}`;
+}
+
 function MetricCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <div className={s.metricCard}>
@@ -101,6 +105,7 @@ export default function Admin() {
   const [q, setQ] = useState('');
   const [plan, setPlan] = useState('ALL');
   const [status, setStatus] = useState('ALL');
+  const [archiveFilter, setArchiveFilter] = useState<'ACTIVE' | 'ARCHIVED' | 'ALL'>('ACTIVE');
   const [sortKey, setSortKey] = useState<SortKey>('aiCostUsd');
   const [createOpen, setCreateOpen] = useState(false);
   const [impersonateLoading, setImpersonateLoading] = useState(false);
@@ -128,6 +133,8 @@ export default function Admin() {
   const [creditsAmount, setCreditsAmount] = useState(0);
   const [creditsReason, setCreditsReason] = useState('');
   const [accessLoading, setAccessLoading] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
   const [promptRegistry, setPromptRegistry] = useState<AdminPromptRegistryItem[]>([]);
   const [promptVersions, setPromptVersions] = useState<AdminPromptVersion[]>([]);
   const [promptExperiments, setPromptExperiments] = useState<AdminPromptExperiment[]>([]);
@@ -187,7 +194,7 @@ export default function Admin() {
     }
     setLoading(true);
     try {
-      const data = await adminApi.listUsers({ q: q || undefined, plan, status, limit: 100 });
+      const data = await adminApi.listUsers({ q: q || undefined, plan, status, archive: archiveFilter, limit: 100 });
       setUsers(data.users);
       setTotal(data.total);
     } catch {
@@ -217,6 +224,7 @@ export default function Admin() {
       setAccessProjectLimit(overrides?.projectLimit ? String(overrides.projectLimit) : '');
       setAccessDailyLimit(overrides?.dailyGenerationLimit ? String(overrides.dailyGenerationLimit) : '');
       setAccessMonthlyLimit(overrides?.monthlyGenerationLimit ? String(overrides.monthlyGenerationLimit) : '');
+      setArchiveReason(detail.archiveReason ?? '');
     } catch {
       toast.error('Не удалось загрузить карточку пользователя');
     } finally {
@@ -351,6 +359,34 @@ export default function Admin() {
     }
   }
 
+  async function handleArchiveSelected(archived: boolean) {
+    if (!selected || archiveLoading) return;
+    if (archived && selected.id === currentUser?.id) {
+      toast.error('Нельзя архивировать текущего администратора');
+      return;
+    }
+    const ok = window.confirm(
+      archived
+        ? `Архивировать пользователя ${selected.email}? Данные сохранятся, но он пропадет из основной аналитики.`
+        : `Вернуть пользователя ${selected.email} в основную аналитику?`,
+    );
+    if (!ok) return;
+    setArchiveLoading(true);
+    try {
+      await adminApi.archiveUser(selected.id, { archived, reason: archived ? archiveReason || null : null });
+      toast.success(archived ? 'Пользователь архивирован' : 'Пользователь восстановлен');
+      const detail = await adminApi.getUser(selected.id);
+      setSelected(detail);
+      setArchiveReason(detail.archiveReason ?? '');
+      await Promise.all([loadDashboard(), loadUsers()]);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? 'Не удалось обновить архив');
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+
   function renderDashboard() {
     const m = dashboard?.metrics;
     return (
@@ -421,6 +457,11 @@ export default function Admin() {
           <select className={s.select} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="ALL">Все статусы</option><option value="ACTIVE">Активные</option><option value="INACTIVE">Неактивные</option><option value="HIGH_COST">Дорогие пользователи</option>
           </select>
+          <select className={s.select} value={archiveFilter} onChange={(e) => setArchiveFilter(e.target.value as 'ACTIVE' | 'ARCHIVED' | 'ALL')}>
+            <option value="ACTIVE">Без архива</option>
+            <option value="ARCHIVED">Архив</option>
+            <option value="ALL">Все пользователи</option>
+          </select>
           <select className={s.select} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
             <option value="aiCostUsd">Сортировка: AI-расходы</option><option value="tokens">Сортировка: токены</option><option value="ltv">Сортировка: LTV</option><option value="aiRequestCount">Сортировка: запросы</option><option value="lastActivityAt">Сортировка: активность</option>
           </select>
@@ -431,14 +472,15 @@ export default function Admin() {
           <table className={s.table}>
             <thead>
               <tr>
-                <th>Имя</th><th>Email</th><th>Роль</th><th>Тариф</th><th>Статус</th><th>Проекты</th><th>AI-запросы</th><th>Токены</th><th>AI-расходы</th><th>Выручка / LTV</th><th>Маржа</th><th>Активность</th><th>Создан</th>
+                <th>Имя</th><th>Email</th><th>Архив</th><th>Роль</th><th>Тариф</th><th>Статус</th><th>Проекты</th><th>AI-запросы</th><th>Токены</th><th>AI-расходы</th><th>Выручка / LTV</th><th>Маржа</th><th>Активность</th><th>Создан</th>
               </tr>
             </thead>
             <tbody>
               {sortedUsers.map((user) => (
-                <tr key={user.id} onClick={() => void openUser(user)} className={s.row}>
+                <tr key={user.id} onClick={() => void openUser(user)} className={`${s.row}${user.archivedAt ? ' ' + s.archivedRow : ''}`}>
                   <td><strong>{user.name ?? 'Без имени'}</strong></td>
                   <td>{user.email}</td>
+                  <td><span className={archiveClass(user.archivedAt)}>{user.archivedAt ? 'Архив' : 'Основной'}</span></td>
                   <td><span className={user.role === 'ADMIN' ? `${s.badge} ${s.badgeAdmin}` : s.badge}>{fmtRole(user.role)}</span></td>
                   <td><span className={planClass(user.subscription.plan)}>{user.subscription.plan}</span></td>
                   <td><span className={statusClass(user.subscription.status)}>{fmtStatus(user.subscription.status)}</span></td>
@@ -734,7 +776,11 @@ export default function Admin() {
       <div className={s.detailStack}>
         <div className={s.detailHeader}>
           <button className={s.secondaryButton} onClick={() => setPage(previousPage)}>Назад</button>
-          <div><h2>{selected.name ?? 'Без имени'}</h2><p>{selected.email}</p></div>
+          <div>
+            <h2>{selected.name ?? 'Без имени'}</h2>
+            <p>{selected.email}</p>
+            {selected.archivedAt && <span className={`${s.badge} ${s.badgeMuted}`}>В архиве с {fmtDate(selected.archivedAt)}</span>}
+          </div>
           <div className={s.actions}>
             <button className={s.secondaryButton} onClick={() => void handleImpersonate()} disabled={impersonateLoading || selected.id === currentUser?.id}>Войти как пользователь</button>
           </div>
@@ -750,6 +796,41 @@ export default function Admin() {
           <MetricCard label="Проекты" value={selected.projectCount} />
           <MetricCard label="Материалы" value={selected.generatedTextCount} />
         </div>
+
+        <section className={selected.archivedAt ? `${s.panel} ${s.archivePanel}` : s.panel}>
+          <div className={s.panelTitle}>Архивирование пользователя</div>
+          <div className={s.archiveLayout}>
+            <div>
+              <div className={s.archiveState}>
+                <span className={archiveClass(selected.archivedAt)}>{selected.archivedAt ? 'В архиве' : 'В основной аналитике'}</span>
+                {selected.archivedAt && <span>с {fmtDate(selected.archivedAt)}</span>}
+              </div>
+              <p className={s.mutedText}>
+                Архивирование не удаляет пользователя, проекты, платежи и AI-историю. Архивные пользователи не учитываются в основной админской аналитике и скрыты из списка по умолчанию.
+              </p>
+              {selected.archiveReason && <p className={s.archiveReason}>Причина: {selected.archiveReason}</p>}
+            </div>
+            <div className={s.archiveControls}>
+              <textarea
+                className={s.textarea}
+                value={archiveReason}
+                onChange={(e) => setArchiveReason(e.target.value)}
+                placeholder="Причина архивации, если нужно"
+                rows={3}
+                disabled={Boolean(selected.archivedAt)}
+              />
+              {selected.archivedAt ? (
+                <button className={s.secondaryButton} onClick={() => void handleArchiveSelected(false)} disabled={archiveLoading}>
+                  Вернуть из архива
+                </button>
+              ) : (
+                <button className={s.warningButton} onClick={() => void handleArchiveSelected(true)} disabled={archiveLoading || selected.id === currentUser?.id}>
+                  Архивировать
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
 
         <div className={s.twoCol}>
           <section className={s.panel}>

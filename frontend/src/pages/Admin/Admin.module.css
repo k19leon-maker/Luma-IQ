@@ -189,6 +189,7 @@
 
 .button,
 .secondaryButton,
+.warningButton,
 .iconButton {
   border-radius: 6px;
   padding: 9px 12px;
@@ -209,8 +210,15 @@
   color: #24272d;
 }
 
+.warningButton {
+  border: 1px solid #b96818;
+  background: #fff7e6;
+  color: #8a4a0a;
+}
+
 .button:disabled,
-.secondaryButton:disabled {
+.secondaryButton:disabled,
+.warningButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -252,6 +260,11 @@
   background: #f8fafb;
 }
 
+.archivedRow {
+  background: #fafafa;
+  opacity: 0.78;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -282,6 +295,11 @@
 .badgeDanger {
   background: #ffe8e7;
   color: #a72d29;
+}
+
+.badgeMuted {
+  background: #edf0f3;
+  color: #68717e;
 }
 
 .tableFooter,
@@ -360,6 +378,45 @@
 .detailHeader p {
   margin: 4px 0 0;
   color: #68717e;
+}
+
+.archivePanel {
+  border-color: #e5c78c;
+  background: #fffaf0;
+}
+
+.archiveLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 14px;
+  align-items: start;
+}
+
+.archiveState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #68717e;
+  font-size: 13px;
+}
+
+.mutedText,
+.archiveReason {
+  margin: 9px 0 0;
+  color: #68717e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.archiveReason {
+  color: #4e5662;
+  font-weight: 700;
+}
+
+.archiveControls {
+  display: grid;
+  gap: 8px;
 }
 
 .formGrid {
@@ -445,6 +502,7 @@
 
   .twoCol,
   .detailHeader,
+  .archiveLayout,
   .formGrid {
     grid-template-columns: 1fr;
   }

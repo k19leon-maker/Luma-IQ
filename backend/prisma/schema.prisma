@@ -18,6 +18,9 @@ model User {
   avatarColor    String?  @default("#7c6cfc")
   defaultAiModel String?  @default("chatgpt")
   specialization String?
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -43,6 +46,7 @@ model User {
   promptExperiments   PromptExperiment[]
   consentLogs         ConsentLog[]
 
+  @@index([archivedAt])
   @@map("users")
 }
 
