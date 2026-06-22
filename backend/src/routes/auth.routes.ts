@@ -6,10 +6,10 @@ import { authController } from '../controllers/auth.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { env } from '../config/env';
 
-// Max 5 login/register attempts per 15 minutes per IP
+// Keep brute-force protection, but allow normal retries/autofill corrections.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Попробуйте через 15 минут.' },
