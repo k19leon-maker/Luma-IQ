@@ -1,15 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import { PRICING_PLANS, PlanId, isValidPlanId, toSubscriptionPlan } from '../config/pricing-plans';
 
 const YOOKASSA_API = 'https://api.yookassa.ru/v3';
 
 export const PLANS = {
-  PRO: { amount: '990.00', description: 'LumaIQ Pro — 1 месяц', months: 1 },
-  ANNUAL: { amount: '7990.00', description: 'LumaIQ Pro — 12 месяцев', months: 12 },
+  start: { amount: '12000.00', description: 'Luma IQ Start — 1 месяц', months: 1 },
+  pro: { amount: '24000.00', description: 'Luma IQ Pro — 1 месяц', months: 1 },
+  expert: { amount: '39000.00', description: 'Luma IQ Expert — 1 месяц', months: 1 },
+  support: { amount: '39000.00', description: 'Luma IQ Support — 1 месяц', months: 1 },
+  marketing_partner: { amount: '59000.00', description: 'Luma IQ Marketing Partner — 1 месяц', months: 1 },
+  implementation: { amount: '89000.00', description: 'Luma IQ Implementation — 1 месяц', months: 1 },
 } as const;
 
-type PlanKey = keyof typeof PLANS;
+type PlanKey = PlanId;
 
 async function ykRequest(method: string, path: string, body?: unknown) {
   const credentials = Buffer.from(`${env.YOOKASSA_SHOP_ID}:${env.YOOKASSA_SECRET_KEY}`).toString('base64');
@@ -39,7 +44,12 @@ export const paymentService = {
       throw Object.assign(new Error('Оплата временно недоступна'), { status: 503 });
     }
 
+    if (!isValidPlanId(plan)) {
+      throw Object.assign(new Error('Неизвестный тариф'), { status: 400 });
+    }
+
     const planDef = PLANS[plan];
+    const pricingPlan = PRICING_PLANS[plan];
 
     const ykPayment = await ykRequest('POST', '/payments', {
       amount: { value: planDef.amount, currency: 'RUB' },
@@ -56,7 +66,7 @@ export const paymentService = {
     let sub = await prisma.subscription.findUnique({ where: { userId } });
     if (!sub) {
       sub = await prisma.subscription.create({
-        data: { userId, plan: 'FREE', status: 'ACTIVE' },
+        data: { userId, plan: 'START', status: 'ACTIVE' },
       });
     }
 
@@ -67,7 +77,7 @@ export const paymentService = {
         yookassaId: ykPayment.id,
         amount: planDef.amount,
         status: 'PENDING',
-        metadata: { plan },
+        metadata: { plan, priceMonthlyRub: pricingPlan.priceMonthlyRub },
       },
     });
 
@@ -88,7 +98,7 @@ export const paymentService = {
     if (!metadata?.userId || !metadata.plan) return;
 
     const plan = metadata.plan as PlanKey;
-    const planDef = PLANS[plan];
+    const planDef = isValidPlanId(plan) ? PLANS[plan] : null;
     if (!planDef) return;
 
     const payment = await prisma.payment.findUnique({ where: { yookassaId } });
@@ -101,19 +111,19 @@ export const paymentService = {
 
     await prisma.subscription.upsert({
       where: { userId: metadata.userId },
-      create: { userId: metadata.userId, plan, status: 'ACTIVE', expiresAt, yookassaId },
-      update: { plan, status: 'ACTIVE', expiresAt, yookassaId },
+      create: { userId: metadata.userId, plan: toSubscriptionPlan(plan), status: 'ACTIVE', expiresAt, yookassaId },
+      update: { plan: toSubscriptionPlan(plan), status: 'ACTIVE', expiresAt, yookassaId },
     });
   },
 
   async getSubscription(userId: string) {
     const sub = await prisma.subscription.findUnique({ where: { userId } });
-    if (!sub) return { plan: 'FREE', status: 'ACTIVE', expiresAt: null };
+    if (!sub) return { plan: 'START', status: 'ACTIVE', expiresAt: null };
 
     // Auto-expire
     if (sub.expiresAt && sub.expiresAt < new Date() && sub.status === 'ACTIVE') {
       await prisma.subscription.update({ where: { userId }, data: { status: 'EXPIRED' } });
-      return { plan: 'FREE', status: 'EXPIRED', expiresAt: sub.expiresAt };
+      return { plan: 'START', status: 'EXPIRED', expiresAt: sub.expiresAt };
     }
 
     return { plan: sub.plan, status: sub.status, expiresAt: sub.expiresAt };

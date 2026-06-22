@@ -9,10 +9,14 @@ import { creditLedgerService } from '../services/credit-ledger.service';
 import { promptRegistry } from '../prompts/registry';
 import { promptCmsService } from '../services/prompt-cms.service';
 import { setRefreshCookie } from '../utils/auth-cookies';
+import { isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
+
+const subscriptionPlanValues = ['FREE', 'START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
+const commercialPlanValues = ['START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'] as const;
 
 const listSchema = z.object({
   q: z.string().optional(),
-  plan: z.enum(['ALL', 'FREE', 'PRO', 'ANNUAL']).optional().default('ALL'),
+  plan: z.enum(['ALL', ...subscriptionPlanValues]).optional().default('ALL'),
   status: z.enum(['ALL', 'ACTIVE', 'INACTIVE', 'HIGH_COST']).optional().default('ALL'),
   archive: z.enum(['ACTIVE', 'ARCHIVED', 'ALL']).optional().default('ACTIVE'),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
@@ -55,7 +59,7 @@ const grantProSchema = z.object({
   email:    z.string().email(),
   name:     z.string().min(1).max(100).optional(),
   password: z.string().min(8).optional(),
-  plan:     z.enum(['PRO', 'ANNUAL']).default('PRO'),
+  plan:     z.enum(commercialPlanValues).default('PRO'),
   months:   z.number().int().min(1).max(24).default(1),
   paymentSource: z.enum(['TRIBUTE', 'MANUAL', 'PROMO']).default('MANUAL'),
   amount: z.number().min(0).max(1_000_000).optional().default(0),
@@ -65,7 +69,7 @@ const grantProSchema = z.object({
 
 const updateAccessSchema = z.object({
   role: z.enum(['ADMIN', 'USER']).optional(),
-  plan: z.enum(['FREE', 'PRO', 'ANNUAL']).optional(),
+  plan: z.enum(subscriptionPlanValues).optional(),
   status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   paymentDate: z.string().datetime().nullable().optional(),
@@ -87,6 +91,10 @@ const updateAccessSchema = z.object({
 const addCreditsSchema = z.object({
   amount: z.number().int().min(-1_000_000).max(1_000_000).refine((value) => value !== 0, 'amount не должен быть 0'),
   reason: z.string().max(500).optional(),
+});
+
+const updatePlanSchema = z.object({
+  planId: z.string().refine(isValidPlanId, 'Неизвестный тариф'),
 });
 
 const archiveUserSchema = z.object({
@@ -1026,6 +1034,47 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] updateUserAccess:', err);
       res.status(500).json({ error: 'Ошибка обновления доступа' });
+    }
+  },
+
+  async updateUserPlan(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = updatePlanSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+
+    try {
+      const target = await prisma.user.findUnique({ where: { id: req.params.id as string }, include: { subscription: true } });
+      if (!target) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
+
+      const plan = toSubscriptionPlan(parsed.data.planId as PlanId);
+      const subscription = await prisma.subscription.upsert({
+        where: { userId: target.id },
+        create: {
+          userId: target.id,
+          plan,
+          status: 'ACTIVE',
+        },
+        update: {
+          plan,
+          status: 'ACTIVE',
+        },
+      });
+
+      await prisma.userEvent.create({
+        data: {
+          userId: target.id,
+          actorId: req.userId!,
+          type: 'admin_plan_updated',
+          metadata: {
+            planId: parsed.data.planId,
+            plan,
+          },
+        },
+      });
+
+      res.json({ ok: true, subscription });
+    } catch (err) {
+      console.error('[Admin] updateUserPlan:', err);
+      res.status(500).json({ error: 'Ошибка смены тарифа' });
     }
   },
 

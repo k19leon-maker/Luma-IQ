@@ -25,6 +25,7 @@ router.get('/prompts/experiments/:id/stats', adminController.promptExperimentSta
 router.get('/users', adminController.listUsers);
 router.get('/users/:id', adminController.getUser);
 router.post('/users/grant-pro', adminController.grantPro);
+router.post('/users/:id/plan', adminController.updateUserPlan);
 router.patch('/users/:id/access', adminController.updateUserAccess);
 router.patch('/users/:id/archive', adminController.archiveUser);
 router.post('/users/:id/credits', adminController.addUserCredits);

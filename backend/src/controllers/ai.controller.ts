@@ -259,7 +259,14 @@ export const aiController = {
         metadata: { provider, section, error: err instanceof Error ? err.message : 'unknown' },
       }).catch(() => {});
       if (err instanceof AccessPolicyError) {
-        res.status(err.status).json({ error: err.message });
+        res.status(err.status).json({
+          error: err.code,
+          message: err.message,
+          limitType: err.limitType,
+          current: err.current,
+          limit: err.limit,
+          planId: err.planId,
+        });
         return;
       }
       if (typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: unknown }).status === 'number') {

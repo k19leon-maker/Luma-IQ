@@ -3,14 +3,10 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
-import { paymentApi } from '../../api/projects.api';
+import { billingApi, type BillingMe } from '../../api/billing.api';
 import {
-  FRONTEND_PLAN_LIMITS,
-  PLAN_LABELS,
-  SubscriptionInfo,
   formatAccessUntil,
   formatLimitNumber,
-  normalizePlan,
 } from '../../utils/planLimits';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
@@ -98,58 +94,49 @@ const aiWorkspacePaths = new Set([
   '/threads',
 ]);
 
-function LimitsPreview({ subscription, loading }: { subscription: SubscriptionInfo | null; loading: boolean }) {
-  const plan = normalizePlan(subscription?.plan);
-  const limits = FRONTEND_PLAN_LIMITS[plan];
-  const status = subscription?.status ?? 'ACTIVE';
-  const inactive = status !== 'ACTIVE';
-
+function LimitsPreview({ billing, loading }: { billing: BillingMe | null; loading: boolean }) {
   return (
-    <div className={`${s.limitsPreview}${inactive ? ' ' + s.limitsPreviewWarning : ''}`}>
+    <div className={s.limitsPreview}>
       <div className={s.limitsPreviewTop}>
-        <span>{loading ? 'Загрузка' : PLAN_LABELS[plan]}</span>
-        <span>{inactive ? 'неактивен' : formatAccessUntil(subscription?.expiresAt ?? null)}</span>
+        <span>{loading ? 'Загрузка' : billing?.plan.name ?? 'Start'}</span>
+        <span>{billing ? `до ${formatAccessUntil(billing.period.currentPeriodEnd)}` : 'текущий период'}</span>
       </div>
       <div className={s.limitsPreviewGrid}>
         <div>
-          <strong>{formatLimitNumber(limits.monthlyCredits)}</strong>
-          <span>credits/токены</span>
+          <strong>{formatLimitNumber(billing?.usage.creditsRemaining ?? 0)}</strong>
+          <span>credits осталось</span>
         </div>
         <div>
-          <strong>{formatLimitNumber(limits.dailyGenerationLimit)}</strong>
-          <span>AI/день</span>
+          <strong>{formatLimitNumber(billing?.usage.aiGenerationsRemaining ?? 0)}</strong>
+          <span>AI осталось</span>
         </div>
         <div>
-          <strong>{formatLimitNumber(limits.chatDailyLimit)}</strong>
-          <span>чат/день</span>
+          <strong>{formatLimitNumber(billing?.usage.aiMessagesRemainingToday ?? 0)}</strong>
+          <span>чат сегодня</span>
         </div>
         <div>
-          <strong>{formatLimitNumber(limits.projectLimit)}</strong>
-          <span>проектов</span>
+          <strong>{formatLimitNumber(billing?.usage.projectsRemaining ?? 0)}</strong>
+          <span>проектов осталось</span>
         </div>
       </div>
-      <p className={s.limitsPreviewNote}>Фактические остатки подключим после backend-учета usage.</p>
     </div>
   );
 }
 
-function LimitSummary({ subscription, loading }: { subscription: SubscriptionInfo | null; loading: boolean }) {
-  const plan = normalizePlan(subscription?.plan);
-  const limits = FRONTEND_PLAN_LIMITS[plan];
-
+function LimitSummary({ billing, loading }: { billing: BillingMe | null; loading: boolean }) {
   return (
-    <div className={s.limitSummary} title="Показаны лимиты тарифа. Остатки подключим после backend-учета usage.">
+    <div className={s.limitSummary} title="Остатки лимитов текущего периода">
       <div className={s.limitSummaryItem}>
-        <span>Кредитов всего</span>
-        <strong>{formatLimitNumber(limits.monthlyCredits)}</strong>
+        <span>Кредитов осталось</span>
+        <strong>{loading ? '...' : formatLimitNumber(billing?.usage.creditsRemaining ?? 0)}</strong>
       </div>
       <div className={s.limitSummaryItem}>
         <span>ИИ генерации</span>
-        <strong>{formatLimitNumber(limits.dailyGenerationLimit)}</strong>
+        <strong>{loading ? '...' : formatLimitNumber(billing?.usage.aiGenerationsRemaining ?? 0)}</strong>
       </div>
       <div className={s.limitSummaryPlan}>
         <span>Тариф</span>
-        <strong>{loading ? '...' : PLAN_LABELS[plan]}</strong>
+        <strong>{loading ? '...' : billing?.plan.name ?? 'Start'}</strong>
       </div>
     </div>
   );
@@ -211,10 +198,11 @@ export default function Layout({ children }: LayoutProps) {
   const user      = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
   const [hasAdminBackup, setHasAdminBackup] = useState(() => hasAdminAccessTokenBackup());
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [billing, setBilling] = useState<BillingMe | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const switchProgress    = useProgressStore((st) => st.switchProject);
   const loadProgressFromDb = useProgressStore((st) => st.loadFromDb);
@@ -244,18 +232,18 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     if (!user?.id) {
-      setSubscription(null);
+      setBilling(null);
       return;
     }
 
     let cancelled = false;
     setSubscriptionLoading(true);
-    paymentApi.getSubscription()
+    billingApi.getMe()
       .then((next) => {
-        if (!cancelled) setSubscription(next);
+        if (!cancelled) setBilling(next);
       })
       .catch(() => {
-        if (!cancelled) setSubscription(null);
+        if (!cancelled) setBilling(null);
       })
       .finally(() => {
         if (!cancelled) setSubscriptionLoading(false);
@@ -324,6 +312,29 @@ export default function Layout({ children }: LayoutProps) {
     return () => window.removeEventListener('mousedown', onPointerDown);
   }, [accountMenuOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (accountMenuCloseTimerRef.current) {
+        clearTimeout(accountMenuCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  const cancelAccountMenuClose = () => {
+    if (accountMenuCloseTimerRef.current) {
+      clearTimeout(accountMenuCloseTimerRef.current);
+      accountMenuCloseTimerRef.current = null;
+    }
+  };
+
+  const scheduleAccountMenuClose = () => {
+    cancelAccountMenuClose();
+    accountMenuCloseTimerRef.current = setTimeout(() => {
+      setAccountMenuOpen(false);
+      accountMenuCloseTimerRef.current = null;
+    }, 180);
+  };
+
   // Sync per-project stores when active project changes
   useEffect(() => {
     if (!activeProjectId) return;
@@ -334,6 +345,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const projectMatch = appLocationPath.match(/^\/projects\/(.+)$/);
   const isAiWorkspace = aiWorkspacePaths.has(appLocationPath);
+  const isAiDialog = appLocationPath === '/ai-dialog';
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
     : (pageTitles[appLocationPath] ?? 'LumaIQ');
@@ -389,8 +401,7 @@ export default function Layout({ children }: LayoutProps) {
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'П';
-  const plan = normalizePlan(subscription?.plan ?? (user as { plan?: string })?.plan);
-  const userPlanLabel = PLAN_LABELS[plan] ?? (user as { tariff?: string })?.tariff ?? 'Бесплатный тариф';
+  const userPlanLabel = billing?.plan.name ?? (user as { tariff?: string })?.tariff ?? 'Start';
 
   const goToAccountSection = (path: string) => {
     setAccountMenuOpen(false);
@@ -624,7 +635,12 @@ export default function Layout({ children }: LayoutProps) {
               <button onClick={restoreAdminSession}>Вернуться в админку</button>
             </div>
           )}
-          <div className={s.accountMenuWrap} ref={accountMenuRef}>
+          <div
+            className={s.accountMenuWrap}
+            ref={accountMenuRef}
+            onMouseEnter={cancelAccountMenuClose}
+            onMouseLeave={scheduleAccountMenuClose}
+          >
             {accountMenuOpen && (
               <div className={s.accountMenu}>
                 <button className={s.accountMenuItem} onClick={() => goToAccountSection('/settings#profile')}>
@@ -634,7 +650,7 @@ export default function Layout({ children }: LayoutProps) {
                   <button className={s.accountMenuItem} onClick={() => goToAccountSection('/limits')}>
                     <span>Лимиты</span>
                   </button>
-                  <LimitsPreview subscription={subscription} loading={subscriptionLoading} />
+                  <LimitsPreview billing={billing} loading={subscriptionLoading} />
                 </div>
                 <button className={s.accountMenuItem} onClick={() => goToAccountSection('/pricing')}>
                   <span>Тариф и оплата</span>
@@ -643,12 +659,12 @@ export default function Layout({ children }: LayoutProps) {
             )}
             <button
               className={`${s.userCard}${accountMenuOpen ? ' ' + s.userCardActive : ''}`}
-              onClick={() => setAccountMenuOpen(true)}
-              onMouseEnter={() => setAccountMenuOpen(true)}
-              onFocus={() => setAccountMenuOpen(true)}
+              onClick={() => {
+                cancelAccountMenuClose();
+                setAccountMenuOpen((open) => !open);
+              }}
               aria-expanded={accountMenuOpen}
               aria-haspopup="menu"
-              title="Профиль, лимиты, тариф и оплата"
             >
               <div className={s.avatar}>{initials}</div>
               <div className={s.userMeta}>
@@ -667,16 +683,16 @@ export default function Layout({ children }: LayoutProps) {
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>
             <div className={s.topbarActions}>
-              <LimitSummary subscription={subscription} loading={subscriptionLoading} />
+              <LimitSummary billing={billing} loading={subscriptionLoading} />
             </div>
           </header>
         )}
         {(location.pathname === '/dashboard' || isAiWorkspace) && (
           <div className={s.limitSummaryFixed}>
-            <LimitSummary subscription={subscription} loading={subscriptionLoading} />
+            <LimitSummary billing={billing} loading={subscriptionLoading} />
           </div>
         )}
-        <main className={location.pathname === '/dashboard' || isAiWorkspace ? s.contentFull : s.content}>
+        <main className={location.pathname === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}` : s.content}>
           {projectsLoading && projects.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
               Загрузка…

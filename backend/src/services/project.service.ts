@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { accessPolicyService, AccessPolicyError } from './access-policy.service';
 
 const DEV_USER_ID = 'dev-user-001';
 
@@ -38,6 +39,16 @@ export const projectService = {
   },
 
   async create(userId: string, data: { name: string; niche?: string; description?: string }) {
+    const access = await accessPolicyService.getUserAccess(userId);
+    if (access.user.role !== 'ADMIN' && access.user._count.projects >= access.limits.projectLimit) {
+      throw new AccessPolicyError('Превышен лимит проектов на тарифе', 402, 'LIMIT_EXCEEDED', {
+        limitType: 'projectsLimit',
+        current: access.user._count.projects,
+        limit: access.limits.projectLimit,
+        planId: access.plan,
+      });
+    }
+
     return prisma.project.create({
       data: {
         userId,

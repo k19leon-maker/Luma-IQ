@@ -1,4 +1,5 @@
 import { GenerationClass, SubscriptionPlan } from '@prisma/client';
+import { getPlanBySubscriptionPlan, PricingPlanLimits } from './pricing-plans';
 
 export type FeatureCode =
   | 'ai_chat'
@@ -34,6 +35,16 @@ export interface PlanLimitConfig {
   chatDailyLimit: number;
   dailyGenerationLimit: number;
   monthlyGenerationLimit: number;
+  monthlyContentUnits: number;
+  teamMembersLimit: number;
+  strategyRebuildsLimit: number;
+  youtubeScriptsLimit: number;
+  longreadsLimit: number;
+  hasMarketingSupport: boolean;
+  marketingCallsPerMonth: number;
+  hasPrioritySupport: boolean;
+  hasTeamAccess: boolean;
+  hasImplementationSupport: boolean;
   features: Record<string, boolean>;
 }
 
@@ -173,49 +184,35 @@ const ALL_FEATURES = Object.keys(FEATURE_PRICING).reduce<Record<string, boolean>
   return acc;
 }, {});
 
+function toPlanLimitConfig(limits: PricingPlanLimits): PlanLimitConfig {
+  return {
+    monthlyCredits: limits.monthlyCredits,
+    projectLimit: limits.projectsLimit,
+    heavyGenerationLimit: limits.heavyGenerationsLimit,
+    chatDailyLimit: limits.dailyAiMessagesLimit,
+    dailyGenerationLimit: limits.monthlyAiGenerationsLimit,
+    monthlyGenerationLimit: limits.monthlyAiGenerationsLimit,
+    monthlyContentUnits: limits.monthlyContentUnits,
+    teamMembersLimit: limits.teamMembersLimit,
+    strategyRebuildsLimit: limits.strategyRebuildsLimit,
+    youtubeScriptsLimit: limits.youtubeScriptsLimit,
+    longreadsLimit: limits.longreadsLimit,
+    hasMarketingSupport: limits.hasMarketingSupport,
+    marketingCallsPerMonth: limits.marketingCallsPerMonth,
+    hasPrioritySupport: limits.hasPrioritySupport,
+    hasTeamAccess: limits.hasTeamAccess,
+    hasImplementationSupport: limits.hasImplementationSupport,
+    features: ALL_FEATURES,
+  };
+}
+
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
-  FREE: {
-    monthlyCredits: 25,
-    projectLimit: 1,
-    heavyGenerationLimit: 2,
-    chatDailyLimit: 5,
-    dailyGenerationLimit: 10,
-    monthlyGenerationLimit: 30,
-    features: {
-      ai_chat: true,
-      positioning: true,
-      audience: false,
-      utp: false,
-      social: false,
-      product_main: false,
-      product_mini: false,
-      lead_magnet: false,
-      post: false,
-      reel: false,
-      video_script: false,
-      article: false,
-      chatbot_chain: false,
-      threads: false,
-      content_plan: false,
-      jtbd: true,
-    },
-  },
-  PRO: {
-    monthlyCredits: 2000,
-    projectLimit: 10,
-    heavyGenerationLimit: 80,
-    chatDailyLimit: 150,
-    dailyGenerationLimit: 250,
-    monthlyGenerationLimit: 2500,
-    features: ALL_FEATURES,
-  },
-  ANNUAL: {
-    monthlyCredits: 3000,
-    projectLimit: 20,
-    heavyGenerationLimit: 120,
-    chatDailyLimit: 250,
-    dailyGenerationLimit: 400,
-    monthlyGenerationLimit: 4000,
-    features: ALL_FEATURES,
-  },
+  FREE: toPlanLimitConfig(getPlanBySubscriptionPlan('FREE').limits),
+  START: toPlanLimitConfig(getPlanBySubscriptionPlan('START').limits),
+  PRO: toPlanLimitConfig(getPlanBySubscriptionPlan('PRO').limits),
+  EXPERT: toPlanLimitConfig(getPlanBySubscriptionPlan('EXPERT').limits),
+  SUPPORT: toPlanLimitConfig(getPlanBySubscriptionPlan('SUPPORT').limits),
+  MARKETING_PARTNER: toPlanLimitConfig(getPlanBySubscriptionPlan('MARKETING_PARTNER').limits),
+  IMPLEMENTATION: toPlanLimitConfig(getPlanBySubscriptionPlan('IMPLEMENTATION').limits),
+  ANNUAL: toPlanLimitConfig(getPlanBySubscriptionPlan('ANNUAL').limits),
 };

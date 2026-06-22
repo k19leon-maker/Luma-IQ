@@ -1,72 +1,28 @@
-import { prisma } from '../lib/prisma';
-import { env } from '../config/env';
-import type { SubscriptionPlan, SubscriptionStatus, Role } from '@prisma/client';
+import { accessPolicyService, AccessPolicyError } from './access-policy.service';
 
 export class AiAccessError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status = 402) {
+  constructor(message: string, status = 402, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
-}
-
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export const aiAccessService = {
   async consume(userId: string): Promise<void> {
-    let user: {
-      role: Role;
-      subscription: {
-        status: SubscriptionStatus;
-        plan: SubscriptionPlan;
-        expiresAt: Date | null;
-      } | null;
-    } | null;
-
     try {
-      user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          role: true,
-          subscription: true,
-        },
+      await accessPolicyService.assertCanUseFeature({
+        userId,
+        featureCode: 'ai_chat',
       });
     } catch (err) {
-      if (env.isDev) {
-        console.warn('[AI access] DB unavailable in dev, skipping usage limit:', (err as Error).message);
-        return;
+      if (err instanceof AccessPolicyError) {
+        throw new AiAccessError(err.message, err.status, err.code);
       }
       throw err;
-    }
-
-    if (user?.role === 'ADMIN') return;
-
-    const subscription = user?.subscription ?? null;
-
-    if (subscription?.status === 'ACTIVE' && subscription.expiresAt && subscription.expiresAt < new Date()) {
-      await prisma.subscription.update({ where: { userId }, data: { status: 'EXPIRED' } });
-    } else if (
-      subscription?.status === 'ACTIVE' &&
-      subscription.plan !== 'FREE' &&
-      (!subscription.expiresAt || subscription.expiresAt >= new Date())
-    ) {
-      return;
-    }
-
-    const date = todayUtc();
-    const usage = await prisma.aIUsage.upsert({
-      where: { userId_date: { userId, date } },
-      create: { userId, date, count: 1 },
-      update: { count: { increment: 1 } },
-    });
-
-    if (usage.count > env.FREE_AI_DAILY_LIMIT) {
-      throw new AiAccessError(
-        `Лимит бесплатного тарифа исчерпан: ${env.FREE_AI_DAILY_LIMIT} AI-запросов в день. Активируйте PRO-доступ.`,
-      );
     }
   },
 };

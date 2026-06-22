@@ -1,123 +1,348 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { paymentApi } from '../../api/projects.api';
+import { billingApi } from '../../api/billing.api';
 import { useAuthStore } from '../../store/auth.store';
+import s from './Pricing.module.css';
 
-interface Plan {
-  key:      'PRO' | 'ANNUAL';
-  name:     string;
-  price:    string;
-  period:   string;
-  save?:    string;
+type BillingScenario = 'self' | 'support';
+
+type PricingPlan = {
+  id: string;
+  scenario: BillingScenario;
+  name: string;
+  price: number;
+  period: string;
+  description: string;
   features: string[];
-}
+  badge?: string;
+  buttonText: string;
+};
 
-const PLANS: Plan[] = [
+const scenarioTabs: Array<{ id: BillingScenario; label: string }> = [
+  { id: 'self', label: 'Самостоятельно' },
+  { id: 'support', label: 'С сопровождением' },
+];
+
+const pricingPlans: PricingPlan[] = [
   {
-    key:     'PRO',
-    name:    'Pro',
-    price:   '990 ₽',
-    period:  'в месяц',
+    id: 'start',
+    scenario: 'self',
+    name: 'Start',
+    price: 12000,
+    period: 'в месяц',
+    description: 'Для эксперта, который хочет собрать первую упаковку и начать регулярно делать контент',
     features: [
-      'Безлимитные AI-генерации',
-      'Все разделы стратегии',
-      'Контент-план и экспорт',
-      'История генераций',
-      'Поддержка по email',
+      '1 проект / 1 направление',
+      'AI-разработка целевой аудитории и JTBD-сегмента',
+      'Позиционирование',
+      'Продуктовая линейка: бесплатный продукт, недорогой продукт, основной продукт',
+      'Оффер для основного продукта',
+      'Контент-план на 7 дней',
+      'До 50 контент-единиц в месяц',
+      'Посты для Telegram / VK',
+      'Сценарии Reels / Shorts',
+      'AI-чат по проекту',
+      'База инструкций',
     ],
+    buttonText: 'Выбрать Start',
   },
   {
-    key:     'ANNUAL',
-    name:    'Pro Годовой',
-    price:   '7 990 ₽',
-    period:  'в год',
-    save:    'Экономия 2 месяца',
+    id: 'pro',
+    scenario: 'self',
+    name: 'Pro',
+    price: 24000,
+    period: 'в месяц',
+    description: 'Для эксперта, который хочет системно вести контент и развивать несколько продуктов',
     features: [
-      'Всё из Pro',
-      '2 месяца бесплатно',
+      'До 3 проектов / направлений',
+      'Расширенная AI-упаковка целевой аудитории',
+      'Позиционирование под каждый сегмент',
+      'Продуктовая линейка под каждый проект',
+      'Офферы для продуктов',
+      'Контент-план на 30 дней',
+      'До 150 контент-единиц в месяц',
+      'Посты, Reels, Shorts, Threads',
+      'Сценарии YouTube-видео',
+      'Прогревы на 5-7 дней',
+      'AI-чат по каждому проекту',
+      'Экспорт материалов',
+    ],
+    badge: 'Популярный',
+    buttonText: 'Выбрать Pro',
+  },
+  {
+    id: 'expert',
+    scenario: 'self',
+    name: 'Expert',
+    price: 39000,
+    period: 'в месяц',
+    description: 'Для эксперта, у которого несколько направлений, продуктов или помощник в команде',
+    features: [
+      'До 7 проектов / направлений',
+      'Глубокая упаковка каждого сегмента',
+      'Несколько продуктовых линеек',
+      'Офферы, лид-магниты, мини-продукты, основные продукты',
+      'Контент-план на 30 дней по каждому проекту',
+      'До 350 контент-единиц в месяц',
+      'Посты, Reels, Shorts, Threads, YouTube',
+      'Лонгриды и статьи',
+      'Прогревы и мини-запуски',
+      'Задачи по маркетингу внутри проекта',
+      'Доступ для ассистента / сотрудника',
+    ],
+    buttonText: 'Выбрать Expert',
+  },
+  {
+    id: 'support',
+    scenario: 'support',
+    name: 'Support',
+    price: 39000,
+    period: 'в месяц',
+    description: 'Для эксперта, который хочет сам работать в сервисе, но получать обратную связь маркетолога',
+    features: [
+      'Всё из тарифа Pro',
+      'До 3 проектов / направлений',
+      'Проверка упаковки маркетологом',
+      'Проверка продуктовой линейки',
+      'Проверка офферов',
+      'Обратная связь по контенту',
+      'Помощь с контент-планом',
+      '1 индивидуальный созвон в месяц',
+      'Поддержка в чате',
+      'Рекомендации по Telegram / VK',
+      'План задач на месяц',
+    ],
+    buttonText: 'Выбрать Support',
+  },
+  {
+    id: 'marketing_partner',
+    scenario: 'support',
+    name: 'Marketing Partner',
+    price: 59000,
+    period: 'в месяц',
+    description: 'Для эксперта, которому нужен маркетолог рядом для регулярного внедрения',
+    features: [
+      'Всё из тарифа Expert',
+      'До 5 проектов / направлений',
+      'Совместная разработка стратегии',
+      'Совместная сборка продуктовой линейки',
+      'Совместная разработка офферов',
+      'Контент-план на месяц',
+      'Помощь в создании постов и сценариев',
+      'Редактура контента маркетологом',
+      '2-4 созвона в месяц',
+      'Еженедельный план задач',
+      'ТЗ на лендинг',
+      'ТЗ на чатбот',
+      'Рекомендации по оформлению соцсетей',
+      'Поддержка в чате',
+    ],
+    badge: 'Оптимальный выбор',
+    buttonText: 'Выбрать Marketing Partner',
+  },
+  {
+    id: 'implementation',
+    scenario: 'support',
+    name: 'Implementation',
+    price: 89000,
+    period: 'в месяц',
+    description: 'Для эксперта, который хочет, чтобы маркетолог активно помогал внедрять систему продвижения',
+    features: [
+      'Всё из тарифа Marketing Partner',
+      'До 7 проектов / направлений',
+      'Глубокая упаковка экспертности',
+      'Разработка воронки',
+      'Разработка лид-магнита / мини-продукта / практикума',
+      'Контент-план на месяц',
+      'Помощь в производстве контента',
+      'Подготовка структуры лендинга',
+      'Подготовка текстов для лендинга',
+      'Помощь со сборкой чатбота во внешнем сервисе',
+      'Помощь с упаковкой Telegram / VK',
+      'Контроль внедрения по задачам',
+      'Еженедельные созвоны',
       'Приоритетная поддержка',
     ],
+    buttonText: 'Выбрать Implementation',
   },
 ];
 
-export default function Pricing() {
-  const user    = useAuthStore((s) => s.user);
-  const [loading, setLoading] = useState<string | null>(null);
+const planAliases: Record<string, string> = {
+  START: 'start',
+  PRO: 'pro',
+  EXPERT: 'expert',
+  SUPPORT: 'support',
+  MARKETING_PARTNER: 'marketing_partner',
+  MARKETING_PARTNER_MONTHLY: 'marketing_partner',
+  IMPLEMENTATION: 'implementation',
+};
 
-  async function handleBuy(plan: 'PRO' | 'ANNUAL') {
-    if (!user) { toast.error('Необходима авторизация'); return; }
-    setLoading(plan);
-    try {
-      const { confirmationUrl } = await paymentApi.createPayment(plan);
-      window.location.href = confirmationUrl;
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка при создании платежа';
-      toast.error(msg);
-    } finally {
-      setLoading(null);
-    }
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value) + ' ₽';
+}
+
+function normalizeActivePlan(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return planAliases[normalized] ?? normalized.toLowerCase();
+}
+
+export default function Pricing() {
+  const user = useAuthStore((state) => state.user);
+  const [scenario, setScenario] = useState<BillingScenario>('self');
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    billingApi.getMe()
+      .then((billing) => {
+        if (cancelled) return;
+        setActivePlanId(billing.plan.id);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          const fallbackPlan = (user as { plan?: string; tariff?: string } | null)?.plan
+            ?? (user as { plan?: string; tariff?: string } | null)?.tariff;
+          setActivePlanId(normalizeActivePlan(fallbackPlan));
+        }
+      });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const visiblePlans = useMemo(
+    () => pricingPlans.filter((plan) => plan.scenario === scenario),
+    [scenario],
+  );
+
+  function handleSelectPlan(plan: PricingPlan) {
+    if (activePlanId === plan.id) return;
+    setSelectedPlan(plan);
   }
 
-  const s: Record<string, React.CSSProperties> = {
-    page:    { background: '#F5F4F0', minHeight: '100%', padding: '48px 24px' },
-    title:   { fontSize: 28, fontWeight: 600, color: '#1a1a1a', textAlign: 'center', marginBottom: 8 },
-    sub:     { color: '#888', fontSize: 15, textAlign: 'center', marginBottom: 48 },
-    grid:    { display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' },
-    card:    { background: '#fff', borderRadius: 16, padding: '32px 28px', width: 300, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' },
-    planName:{ fontSize: 18, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 },
-    price:   { fontSize: 32, fontWeight: 700, color: '#D4A847', marginBottom: 2 },
-    period:  { fontSize: 13, color: '#888', marginBottom: 4 },
-    save:    { display: 'inline-block', background: '#FFF3CD', color: '#856404', borderRadius: 6, padding: '2px 10px', fontSize: 12, fontWeight: 500, marginBottom: 20 },
-    features:{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 8 },
-    feature: { fontSize: 14, color: '#555', display: 'flex', alignItems: 'center', gap: 8 },
-    btn:     { width: '100%', background: '#D4A847', color: '#fff', border: 'none', borderRadius: 8, padding: '12px', fontSize: 15, fontWeight: 500, cursor: 'pointer' },
-    btnDisabled: { width: '100%', background: '#e8d498', color: '#fff', border: 'none', borderRadius: 8, padding: '12px', fontSize: 15, fontWeight: 500, cursor: 'not-allowed' },
-  };
+  function handleLeadSubmit() {
+    if (!selectedPlan) return;
+    toast.success('Заявка на подключение тарифа отправлена');
+    setSelectedPlan(null);
+  }
 
   return (
-    <div style={s.page}>
-      <h1 style={s.title}>Тарифы LumaIQ</h1>
-      <p style={s.sub}>Выберите план, который подходит вам</p>
+    <div className={s.page}>
+      <header className={s.header}>
+        <h1>Тарифы Luma IQ</h1>
+        <p>Выберите формат работы: самостоятельно или с сопровождением маркетолога</p>
+      </header>
 
-      <div style={s.grid}>
-        {/* Free plan */}
-        <div style={{ ...s.card, border: '1px solid #E5E3DC' }}>
-          <div style={s.planName}>Бесплатный</div>
-          <div style={s.price}>0 ₽</div>
-          <div style={s.period}>навсегда</div>
-          <div style={{ height: 26 }} />
-          <ul style={s.features}>
-            {['Базовые функции стратегии', 'До 5 AI-генераций в день', 'Один проект'].map((f) => (
-              <li key={f} style={s.feature}><span>✓</span> {f}</li>
-            ))}
-          </ul>
-          <div style={{ ...s.btn, background: '#F5F4F0', color: '#888', cursor: 'default', textAlign: 'center', borderRadius: 8, padding: '12px', fontSize: 15 }}>
-            Текущий план
-          </div>
-        </div>
-
-        {PLANS.map((plan) => (
-          <div key={plan.key} style={{ ...s.card, border: '2px solid #D4A847' }}>
-            <div style={s.planName}>{plan.name}</div>
-            <div style={s.price}>{plan.price}</div>
-            <div style={s.period}>{plan.period}</div>
-            {plan.save && <span style={s.save}>{plan.save}</span>}
-            {!plan.save && <div style={{ height: 26 }} />}
-            <ul style={s.features}>
-              {plan.features.map((f) => (
-                <li key={f} style={s.feature}><span style={{ color: '#D4A847' }}>✓</span> {f}</li>
-              ))}
-            </ul>
-            <button
-              style={loading === plan.key ? s.btnDisabled : s.btn}
-              onClick={() => handleBuy(plan.key)}
-              disabled={!!loading}
-            >
-              {loading === plan.key ? 'Переход к оплате...' : 'Купить'}
-            </button>
-          </div>
+      <div className={s.tabs} role="tablist" aria-label="Формат работы">
+        {scenarioTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={scenario === tab.id}
+            className={`${s.tab}${scenario === tab.id ? ' ' + s.tabActive : ''}`}
+            onClick={() => setScenario(tab.id)}
+          >
+            {tab.label}
+          </button>
         ))}
       </div>
+
+      <section className={s.grid} aria-live="polite">
+        {visiblePlans.map((plan) => {
+          const isCurrent = activePlanId === plan.id;
+          return (
+            <article key={plan.id} className={`${s.card}${plan.badge ? ' ' + s.cardFeatured : ''}`}>
+              <div className={s.cardTop}>
+                <div>
+                  <h2>{plan.name}</h2>
+                  <p>{plan.description}</p>
+                </div>
+                {plan.badge && <span className={s.badge}>{plan.badge}</span>}
+              </div>
+
+              <div className={s.priceRow}>
+                <span className={s.price}>{formatPrice(plan.price)}</span>
+                <span className={s.period}>{plan.period}</span>
+              </div>
+
+              <ul className={s.features}>
+                {plan.features.map((feature) => (
+                  <li key={feature}>
+                    <span className={s.check}>✓</span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                className={isCurrent ? s.currentButton : s.primaryButton}
+                disabled={isCurrent}
+                onClick={() => handleSelectPlan(plan)}
+              >
+                {isCurrent ? 'Текущий тариф' : plan.buttonText}
+              </button>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className={s.customBlock}>
+        <div>
+          <h2>Нужен индивидуальный формат?</h2>
+          <p>
+            Если вам нужно полностью делегировать упаковку, контент, лендинг, чатбот и внедрение воронки - оставьте заявку,
+            и мы подберём формат сопровождения под вашу задачу.
+          </p>
+        </div>
+        <button
+          type="button"
+          className={s.secondaryButton}
+          onClick={() => setSelectedPlan({
+            id: 'custom',
+            scenario: 'support',
+            name: 'Индивидуальный формат',
+            price: 0,
+            period: '',
+            description: '',
+            features: [],
+            buttonText: 'Обсудить индивидуальный формат',
+          })}
+        >
+          Обсудить индивидуальный формат
+        </button>
+      </section>
+
+      {selectedPlan && (
+        <div className={s.modalOverlay} role="presentation" onMouseDown={() => setSelectedPlan(null)}>
+          <div
+            className={s.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pricing-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button type="button" className={s.closeButton} aria-label="Закрыть" onClick={() => setSelectedPlan(null)}>
+              ×
+            </button>
+            <span className={s.modalEyebrow}>Заявка на подключение</span>
+            <h2 id="pricing-modal-title">{selectedPlan.name}</h2>
+            {selectedPlan.price > 0 && (
+              <div className={s.modalPrice}>
+                {formatPrice(selectedPlan.price)}
+                <span>{selectedPlan.period}</span>
+              </div>
+            )}
+            <p>
+              Оплата тарифа будет подключена на следующем этапе. Сейчас вы можете оставить заявку на подключение.
+            </p>
+            <button type="button" className={s.primaryButton} onClick={handleLeadSubmit}>
+              Оставить заявку
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

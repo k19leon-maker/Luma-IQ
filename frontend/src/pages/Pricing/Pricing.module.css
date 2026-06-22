@@ -1,0 +1,366 @@
+.page {
+  min-height: 100%;
+  overflow-y: auto;
+  background: #f7f6f2;
+  padding: 36px 32px 48px;
+}
+
+.header {
+  max-width: 920px;
+  margin: 0 auto 24px;
+  text-align: center;
+}
+
+.header h1 {
+  margin: 0 0 8px;
+  color: #1f1f1f;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.header p {
+  margin: 0;
+  color: #777;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tabs {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 26px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #e6e0d2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.04);
+}
+
+.tab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #696969;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+.tab:hover {
+  color: #1f1f1f;
+}
+
+.tabActive {
+  background: #d4a847;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(212, 168, 71, 0.24);
+}
+
+.grid {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 24px;
+  border: 1px solid #e6e0d2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.05);
+}
+
+.cardFeatured {
+  border-color: #d4a847;
+  box-shadow: 0 16px 36px rgba(106, 80, 24, 0.11);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 126px;
+}
+
+.cardTop h2 {
+  margin: 0 0 8px;
+  color: #1f1f1f;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.cardTop p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.badge {
+  align-self: flex-start;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: #fff5d8;
+  border: 1px solid #ead292;
+  color: #9a741e;
+  padding: 5px 10px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid #eee8dc;
+}
+
+.price {
+  color: #d4a847;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.period {
+  color: #888;
+  font-size: 13px;
+}
+
+.features {
+  flex: 1;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 20px 0 24px;
+  padding: 0;
+}
+
+.features li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  color: #484848;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: rgba(212, 168, 71, 0.13);
+  color: #b88b2a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.primaryButton,
+.secondaryButton,
+.currentButton {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.primaryButton {
+  width: 100%;
+  border: 1px solid #d4a847;
+  background: #d4a847;
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+}
+
+.primaryButton:hover {
+  background: #bf9435;
+  border-color: #bf9435;
+  transform: translateY(-1px);
+}
+
+.currentButton {
+  width: 100%;
+  border: 1px solid #e3dccd;
+  background: #f5f4f0;
+  color: #8b846f;
+  cursor: not-allowed;
+}
+
+.customBlock {
+  max-width: 1280px;
+  margin: 22px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 1px solid #e6e0d2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.customBlock h2 {
+  margin: 0 0 6px;
+  color: #1f1f1f;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.customBlock p {
+  max-width: 840px;
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.secondaryButton {
+  flex-shrink: 0;
+  border: 1px solid #d4a847;
+  background: #fff;
+  color: #b88b2a;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.secondaryButton:hover {
+  background: #fff8e8;
+  color: #8f6819;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 20, 20, 0.42);
+}
+
+.modal {
+  position: relative;
+  width: min(460px, 100%);
+  border-radius: 8px;
+  border: 1px solid #e6e0d2;
+  background: #fff;
+  padding: 28px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.18);
+}
+
+.closeButton {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #f5f4f0;
+  color: #777;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modalEyebrow {
+  display: block;
+  margin-bottom: 10px;
+  color: #9a741e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.modal h2 {
+  margin: 0 0 12px;
+  color: #1f1f1f;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.modalPrice {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: #d4a847;
+  font-size: 28px;
+  font-weight: 850;
+}
+
+.modalPrice span {
+  color: #888;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.modal p {
+  margin: 0 0 22px;
+  color: #5d5d5d;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 24px 16px 36px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .tabs {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cardTop {
+    min-height: auto;
+    flex-direction: column;
+  }
+
+  .customBlock {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .secondaryButton {
+    width: 100%;
+  }
+}

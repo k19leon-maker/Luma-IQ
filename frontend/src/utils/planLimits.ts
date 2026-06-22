@@ -1,4 +1,4 @@
-export type PlanCode = 'FREE' | 'PRO' | 'ANNUAL';
+export type PlanCode = 'FREE' | 'START' | 'PRO' | 'EXPERT' | 'SUPPORT' | 'MARKETING_PARTNER' | 'IMPLEMENTATION' | 'ANNUAL';
 
 export interface SubscriptionInfo {
   plan: string;
@@ -14,19 +14,40 @@ export interface PlanLimits {
 }
 
 export const FRONTEND_PLAN_LIMITS: Record<PlanCode, PlanLimits> = {
-  FREE: { monthlyCredits: 25, projectLimit: 1, chatDailyLimit: 5, dailyGenerationLimit: 10 },
-  PRO: { monthlyCredits: 2000, projectLimit: 10, chatDailyLimit: 150, dailyGenerationLimit: 250 },
-  ANNUAL: { monthlyCredits: 3000, projectLimit: 20, chatDailyLimit: 250, dailyGenerationLimit: 400 },
+  FREE: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
+  START: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
+  PRO: { monthlyCredits: 3000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
+  EXPERT: { monthlyCredits: 7000, projectLimit: 7, chatDailyLimit: 100, dailyGenerationLimit: 700 },
+  SUPPORT: { monthlyCredits: 4000, projectLimit: 3, chatDailyLimit: 50, dailyGenerationLimit: 400 },
+  MARKETING_PARTNER: { monthlyCredits: 7000, projectLimit: 5, chatDailyLimit: 100, dailyGenerationLimit: 700 },
+  IMPLEMENTATION: { monthlyCredits: 10000, projectLimit: 7, chatDailyLimit: 200, dailyGenerationLimit: 1000 },
+  ANNUAL: { monthlyCredits: 3000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
 };
 
 export const PLAN_LABELS: Record<PlanCode, string> = {
-  FREE: 'Бесплатный тариф',
+  FREE: 'Start',
+  START: 'Start',
   PRO: 'Pro',
-  ANNUAL: 'Annual',
+  EXPERT: 'Expert',
+  SUPPORT: 'Support',
+  MARKETING_PARTNER: 'Marketing Partner',
+  IMPLEMENTATION: 'Implementation',
+  ANNUAL: 'Pro',
 };
 
 export function normalizePlan(plan?: string): PlanCode {
-  return plan === 'PRO' || plan === 'ANNUAL' ? plan : 'FREE';
+  if (
+    plan === 'START' ||
+    plan === 'PRO' ||
+    plan === 'EXPERT' ||
+    plan === 'SUPPORT' ||
+    plan === 'MARKETING_PARTNER' ||
+    plan === 'IMPLEMENTATION' ||
+    plan === 'ANNUAL'
+  ) {
+    return plan;
+  }
+  return 'START';
 }
 
 export function formatLimitNumber(value: number): string {

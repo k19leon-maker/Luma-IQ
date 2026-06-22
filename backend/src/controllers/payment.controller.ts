@@ -2,9 +2,10 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { paymentService } from '../services/payment.service';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { isValidPlanId, type PlanId } from '../config/pricing-plans';
 
 const createSchema = z.object({
-  plan: z.enum(['PRO', 'ANNUAL']),
+  plan: z.string().refine(isValidPlanId, 'Неизвестный тариф'),
 });
 
 export const paymentController = {
@@ -15,7 +16,7 @@ export const paymentController = {
       return;
     }
     try {
-      const result = await paymentService.createPayment(req.userId!, parsed.data.plan);
+      const result = await paymentService.createPayment(req.userId!, parsed.data.plan as PlanId);
       res.json(result);
     } catch (err) {
       const e = err as Error & { status?: number };

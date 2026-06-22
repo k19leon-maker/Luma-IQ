@@ -21,7 +21,7 @@ export const billingPeriodService = {
 
   async getOrCreateCurrent(userId: string, subscription?: Subscription | null, now = new Date()) {
     const { periodStart, periodEnd } = billingPeriodService.getPeriodBounds(now);
-    const planCode = (subscription?.plan ?? 'FREE') as SubscriptionPlan;
+    const planCode = (subscription?.plan ?? 'START') as SubscriptionPlan;
 
     const existing = await prisma.billingPeriod.findFirst({
       where: {

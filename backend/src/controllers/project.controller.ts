@@ -4,6 +4,18 @@ import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { projectService } from '../services/project.service';
 import { eventService } from '../services/event.service';
+import { AccessPolicyError } from '../services/access-policy.service';
+
+function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
+  res.status(err.status).json({
+    error: err.code,
+    message: err.message,
+    limitType: err.limitType,
+    current: err.current,
+    limit: err.limit,
+    planId: err.planId,
+  });
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -184,6 +196,10 @@ export const projectController = {
       res.status(201).json({ project });
     } catch (err) {
       console.error('[Projects] create:', err);
+      if (err instanceof AccessPolicyError) {
+        sendAccessPolicyError(res, err);
+        return;
+      }
       res.status(500).json({ error: 'Ошибка при создании проекта' });
     }
   },
