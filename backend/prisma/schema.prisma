@@ -18,6 +18,13 @@ model User {
   avatarColor    String?  @default("#7c6cfc")
   defaultAiModel String?  @default("chatgpt")
   specialization String?
+  onboardingStatus      String   @default("not_started")
+  onboardingStep        Int      @default(0)
+  onboardingVersion     String   @default("b2b_v1")
+  onboardingCompletedAt DateTime?
+  onboardingData        Json?
+  recommendedRoute      String?
+  createdProjectId      String?
   archivedAt     DateTime?
   archivedById   String?
   archiveReason  String?
@@ -42,6 +49,7 @@ model User {
   aiArtifacts         AIArtifact[]
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
+  projectTasks        ProjectTask[]
   promptVersions      PromptVersion[]
   promptExperiments   PromptExperiment[]
   consentLogs         ConsentLog[]
@@ -632,9 +640,38 @@ model Project {
   aiArtifacts         AIArtifact[]
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
+  tasks               ProjectTask[]
 
   @@index([userId, createdAt])
   @@map("projects")
+}
+
+model ProjectTask {
+  id              String   @id @default(uuid())
+  projectId       String
+  userId          String
+  title           String
+  description     String?
+  category        String
+  priority        String
+  status          String   @default("backlog")
+  dueBucket       String   @default("backlog")
+  route           String?
+  sortOrder       Int      @default(0)
+  source          String?
+  taskPlanVersion String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, source, taskPlanVersion, sortOrder])
+  @@index([projectId, status, sortOrder])
+  @@index([projectId, dueBucket, sortOrder])
+  @@index([userId, createdAt])
+  @@map("project_tasks")
 }
 
 model JTBDSession {

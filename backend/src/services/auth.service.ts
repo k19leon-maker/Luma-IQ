@@ -18,6 +18,13 @@ export interface AuthUser {
   avatarUrl: string | null;
   role: string;
   isVerified: boolean;
+  onboardingStatus: string;
+  onboardingStep: number;
+  onboardingVersion: string;
+  onboardingCompletedAt: Date | null;
+  onboardingData: unknown;
+  recommendedRoute: string | null;
+  createdProjectId: string | null;
 }
 
 function signAccess(userId: string): string {
@@ -34,8 +41,36 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function toAuthUser(user: { id: string; email: string; name: string | null; avatarUrl: string | null; role: string; isVerified: boolean }): AuthUser {
-  return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, role: user.role, isVerified: user.isVerified };
+function toAuthUser(user: {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  role: string;
+  isVerified: boolean;
+  onboardingStatus?: string | null;
+  onboardingStep?: number | null;
+  onboardingVersion?: string | null;
+  onboardingCompletedAt?: Date | null;
+  onboardingData?: unknown;
+  recommendedRoute?: string | null;
+  createdProjectId?: string | null;
+}): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
+    role: user.role,
+    isVerified: user.isVerified,
+    onboardingStatus: user.onboardingStatus ?? 'not_started',
+    onboardingStep: user.onboardingStep ?? 0,
+    onboardingVersion: user.onboardingVersion ?? 'b2b_v1',
+    onboardingCompletedAt: user.onboardingCompletedAt ?? null,
+    onboardingData: user.onboardingData ?? null,
+    recommendedRoute: user.recommendedRoute ?? null,
+    createdProjectId: user.createdProjectId ?? null,
+  };
 }
 
 export const authService = {

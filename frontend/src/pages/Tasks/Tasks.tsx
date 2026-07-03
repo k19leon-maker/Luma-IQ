@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -12,25 +12,14 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
-import { useTasksStore } from '../../store/tasks.store';
+import { useTasksStore, type Task } from '../../store/tasks.store';
+import { useProjectsStore } from '../../store/projects.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Category = 'strategy' | 'content' | 'products' | 'planning';
 type Priority = 'high' | 'medium' | 'low';
 type Column   = 'all' | 'today' | 'week' | 'done';
-
-interface Task {
-  id:       string;
-  title:    string;
-  description?: string;
-  link?: string;
-  category: Category;
-  dueLabel: string;
-  priority: Priority;
-  done:     boolean;
-  column:   Column;
-}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -322,12 +311,24 @@ export default function Tasks() {
   const navigate = useNavigate();
   const tasks = useTasksStore((s) => s.tasks) as Task[];
   const addTask = useTasksStore((s) => s.addTask);
+  const loadTasks = useTasksStore((s) => s.loadTasks);
+  const loading = useTasksStore((s) => s.loading);
   const moveTask = useTasksStore((s) => s.moveTask);
   const toggleTaskDone = useTasksStore((s) => s.toggleTaskDone);
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const loadProjects = useProjectsStore((s) => s.loadProjects);
   const [addColumn, setAddColumn] = useState<Column | null>(null);
   const [activeId,  setActiveId]  = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (activeProjectId) void loadTasks(activeProjectId);
+  }, [activeProjectId, loadTasks]);
 
   const total      = tasks.length;
   const doneCount  = tasks.filter((t) => t.done).length;
@@ -339,11 +340,15 @@ export default function Tasks() {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
     if (!task.done) toast.success('Задача выполнена');
-    toggleTaskDone(id);
+    void toggleTaskDone(id);
   }
 
   function handleAdd(task: Omit<Task, 'id'>) {
-    addTask(task);
+    if (!activeProjectId) {
+      toast.error('Сначала создайте проект');
+      return;
+    }
+    void addTask(activeProjectId, task).catch(() => toast.error('Ошибка при создании задачи'));
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -363,7 +368,7 @@ export default function Tasks() {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.column === targetCol) return;
     if (targetCol === 'done' && !task.done) toast.success('Задача выполнена');
-    moveTask(taskId, targetCol);
+    void moveTask(taskId, targetCol).catch(() => toast.error('Ошибка при обновлении задачи'));
   }
 
   const tasksByColumn: Record<Column, Task[]> = {
@@ -411,6 +416,10 @@ export default function Tasks() {
           <span style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>{pct}%</span>
         </div>
       </div>
+
+      {loading && (
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>Загружаю задачи...</div>
+      )}
 
       {/* Kanban with DnD */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

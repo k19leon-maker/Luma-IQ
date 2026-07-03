@@ -1,10 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
 import AdminRoute from './components/AdminRoute/AdminRoute';
-import Onboarding from './components/Onboarding/Onboarding';
 import { useAuthStore } from './store/auth.store';
 import {
   articles as publicArticles,
@@ -62,6 +61,7 @@ const FileMaterials = lazy(() => import('./pages/Files/FileMaterials'));
 const FileProducts = lazy(() => import('./pages/Files/FileProducts'));
 const ProjectPage = lazy(() => import('./pages/Project/ProjectPage'));
 const Tasks = lazy(() => import('./pages/Tasks/Tasks'));
+const B2BOnboarding = lazy(() => import('./pages/B2BOnboarding/B2BOnboarding'));
 const History = lazy(() => import('./pages/History/History'));
 const Settings = lazy(() => import('./pages/Settings/Settings'));
 const Limits = lazy(() => import('./pages/Limits/Limits'));
@@ -120,20 +120,10 @@ const testItems = tests.map((item) => ({
   text: item.description,
 }));
 
-// ── Layout wrapper with Onboarding ────────────────────────────────────────────
+// ── Layout wrapper ────────────────────────────────────────────────────────────
 
 function AppLayout({ children }: { children: React.ReactNode }) {
-  const [showOnboarding, setShowOnboarding] = useState(
-    () => !localStorage.getItem('onboarding_done'),
-  );
-  return (
-    <>
-      {showOnboarding && (
-        <Onboarding onDone={() => setShowOnboarding(false)} />
-      )}
-      <Layout>{children}</Layout>
-    </>
-  );
+  return <Layout>{children}</Layout>;
 }
 
 function PageLoader() {
@@ -153,6 +143,15 @@ function publicPage(element: React.ReactNode) {
 }
 
 function ProtectedAppLayout() {
+  const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+  const status = user?.onboardingStatus;
+  const needsOnboarding = user && status !== 'completed' && status !== 'skipped';
+
+  if (needsOnboarding && location.pathname !== '/app/onboarding') {
+    return <Navigate to="/app/onboarding" replace />;
+  }
+
   return (
     <PrivateRoute>
       <AppLayout>
@@ -160,6 +159,14 @@ function ProtectedAppLayout() {
       </AppLayout>
     </PrivateRoute>
   );
+}
+
+function ProtectedOnboardingPage() {
+  const user = useAuthStore((s) => s.user);
+  if (user?.onboardingStatus === 'completed') {
+    return <Navigate to={user.recommendedRoute || '/app/tasks'} replace />;
+  }
+  return <PrivateRoute>{page(<B2BOnboarding />)}</PrivateRoute>;
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -248,6 +255,7 @@ export default function App() {
         />
 
         {/* ── Protected app — inside Layout ─────────────────────── */}
+        <Route path="/app/onboarding" element={<ProtectedOnboardingPage />} />
         <Route path="/app" element={<ProtectedAppLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={page(<Dashboard />)} />

@@ -12,6 +12,13 @@ export interface AuthUser {
   isVerified?:    boolean;
   tariff?:        string;
   specialization?: string | null;
+  onboardingStatus?: 'not_started' | 'in_progress' | 'completed' | 'skipped' | string;
+  onboardingStep?: number;
+  onboardingVersion?: string;
+  onboardingCompletedAt?: string | null;
+  onboardingData?: Record<string, unknown> | null;
+  recommendedRoute?: string | null;
+  createdProjectId?: string | null;
 }
 
 export interface TokenPair {

@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { projectService } from '../services/project.service';
 import { eventService } from '../services/event.service';
 import { AccessPolicyError } from '../services/access-policy.service';
+import { tasksService } from '../services/tasks.service';
 
 function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
   res.status(err.status).json({
@@ -319,6 +320,7 @@ export const projectController = {
         where: { id: req.params.id as string },
         data: { utpData: { messages, formats, updatedAt: new Date().toISOString() } as Prisma.InputJsonValue },
       });
+      void tasksService.completeByRoute(req.userId!, req.params.id as string, '/app/strategy/utp').catch(() => {});
       res.json({ success: true });
     } catch (err) {
       console.error('[Projects] saveUtpData:', err);
@@ -352,6 +354,19 @@ export const projectController = {
         projectId: req.params.id as string,
         data: parsed.data,
       });
+      if (parsed.data.expertProfileData) {
+        void tasksService.completeByRoute(req.userId!, req.params.id as string, '/app/strategy/about').catch(() => {});
+      }
+      if (parsed.data.positioningData) {
+        void tasksService.completeByRoute(req.userId!, req.params.id as string, '/app/strategy/positioning').catch(() => {});
+      }
+      if (parsed.data.answers || parsed.data.unpackingData || parsed.data.unpackingAnswers) {
+        void tasksService.completeByRoute(req.userId!, req.params.id as string, '/app/strategy/audience').catch(() => {});
+      }
+      const generated = parsed.data.generatedData as Record<string, unknown> | undefined;
+      if (generated?.productMain) {
+        void tasksService.completeByRoute(req.userId!, req.params.id as string, '/app/products/main').catch(() => {});
+      }
       void eventService.track('strategy_saved', {
         userId: req.userId!,
         metadata: {

@@ -10,6 +10,7 @@ import {
   setSessionTokens,
 } from '../api/token-session';
 import { useProjectsStore } from './projects.store';
+import { useTasksStore } from './tasks.store';
 
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
 const DEV_TOKEN = 'dev-token';
@@ -21,6 +22,13 @@ const DEV_USER: AuthUser = {
   avatarUrl: null,
   role: 'USER',
   tariff: 'Pro',
+  onboardingStatus: 'completed',
+  onboardingStep: 5,
+  onboardingVersion: 'b2b_v1',
+  onboardingCompletedAt: null,
+  onboardingData: null,
+  recommendedRoute: '/app/tasks',
+  createdProjectId: null,
 };
 
 interface AuthState {
@@ -32,12 +40,14 @@ interface AuthState {
   register: (email: string, password: string, name: string | undefined, consents: LegalConsentState) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
+  refreshUser: () => Promise<AuthUser | null>;
   setTokens: (accessToken: string, csrfToken?: string) => Promise<AuthUser | null>;
   loginAsTestUser: () => void;
 }
 
 function resetSessionStores() {
   useProjectsStore.getState().resetProjects();
+  useTasksStore.getState().resetTasks();
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -98,6 +108,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       clearAdminAccessTokenBackup();
       resetSessionStores();
       set({ user: null, isAuthenticated: false, isLoading: false });
+    }
+  },
+
+  refreshUser: async () => {
+    try {
+      const user = await authApi.me();
+      set({ user, isAuthenticated: true, isLoading: false });
+      return user;
+    } catch {
+      return null;
     }
   },
 
