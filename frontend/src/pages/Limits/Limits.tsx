@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
 import {
   getLimitValue,
   SECTION_LIMITS,
@@ -233,6 +234,8 @@ export default function Limits() {
         </div>
         <Link className={s.primaryButton} to={appPath('/pricing')}>Увеличить лимиты</Link>
       </section>
+
+      <LegalInfoBlock />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { billingApi } from '../../api/billing.api';
 import { paymentApi } from '../../api/projects.api';
+import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Pricing.module.css';
 
@@ -343,6 +344,8 @@ export default function Pricing() {
           Обсудить индивидуальный формат
         </button>
       </section>
+
+      <LegalInfoBlock className={s.legalFooter} />
 
       {selectedPlan && (
         <div className={s.modalOverlay} role="presentation" onMouseDown={() => setSelectedPlan(null)}>

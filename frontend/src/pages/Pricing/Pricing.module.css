@@ -250,6 +250,12 @@
   color: #8f6819;
 }
 
+.legalFooter {
+  max-width: 1280px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .modalOverlay {
   position: fixed;
   inset: 0;
