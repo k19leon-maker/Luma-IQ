@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { tasksApi } from '../api/tasks.api';
 
 export type TaskColumn = 'all' | 'week' | 'today' | 'done';
-export type TaskCategory = 'strategy' | 'products' | 'content' | 'planning';
+export type TaskCategory = 'start' | 'strategy' | 'products' | 'content' | 'planning';
 export type TaskPriority = 'high' | 'medium' | 'low';
 
 export interface Task {
@@ -16,6 +16,7 @@ export interface Task {
   status?: TaskColumn;
   dueBucket?: string;
   route?: string | null;
+  taskKey?: string | null;
   sortOrder?: number;
   source?: string | null;
   taskPlanVersion?: string | null;

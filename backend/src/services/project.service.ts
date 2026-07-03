@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { accessPolicyService, AccessPolicyError } from './access-policy.service';
+import { tasksService } from './tasks.service';
 
 const DEV_USER_ID = 'dev-user-001';
 
@@ -49,12 +50,16 @@ export const projectService = {
       });
     }
 
-    return prisma.project.create({
+    const project = await prisma.project.create({
       data: {
         userId,
         ...data,
       },
     });
+    await tasksService.ensureStarterTasks(userId, project.id).catch((err) => {
+      console.warn('[Projects] starter tasks skipped:', (err as Error).message);
+    });
+    return project;
   },
 
   async getOwned(userId: string, projectId: string) {

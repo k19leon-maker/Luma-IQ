@@ -7,8 +7,9 @@ export const STARTER_TASK_PLAN_VERSION = 'b2b_v1';
 
 export const STARTER_TASKS = [
   {
+    taskKey: 'about',
     title: 'Заполнить раздел «О себе»',
-    category: 'strategy',
+    category: 'start',
     priority: 'high',
     status: 'today',
     dueBucket: 'today',
@@ -17,6 +18,7 @@ export const STARTER_TASKS = [
     sortOrder: 10,
   },
   {
+    taskKey: 'positioning',
     title: 'Собрать базовое позиционирование',
     category: 'strategy',
     priority: 'high',
@@ -27,6 +29,7 @@ export const STARTER_TASKS = [
     sortOrder: 20,
   },
   {
+    taskKey: 'audience',
     title: 'Выбрать целевую аудиторию и сегмент',
     category: 'strategy',
     priority: 'high',
@@ -37,6 +40,7 @@ export const STARTER_TASKS = [
     sortOrder: 30,
   },
   {
+    taskKey: 'utp',
     title: 'Сформулировать УТП',
     category: 'strategy',
     priority: 'high',
@@ -47,6 +51,7 @@ export const STARTER_TASKS = [
     sortOrder: 40,
   },
   {
+    taskKey: 'product_main',
     title: 'Собрать основной продукт',
     category: 'products',
     priority: 'high',
@@ -57,6 +62,7 @@ export const STARTER_TASKS = [
     sortOrder: 50,
   },
   {
+    taskKey: 'product_mini',
     title: 'Собрать мини-продукт',
     category: 'products',
     priority: 'medium',
@@ -67,6 +73,7 @@ export const STARTER_TASKS = [
     sortOrder: 60,
   },
   {
+    taskKey: 'lead_magnet',
     title: 'Создать лид-магнит',
     category: 'products',
     priority: 'medium',
@@ -77,6 +84,7 @@ export const STARTER_TASKS = [
     sortOrder: 70,
   },
   {
+    taskKey: 'social_profile',
     title: 'Оформить социальные сети',
     category: 'strategy',
     priority: 'medium',
@@ -87,6 +95,7 @@ export const STARTER_TASKS = [
     sortOrder: 80,
   },
   {
+    taskKey: 'posts',
     title: 'Сгенерировать первые посты',
     category: 'content',
     priority: 'medium',
@@ -97,8 +106,9 @@ export const STARTER_TASKS = [
     sortOrder: 90,
   },
   {
+    taskKey: 'content_plan',
     title: 'Собрать контент-план',
-    category: 'planning',
+    category: 'content',
     priority: 'medium',
     status: 'all',
     dueBucket: 'backlog',
@@ -177,7 +187,7 @@ export const tasksService = {
 
   async ensureStarterTasks(userId: string, projectId: string) {
     await assertProjectAccess(userId, projectId);
-    const existing = await prisma.projectTask.count({
+    const existingStarterPlan = await prisma.projectTask.count({
       where: {
         projectId,
         OR: [
@@ -186,12 +196,34 @@ export const tasksService = {
         ],
       },
     });
-    if (existing > 0) {
+    if (existingStarterPlan > 0) {
+      return { created: false, tasks: await tasksService.list(userId, projectId) };
+    }
+
+    const starterKeys = STARTER_TASKS.map((task) => task.taskKey);
+    const starterTitles = STARTER_TASKS.map((task) => task.title);
+    const existingSimilarTasks = await prisma.projectTask.findMany({
+      where: {
+        projectId,
+        OR: [
+          { taskKey: { in: starterKeys } },
+          { title: { in: starterTitles } },
+        ],
+      },
+      select: { taskKey: true, title: true },
+    });
+    const existingKeys = new Set(existingSimilarTasks.map((task) => task.taskKey).filter(Boolean));
+    const existingTitles = new Set(existingSimilarTasks.map((task) => task.title));
+    const tasksToCreate = STARTER_TASKS.filter((task) => (
+      !existingKeys.has(task.taskKey) && !existingTitles.has(task.title)
+    ));
+
+    if (tasksToCreate.length === 0) {
       return { created: false, tasks: await tasksService.list(userId, projectId) };
     }
 
     await prisma.projectTask.createMany({
-      data: STARTER_TASKS.map((task) => ({
+      data: tasksToCreate.map((task) => ({
         id: randomUUID(),
         ...task,
         projectId,
@@ -204,10 +236,29 @@ export const tasksService = {
 
     void eventService.track('onboarding_tasks_created', {
       userId,
-      metadata: { projectId, taskPlanVersion: STARTER_TASK_PLAN_VERSION, count: STARTER_TASKS.length },
+      metadata: { projectId, taskPlanVersion: STARTER_TASK_PLAN_VERSION, count: tasksToCreate.length },
     }).catch(() => {});
 
     return { created: true, tasks: await tasksService.list(userId, projectId) };
+  },
+
+  async completeByKey(userId: string, projectId: string, taskKey: string) {
+    await assertProjectAccess(userId, projectId);
+    return prisma.projectTask.updateMany({
+      where: {
+        userId,
+        projectId,
+        taskKey,
+        source: STARTER_TASK_SOURCE,
+        taskPlanVersion: STARTER_TASK_PLAN_VERSION,
+        status: { not: 'done' },
+      },
+      data: {
+        status: 'done',
+        dueBucket: 'done',
+        completedAt: new Date(),
+      },
+    });
   },
 
   async completeByRoute(userId: string, projectId: string, route: string) {

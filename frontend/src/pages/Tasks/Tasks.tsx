@@ -17,13 +17,14 @@ import { useProjectsStore } from '../../store/projects.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Category = 'strategy' | 'content' | 'products' | 'planning';
+type Category = 'start' | 'strategy' | 'content' | 'products' | 'planning';
 type Priority = 'high' | 'medium' | 'low';
 type Column   = 'all' | 'today' | 'week' | 'done';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORY_STYLE: Record<Category, { bg: string; color: string; label: string }> = {
+  start:    { bg: '#FFF6DE', color: '#9A741E', label: 'Старт'      },
   strategy: { bg: '#FDF3EF', color: '#C1502A', label: 'Стратегия'  },
   content:  { bg: '#E6F1FB', color: '#185FA5', label: 'Контент'    },
   products: { bg: '#EAF3DE', color: '#3B6D11', label: 'Продукты'   },
@@ -110,6 +111,7 @@ function AddModal({ column, onClose, onAdd }: {
               onChange={(e) => setCategory(e.target.value as Category)}
               style={{ padding: '10px 12px', border: '1px solid #E5E3DC', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', background: '#fff' }}
             >
+              <option value="start">Старт</option>
               <option value="strategy">Стратегия</option>
               <option value="content">Контент</option>
               <option value="products">Продукты</option>
@@ -156,7 +158,7 @@ function TaskCardInner({ task, onToggle, onOpen, isDragging = false }: {
   onOpen?: (link: string) => void;
   isDragging?: boolean;
 }) {
-  const cat     = CATEGORY_STYLE[task.category];
+  const cat     = CATEGORY_STYLE[task.category as Category] ?? CATEGORY_STYLE.strategy;
   const pri     = PRIORITY_STYLE[task.priority];
   const isToday = task.dueLabel === 'Сегодня';
 

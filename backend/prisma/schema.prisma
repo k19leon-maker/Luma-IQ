@@ -657,6 +657,7 @@ model ProjectTask {
   status          String   @default("backlog")
   dueBucket       String   @default("backlog")
   route           String?
+  taskKey         String?  @map("key")
   sortOrder       Int      @default(0)
   source          String?
   taskPlanVersion String?
@@ -668,6 +669,7 @@ model ProjectTask {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, source, taskPlanVersion, sortOrder])
+  @@index([projectId, source, taskPlanVersion, taskKey])
   @@index([projectId, status, sortOrder])
   @@index([projectId, dueBucket, sortOrder])
   @@index([userId, createdAt])
