@@ -15,6 +15,7 @@ export const PLANS = {
 } as const;
 
 type PlanKey = PlanId;
+type PlanPaymentDefinition = { amount: string; description: string; months: number };
 
 async function ykRequest(method: string, path: string, body?: unknown) {
   const credentials = Buffer.from(`${env.YOOKASSA_SHOP_ID}:${env.YOOKASSA_SECRET_KEY}`).toString('base64');
@@ -35,7 +36,30 @@ async function ykRequest(method: string, path: string, body?: unknown) {
 }
 
 export const paymentService = {
+  async createStartTestPayment(userId: string): Promise<{ confirmationUrl: string; paymentId: string }> {
+    return this.createPaymentWithDefinition(userId, 'start', {
+      amount: '20.00',
+      description: 'Luma IQ Start — тестовый платеж 20 ₽',
+      months: 1,
+    }, { testPayment: true, originalPriceMonthlyRub: PRICING_PLANS.start.priceMonthlyRub });
+  },
+
   async createPayment(userId: string, plan: PlanKey): Promise<{ confirmationUrl: string; paymentId: string }> {
+    if (!isValidPlanId(plan)) {
+      throw Object.assign(new Error('Неизвестный тариф'), { status: 400 });
+    }
+
+    return this.createPaymentWithDefinition(userId, plan, PLANS[plan], {
+      priceMonthlyRub: PRICING_PLANS[plan].priceMonthlyRub,
+    });
+  },
+
+  async createPaymentWithDefinition(
+    userId: string,
+    plan: PlanKey,
+    planDef: PlanPaymentDefinition,
+    metadata: Record<string, unknown>,
+  ): Promise<{ confirmationUrl: string; paymentId: string }> {
     if (!env.YOOKASSA_ENABLED) {
       throw Object.assign(new Error('Онлайн-оплата временно отключена. Для пилотного доступа напишите администратору.'), { status: 503 });
     }
@@ -43,13 +67,6 @@ export const paymentService = {
     if (!env.YOOKASSA_SHOP_ID || !env.YOOKASSA_SECRET_KEY) {
       throw Object.assign(new Error('Оплата временно недоступна'), { status: 503 });
     }
-
-    if (!isValidPlanId(plan)) {
-      throw Object.assign(new Error('Неизвестный тариф'), { status: 400 });
-    }
-
-    const planDef = PLANS[plan];
-    const pricingPlan = PRICING_PLANS[plan];
 
     const ykPayment = await ykRequest('POST', '/payments', {
       amount: { value: planDef.amount, currency: 'RUB' },
@@ -59,7 +76,7 @@ export const paymentService = {
       },
       capture: true,
       description: planDef.description,
-      metadata: { userId, plan },
+      metadata: { userId, plan, ...metadata },
     }) as { id: string; confirmation: { confirmation_url: string } };
 
     // Get or create subscription record
@@ -77,7 +94,7 @@ export const paymentService = {
         yookassaId: ykPayment.id,
         amount: planDef.amount,
         status: 'PENDING',
-        metadata: { plan, priceMonthlyRub: pricingPlan.priceMonthlyRub },
+        metadata: { plan, ...metadata },
       },
     });
 
@@ -87,12 +104,12 @@ export const paymentService = {
     };
   },
 
-  async handleWebhook(event: { type: string; object: { id: string; status: string; metadata?: { userId?: string; plan?: string } } }): Promise<void> {
+  async handleWebhook(event: { type?: string; event?: string; object: { id: string; status: string; metadata?: { userId?: string; plan?: string } } }): Promise<void> {
     if (!env.YOOKASSA_ENABLED) {
       throw Object.assign(new Error('YooKassa webhook disabled'), { status: 404 });
     }
 
-    if (event.type !== 'payment.succeeded') return;
+    if ((event.type ?? event.event) !== 'payment.succeeded') return;
 
     const { id: yookassaId, metadata } = event.object;
     if (!metadata?.userId || !metadata.plan) return;

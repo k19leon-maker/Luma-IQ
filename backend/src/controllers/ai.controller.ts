@@ -38,8 +38,30 @@ const chatSchema = z.object({
   idempotencyKey: z.string().max(200).optional(),
 });
 
+const aboutSummarySchema = z.object({
+  projectId: z.string().uuid(),
+  model: z.enum(['chatgpt', 'claude']).optional().default('chatgpt'),
+  openaiModel: z.string().optional(),
+  claudeModel: z.string().optional(),
+  profile: z.object({
+    whoYouAre: z.string().max(6000).optional(),
+    targetAudience: z.string().max(6000).optional(),
+    productsAndServices: z.string().max(6000).optional(),
+    expertiseAndStrengths: z.string().max(6000).optional(),
+    trustProofs: z.string().max(6000).optional(),
+    name: z.string().max(1000).optional(),
+    experienceYears: z.string().max(1000).optional(),
+    workFormats: z.string().max(4000).optional(),
+    antiPreferences: z.string().max(4000).optional(),
+    credentials: z.string().max(4000).optional(),
+    uploadedFileText: z.string().max(12000).optional(),
+  }).passthrough(),
+  idempotencyKey: z.string().max(200).optional(),
+});
+
 const SECTION_FEATURES: Record<string, FeatureCode> = {
   'ai-dialog': 'ai_chat',
+  'about-ai-summary': 'about_ai_summary',
   positioning: 'positioning',
   audience: 'audience',
   strategy: 'positioning',
@@ -73,7 +95,141 @@ function responseProviderToDb(provider: 'openai' | 'anthropic' | 'gemini' | 'gro
   return 'GROK';
 }
 
+function compactAiSummary(content: string): string {
+  const normalized = content.replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (normalized.length <= 1500) return normalized;
+  const truncated = normalized.slice(0, 1500);
+  const sentenceEnd = Math.max(truncated.lastIndexOf('.'), truncated.lastIndexOf('!'), truncated.lastIndexOf('?'));
+  return (sentenceEnd > 900 ? truncated.slice(0, sentenceEnd + 1) : truncated).trim();
+}
+
 export const aiController = {
+  async aboutSummary(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = aboutSummarySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    const { projectId, profile, model, openaiModel, claudeModel, idempotencyKey } = parsed.data;
+    const provider = model === 'claude' ? 'anthropic' : 'openai';
+    const dbProvider = toDbProvider(provider);
+    const resolvedModel = provider === 'anthropic'
+      ? claudeModel ?? 'claude-haiku-4-5-20251001'
+      : resolveOpenAIModel('about-ai-summary', openaiModel);
+
+    const sourceLines = [
+      ['Кто эксперт и чем занимается', profile.whoYouAre],
+      ['Кому помогает', profile.targetAudience],
+      ['Продукты и услуги', profile.productsAndServices],
+      ['Экспертность и сильные стороны', profile.expertiseAndStrengths],
+      ['Факты доверия', profile.trustProofs],
+      ['Имя / обращение', profile.name],
+      ['Опыт в годах', profile.experienceYears],
+      ['Формат работы', profile.workFormats],
+      ['Ограничения', profile.antiPreferences],
+      ['Образование и сертификаты', profile.credentials],
+      ['Текст из файлов', profile.uploadedFileText],
+    ]
+      .map(([label, value]) => {
+        const text = typeof value === 'string' ? value.trim() : '';
+        return text ? `${label}:\n${text}` : '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
+
+    if (!sourceLines.trim()) {
+      res.status(400).json({ error: 'Заполните несколько полей перед AI-улучшением' });
+      return;
+    }
+
+    const systemPrompt = withGlobalAiBehaviorPrompt([
+      'Ты помогаешь платформе Luma IQ подготовить компактное резюме проекта для дальнейших AI-разделов.',
+      'Задача: структурировать только факты, которые дал пользователь.',
+      'Строго запрещено выдумывать кейсы, цифры, опыт, сертификаты, клиентов, результаты, должности, аудитории и продукты.',
+      'Если фактов мало, аккуратно обобщи имеющееся и не добавляй новых утверждений.',
+      'Верни только готовое резюме на русском языке без markdown-заголовков, без списков проверки и без комментариев.',
+      'Объем: 800-1500 знаков. Резюме должно покрыть: кто эксперт; кому помогает; с какой проблемой; какие продукты продает; сильные стороны; факты доверия.',
+    ].join('\n'));
+
+    try {
+      const generation = await aiGenerationService.run({
+        userId: req.userId!,
+        projectId,
+        featureCode: 'about_ai_summary',
+        provider: dbProvider,
+        model: resolvedModel,
+        idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
+        metadata: { section: 'about-ai-summary' },
+        execute: async () => {
+          const result = await chat({
+            provider,
+            section: 'about-ai-summary',
+            openaiModel,
+            claudeModel,
+            systemPrompt,
+            maxTokens: 900,
+            temperature: 0.2,
+            messages: [{
+              role: 'user',
+              content: `Исходные поля раздела "О себе":\n\n${sourceLines}`,
+            }],
+          });
+          return {
+            result,
+            usage: result.usage,
+            provider: responseProviderToDb(result.provider),
+            model: result.model,
+          };
+        },
+      });
+
+      const content = compactAiSummary(generation.result.content);
+      void prisma.aIRequestLog.create({
+        data: {
+          userId: req.userId!,
+          provider,
+          section: 'about-ai-summary',
+          model: generation.result.model,
+          status: 'SUCCEEDED',
+          isMock: generation.result.mock,
+        },
+      }).catch(() => {});
+
+      res.json({
+        summary: content,
+        mock: generation.result.mock,
+        generationId: generation.generationId,
+        creditsCharged: generation.creditsCharged,
+      });
+    } catch (err) {
+      console.error('[AI about summary] Error:', err);
+      void prisma.aIRequestLog.create({
+        data: {
+          userId: req.userId!,
+          provider,
+          section: 'about-ai-summary',
+          model: resolvedModel,
+          status: 'FAILED',
+          error: err instanceof Error ? err.message : 'unknown',
+        },
+      }).catch(() => {});
+      if (err instanceof AccessPolicyError) {
+        res.status(err.status).json({
+          error: err.code,
+          message: err.message,
+          limitType: err.limitType,
+          current: err.current,
+          limit: err.limit,
+          planId: err.planId,
+        });
+        return;
+      }
+      const msg = err instanceof Error ? err.message : 'Ошибка AI-сервиса';
+      res.status(500).json({ error: msg });
+    }
+  },
+
   async chat(req: AuthRequest, res: Response): Promise<void> {
     const parsed = chatSchema.safeParse(req.body);
     if (!parsed.success) {

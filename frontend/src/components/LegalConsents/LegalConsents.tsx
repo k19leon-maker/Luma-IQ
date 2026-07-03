@@ -7,9 +7,26 @@ type Props = {
   onChange: (value: LegalConsentState) => void;
   error?: string;
   compact?: boolean;
+  contour?: 'b2b' | 'b2c';
 };
 
-export default function LegalConsents({ value, onChange, error, compact = false }: Props) {
+const legalPaths = {
+  b2b: {
+    privacy: '/legal/privacy-policy',
+    personalData: '/legal/personal-data',
+    offer: '/legal/offer',
+  },
+  b2c: {
+    privacy: '/b2c/legal/privacy-policy',
+    personalData: '/b2c/legal/personal-data',
+    offer: '/b2c/legal/offer',
+  },
+};
+
+export default function LegalConsents({ value, onChange, error, compact = false, contour = 'b2c' }: Props) {
+  const paths = legalPaths[contour];
+  const isB2B = contour === 'b2b';
+
   const setValue = (key: keyof LegalConsentState, checked: boolean) => {
     onChange({ ...value, [key]: checked });
   };
@@ -23,8 +40,17 @@ export default function LegalConsents({ value, onChange, error, compact = false 
           type="checkbox"
         />
         <span>
-          Я ознакомился(ась) с{' '}
-          <Link to="/legal/privacy-policy" target="_blank">Политикой конфиденциальности</Link>.
+          {isB2B ? (
+            <>
+              Я ознакомился(ась) и принимаю{' '}
+              <Link to={paths.privacy} target="_blank">Политику конфиденциальности</Link>.
+            </>
+          ) : (
+            <>
+              Я ознакомился(ась) с{' '}
+              <Link to={paths.privacy} target="_blank">Политикой конфиденциальности</Link>.
+            </>
+          )}
         </span>
       </label>
       <label className={s.row}>
@@ -35,7 +61,7 @@ export default function LegalConsents({ value, onChange, error, compact = false 
         />
         <span>
           Я даю согласие на{' '}
-          <Link to="/legal/personal-data" target="_blank">обработку персональных данных</Link>.
+          <Link to={paths.personalData} target="_blank">обработку персональных данных</Link>.
         </span>
       </label>
       <label className={s.row}>
@@ -46,7 +72,7 @@ export default function LegalConsents({ value, onChange, error, compact = false 
         />
         <span>
           Я принимаю условия{' '}
-          <Link to="/legal/offer" target="_blank">Публичной оферты</Link>.
+          <Link to={paths.offer} target="_blank">Публичной оферты</Link>.
         </span>
       </label>
       {error && <div className={s.error}>{error}</div>}

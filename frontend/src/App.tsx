@@ -26,6 +26,8 @@ import NotFoundPage from './pages/PublicPortal/NotFoundPage';
 import LegalPage from './pages/PublicPortal/LegalPage';
 import ContactsPage from './pages/PublicPortal/ContactsPage';
 import CookieConsent from './components/CookieConsent/CookieConsent';
+import B2BLegalPage from './pages/B2BLegal/B2BLegalPage';
+import GoLongread from './pages/GoLongread/GoLongread';
 import {
   B2CClientCabinet,
   B2CPsychologyAssessment,
@@ -34,6 +36,8 @@ import {
 
 const Login = lazy(() => import('./pages/Login/Login'));
 const Register = lazy(() => import('./pages/Register/Register'));
+const PlatformLanding = lazy(() => import('./pages/Platform/PlatformLanding'));
+const StartTestPayment = lazy(() => import('./pages/StartTestPayment/StartTestPayment'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback/AuthCallback'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail/VerifyEmail'));
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
@@ -175,10 +179,18 @@ export default function App() {
         <Route path="/diagnostics/ai-psychologist" element={publicPage(<B2CPsychologyAssessment />)} />
         <Route path="/diagnostics/ai-psychologist/chat" element={publicPage(<B2CPsychologyChat />)} />
         <Route path="/client" element={publicPage(<B2CClientCabinet />)} />
-        <Route path="/legal/privacy-policy" element={publicPage(<LegalPage />)} />
-        <Route path="/legal/personal-data" element={publicPage(<LegalPage />)} />
-        <Route path="/legal/offer" element={publicPage(<LegalPage />)} />
+        <Route path="/go/page/abc" element={page(<GoLongread />)} />
+        <Route path="/platform" element={page(<PlatformLanding />)} />
+        <Route path="/pay/start-20" element={page(<StartTestPayment />)} />
+        <Route path="/legal/privacy-policy" element={page(<B2BLegalPage />)} />
+        <Route path="/legal/personal-data" element={page(<B2BLegalPage />)} />
+        <Route path="/legal/offer" element={page(<B2BLegalPage />)} />
+        <Route path="/legal/ai-terms" element={page(<B2BLegalPage />)} />
         <Route path="/legal/cookies" element={publicPage(<LegalPage />)} />
+        <Route path="/b2c/legal/privacy-policy" element={publicPage(<LegalPage />)} />
+        <Route path="/b2c/legal/personal-data" element={publicPage(<LegalPage />)} />
+        <Route path="/b2c/legal/offer" element={publicPage(<LegalPage />)} />
+        <Route path="/b2c/legal/cookies" element={publicPage(<LegalPage />)} />
         <Route path="/contacts" element={publicPage(<ContactsPage />)} />
         <Route
           path="/articles"
@@ -219,6 +231,8 @@ export default function App() {
         {/* ── Auth ─────────────────────────────────────────────── */}
         <Route path="/auth"                   element={page(<Login />)} />
         <Route path="/login"                  element={<Navigate to="/auth" replace />} />
+        <Route path="/app/auth"               element={page(<Login />)} />
+        <Route path="/app/login"              element={<Navigate to="/app/auth" replace />} />
         <Route path="/register"               element={page(<Register />)} />
         <Route path="/auth/callback"          element={page(<AuthCallback />)} />
         <Route path="/auth/verify-email"      element={page(<VerifyEmail />)} />

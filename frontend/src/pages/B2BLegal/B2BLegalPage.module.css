@@ -1,0 +1,267 @@
+.page {
+  min-height: 100vh;
+  background: #f7f6f2;
+  color: #151515;
+  padding: 32px;
+}
+
+.shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.nav,
+.article {
+  background: #fff;
+  border: 1px solid rgba(21, 21, 21, 0.1);
+  border-radius: 18px;
+  box-shadow: 0 20px 70px rgba(21, 21, 21, 0.06);
+}
+
+.nav {
+  position: sticky;
+  top: 24px;
+  padding: 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #13203a;
+  text-decoration: none;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(21, 21, 21, 0.08);
+}
+
+.logoMark {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid #caa96d;
+  color: #caa96d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 22px;
+}
+
+.logo strong,
+.logo small {
+  display: block;
+}
+
+.logo strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.logo small {
+  margin-top: 3px;
+  color: #7a7d85;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.navLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.navLink {
+  border-radius: 10px;
+  color: #4d525d;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.navLink:hover,
+.navLinkActive {
+  background: rgba(19, 32, 58, 0.07);
+  color: #13203a;
+}
+
+.article {
+  padding: clamp(28px, 5vw, 64px);
+}
+
+.eyebrow {
+  margin: 0 0 14px;
+  color: #c09a56;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.article h1 {
+  margin: 0;
+  color: #101010;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(38px, 5vw, 64px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.meta span {
+  border: 1px solid rgba(21, 21, 21, 0.1);
+  border-radius: 999px;
+  color: #4d525d;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 8px 12px;
+}
+
+.content {
+  margin-top: 44px;
+}
+
+.section {
+  padding: 32px 0;
+  border-top: 1px solid rgba(21, 21, 21, 0.08);
+}
+
+.section:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.section h2 {
+  margin: 0 0 18px;
+  color: #13203a;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.section p,
+.section li {
+  color: #2d2f35;
+  font-size: 18px;
+  line-height: 1.72;
+}
+
+.section p {
+  margin: 0 0 14px;
+}
+
+.section ul {
+  margin: 12px 0 22px;
+  padding-left: 26px;
+}
+
+.section li {
+  padding-left: 4px;
+  margin: 5px 0;
+}
+
+.footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.6fr) auto;
+  gap: 24px;
+  align-items: start;
+  margin-top: 18px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(21, 21, 21, 0.1);
+}
+
+.footer strong,
+.footer span,
+.footer a {
+  display: block;
+}
+
+.footer strong {
+  color: #13203a;
+  font-size: 18px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.footer span {
+  color: #6a6f79;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.footer a {
+  color: #13203a;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: #c09a56;
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 16px;
+  }
+
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .nav {
+    position: static;
+  }
+
+  .navLinks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .article {
+    padding: 24px 18px;
+    border-radius: 14px;
+  }
+
+  .article h1 {
+    font-size: 34px;
+  }
+
+  .section p,
+  .section li {
+    font-size: 16px;
+  }
+
+  .navLinks {
+    grid-template-columns: 1fr;
+  }
+}

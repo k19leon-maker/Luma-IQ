@@ -1,0 +1,67 @@
+.footer {
+  border-top: 1px solid rgba(20, 33, 61, 0.1);
+  background: #ffffff;
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.45fr) auto;
+  gap: 26px;
+  align-items: start;
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 34px 0;
+}
+
+.brand strong,
+.brand span,
+.email {
+  display: block;
+}
+
+.brand strong {
+  color: #14213d;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.brand span {
+  max-width: 340px;
+  margin-top: 8px;
+  color: #737985;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  justify-content: flex-end;
+}
+
+.links a,
+.email {
+  color: #14213d;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.links a:hover,
+.email:hover {
+  color: #c09a56;
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .inner {
+    grid-template-columns: 1fr;
+  }
+
+  .links {
+    justify-content: flex-start;
+  }
+}

@@ -3,17 +3,22 @@ export const LEGAL_DOCUMENT_VERSION = 'v1';
 export const legalDocuments = [
   {
     title: 'Политика конфиденциальности',
-    path: '/legal/privacy-policy',
+    path: '/b2c/legal/privacy-policy',
     version: LEGAL_DOCUMENT_VERSION,
   },
   {
     title: 'Согласие на обработку персональных данных',
-    path: '/legal/personal-data',
+    path: '/b2c/legal/personal-data',
     version: LEGAL_DOCUMENT_VERSION,
   },
   {
     title: 'Публичная оферта',
-    path: '/legal/offer',
+    path: '/b2c/legal/offer',
+    version: LEGAL_DOCUMENT_VERSION,
+  },
+  {
+    title: 'Политика cookies',
+    path: '/b2c/legal/cookies',
     version: LEGAL_DOCUMENT_VERSION,
   },
   {

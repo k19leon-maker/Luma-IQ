@@ -26,7 +26,8 @@ export default function PrivateRoute({ children }: PrivateRouteProps) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    const next = `${location.pathname}${location.search}`;
+    return <Navigate to={`/auth?next=${encodeURIComponent(next)}`} state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

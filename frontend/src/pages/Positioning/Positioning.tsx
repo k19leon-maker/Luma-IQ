@@ -30,6 +30,9 @@ export interface PositioningData {
 }
 
 interface ExpertProfileData {
+  whoYouAre?: string;
+  targetAudience?: string;
+  aiSummary?: string;
   name?: string;
   role?: string;
   niche?: string;
@@ -271,7 +274,9 @@ export default function Positioning() {
   );
   const briefText = useMemo(() => {
     if (!expertProfile) return '';
-    return expertProfile.summary || [expertProfile.name, expertProfile.role, expertProfile.niche].filter(Boolean).join(' · ');
+    return expertProfile.aiSummary
+      || expertProfile.summary
+      || [expertProfile.name, expertProfile.whoYouAre, expertProfile.targetAudience, expertProfile.role, expertProfile.niche].filter(Boolean).join(' · ');
   }, [expertProfile]);
   const briefPreview = useMemo(() => {
     const lines = briefText.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -317,11 +322,11 @@ export default function Positioning() {
         setExpertProfile(expert ?? null);
 
         if (!saved) {
-          setRole([expert?.role, expert?.niche].filter(Boolean).join(', '));
+          setRole([expert?.whoYouAre, expert?.targetAudience, expert?.role, expert?.niche].filter(Boolean).join(', '));
           return;
         }
 
-        setRole(saved.role ?? [expert?.role, expert?.niche].filter(Boolean).join(', '));
+        setRole(saved.role ?? [expert?.whoYouAre, expert?.targetAudience, expert?.role, expert?.niche].filter(Boolean).join(', '));
         setAudience(saved.audience ?? '');
         setProblem(saved.problem ?? '');
         setResult(saved.result ?? '');

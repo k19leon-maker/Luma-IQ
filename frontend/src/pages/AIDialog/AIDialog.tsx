@@ -176,10 +176,8 @@ export default function AIDialog() {
   return (
     <div className={s.root}>
       <header className={s.header}>
-        <div>
-          <h1 className={s.title}>Диалог с ИИ</h1>
-          <p className={s.subtitle}>Постоянный AI-маркетолог по текущему проекту, запуску и воронке</p>
-        </div>
+        <h1 className={s.title}>Диалог с ИИ</h1>
+        <p className={s.subtitle}>Постоянный AI-маркетолог по текущему проекту, запуску и воронке</p>
       </header>
 
       <div className={s.chat}>

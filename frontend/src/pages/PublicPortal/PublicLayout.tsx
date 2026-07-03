@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import LegalFooter from '../../components/LegalFooter/LegalFooter';
+import SiteFooter from '../../components/SiteFooter/SiteFooter';
 import { publicNav } from '../../data/public/content';
 import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
 import s from './PublicPortal.module.css';
@@ -29,7 +29,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
       {children}
-      <LegalFooter />
+      <SiteFooter />
     </div>
   );
 }

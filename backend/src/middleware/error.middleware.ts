@@ -13,5 +13,23 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     ? (err as { status: number }).status
     : 500;
   const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+  if (status < 500 && typeof err === 'object' && err !== null && 'code' in err) {
+    const details = err as {
+      code?: string;
+      limitType?: string;
+      current?: number;
+      limit?: number;
+      planId?: string;
+    };
+    res.status(status).json({
+      error: details.code ?? message,
+      message,
+      limitType: details.limitType,
+      current: details.current,
+      limit: details.limit,
+      planId: details.planId,
+    });
+    return;
+  }
   res.status(status).json({ error: status >= 500 ? 'Внутренняя ошибка сервера' : message });
 }

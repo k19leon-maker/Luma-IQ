@@ -699,13 +699,18 @@
 .contentFull {
   flex: 1;
   overflow: hidden;
-  padding: var(--workspace-safe-top, 72px) var(--workspace-safe-x, 24px) var(--workspace-safe-bottom, 24px);
+  padding: var(--workspace-safe-top, 24px) var(--workspace-safe-x, 24px) var(--workspace-safe-bottom, 24px);
   display: flex;
   flex-direction: column;
   position: relative;
   min-width: 0;
   min-height: 0;
   background: var(--bg-base);
+}
+
+.contentAiDialog {
+  --workspace-safe-top: 14px;
+  --workspace-safe-bottom: 16px;
 }
 
 /* ── Strategy banner ───────────────────────────────────────────── */
@@ -803,6 +808,10 @@
   border: 1px solid rgba(242, 92, 92, 0.2);
 }
 
+.modalLimits {
+  margin-top: 12px;
+}
+
 .modalActions {
   display: flex;
   justify-content: flex-end;
@@ -859,6 +868,7 @@
   .limitSummaryPlan {
     padding: 7px 9px;
   }
+
 }
 
 @media (max-width: 720px) {

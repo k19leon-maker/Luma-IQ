@@ -4,10 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
 import { billingApi, type BillingMe } from '../../api/billing.api';
-import {
-  formatAccessUntil,
-  formatLimitNumber,
-} from '../../utils/planLimits';
+import { SectionUsageLimits, type SectionUsageLimitsSection } from '../UsageLimits/UsageLimits';
 import { useProjectsStore } from '../../store/projects.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useTasksStore } from '../../store/tasks.store';
@@ -94,52 +91,14 @@ const aiWorkspacePaths = new Set([
   '/threads',
 ]);
 
-function LimitsPreview({ billing, loading }: { billing: BillingMe | null; loading: boolean }) {
-  return (
-    <div className={s.limitsPreview}>
-      <div className={s.limitsPreviewTop}>
-        <span>{loading ? 'Загрузка' : billing?.plan.name ?? 'Start'}</span>
-        <span>{billing ? `до ${formatAccessUntil(billing.period.currentPeriodEnd)}` : 'текущий период'}</span>
-      </div>
-      <div className={s.limitsPreviewGrid}>
-        <div>
-          <strong>{formatLimitNumber(billing?.usage.creditsRemaining ?? 0)}</strong>
-          <span>credits осталось</span>
-        </div>
-        <div>
-          <strong>{formatLimitNumber(billing?.usage.aiGenerationsRemaining ?? 0)}</strong>
-          <span>AI осталось</span>
-        </div>
-        <div>
-          <strong>{formatLimitNumber(billing?.usage.aiMessagesRemainingToday ?? 0)}</strong>
-          <span>чат сегодня</span>
-        </div>
-        <div>
-          <strong>{formatLimitNumber(billing?.usage.projectsRemaining ?? 0)}</strong>
-          <span>проектов осталось</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LimitSummary({ billing, loading }: { billing: BillingMe | null; loading: boolean }) {
-  return (
-    <div className={s.limitSummary} title="Остатки лимитов текущего периода">
-      <div className={s.limitSummaryItem}>
-        <span>Кредитов осталось</span>
-        <strong>{loading ? '...' : formatLimitNumber(billing?.usage.creditsRemaining ?? 0)}</strong>
-      </div>
-      <div className={s.limitSummaryItem}>
-        <span>ИИ генерации</span>
-        <strong>{loading ? '...' : formatLimitNumber(billing?.usage.aiGenerationsRemaining ?? 0)}</strong>
-      </div>
-      <div className={s.limitSummaryPlan}>
-        <span>Тариф</span>
-        <strong>{loading ? '...' : billing?.plan.name ?? 'Start'}</strong>
-      </div>
-    </div>
-  );
+function getLocalLimitsSection(path: string): SectionUsageLimitsSection | null {
+  if (path === '/ai-dialog') return 'ai_chat';
+  if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/content-plan') return 'content';
+  if (path === '/articles') return 'longreads';
+  if (path === '/video-scripts') return 'youtube_scripts';
+  if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';
+  if (path === '/products/main' || path === '/products/mini' || path === '/products/lead-magnet') return 'products';
+  return null;
 }
 
 function lastActiveProjectKey(userId: string): string {
@@ -199,7 +158,6 @@ export default function Layout({ children }: LayoutProps) {
   const setTokens = useAuthStore((st) => st.setTokens);
   const [hasAdminBackup, setHasAdminBackup] = useState(() => hasAdminAccessTokenBackup());
   const [billing, setBilling] = useState<BillingMe | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,16 +195,12 @@ export default function Layout({ children }: LayoutProps) {
     }
 
     let cancelled = false;
-    setSubscriptionLoading(true);
     billingApi.getMe()
       .then((next) => {
         if (!cancelled) setBilling(next);
       })
       .catch(() => {
         if (!cancelled) setBilling(null);
-      })
-      .finally(() => {
-        if (!cancelled) setSubscriptionLoading(false);
       });
 
     return () => {
@@ -346,6 +300,7 @@ export default function Layout({ children }: LayoutProps) {
   const projectMatch = appLocationPath.match(/^\/projects\/(.+)$/);
   const isAiWorkspace = aiWorkspacePaths.has(appLocationPath);
   const isAiDialog = appLocationPath === '/ai-dialog';
+  const localLimitsSection = getLocalLimitsSection(appLocationPath);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
     : (pageTitles[appLocationPath] ?? 'LumaIQ');
@@ -383,6 +338,10 @@ export default function Layout({ children }: LayoutProps) {
   const handleCreateProject = async () => {
     const name = newProjectName.trim();
     if (!name || createLoading) return;
+    if (billing && billing.usage.projectsRemaining <= 0) {
+      setCreateError('Лимит проектов на вашем тарифе исчерпан. Чтобы создать новый проект, увеличьте лимиты.');
+      return;
+    }
     setCreateError('');
     setCreateLoading(true);
     try {
@@ -650,7 +609,6 @@ export default function Layout({ children }: LayoutProps) {
                   <button className={s.accountMenuItem} onClick={() => goToAccountSection('/limits')}>
                     <span>Лимиты</span>
                   </button>
-                  <LimitsPreview billing={billing} loading={subscriptionLoading} />
                 </div>
                 <button className={s.accountMenuItem} onClick={() => goToAccountSection('/pricing')}>
                   <span>Тариф и оплата</span>
@@ -679,26 +637,19 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        {location.pathname !== '/dashboard' && !isAiWorkspace && (
+        {appLocationPath !== '/dashboard' && !isAiWorkspace && (
           <header className={s.topbar}>
             <h1 className={s.topbarTitle}>{title}</h1>
-            <div className={s.topbarActions}>
-              <LimitSummary billing={billing} loading={subscriptionLoading} />
-            </div>
           </header>
         )}
-        {(location.pathname === '/dashboard' || isAiWorkspace) && (
-          <div className={s.limitSummaryFixed}>
-            <LimitSummary billing={billing} loading={subscriptionLoading} />
-          </div>
-        )}
-        <main className={location.pathname === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}` : s.content}>
+        <main className={appLocationPath === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}` : s.content}>
           {projectsLoading && projects.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
               Загрузка…
             </div>
           ) : (
-            <ErrorBoundary key={`${activeProjectId ?? 'no-project'}:${location.pathname}`}>
+            <ErrorBoundary key={`${activeProjectId ?? 'no-project'}:${appLocationPath}`}>
+              {localLimitsSection && <SectionUsageLimits section={localLimitsSection} />}
               {children}
             </ErrorBoundary>
           )}
@@ -725,6 +676,9 @@ export default function Layout({ children }: LayoutProps) {
             {createError && (
               <div className={s.modalError}>{createError}</div>
             )}
+            <div className={s.modalLimits}>
+              <SectionUsageLimits section="projects" />
+            </div>
             <div className={s.modalActions}>
               <button className={s.modalCancel} onClick={() => { setShowModal(false); setCreateError(''); }} disabled={createLoading}>
                 Отмена
@@ -732,7 +686,7 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 className={s.modalCreate}
                 onClick={() => void handleCreateProject()}
-                disabled={!newProjectName.trim() || createLoading}
+                disabled={!newProjectName.trim() || createLoading || Boolean(billing && billing.usage.projectsRemaining <= 0)}
               >
                 {createLoading ? 'Создаём…' : 'Создать и начать стратегию'}
               </button>

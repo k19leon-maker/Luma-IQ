@@ -16,6 +16,12 @@ interface PositioningData {
 }
 
 interface ExpertProfileData {
+  whoYouAre?: string;
+  targetAudience?: string;
+  productsAndServices?: string;
+  expertiseAndStrengths?: string;
+  trustProofs?: string;
+  aiSummary?: string;
   name?: string;
   role?: string;
   niche?: string;
@@ -56,15 +62,20 @@ function formatPositioning(data: PositioningData | null): string {
 function formatExpertProfile(data: ExpertProfileData | null): string {
   if (!data) return '';
   return [
-    data.summary ? `Кратко об эксперте:\n${data.summary}` : '',
+    data.aiSummary || data.summary ? `Кратко об эксперте:\n${data.aiSummary || data.summary}` : '',
+    data.whoYouAre ? `Кто эксперт и чем занимается: ${data.whoYouAre}` : '',
+    data.targetAudience ? `Кому помогает: ${data.targetAudience}` : '',
+    data.productsAndServices ? `Продукты и услуги: ${data.productsAndServices}` : '',
+    data.expertiseAndStrengths ? `Экспертность и сильные стороны: ${data.expertiseAndStrengths}` : '',
+    data.trustProofs ? `Факты доверия: ${data.trustProofs}` : '',
     data.name ? `Имя: ${data.name}` : '',
     data.role ? `Роль эксперта: ${data.role}` : '',
     data.niche ? `Ниша: ${data.niche}` : '',
     data.experienceYears ? `Опыт: ${data.experienceYears}` : '',
     data.workFormats ? `Форматы работы: ${data.workFormats}` : '',
-    data.productsAndPrices ? `Текущие продукты и цены: ${data.productsAndPrices}` : '',
-    data.competencies ? `Компетенции: ${data.competencies}` : '',
-    data.achievements ? `Достижения и цифры: ${data.achievements}` : '',
+    data.productsAndPrices && !data.productsAndServices ? `Текущие продукты и цены: ${data.productsAndPrices}` : '',
+    data.competencies && !data.expertiseAndStrengths ? `Компетенции: ${data.competencies}` : '',
+    data.achievements && !data.trustProofs ? `Достижения и цифры: ${data.achievements}` : '',
     data.credentials ? `Регалии: ${data.credentials}` : '',
     data.values ? `Что важно в работе: ${data.values}` : '',
     data.antiPreferences ? `Что не хочет делать / с кем не хочет работать: ${data.antiPreferences}` : '',
@@ -167,7 +178,7 @@ export function useProjectMarketingContext() {
     ...(expertProfile?.credentials ? { credentials: expertProfile.credentials } : {}),
     ...(expertProfile?.values ? { values: expertProfile.values } : {}),
     ...(expertProfile?.antiPreferences ? { antiPreferences: expertProfile.antiPreferences } : {}),
-    ...(expertProfile?.summary ? { expertProfileSummary: expertProfile.summary } : {}),
+    ...(expertProfile?.aiSummary || expertProfile?.summary ? { expertProfileSummary: expertProfile.aiSummary || expertProfile.summary } : {}),
     ...(positioning?.role ? { specialization: positioning.role } : {}),
     ...(positioning?.audience ? { typicalClient: positioning.audience } : {}),
     ...(positioning?.problem ? { mainProblem: positioning.problem } : {}),

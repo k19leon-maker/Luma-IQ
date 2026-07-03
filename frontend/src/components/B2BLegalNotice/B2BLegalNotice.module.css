@@ -1,0 +1,31 @@
+.notice {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(212, 168, 71, 0.07);
+  padding: 12px 14px;
+}
+
+.notice p {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+}
+
+.links a {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.links a:hover {
+  text-decoration: underline;
+}

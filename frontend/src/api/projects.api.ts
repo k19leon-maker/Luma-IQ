@@ -58,8 +58,11 @@ export const projectsApi = {
 };
 
 export const paymentApi = {
-  createPayment: (plan: 'PRO' | 'ANNUAL') =>
+  createPayment: (plan: 'start' | 'pro' | 'expert' | 'support' | 'marketing_partner' | 'implementation') =>
     apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create', { plan }).then((r) => r.data),
+
+  createStartTestPayment: () =>
+    apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create-start-test-20').then((r) => r.data),
 
   getSubscription: () =>
     apiClient.get<{ subscription: { plan: string; status: string; expiresAt: string | null } }>('/payments/subscription').then((r) => r.data.subscription),

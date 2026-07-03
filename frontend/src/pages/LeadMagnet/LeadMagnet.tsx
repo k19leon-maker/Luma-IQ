@@ -363,7 +363,7 @@ function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
       ? splitLeadMagnetMarkdownToMessages(raw.description)
       : [];
 
-  if (selectedFormat && messages.length && Object.values(stepStatuses).every((status) => status === 'idle')) {
+  if (raw.generated && selectedFormat && messages.length && Object.values(stepStatuses).every((status) => status === 'idle')) {
     for (const step of STEPS_BY_FORMAT[selectedFormat]) stepStatuses[step.id] = 'done';
   }
 

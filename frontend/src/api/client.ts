@@ -39,6 +39,9 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    if (error.response?.data?.error === 'LIMIT_EXCEEDED' && error.response.data.message) {
+      error.response.data.error = error.response.data.message;
+    }
 
     if (!error.response || error.response.status !== 401 || original._retry) {
       return Promise.reject(error);

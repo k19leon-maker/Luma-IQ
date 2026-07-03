@@ -16,6 +16,12 @@ interface PositioningData {
 }
 
 interface ExpertProfileData {
+  whoYouAre?: string;
+  targetAudience?: string;
+  productsAndServices?: string;
+  expertiseAndStrengths?: string;
+  trustProofs?: string;
+  aiSummary?: string;
   name?: string;
   role?: string;
   niche?: string;
@@ -43,7 +49,12 @@ export function summarizeMaterial(content: string): string {
 export function buildExpertProfileMaterial(data: ExpertProfileData): Omit<ProjectMaterial, 'updatedAt'> {
   const content = [
     '# О себе',
-    section('Краткое резюме для ИИ', data.summary),
+    section('Краткое резюме для ИИ', data.aiSummary || data.summary),
+    section('Кто эксперт и чем занимается', data.whoYouAre),
+    section('Кому помогает', data.targetAudience),
+    section('Продукты и услуги', data.productsAndServices || data.productsAndPrices),
+    section('Экспертность и сильные стороны', data.expertiseAndStrengths || data.competencies),
+    section('Факты доверия', data.trustProofs || data.achievements),
     section('Имя', data.name),
     section('Профессия / роль эксперта', data.role),
     section('Ниша / сфера деятельности', data.niche),

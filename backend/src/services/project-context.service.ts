@@ -206,18 +206,21 @@ function summarizeProject(project: {
 
 function summarizeExpert(about: Record<string, unknown>, projectName: string, projectNiche?: string | null): string {
   return lines([
+    ['AI-резюме проекта', field(about, ['aiSummary', 'summary'])],
+    ['Кто эксперт и чем занимается', field(about, ['whoYouAre', 'aboutExpert', 'description'])],
+    ['Кому помогает', field(about, ['targetAudience', 'audience', 'clients'])],
+    ['Продукты / услуги', field(about, ['productsAndServices', 'productsAndPrices', 'products', 'services'])],
+    ['Экспертность и сильные стороны', field(about, ['expertiseAndStrengths', 'competencies', 'strongTopics', 'expertise'])],
+    ['Факты доверия', field(about, ['trustProofs', 'achievements', 'cases', 'results', 'numbers'])],
     ['Имя / обращение', field(about, ['expertName', 'name', 'displayName'])],
     ['Профессия / роль', field(about, ['profession', 'role', 'specialization'], projectNiche ?? projectName)],
     ['Ниша', field(about, ['niche', 'sphere'], projectNiche ?? '')],
     ['Опыт', field(about, ['experienceYears', 'experience', 'yearsInProfession'])],
-    ['Формат работы', field(about, ['workFormat', 'format', 'currentFormat'])],
-    ['Текущие продукты и цены', field(about, ['productsAndPrices', 'products', 'services'])],
-    ['Компетенции', field(about, ['competencies', 'strongTopics', 'expertise'])],
-    ['Не хочет делать / с кем не работает', field(about, ['dontWant', 'antiAudience', 'notFor'])],
+    ['Формат работы', field(about, ['workFormats', 'workFormat', 'format', 'currentFormat'])],
+    ['Не хочет делать / с кем не работает', field(about, ['antiPreferences', 'dontWant', 'antiAudience', 'notFor'])],
     ['Важно в работе', field(about, ['values', 'workValues', 'importantInWork'])],
-    ['Образование / регалии', field(about, ['education', 'certificates', 'credentials'])],
-    ['Опыт / достижения / цифры', field(about, ['achievements', 'cases', 'results', 'numbers'])],
-    ['Дополнительные материалы', field(about, ['uploadedFilesSummary', 'additionalMaterials', 'notes'])],
+    ['Образование / регалии', field(about, ['credentials', 'education', 'certificates'])],
+    ['Дополнительные материалы', field(about, ['uploadedFileText', 'uploadedFilesSummary', 'additionalMaterials', 'notes'])],
   ], 2400);
 }
 
@@ -372,7 +375,7 @@ export const projectContextService = {
     }
 
     const strategyData = (project.strategyData ?? {}) as Record<string, unknown>;
-    const about = (strategyData.aboutExpert ?? strategyData.about ?? strategyData.expertProfile ?? {}) as Record<string, unknown>;
+    const about = (strategyData.expertProfileData ?? strategyData.aboutExpert ?? strategyData.about ?? strategyData.expertProfile ?? {}) as Record<string, unknown>;
     const projectSummary = summarizeProject(project);
     const expertSummary = summarizeExpert(about, project.name, project.niche);
     const strategySummary = summarizeStrategy(strategyData, project.strategySummary);

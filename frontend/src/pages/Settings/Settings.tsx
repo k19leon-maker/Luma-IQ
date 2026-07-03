@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { usersApi, UserProfile } from '../../api/users.api';
+import { b2bLegalDocuments } from '../../data/b2bLegal';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Settings.module.css';
 
@@ -139,6 +140,22 @@ export default function Settings() {
           <div className={s.field}>
             <label className={s.label}>Email</label>
             <input className={s.input} type="email" value={displayEmail} readOnly disabled />
+          </div>
+          <div className={s.legalPanel}>
+            <div className={s.legalPanelHeader}>
+              <span className={s.legalIcon}>✦</span>
+              <div>
+                <h4 className={s.legalTitle}>Юридическая информация</h4>
+                <p className={s.legalMeta}>Давидюк Леонид Дмитриевич · ИНН 402914848246</p>
+              </div>
+            </div>
+            <nav className={s.legalLinks} aria-label="Юридические документы">
+              {b2bLegalDocuments.map((document) => (
+                <Link key={document.path} to={document.path}>
+                  {document.title}
+                </Link>
+              ))}
+            </nav>
           </div>
           <div className={s.field}>
             <label className={s.label}>Ваша специализация</label>

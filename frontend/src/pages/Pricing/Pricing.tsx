@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import toast from 'react-hot-toast';
 import { billingApi } from '../../api/billing.api';
+import { paymentApi } from '../../api/projects.api';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Pricing.module.css';
 
 type BillingScenario = 'self' | 'support';
+type PaidPlanId = 'start' | 'pro' | 'expert' | 'support' | 'marketing_partner' | 'implementation';
 
 type PricingPlan = {
-  id: string;
+  id: PaidPlanId | 'custom';
   scenario: BillingScenario;
   name: string;
   price: number;
@@ -187,11 +190,20 @@ function normalizeActivePlan(value?: string | null) {
   return planAliases[normalized] ?? normalized.toLowerCase();
 }
 
+function getCheckoutErrorMessage(error: unknown) {
+  if (axios.isAxiosError<{ error?: string }>(error)) {
+    return error.response?.data?.error ?? 'Не удалось создать платеж';
+  }
+  return error instanceof Error ? error.message : 'Не удалось создать платеж';
+}
+
 export default function Pricing() {
   const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [scenario, setScenario] = useState<BillingScenario>('self');
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  const [checkoutPlanId, setCheckoutPlanId] = useState<PaidPlanId | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -215,9 +227,26 @@ export default function Pricing() {
     [scenario],
   );
 
-  function handleSelectPlan(plan: PricingPlan) {
+  async function handleSelectPlan(plan: PricingPlan) {
     if (activePlanId === plan.id) return;
-    setSelectedPlan(plan);
+    if (plan.id === 'custom') {
+      setSelectedPlan(plan);
+      return;
+    }
+    if (!isAuthenticated) {
+      toast.error('Чтобы оплатить тариф, войдите или зарегистрируйтесь');
+      window.location.href = '/auth';
+      return;
+    }
+
+    try {
+      setCheckoutPlanId(plan.id);
+      const payment = await paymentApi.createPayment(plan.id);
+      window.location.href = payment.confirmationUrl;
+    } catch (error) {
+      toast.error(getCheckoutErrorMessage(error));
+      setCheckoutPlanId(null);
+    }
   }
 
   function handleLeadSubmit() {
@@ -251,6 +280,7 @@ export default function Pricing() {
       <section className={s.grid} aria-live="polite">
         {visiblePlans.map((plan) => {
           const isCurrent = activePlanId === plan.id;
+          const isCheckingOut = checkoutPlanId === plan.id;
           return (
             <article key={plan.id} className={`${s.card}${plan.badge ? ' ' + s.cardFeatured : ''}`}>
               <div className={s.cardTop}>
@@ -278,10 +308,10 @@ export default function Pricing() {
               <button
                 type="button"
                 className={isCurrent ? s.currentButton : s.primaryButton}
-                disabled={isCurrent}
+                disabled={isCurrent || isCheckingOut}
                 onClick={() => handleSelectPlan(plan)}
               >
-                {isCurrent ? 'Текущий тариф' : plan.buttonText}
+                {isCurrent ? 'Текущий тариф' : isCheckingOut ? 'Переходим к оплате...' : plan.buttonText}
               </button>
             </article>
           );

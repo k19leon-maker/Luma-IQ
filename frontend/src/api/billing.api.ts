@@ -25,6 +25,7 @@ export type BillingPlan = {
   scenario: BillingScenario;
   name: string;
   priceMonthlyRub: number;
+  subscriptionStatus?: string;
   currency: 'RUB';
   billingPeriod: 'month';
   limits?: BillingPlanLimits;

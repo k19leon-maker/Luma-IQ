@@ -108,7 +108,7 @@ async function saveNormalizedProjectData(input: {
       kind: 'expert_profile',
       key: 'expert_profile.current',
       title: 'О себе',
-      content: String(input.data.expertProfileData.summary ?? input.data.expertProfileData.role ?? ''),
+      content: String(input.data.expertProfileData.aiSummary ?? input.data.expertProfileData.summary ?? input.data.expertProfileData.whoYouAre ?? input.data.expertProfileData.role ?? ''),
       data: input.data.expertProfileData as Record<string, unknown>,
     });
   }

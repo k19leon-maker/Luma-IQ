@@ -18,6 +18,7 @@ const aiLimiter = rateLimit({
 const router = Router();
 
 router.post('/chat', requireAuth, aiLimiter, aiController.chat);
+router.post('/about-summary', requireAuth, aiLimiter, aiController.aboutSummary);
 router.get('/workflows/prompts', requireAuth, aiWorkflowController.listPrompts);
 router.post('/workflows/:workflow/start', requireAuth, aiLimiter, aiWorkflowController.start);
 router.post('/workflows/:workflow/step', requireAuth, aiLimiter, aiWorkflowController.step);

@@ -45,6 +45,7 @@ const ZERO_USAGE: AIResponse['usage'] = {
 
 const OPENAI_SECTION_MODELS: Record<string, string> = {
   'ai-dialog': 'gpt-5.4',
+  'about-ai-summary': 'gpt-5.4',
   unpacking: 'gpt-5.5',
   audience: 'gpt-5.5',
   strategy: 'gpt-5.5',

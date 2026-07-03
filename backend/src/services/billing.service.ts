@@ -108,6 +108,7 @@ export const billingService = {
         scenario: plan.scenario,
         name: plan.name,
         priceMonthlyRub: plan.priceMonthlyRub,
+        subscriptionStatus: access.subscription?.status?.toLowerCase() ?? 'active',
         currency: plan.currency,
         billingPeriod: plan.billingPeriod,
       },
