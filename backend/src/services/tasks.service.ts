@@ -127,13 +127,17 @@ async function assertProjectAccess(userId: string, projectId: string): Promise<v
   }
 }
 
+async function listProjectTasks(userId: string, projectId: string) {
+  return prisma.projectTask.findMany({
+    where: { userId, projectId },
+    orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+  });
+}
+
 export const tasksService = {
   async list(userId: string, projectId: string) {
-    await assertProjectAccess(userId, projectId);
-    return prisma.projectTask.findMany({
-      where: { userId, projectId },
-      orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
-    });
+    await tasksService.ensureStarterTasks(userId, projectId);
+    return listProjectTasks(userId, projectId);
   },
 
   async create(userId: string, data: {
@@ -197,7 +201,7 @@ export const tasksService = {
       },
     });
     if (existingStarterPlan > 0) {
-      return { created: false, tasks: await tasksService.list(userId, projectId) };
+      return { created: false, tasks: await listProjectTasks(userId, projectId) };
     }
 
     const starterKeys = STARTER_TASKS.map((task) => task.taskKey);
@@ -219,7 +223,7 @@ export const tasksService = {
     ));
 
     if (tasksToCreate.length === 0) {
-      return { created: false, tasks: await tasksService.list(userId, projectId) };
+      return { created: false, tasks: await listProjectTasks(userId, projectId) };
     }
 
     await prisma.projectTask.createMany({
@@ -239,7 +243,7 @@ export const tasksService = {
       metadata: { projectId, taskPlanVersion: STARTER_TASK_PLAN_VERSION, count: tasksToCreate.length },
     }).catch(() => {});
 
-    return { created: true, tasks: await tasksService.list(userId, projectId) };
+    return { created: true, tasks: await listProjectTasks(userId, projectId) };
   },
 
   async completeByKey(userId: string, projectId: string, taskKey: string) {
