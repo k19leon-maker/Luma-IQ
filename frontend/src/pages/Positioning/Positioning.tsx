@@ -506,7 +506,7 @@ export default function Positioning() {
       upsertMaterial(activeProjectId, buildPositioningMaterial(positioningData));
       completePositioning();
       toast.success('Позиционирование сохранено как ядро проекта');
-      if (goNext) navigate('/strategy/audience');
+      if (goNext) navigate('/app/strategy/audience');
     } catch {
       toast.error('Не удалось сохранить позиционирование');
     } finally {
@@ -546,7 +546,7 @@ export default function Positioning() {
               {briefCanToggle && briefExpanded && (
                 <button className={s.textButton} onClick={() => setBriefExpanded(false)}>Свернуть бриф</button>
               )}
-              <button className={s.textButton} onClick={() => navigate('/strategy/about')}>Открыть раздел «О себе»</button>
+              <button className={s.textButton} onClick={() => navigate('/app/strategy/about')}>Открыть раздел «О себе»</button>
             </div>
           </div>
         ) : (
@@ -555,7 +555,7 @@ export default function Positioning() {
               <div className={s.contextLabel}>Бриф «О себе» пока пустой</div>
               <div className={s.contextText}>Варианты позиционирования станут точнее, если ИИ будет знать опыт, регалии, продукты, ограничения и сильные кейсы.</div>
             </div>
-            <button className={s.textButton} onClick={() => navigate('/strategy/about')}>Заполнить «О себе»</button>
+            <button className={s.textButton} onClick={() => navigate('/app/strategy/about')}>Заполнить «О себе»</button>
           </div>
         )}
 
