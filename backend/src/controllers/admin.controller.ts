@@ -9,6 +9,7 @@ import { creditLedgerService } from '../services/credit-ledger.service';
 import { promptRegistry } from '../prompts/registry';
 import { promptCmsService } from '../services/prompt-cms.service';
 import { setRefreshCookie } from '../utils/auth-cookies';
+import { isDemoProductText } from '../utils/demo-products';
 import { isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
 
 const subscriptionPlanValues = ['FREE', 'START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
@@ -721,25 +722,31 @@ export const adminController = {
           })),
           projectCount: user.projects.length,
           generatedTextCount: user.projects.reduce((sum, project) => sum + project.generatedTexts.length, 0),
-          currentStage: user.projects[0] ? currentStage(user.projects[0]) : 'Нет проекта',
-          projects: user.projects.map((project) => ({
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            createdAt: project.createdAt,
-            updatedAt: project.updatedAt,
-            currentStage: currentStage(project),
-            health: projectHealth(project),
-            aiRequests: projectGenerationMap.get(project.id)?._count._all ?? 0,
-            aiTokens: projectGenerationMap.get(project.id)?._sum.totalTokens ?? 0,
-            aiCostUsd: usd(projectGenerationMap.get(project.id)?._sum.actualCostUsd),
-            productsCount: project.products.length,
-            generatedTextsCount: project.generatedTexts.length,
-            contentPlanItemsCount: project.contentPlanItems.length,
-            products: project.products,
-            generatedTexts: project.generatedTexts,
-            contentPlanItems: project.contentPlanItems,
-          })),
+          currentStage: user.projects[0]
+            ? currentStage({ ...user.projects[0], products: user.projects[0].products.filter((product) => !isDemoProductText(product)) })
+            : 'Нет проекта',
+          projects: user.projects.map((project) => {
+            const products = project.products.filter((product) => !isDemoProductText(product));
+            const cleanProject = { ...project, products };
+            return {
+              id: project.id,
+              name: project.name,
+              status: project.status,
+              createdAt: project.createdAt,
+              updatedAt: project.updatedAt,
+              currentStage: currentStage(cleanProject),
+              health: projectHealth(cleanProject),
+              aiRequests: projectGenerationMap.get(project.id)?._count._all ?? 0,
+              aiTokens: projectGenerationMap.get(project.id)?._sum.totalTokens ?? 0,
+              aiCostUsd: usd(projectGenerationMap.get(project.id)?._sum.actualCostUsd),
+              productsCount: products.length,
+              generatedTextsCount: project.generatedTexts.length,
+              contentPlanItemsCount: project.contentPlanItems.length,
+              products,
+              generatedTexts: project.generatedTexts,
+              contentPlanItems: project.contentPlanItems,
+            };
+          }),
         },
       });
     } catch (err) {

@@ -196,9 +196,11 @@ export default function AboutExpert() {
   const [enhancing, setEnhancing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [linkImporting, setLinkImporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAdditional, setShowAdditional] = useState(false);
   const [importSourceId, setImportSourceId] = useState('');
+  const [documentUrl, setDocumentUrl] = useState('');
 
   const summary = useMemo(() => buildSummary(profile), [profile]);
   const previewSummary = profile.aiSummary.trim() || summary;
@@ -284,6 +286,30 @@ export default function AboutExpert() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleDocumentUrl() {
+    const url = documentUrl.trim();
+    if (!url) return;
+    setLinkImporting(true);
+    try {
+      const { text: extractedText, fileName } = await aiApi.extractUrlText(url);
+      setProfile((current) => ({
+        ...current,
+        uploadedFileText: [current.uploadedFileText, `Ссылка "${fileName}":\n${extractedText}`]
+          .filter(Boolean)
+          .join('\n\n---\n\n')
+          .slice(0, 12000),
+      }));
+      setShowAdditional(true);
+      setDocumentUrl('');
+      toast.success('Текст по ссылке добавлен в бриф');
+    } catch (err) {
+      console.error('[AboutExpert] document link import error:', err);
+      toast.error(limitMessage(err, 'Не удалось извлечь текст по ссылке'));
+    } finally {
+      setLinkImporting(false);
     }
   }
 
@@ -388,13 +414,19 @@ export default function AboutExpert() {
             <button className={s.uploadButton} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? 'Загружаю...' : 'Загрузить файлы'}
             </button>
+            <span className={s.helpWrap}>
+              <button type="button" className={s.helpButton} aria-label="Какие файлы поддерживаются?">?</button>
+              <span className={s.helpBubble}>
+                Поддерживаются: PDF с текстовым слоем, Word DOC/DOCX, текстовые TXT/MD/CSV, Excel XLS/XLSX, Google Docs и Google Sheets по доступной ссылке.
+              </span>
+            </span>
           </div>
           <input
             ref={fileInputRef}
             className={s.fileInput}
             type="file"
             multiple
-            accept=".txt,.doc,.docx,.pdf"
+            accept=".txt,.md,.csv,.doc,.docx,.pdf,.xls,.xlsx"
             onChange={(event) => void handleFiles(event.target.files)}
           />
         </header>
@@ -404,6 +436,27 @@ export default function AboutExpert() {
         ) : (
           <div className={s.layout}>
             <main className={s.card}>
+              <div className={s.linkPanel}>
+                <div>
+                  <div className={s.importTitle}>Добавить документ по ссылке</div>
+                  <div className={s.importText}>
+                    Вставьте ссылку на Google Docs, Google Sheets, PDF, Word, Excel или текстовый файл. Для Google Drive файл должен быть доступен по ссылке.
+                  </div>
+                </div>
+                <div className={s.linkControls}>
+                  <input
+                    className={s.input}
+                    value={documentUrl}
+                    onChange={(event) => setDocumentUrl(event.target.value)}
+                    onKeyDown={(event) => event.key === 'Enter' && void handleDocumentUrl()}
+                    placeholder="https://docs.google.com/..."
+                  />
+                  <button className={s.button} onClick={() => void handleDocumentUrl()} disabled={linkImporting || !documentUrl.trim()}>
+                    {linkImporting ? 'Читаю...' : 'Добавить'}
+                  </button>
+                </div>
+              </div>
+
               {showImport && (
                 <div className={s.importPanel}>
                   <div>

@@ -4,6 +4,7 @@ import * as path from 'path';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { PDFParse } from 'pdf-parse';
+import * as XLSX from 'xlsx';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -11,17 +12,29 @@ const projectFileSchema = z.object({
   projectId: z.string().uuid(),
 });
 
-const SUPPORTED_EXTENSIONS = new Set(['.txt', '.doc', '.docx', '.pdf', '.md']);
+const extractUrlSchema = z.object({
+  url: z.string().url(),
+});
+
+const SUPPORTED_EXTENSIONS = new Set(['.txt', '.doc', '.docx', '.pdf', '.md', '.csv', '.xls', '.xlsx']);
 const PDF_PARSE_TIMEOUT_MS = 15_000;
 const MAX_EXTRACTED_TEXT_CHARS = 50_000;
+const MAX_REMOTE_FILE_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_MIME_BY_EXTENSION: Record<string, Set<string>> = {
   '.txt': new Set(['text/plain', 'text/markdown', 'application/octet-stream']),
   '.md': new Set(['text/markdown', 'text/plain', 'application/octet-stream']),
+  '.csv': new Set(['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/octet-stream']),
   '.pdf': new Set(['application/pdf', 'application/octet-stream']),
   '.doc': new Set(['application/msword', 'application/octet-stream']),
   '.docx': new Set([
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/zip',
+    'application/octet-stream',
+  ]),
+  '.xls': new Set(['application/vnd.ms-excel', 'application/octet-stream']),
+  '.xlsx': new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/zip',
     'application/octet-stream',
   ]),
@@ -51,14 +64,28 @@ function looksLikeText(buffer: Buffer): boolean {
   return replacementCount <= Math.max(1, Math.floor(decoded.length * 0.02));
 }
 
-function validateUploadedFile(file: Express.Multer.File, buffer: Buffer): string {
-  const ext = path.extname(file.originalname).toLowerCase();
+function extensionFromMime(mimeType: string | null): string {
+  const clean = mimeType?.split(';')[0]?.trim().toLowerCase();
+  if (clean === 'application/pdf') return '.pdf';
+  if (clean === 'text/plain') return '.txt';
+  if (clean === 'text/markdown') return '.md';
+  if (clean === 'text/csv') return '.csv';
+  if (clean === 'application/msword') return '.doc';
+  if (clean === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return '.docx';
+  if (clean === 'application/vnd.ms-excel') return '.xls';
+  if (clean === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return '.xlsx';
+  return '';
+}
+
+function validateFileLike(originalName: string, mimeType: string | null, buffer: Buffer): string {
+  const ext = path.extname(originalName).toLowerCase() || extensionFromMime(mimeType);
   if (!SUPPORTED_EXTENSIONS.has(ext)) {
-    throw Object.assign(new Error('Поддерживаются только .txt, .md, .doc, .docx, .pdf'), { status: 400 });
+    throw Object.assign(new Error('Поддерживаются только .txt, .md, .csv, .doc, .docx, .xls, .xlsx, .pdf'), { status: 400 });
   }
 
   const allowedMime = ALLOWED_MIME_BY_EXTENSION[ext];
-  if (file.mimetype && allowedMime && !allowedMime.has(file.mimetype)) {
+  const cleanMime = mimeType?.split(';')[0]?.trim().toLowerCase();
+  if (cleanMime && allowedMime && !allowedMime.has(cleanMime)) {
     throw Object.assign(new Error('Тип файла не соответствует расширению'), { status: 400 });
   }
 
@@ -75,7 +102,13 @@ function validateUploadedFile(file: Express.Multer.File, buffer: Buffer): string
   if (ext === '.doc' && !isOle) {
     throw Object.assign(new Error('Файл не похож на DOC'), { status: 400 });
   }
-  if ((ext === '.txt' || ext === '.md') && !looksLikeText(buffer)) {
+  if (ext === '.xls' && !isOle) {
+    throw Object.assign(new Error('Файл не похож на XLS'), { status: 400 });
+  }
+  if (ext === '.xlsx' && !isZip) {
+    throw Object.assign(new Error('Файл не похож на XLSX'), { status: 400 });
+  }
+  if ((ext === '.txt' || ext === '.md' || ext === '.csv') && !looksLikeText(buffer)) {
     throw Object.assign(new Error('Файл не похож на текстовый документ'), { status: 400 });
   }
 
@@ -100,27 +133,120 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await withTimeout(parser.getText(), PDF_PARSE_TIMEOUT_MS, 'PDF слишком долго обрабатывается');
-    return result.text.trim() || '[PDF-файл загружен, но текст в нем не найден.]';
+    return result.text.trim() || '[PDF-файл загружен, но текст в нем не найден. Возможно, это скан или изображение без текстового слоя.]';
   } finally {
     await parser.destroy().catch(() => {});
   }
 }
 
-async function extractTextFromUploadedFile(file: Express.Multer.File): Promise<string> {
-  const buffer = fs.readFileSync(file.path);
-  const ext = validateUploadedFile(file, buffer);
+type WordExtractorConstructor = new () => {
+  extract: (input: Buffer) => Promise<{ getBody: () => string }>;
+};
 
-  if (ext === '.txt' || ext === '.md') {
+async function extractTextFromBuffer(buffer: Buffer, originalName: string, mimeType: string | null): Promise<string> {
+  const ext = validateFileLike(originalName, mimeType, buffer);
+
+  if (ext === '.txt' || ext === '.md' || ext === '.csv') {
     return buffer.toString('utf-8');
   }
 
-  if (ext === '.docx' || ext === '.doc') {
+  if (ext === '.docx') {
     const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ path: file.path });
+    const result = await mammoth.extractRawText({ buffer });
     return result.value;
   }
 
+  if (ext === '.doc') {
+    const WordExtractor = require('word-extractor') as WordExtractorConstructor;
+    const doc = await new WordExtractor().extract(buffer);
+    return doc.getBody();
+  }
+
+  if (ext === '.xlsx' || ext === '.xls') {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    return workbook.SheetNames
+      .map((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = sheet ? XLSX.utils.sheet_to_csv(sheet, { blankrows: false }) : '';
+        return csv.trim() ? `Лист "${sheetName}":\n${csv.trim()}` : '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
   return extractPdfText(buffer);
+}
+
+async function extractTextFromUploadedFile(file: Express.Multer.File): Promise<string> {
+  const buffer = fs.readFileSync(file.path);
+  return extractTextFromBuffer(buffer, file.originalname, file.mimetype || null);
+}
+
+function googleExportUrl(inputUrl: string): { url: string; fileName: string } | null {
+  const parsed = new URL(inputUrl);
+  const host = parsed.hostname.replace(/^www\./, '');
+  if (!['docs.google.com', 'drive.google.com'].includes(host)) return null;
+
+  const docsMatch = parsed.pathname.match(/\/document\/d\/([^/]+)/);
+  if (docsMatch?.[1]) {
+    return {
+      url: `https://docs.google.com/document/d/${docsMatch[1]}/export?format=txt`,
+      fileName: 'google-doc.txt',
+    };
+  }
+
+  const sheetsMatch = parsed.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
+  if (sheetsMatch?.[1]) {
+    const gid = parsed.searchParams.get('gid');
+    return {
+      url: `https://docs.google.com/spreadsheets/d/${sheetsMatch[1]}/export?format=csv${gid ? `&gid=${encodeURIComponent(gid)}` : ''}`,
+      fileName: 'google-sheet.csv',
+    };
+  }
+
+  const driveFileMatch = parsed.pathname.match(/\/file\/d\/([^/]+)/);
+  const idFromOpen = parsed.pathname === '/open' ? parsed.searchParams.get('id') : null;
+  const fileId = driveFileMatch?.[1] ?? idFromOpen;
+  if (host === 'drive.google.com' && fileId) {
+    return {
+      url: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+      fileName: 'google-drive-file',
+    };
+  }
+
+  return null;
+}
+
+function fileNameFromHeaders(headers: Headers, fallback: string, mimeType: string | null): string {
+  const disposition = headers.get('content-disposition') ?? '';
+  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+  const rawName = utfMatch?.[1] ?? plainMatch?.[1];
+  const decoded = rawName ? decodeURIComponent(rawName) : fallback;
+  if (path.extname(decoded)) return decoded;
+  return `${decoded}${extensionFromMime(mimeType) || '.txt'}`;
+}
+
+async function fetchRemoteFile(inputUrl: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string | null }> {
+  const exportTarget = googleExportUrl(inputUrl) ?? { url: inputUrl, fileName: path.basename(new URL(inputUrl).pathname) || 'remote-file' };
+  const response = await fetch(exportTarget.url, { redirect: 'follow' });
+  if (!response.ok) {
+    throw Object.assign(new Error('Не удалось скачать файл по ссылке. Проверьте доступ по ссылке.'), { status: response.status });
+  }
+
+  const contentLength = Number(response.headers.get('content-length') ?? 0);
+  if (contentLength > MAX_REMOTE_FILE_BYTES) {
+    throw Object.assign(new Error('Файл по ссылке больше 10 МБ'), { status: 413 });
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  if (arrayBuffer.byteLength > MAX_REMOTE_FILE_BYTES) {
+    throw Object.assign(new Error('Файл по ссылке больше 10 МБ'), { status: 413 });
+  }
+
+  const mimeType = response.headers.get('content-type');
+  const fileName = fileNameFromHeaders(response.headers, exportTarget.fileName, mimeType);
+  return { buffer: Buffer.from(arrayBuffer), fileName, mimeType };
 }
 
 function cleanup(file?: Express.Multer.File): void {
@@ -145,6 +271,24 @@ export const filesController = {
       res.status(status || 500).json({ error: err instanceof Error ? err.message : 'Не удалось извлечь текст из файла' });
     } finally {
       cleanup(file);
+    }
+  },
+
+  async extractTextFromUrl(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = extractUrlSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    try {
+      const remote = await fetchRemoteFile(parsed.data.url);
+      const text = await extractTextFromBuffer(remote.buffer, remote.fileName, remote.mimeType);
+      res.json({ text: text.slice(0, 12000), fileName: remote.fileName });
+    } catch (err) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? Number((err as { status: unknown }).status) : 500;
+      console.error('[files] extractTextFromUrl error:', err);
+      res.status(status || 500).json({ error: err instanceof Error ? err.message : 'Не удалось извлечь текст по ссылке' });
     }
   },
 

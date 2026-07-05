@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { projectService } from '../services/project.service';
 import { eventService } from '../services/event.service';
 import { AccessPolicyError } from '../services/access-policy.service';
+import { sanitizeProjectStrategyData } from '../utils/demo-products';
 
 function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
   res.status(err.status).json({
@@ -282,7 +283,11 @@ export const projectController = {
         res.status(404).json({ error: 'Проект не найден' });
         return;
       }
-      res.json({ strategyData: project.strategyData ?? null });
+      res.json({
+        strategyData: project.strategyData
+          ? sanitizeProjectStrategyData(project.strategyData as Record<string, unknown>)
+          : null,
+      });
     } catch (err) {
       console.error('[Projects] getStrategyData:', err);
       res.status(500).json({ error: 'Ошибка при загрузке данных стратегии' });
@@ -340,8 +345,9 @@ export const projectController = {
         return;
       }
       // Merge new data into existing strategyData
-      const existing = (project.strategyData as Record<string, unknown>) ?? {};
-      const merged   = { ...existing, ...parsed.data } as Prisma.InputJsonValue;
+      const existing = sanitizeProjectStrategyData((project.strategyData as Record<string, unknown>) ?? {});
+      const cleanedData = sanitizeProjectStrategyData(parsed.data);
+      const merged = sanitizeProjectStrategyData({ ...existing, ...cleanedData }) as Prisma.InputJsonValue;
       const { prisma } = await import('../lib/prisma');
       await prisma.project.update({
         where: { id: req.params.id as string },
@@ -350,7 +356,7 @@ export const projectController = {
       await saveNormalizedProjectData({
         userId: req.userId!,
         projectId: req.params.id as string,
-        data: parsed.data,
+        data: cleanedData,
       });
       void eventService.track('strategy_saved', {
         userId: req.userId!,

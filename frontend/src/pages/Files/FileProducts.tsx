@@ -1,129 +1,135 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
+import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useMaterialsStore, type ProjectMaterial } from '../../store/materials.store';
+import { useProjectsStore } from '../../store/projects.store';
+import { buildProductMaterial } from '../../utils/projectMaterials';
 import s from './FileProductsEditor.module.css';
 
-/* ── Data ──────────────────────────────────────────────────────── */
+type ProductSource = 'material' | 'draft';
+type ProductKind = 'product-main' | 'product-mini' | 'lead-magnet';
 
 interface Product extends SplitItem {
   fullText: string;
+  source: ProductSource;
+  kind: ProductKind;
+  material?: ProjectMaterial;
 }
 
-const PRODUCTS: Product[] = [
-  {
-    id: 'pr1',
-    icon: '🚀',
-    title: 'Основной продукт',
-    meta: 'Флагманская программа',
-    preview: '«8 недель к близости» — групповая программа для пар, которые хотят восстановить доверие...',
-    fullText: `«8 недель к близости» — групповая программа для пар
+const EMPTY_MATERIALS: ProjectMaterial[] = [];
 
-Для кого эта программа?
-Для пар, которые чувствуют что отдалились друг от друга. Для тех, у кого одни и те же ссоры повторяются годами. Для тех, кто хочет сохранить отношения, но не знает как начать меняться. Для пар, где один партнёр закрылся, а другой не понимает почему.
+const PRODUCT_KIND_META: Record<ProductKind, { icon: string; title: string; meta: string }> = {
+  'product-main': { icon: '🚀', title: 'Основной продукт', meta: 'Флагманская программа' },
+  'product-mini': { icon: '⚡', title: 'Мини-продукт', meta: 'Интенсив / недорогой вход' },
+  'lead-magnet': { icon: '🎁', title: 'Лид-магнит', meta: 'Бесплатный продукт' },
+};
 
-Что вы получите за 8 недель?
-— Поймёте корни ваших конфликтов: почему одни и те же темы снова и снова превращаются в скандал
-— Научитесь говорить о своих потребностях так, чтобы партнёр слышал, а не защищался
-— Восстановите физическую и эмоциональную близость, которая была потеряна
-— Получите конкретные инструменты для ежедневного общения без напряжения
-— Примете совместное решение: куда двигаться дальше — и сделаете это осознанно
-
-Формат программы
-8 групповых онлайн-сессий по 90 минут — раз в неделю.
-Домашние практики для пары между сессиями.
-Закрытый чат для поддержки и вопросов.
-Доступ к записям всех сессий на 3 месяца.
-
-Кто ведёт?
-Семейный психолог с опытом работы с парами 7+ лет. Работаю по методам EFT (эмоционально-фокусированная терапия) и Готтмана. Провела более 200 парных консультаций.
-
-Результат, который вы получите
-«Я снова доверяю партнёру и себе — мы научились говорить честно, без скандалов, и я просыпаюсь утром без страха что сегодня опять будет война. Мы не идеальная пара — но мы настоящие, и мне этого достаточно.»
-
-Стоимость: 24 900 ₽ за пару
-Старт ближайшего потока: уточняйте у автора
-Количество мест: не более 6 пар в группе`,
-  },
-  {
-    id: 'pr2',
-    icon: '⚡',
-    title: 'Мини-продукт',
-    meta: 'Интенсив',
-    preview: '«Первый шаг» — 3-часовой онлайн-интенсив для пар в кризисе. Конкретные инструменты...',
-    fullText: `«Первый шаг» — интенсив для пар в кризисе
-
-Для кого?
-Для пар, которые понимают что что-то идёт не так, но ещё не готовы к длительной терапии. Для тех, кто хочет попробовать — безопасно, без обязательств, с конкретным результатом уже в день прохождения.
-
-Что будет на интенсиве?
-За 3 часа мы пройдём три блока:
-
-Блок 1 — Диагностика (60 мин)
-Вы поймёте, в каком цикле конфликта застряли. Я покажу вам карту вашей пары: где возникает напряжение, что его усиливает и почему разговоры превращаются в ссоры.
-
-Блок 2 — Инструменты (90 мин)
-Три конкретные техники, которые можно применить уже сегодня:
-— Техника «стоп-пауза»: как выйти из скандала не обидев партнёра
-— Метод «я-сообщений» без обвинений
-— Практика «два стула»: услышать себя и друг друга за 15 минут
-
-Блок 3 — План (30 мин)
-Составите персональный план первых шагов на ближайшие 2 недели.
-
-Формат: онлайн, живой эфир, пара участвует вместе.
-Запись остаётся у вас навсегда.
-
-Стоимость: 3 900 ₽ за пару
-Длительность: 3 часа
-Ближайшая дата: уточняйте`,
-  },
-  {
-    id: 'pr3',
-    icon: '🎁',
-    title: 'Бесплатный продукт',
-    meta: 'Гайд',
-    preview: '«5 фраз которые разрушают доверие» — практический гайд с разбором типичных ошибок в общении...',
-    fullText: `Гайд: «5 фраз, которые разрушают доверие в паре»
-
-Мы часто ранят не намеренно. Просто говорим то, что привыкли говорить — и не замечаем, как партнёр с каждым разом закрывается чуть больше.
-
-Этот гайд — о пяти фразах, которые я слышу чаще всего на сессиях с парами. Каждая из них кажется безобидной. Но регулярное их использование разрушает доверие медленно и незаметно.
-
-Фраза 1: «Ты всегда так делаешь»
-Слово «всегда» — это обобщение, которое закрывает диалог. Партнёр слышит не конкретную проблему, а приговор. Он начинает защищаться, а не слышать вас.
-Замена: «Когда ты делаешь X, я чувствую Y»
-
-Фраза 2: «Успокойся, это не повод так реагировать»
-Обесценивание эмоций — одна из главных причин эмоционального отдаления. Когда мы говорим это, партнёр чувствует себя «ненормальным» за то, что чувствует.
-Замена: «Я вижу, что тебе сейчас тяжело. Расскажи мне.»
-
-Фраза 3: «Ладно, делай как хочешь»
-Это не согласие. Это скрытое наказание молчанием. Партнёр чувствует холод и отстранённость, но не понимает почему.
-Замена: Честно назвать своё состояние: «Я расстроен(а), мне нужно время.»
-
-Фраза 4: «Твои друзья/родители тебя подначивают»
-Атака на близких партнёра — прямой удар по его личности. Это вынуждает выбирать между вами.
-Замена: Говорить о своих чувствах без упоминания третьих лиц.
-
-Фраза 5: «Я так и знал(а)»
-Позиция «я был(а) прав(а)» важнее, чем отношения? Эта фраза разрушает ощущение команды.
-Замена: Сфокусироваться на решении, а не на том кто ошибся.
-
-Что делать дальше?
-Если вы узнали себя в этих фразах — это нормально. Мы все так говорим. Важно не то что было, а то что будет.
-
-Если хотите разобраться глубже — приходите на интенсив «Первый шаг» для пар.`,
-  },
+const DEMO_PRODUCT_PATTERNS = [
+  /8\s+недель\s+к\s+близости/i,
+  /5\s+фраз.*разрушают\s+доверие/i,
+  /первый\s+шаг.*пар\s+в\s+кризис/i,
 ];
 
-/* ── Editor panel ──────────────────────────────────────────────── */
+function cleanPreview(text: string): string {
+  return text
+    .replace(/^#+\s*/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-function ProductEditor({ item }: { item: Product }) {
-  const [text,    setText]    = useState(item.fullText);
-  const [copied,  setCopied]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
+function truncate(text: string, max = 130): string {
+  const clean = cleanPreview(text);
+  return clean.length > max ? `${clean.slice(0, max).trim()}...` : clean;
+}
 
-  // Reset local state when a different item is selected
-  const resetKey = item.id;
+function extractSection(content: string, title: string): string {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = content.match(new RegExp(`(?:^|\\n)##\\s+${escaped}\\s*\\n+([\\s\\S]*?)(?=\\n##\\s+|$)`, 'i'));
+  return match?.[1]?.trim() ?? '';
+}
+
+function productNameFromContent(content: string): string {
+  return extractSection(content, 'Название').split('\n').find(Boolean)?.trim() ?? '';
+}
+
+function isDemoProduct(content: string): boolean {
+  return DEMO_PRODUCT_PATTERNS.some((pattern) => pattern.test(content));
+}
+
+function productFromMaterial(material: ProjectMaterial): Product | null {
+  if (!['product-main', 'product-mini', 'lead-magnet'].includes(material.kind)) return null;
+  if (!material.content.trim()) return null;
+  if (isDemoProduct(material.content)) return null;
+
+  const kind = material.kind as ProductKind;
+  const meta = PRODUCT_KIND_META[kind];
+  const productName = productNameFromContent(material.content);
+  return {
+    id: `material_${material.id}`,
+    icon: meta.icon,
+    title: meta.title,
+    meta: productName || meta.meta,
+    preview: truncate(material.summary || material.content),
+    fullText: material.content,
+    source: 'material',
+    kind,
+    material,
+  };
+}
+
+function productFromDraft(kind: ProductKind, draft?: ProductDraft): Product | null {
+  if (!draft) return null;
+  const hasContent = [draft.name, draft.price, draft.format, draft.duration, draft.description]
+    .some((value) => value.trim());
+  if (!draft.generated && !hasContent) return null;
+
+  const meta = PRODUCT_KIND_META[kind];
+  const material = buildProductMaterial(kind, meta.title, draft);
+  if (!material.content.trim()) return null;
+  if (isDemoProduct(material.content)) return null;
+
+  return {
+    id: `draft_${kind}`,
+    icon: meta.icon,
+    title: meta.title,
+    meta: draft.name || meta.meta,
+    preview: truncate(material.summary || material.content),
+    fullText: material.content,
+    source: 'draft',
+    kind,
+  };
+}
+
+function linkedMaterialsForKind(kind: ProductKind): string[] {
+  if (kind === 'product-main') {
+    return ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'lead-magnet.md'];
+  }
+  if (kind === 'product-mini') {
+    return ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-main.md', 'lead-magnet.md'];
+  }
+  return ['expert-profile.md', 'positioning.md', 'audience.md', 'utp.md', 'product-mini.md', 'product-main.md'];
+}
+
+function ProductEditor({
+  item,
+  onSave,
+}: {
+  item: Product;
+  onSave: (item: Product, text: string) => Promise<void>;
+}) {
+  const [text, setText] = useState(item.fullText);
+  const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setText(item.fullText);
+    setCopied(false);
+    setSaved(false);
+  }, [item.id, item.fullText]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
@@ -132,24 +138,29 @@ function ProductEditor({ item }: { item: Product }) {
     });
   }, [text]);
 
-  const handleSave = useCallback(() => {
-    // In production: POST to API. For now, just give feedback.
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, []);
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await onSave(item, text);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }, [item, onSave, text]);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${item.title}.docx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${item.title.replace(/[^а-яёa-z0-9\s]/gi, '').trim() || 'product'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, [text, item.title]);
 
   return (
-    <div key={resetKey} className={s.editor}>
+    <div className={s.editor}>
       <div className={s.editorHeader}>
         <span className={s.editorIcon}>{item.icon}</span>
         <div>
@@ -178,12 +189,13 @@ function ProductEditor({ item }: { item: Product }) {
           </button>
           <button
             className={`${s.btn} ${s.btnSecondary}${saved ? ' ' + s.btnSuccess : ''}`}
-            onClick={handleSave}
+            onClick={() => void handleSave()}
+            disabled={saving}
           >
-            {saved ? '✓ Сохранено' : 'Сохранить изменения'}
+            {saving ? 'Сохраняю...' : saved ? '✓ Сохранено' : 'Сохранить изменения'}
           </button>
           <button className={`${s.btn} ${s.btnPrimary}`} onClick={handleDownload}>
-            Скачать .docx
+            Скачать .txt
           </button>
         </div>
       </div>
@@ -191,20 +203,78 @@ function ProductEditor({ item }: { item: Product }) {
   );
 }
 
-/* ── Page ──────────────────────────────────────────────────────── */
-
 export default function FileProducts() {
+  const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+  const projectMaterials = useMaterialsStore((s) => activeProjectId ? (s.projects[activeProjectId] ?? EMPTY_MATERIALS) : EMPTY_MATERIALS);
+  const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
+  const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
+  const generatedProject = useGeneratedStore((s) => activeProjectId ? s.projects[activeProjectId] : undefined);
+  const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
+    void loadMaterialsFromDb(activeProjectId);
+    void loadGeneratedFromDb(activeProjectId);
+  }, [activeProjectId, loadGeneratedFromDb, loadMaterialsFromDb]);
+
+  const products = useMemo(() => {
+    const materialProducts = projectMaterials
+      .map(productFromMaterial)
+      .filter((item): item is Product => Boolean(item));
+    const materialKinds = new Set(materialProducts.map((item) => item.material?.kind));
+    const draftProducts = [
+      productFromDraft('product-main', generatedProject?.productMain),
+      productFromDraft('product-mini', generatedProject?.productMini),
+      productFromDraft('lead-magnet', generatedProject?.leadMagnet),
+    ]
+      .filter((item): item is Product => Boolean(item))
+      .filter((item) => !materialKinds.has(item.kind));
+    return [...materialProducts, ...draftProducts];
+  }, [generatedProject, projectMaterials]);
+
+  useEffect(() => {
+    if (selectedId && products.some((item) => item.id === selectedId)) return;
+    setSelectedId(products[0]?.id ?? null);
+  }, [products, selectedId]);
+
+  const handleSave = useCallback(async (item: Product, text: string) => {
+    if (!activeProjectId) return;
+
+    const meta = PRODUCT_KIND_META[item.kind];
+    upsertMaterial(activeProjectId, {
+      ...(item.material ?? {}),
+      id: item.material?.id ?? `${item.kind}.md`,
+      kind: item.kind,
+      title: item.material?.title ?? `${item.kind}.md`,
+      content: text,
+      summary: truncate(text, 1200),
+      summaryStatus: 'fresh',
+      linkedMaterialIds: item.material?.linkedMaterialIds ?? linkedMaterialsForKind(item.kind),
+    });
+    toast.success(`${meta.title} сохранен в материалах`);
+  }, [activeProjectId, upsertMaterial]);
+
+  if (products.length === 0) {
+    return (
+      <div className={s.emptyProducts}>
+        <div className={s.emptyProductsTitle}>Продуктов пока нет</div>
+        <div className={s.emptyProductsText}>
+          Создайте основной продукт, мини-продукт или лид-магнит — после сохранения они появятся здесь.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SplitEditor
-      items={PRODUCTS}
+      items={products}
       selectedId={selectedId}
       onSelect={setSelectedId}
       listTitle="Продукты"
       renderEditor={(item) =>
         item ? (
-          <ProductEditor item={item as Product} />
+          <ProductEditor item={item as Product} onSave={handleSave} />
         ) : null
       }
     />

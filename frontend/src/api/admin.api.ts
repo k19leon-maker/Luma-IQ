@@ -1,6 +1,9 @@
 import { apiClient } from './client';
 import type { AuthResponse } from './auth.api';
 
+export type AdminCommercialPlan = 'START' | 'PRO' | 'EXPERT' | 'SUPPORT' | 'MARKETING_PARTNER' | 'IMPLEMENTATION';
+export type AdminSubscriptionPlan = 'FREE' | AdminCommercialPlan | 'ANNUAL';
+
 export interface AdminSubscription {
   plan: string;
   status: string;
@@ -247,7 +250,7 @@ export const adminApi = {
     email: string;
     name?: string;
     password?: string;
-    plan: 'PRO' | 'ANNUAL';
+    plan: AdminCommercialPlan;
     months: number;
     paymentSource: 'TRIBUTE' | 'MANUAL' | 'PROMO';
     amount?: number;
@@ -265,7 +268,7 @@ export const adminApi = {
 
   updateUserAccess: (id: string, data: {
     role?: 'ADMIN' | 'USER';
-    plan?: 'FREE' | 'PRO' | 'ANNUAL';
+    plan?: AdminSubscriptionPlan;
     status?: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
     expiresAt?: string | null;
     paymentDate?: string | null;

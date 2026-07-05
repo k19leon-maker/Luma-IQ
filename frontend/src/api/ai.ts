@@ -105,6 +105,11 @@ export const aiApi = {
       .post<{ text: string }>('/files/extract-text', form)
       .then((r) => r.data.text);
   },
+
+  extractUrlText: (url: string) =>
+    apiClient
+      .post<{ text: string; fileName: string }>('/files/extract-url', { url })
+      .then((r) => r.data),
 };
 
 export interface ProjectFile {

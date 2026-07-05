@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { isDemoProductText, sanitizeProjectStrategyData } from './demo-products';
 
 function shorten(value: unknown, max = 1200): string {
   if (value === null || value === undefined) return 'нет данных';
@@ -15,9 +16,10 @@ function currentStage(project: {
   generatedTexts: unknown[];
   contentPlanItems: unknown[];
 }): string {
+  const realProducts = project.products.filter((product) => !isDemoProductText(product));
   if (project.contentPlanItems.length > 0) return 'контент-план';
   if (project.generatedTexts.length > 0) return 'контент';
-  if (project.products.length > 0) return 'продуктовая линейка';
+  if (realProducts.length > 0) return 'продуктовая линейка';
   if (project.utpData) return 'УТП';
   if (project.strategyCompletedAt) return 'стратегия завершена';
   if (project.strategyData) return 'стратегия в работе';
@@ -62,8 +64,10 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
 
   if (!project) return null;
 
-  const stage = currentStage(project);
-  const products = project.products.map((p) =>
+  const strategyData = sanitizeProjectStrategyData(project.strategyData);
+  const realProducts = project.products.filter((product) => !isDemoProductText(product));
+  const stage = currentStage({ ...project, strategyData, products: realProducts });
+  const products = realProducts.map((p) =>
     `- ${p.type}: ${p.title}; формат: ${p.format ?? 'не указан'}; результат: ${p.transformation ?? p.shortDescription ?? 'не указан'}; цена: ${p.priceText ?? 'не указана'}`,
   ).join('\n') || 'продукты пока не созданы';
 
@@ -95,7 +99,7 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
 - Статус проекта: ${project.status}
 
 СТРАТЕГИЯ / РАСПАКОВКА:
-${shorten(project.strategyData, 2500)}
+${shorten(strategyData, 2500)}
 
 JTBD-СЕССИЯ:
 ${jtbd ? shorten({ currentStep: jtbd.currentStep, status: jtbd.status, answers: jtbd.answers, summary: jtbd.summary, finalJob: jtbd.finalJob }, 1800) : 'нет данных'}

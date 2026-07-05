@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem } from '../../api/admin.api';
+import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem, type AdminCommercialPlan, type AdminSubscriptionPlan } from '../../api/admin.api';
 import { getAccessToken, getCsrfToken, setAdminAccessTokenBackup } from '../../api/token-session';
 import { useAuthStore } from '../../store/auth.store';
 import s from './Admin.module.css';
@@ -22,6 +22,27 @@ const PAGES: Array<{ id: Page; label: string }> = [
   { id: 'settings', label: 'Настройки' },
 ];
 
+const COMMERCIAL_PLAN_OPTIONS: Array<{ value: AdminCommercialPlan; label: string }> = [
+  { value: 'START', label: 'Start' },
+  { value: 'PRO', label: 'Pro' },
+  { value: 'EXPERT', label: 'Expert' },
+  { value: 'SUPPORT', label: 'Support' },
+  { value: 'MARKETING_PARTNER', label: 'Marketing Partner' },
+  { value: 'IMPLEMENTATION', label: 'Implementation' },
+];
+
+const SUBSCRIPTION_PLAN_OPTIONS: Array<{ value: AdminSubscriptionPlan; label: string }> = [
+  { value: 'FREE', label: 'Free' },
+  ...COMMERCIAL_PLAN_OPTIONS,
+  { value: 'ANNUAL', label: 'Annual (legacy)' },
+];
+
+const PAYMENT_SOURCE_OPTIONS = [
+  { value: 'TRIBUTE', label: 'Tribute' },
+  { value: 'MANUAL', label: 'Ручная оплата' },
+  { value: 'PROMO', label: 'Промо / пилот' },
+] as const;
+
 function fmtDate(value: string | null | undefined): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
@@ -39,7 +60,7 @@ function fmtTokens(value: number): string {
 }
 
 function planClass(plan: string): string {
-  if (plan === 'PRO' || plan === 'ANNUAL') return `${s.badge} ${s.badgePro}`;
+  if (plan !== 'FREE') return `${s.badge} ${s.badgePro}`;
   return s.badge;
 }
 
@@ -88,11 +109,23 @@ function BreakdownBar({ label, value, max, right }: { label: string; value: numb
   );
 }
 
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <label className={s.field}>
+      <span className={s.fieldLabel}>{label}</span>
+      {children}
+      {hint && <span className={s.fieldHint}>{hint}</span>}
+    </label>
+  );
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((st) => st.user);
   const setTokens = useAuthStore((st) => st.setTokens);
   const isAdmin = currentUser?.role === 'ADMIN';
+  const isAdminRef = useRef(isAdmin);
+  const suppressAdminLoadErrorsRef = useRef(false);
 
   const [page, setPage] = useState<Page>('dashboard');
   const [previousPage, setPreviousPage] = useState<Page>('users');
@@ -113,7 +146,7 @@ export default function Admin() {
   const [grantEmail, setGrantEmail] = useState('');
   const [grantName, setGrantName] = useState('');
   const [grantPassword, setGrantPassword] = useState('');
-  const [grantPlan, setGrantPlan] = useState<'PRO' | 'ANNUAL'>('PRO');
+  const [grantPlan, setGrantPlan] = useState<AdminCommercialPlan>('PRO');
   const [grantMonths, setGrantMonths] = useState(1);
   const [paymentSource, setPaymentSource] = useState<'TRIBUTE' | 'MANUAL' | 'PROMO'>('TRIBUTE');
   const [paymentAmount, setPaymentAmount] = useState(0);
@@ -121,7 +154,7 @@ export default function Admin() {
   const [adminNote, setAdminNote] = useState('');
   const [grantLoading, setGrantLoading] = useState(false);
   const [accessRole, setAccessRole] = useState<'ADMIN' | 'USER'>('USER');
-  const [accessPlan, setAccessPlan] = useState<'FREE' | 'PRO' | 'ANNUAL'>('FREE');
+  const [accessPlan, setAccessPlan] = useState<AdminSubscriptionPlan>('FREE');
   const [accessStatus, setAccessStatus] = useState<'ACTIVE' | 'EXPIRED' | 'CANCELLED'>('ACTIVE');
   const [accessExpiresAt, setAccessExpiresAt] = useState('');
   const [accessLtv, setAccessLtv] = useState(0);
@@ -161,12 +194,22 @@ export default function Admin() {
   const maxFeatureCost = Math.max(...(dashboard?.ai.byFeature.map((item) => item.costUsd) ?? [0]), 0);
   const maxModelCost = Math.max(...(dashboard?.ai.byModel.map((item) => item.costUsd) ?? [0]), 0);
 
+  useEffect(() => {
+    isAdminRef.current = isAdmin;
+    if (!isAdmin) suppressAdminLoadErrorsRef.current = true;
+  }, [isAdmin]);
+
+  function showAdminLoadError(message: string) {
+    if (!isAdminRef.current || suppressAdminLoadErrorsRef.current) return;
+    toast.error(message);
+  }
+
   async function loadDashboard() {
     if (!isAdmin) return;
     try {
       setDashboard(await adminApi.dashboard());
     } catch {
-      toast.error('Не удалось загрузить бизнес-метрики');
+      showAdminLoadError('Не удалось загрузить бизнес-метрики');
     }
   }
 
@@ -183,7 +226,7 @@ export default function Admin() {
         setPromptStep(first.step);
       }
     } catch {
-      toast.error('Не удалось загрузить prompt CMS');
+      showAdminLoadError('Не удалось загрузить prompt CMS');
     }
   }
 
@@ -198,7 +241,7 @@ export default function Admin() {
       setUsers(data.users);
       setTotal(data.total);
     } catch {
-      toast.error('Не удалось загрузить пользователей');
+      showAdminLoadError('Не удалось загрузить пользователей');
     } finally {
       setLoading(false);
     }
@@ -214,7 +257,7 @@ export default function Admin() {
       setGrantEmail(detail.email);
       setGrantName(detail.name ?? '');
       setAccessRole(detail.role as 'ADMIN' | 'USER');
-      setAccessPlan(detail.subscription.plan as 'FREE' | 'PRO' | 'ANNUAL');
+      setAccessPlan(detail.subscription.plan as AdminSubscriptionPlan);
       setAccessStatus(detail.subscription.status as 'ACTIVE' | 'EXPIRED' | 'CANCELLED');
       setAccessExpiresAt(detail.subscription.expiresAt ? detail.subscription.expiresAt.slice(0, 10) : '');
       setAccessPaymentDate(detail.subscription.lastPaymentAt ? detail.subscription.lastPaymentAt.slice(0, 10) : '');
@@ -234,11 +277,13 @@ export default function Admin() {
 
   useEffect(() => {
     if (currentUser && !isAdmin) {
+      suppressAdminLoadErrorsRef.current = true;
       navigate('/dashboard', { replace: true });
       setLoading(false);
       return;
     }
     if (!isAdmin) return;
+    suppressAdminLoadErrorsRef.current = false;
     void loadDashboard();
     void loadUsers();
     void loadPrompts();
@@ -290,18 +335,20 @@ export default function Admin() {
     const ok = window.confirm(`Войти в сервис как ${selected.email}?`);
     if (!ok) return;
     setImpersonateLoading(true);
+    suppressAdminLoadErrorsRef.current = true;
     try {
       const currentAccess = getAccessToken();
       const currentCsrf = getCsrfToken() ?? undefined;
       const { tokens } = await adminApi.impersonateUser(selected.id);
-      setTokens(tokens.accessToken, tokens.csrfToken);
-      // Set after setTokens, because normal auth token updates clear impersonation state.
+      const impersonatedUser = await setTokens(tokens.accessToken, tokens.csrfToken);
       if (currentAccess) {
+        // Set after setTokens, because normal auth token updates clear impersonation state.
         setAdminAccessTokenBackup({ accessToken: currentAccess, csrfToken: currentCsrf });
       }
-      toast.success(`Вы вошли как ${selected.email}`);
-      navigate('/dashboard');
+      toast.success(`Вы вошли как ${impersonatedUser?.email ?? selected.email}`);
+      navigate('/dashboard', { replace: true });
     } catch {
+      suppressAdminLoadErrorsRef.current = false;
       toast.error('Не удалось войти под пользователем');
     } finally {
       setImpersonateLoading(false);
@@ -452,7 +499,8 @@ export default function Admin() {
         <div className={s.filters}>
           <input className={s.search} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void loadUsers()} placeholder="Поиск по имени или email" />
           <select className={s.select} value={plan} onChange={(e) => setPlan(e.target.value)}>
-            <option value="ALL">Все тарифы</option><option value="FREE">Free</option><option value="PRO">Pro</option><option value="ANNUAL">Annual</option>
+            <option value="ALL">Все тарифы</option>
+            {SUBSCRIPTION_PLAN_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
           <select className={s.select} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="ALL">Все статусы</option><option value="ACTIVE">Активные</option><option value="INACTIVE">Неактивные</option><option value="HIGH_COST">Дорогие пользователи</option>
@@ -754,15 +802,40 @@ export default function Admin() {
       <section className={s.panel}>
         <div className={s.panelTitle}>Управление доступом</div>
         <div className={s.formGrid}>
-          <input className={s.input} value={grantEmail} onChange={(e) => setGrantEmail(e.target.value)} placeholder="Email" />
-          <input className={s.input} value={grantName} onChange={(e) => setGrantName(e.target.value)} placeholder="Имя" />
-          <input className={s.input} value={grantPassword} onChange={(e) => setGrantPassword(e.target.value)} placeholder="Пароль для нового аккаунта" />
-          <select className={s.select} value={grantPlan} onChange={(e) => setGrantPlan(e.target.value as 'PRO' | 'ANNUAL')}><option value="PRO">PRO</option><option value="ANNUAL">ANNUAL</option></select>
-          <input className={s.input} type="number" min={1} max={24} value={grantMonths} onChange={(e) => setGrantMonths(Number(e.target.value))} />
-          <select className={s.select} value={paymentSource} onChange={(e) => setPaymentSource(e.target.value as 'TRIBUTE' | 'MANUAL' | 'PROMO')}><option value="TRIBUTE">Tribute</option><option value="MANUAL">Manual</option><option value="PROMO">Promo</option></select>
-          <input className={s.input} type="number" min={0} value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} placeholder="Сумма, ₽" />
-          <input className={s.input} value={externalId} onChange={(e) => setExternalId(e.target.value)} placeholder="ID / ссылка оплаты Tribute" />
-          <textarea className={s.textarea} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Заметка по оплате" rows={3} />
+          <Field label="Email пользователя" hint="На этот email будет создан или найден аккаунт.">
+            <input className={s.input} value={grantEmail} onChange={(e) => setGrantEmail(e.target.value)} placeholder="name@example.com" />
+          </Field>
+          <Field label="Имя" hint="Опционально: отображается в профиле и админке.">
+            <input className={s.input} value={grantName} onChange={(e) => setGrantName(e.target.value)} placeholder="Имя пользователя" />
+          </Field>
+          <Field label="Пароль" hint="Только для нового аккаунта, минимум 8 символов.">
+            <input className={s.input} value={grantPassword} onChange={(e) => setGrantPassword(e.target.value)} placeholder="Можно оставить пустым" />
+          </Field>
+          <Field label="Тариф" hint="Актуальный коммерческий тариф для выдачи доступа.">
+            <select className={s.select} value={grantPlan} onChange={(e) => setGrantPlan(e.target.value as AdminCommercialPlan)}>
+              {COMMERCIAL_PLAN_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Период доступа" hint="Сколько месяцев добавить или продлить, от 1 до 24.">
+            <input className={s.input} type="number" min={1} max={24} value={grantMonths} onChange={(e) => setGrantMonths(Number(e.target.value))} placeholder="Месяцы" />
+          </Field>
+          <Field label="Источник оплаты" hint="Откуда пришла оплата или почему выдается доступ.">
+            <select className={s.select} value={paymentSource} onChange={(e) => setPaymentSource(e.target.value as 'TRIBUTE' | 'MANUAL' | 'PROMO')}>
+              {PAYMENT_SOURCE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Сумма оплаты" hint="Фактически оплаченная сумма в рублях. Можно поставить 0 для промо.">
+            <div className={s.moneyInput}>
+              <span>₽</span>
+              <input className={s.input} type="number" min={0} value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} placeholder="0" />
+            </div>
+          </Field>
+          <Field label="ID / ссылка оплаты" hint="Tribute ID, ссылка на платеж или другой внешний идентификатор.">
+            <input className={s.input} value={externalId} onChange={(e) => setExternalId(e.target.value)} placeholder="Например, ссылка Tribute" />
+          </Field>
+          <Field label="Заметка администратора" hint="Внутренний комментарий: условия, договоренность, контекст оплаты.">
+            <textarea className={s.textarea} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Заметка по оплате или выдаче доступа" rows={3} />
+          </Field>
         </div>
         <div className={s.actions}><button className={s.button} onClick={() => void handleGrant()} disabled={grantLoading || !grantEmail}>{grantLoading ? 'Сохраняю...' : 'Создать / продлить доступ'}</button></div>
       </section>
@@ -857,7 +930,9 @@ export default function Admin() {
           <div className={s.panelTitle}>Ручное управление доступом</div>
           <div className={s.formGrid}>
             <select className={s.select} value={accessRole} onChange={(e) => setAccessRole(e.target.value as 'ADMIN' | 'USER')}><option value="USER">Пользователь</option><option value="ADMIN">Администратор</option></select>
-            <select className={s.select} value={accessPlan} onChange={(e) => setAccessPlan(e.target.value as 'FREE' | 'PRO' | 'ANNUAL')}><option value="FREE">FREE</option><option value="PRO">PRO</option><option value="ANNUAL">ANNUAL</option></select>
+            <select className={s.select} value={accessPlan} onChange={(e) => setAccessPlan(e.target.value as AdminSubscriptionPlan)}>
+              {SUBSCRIPTION_PLAN_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
             <select className={s.select} value={accessStatus} onChange={(e) => setAccessStatus(e.target.value as 'ACTIVE' | 'EXPIRED' | 'CANCELLED')}><option value="ACTIVE">Активен</option><option value="EXPIRED">Истек</option><option value="CANCELLED">Отключен</option></select>
             <input className={s.input} type="date" value={accessExpiresAt} onChange={(e) => setAccessExpiresAt(e.target.value)} />
             <input className={s.input} type="date" value={accessPaymentDate} onChange={(e) => setAccessPaymentDate(e.target.value)} />

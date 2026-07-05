@@ -28,6 +28,13 @@ router.post(
   filesController.extractText,
 );
 
+router.post(
+  '/extract-url',
+  requireAuth,
+  filesLimiter,
+  filesController.extractTextFromUrl,
+);
+
 router.get(
   '/',
   requireAuth,

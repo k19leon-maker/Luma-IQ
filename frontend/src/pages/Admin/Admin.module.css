@@ -425,8 +425,45 @@
   gap: 10px;
 }
 
-.formGrid .textarea {
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  color: #2b2f36;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.fieldHint {
+  color: #7a828d;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.field:has(.textarea) {
   grid-column: 1 / -1;
+}
+
+.moneyInput {
+  position: relative;
+}
+
+.moneyInput span {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  color: #68717e;
+  font-size: 13px;
+  font-weight: 850;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.moneyInput .input {
+  padding-left: 28px;
 }
 
 .list {

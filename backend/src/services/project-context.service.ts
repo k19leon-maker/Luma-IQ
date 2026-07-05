@@ -1,6 +1,7 @@
 import { GeneratedTextType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ProjectContext, buildProjectContext } from '../utils/buildProjectContext';
+import { isDemoProductText, sanitizeProjectStrategyData } from '../utils/demo-products';
 
 export type ContextPriority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -283,7 +284,8 @@ function summarizeAudience(avatars: unknown[], jtbdSessions: unknown[]): string 
 }
 
 function summarizeProducts(products: unknown[]): string {
-  return shortList(products, 5, (item, index) => {
+  const realProducts = products.filter((item) => !isDemoProductText(item));
+  return shortList(realProducts, 5, (item, index) => {
     const product = asRecord(item);
     return lines([
       [`Продукт ${index + 1}`, field(product, ['title'])],
@@ -374,7 +376,7 @@ export const projectContextService = {
       throw new Error('Проект не найден');
     }
 
-    const strategyData = (project.strategyData ?? {}) as Record<string, unknown>;
+    const strategyData = sanitizeProjectStrategyData((project.strategyData ?? {}) as Record<string, unknown>);
     const about = (strategyData.expertProfileData ?? strategyData.aboutExpert ?? strategyData.about ?? strategyData.expertProfile ?? {}) as Record<string, unknown>;
     const projectSummary = summarizeProject(project);
     const expertSummary = summarizeExpert(about, project.name, project.niche);
