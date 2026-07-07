@@ -25,6 +25,9 @@ export interface ChatRequest {
 export interface ChatResponse {
   content: string;
   mock:    boolean;
+  generationId?: string;
+  aiPointsCharged?: number;
+  aiBalanceRemaining?: number;
 }
 
 export interface WorkflowRequest {
@@ -49,6 +52,8 @@ export interface WorkflowResponse {
   mock:           boolean;
   model:          string;
   provider:       string;
+  aiPointsCharged?: number;
+  aiBalanceRemaining?: number;
 }
 
 export interface AboutSummaryProfile {
@@ -70,6 +75,8 @@ export interface AboutSummaryResponse {
   mock: boolean;
   generationId: string;
   creditsCharged: number;
+  aiPointsCharged?: number;
+  aiBalanceRemaining?: number;
 }
 
 export const aiApi = {

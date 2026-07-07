@@ -33,6 +33,25 @@ export type BillingPlan = {
 
 export type BillingMe = {
   plan: BillingPlan;
+  publicLimits: {
+    planName: string;
+    planStatus: 'active' | 'inactive' | 'trial' | 'expired' | string;
+    aiBalanceTotal: number;
+    aiBalanceUsed: number;
+    aiBalanceRemaining: number;
+    projectsTotal: number;
+    projectsUsed: number;
+    projectsRemaining: number;
+    limitsResetAt: string | null;
+  };
+  usageHistory: Array<{
+    id: string;
+    projectId?: string | null;
+    actionLabel: string;
+    sectionLabel: string;
+    aiPointsCharged: number;
+    createdAt: string;
+  }>;
   limits: BillingPlanLimits;
   usage: {
     creditsUsed: number;

@@ -393,7 +393,7 @@ ${currentProduct}
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'done' },
       }, { role: 'assistant', content: promiseContent, stepId: promiseStep.id, stepTitle: promiseStep.label });
       persistState(next);
-      toast.success('Основной продукт создан');
+      toast.success('Основной продукт создан. Списано 60 AI-баллов.');
     } catch (err) {
       console.error('[ProductMain create] AI error:', err);
       const message = getRequestErrorMessage(err);

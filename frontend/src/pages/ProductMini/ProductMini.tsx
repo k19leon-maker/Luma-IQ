@@ -661,7 +661,7 @@ ${currentProduct}
         persistState(next, { syncMaterial: false });
       }
       persistState(next);
-      toast.success('Мини-продукт создан');
+      toast.success('Мини-продукт создан. Списано 80 AI-баллов.');
     } catch (err) {
       console.error('[ProductMini create] AI error:', err);
       const message = getRequestErrorMessage(err);

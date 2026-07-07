@@ -6,6 +6,7 @@ import { aiCostService, MissingModelPricingError, TokenUsage } from './ai-cost.s
 import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
 import { featurePricingService } from './feature-pricing.service';
+import { aiBalanceService } from './ai-balance.service';
 
 export interface RunAIGenerationInput<T> {
   userId: string;
@@ -177,7 +178,14 @@ export const aiGenerationService = {
     }).catch(() => {});
   },
 
-  async run<T>(input: RunAIGenerationInput<T>): Promise<{ result: T; generationId: string; creditsCharged: number; actualCostUsd: string }> {
+  async run<T>(input: RunAIGenerationInput<T>): Promise<{
+    result: T;
+    generationId: string;
+    creditsCharged: number;
+    actualCostUsd: string;
+    aiPointsCharged: number;
+    aiBalanceRemaining: number;
+  }> {
     const pricing = await featurePricingService.resolve(input.featureCode);
 
     try {
@@ -228,6 +236,7 @@ export const aiGenerationService = {
       projectId: input.projectId ?? null,
       featureCode: input.featureCode,
       estimatedCredits: pricing.creditPrice,
+      metadata: input.metadata,
     });
 
     const generation = await prisma.aIGeneration.create({
@@ -349,11 +358,21 @@ export const aiGenerationService = {
         },
       });
 
+      const aiCharge = await aiBalanceService.chargeAiBalance({
+        userId: input.userId,
+        billingPeriodId: access.billingPeriod.id,
+        total: access.limits.monthlyCredits,
+        featureCode: input.featureCode,
+        metadata: input.metadata,
+      });
+
       return {
         result: executed.result,
         generationId: generation.id,
         creditsCharged,
         actualCostUsd: cost.actualCostUsd.toString(),
+        aiPointsCharged: aiCharge.aiPointsCharged,
+        aiBalanceRemaining: aiCharge.aiBalanceRemaining,
       };
     } catch (err) {
       await creditLedgerService.refund({

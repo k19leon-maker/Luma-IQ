@@ -201,6 +201,8 @@ export const aiController = {
         mock: generation.result.mock,
         generationId: generation.generationId,
         creditsCharged: generation.creditsCharged,
+        aiPointsCharged: generation.aiPointsCharged,
+        aiBalanceRemaining: generation.aiBalanceRemaining,
       });
     } catch (err) {
       console.error('[AI about summary] Error:', err);
@@ -291,6 +293,8 @@ export const aiController = {
           workflowStepId: workflow.workflowStepId,
           artifactId: workflow.artifactId,
           generationId: workflow.generationId,
+          aiPointsCharged: workflow.aiPointsCharged,
+          aiBalanceRemaining: workflow.aiBalanceRemaining,
         });
         return;
       } catch (err) {
@@ -397,7 +401,13 @@ export const aiController = {
         metadata: { provider: result.provider, section, mock: result.mock, model: result.model, usage: result.usage },
       }).catch(() => {});
 
-      res.json({ content: result.content, mock: result.mock });
+      res.json({
+        content: result.content,
+        mock: result.mock,
+        generationId: generation.generationId,
+        aiPointsCharged: generation.aiPointsCharged,
+        aiBalanceRemaining: generation.aiBalanceRemaining,
+      });
     } catch (err) {
       console.error('[AI] Error:', err);
       void prisma.aIRequestLog.create({

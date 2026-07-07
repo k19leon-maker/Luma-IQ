@@ -1,85 +1,33 @@
 import { Link } from 'react-router-dom';
 import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
-import {
-  getLimitValue,
-  SECTION_LIMITS,
-  UsageLimitBadge,
-  UsageLimitCard,
-  useBillingMe,
-  type SectionUsageLimitsSection,
-  type UsageLimitKey,
-} from '../../components/UsageLimits/UsageLimits';
+import { useBillingMe } from '../../components/UsageLimits/UsageLimits';
 import { appPath } from '../../utils/appRoutes';
 import { formatLimitNumber } from '../../utils/planLimits';
 import s from './Limits.module.css';
 
-const mainCards: Array<{ key: UsageLimitKey; title: string; description: string }> = [
-  { key: 'contentUnits', title: 'Контент', description: 'Посты, сценарии, статьи, треды и контент-планы' },
-  { key: 'aiMessagesToday', title: 'AI-сообщения сегодня', description: 'Сообщения в диалоге с AI обновляются каждый день' },
-  { key: 'aiGenerations', title: 'AI-генерации', description: 'Создание и доработка материалов с помощью AI' },
-  { key: 'projects', title: 'Проекты', description: 'Отдельные направления, ниши, продукты или сегменты аудитории' },
+const capacityRows = [
+  ['Сообщение в диалоге с ИИ', '1 балл'],
+  ['Пост или рилс', '5-7 баллов'],
+  ['Статья или лонгрид', '30 баллов'],
+  ['Раздел стратегии', '15-25 баллов'],
+  ['Основной продукт', '60 баллов'],
+  ['Мини-продукт', '80 баллов'],
+  ['Лид-магнит', '70 баллов'],
+  ['Полная пересборка стратегии', '100 баллов'],
 ];
 
-const sectionCards: Array<{
-  section: SectionUsageLimitsSection;
-  title: string;
-  description: string;
-  button: string;
-  href: string;
-}> = [
-  {
-    section: 'ai_chat',
-    title: 'Диалог с AI',
-    description: 'Для вопросов, уточнений, обсуждения стратегии, контента и продуктов с AI.',
-    button: 'Перейти в диалог',
-    href: '/ai-dialog',
-  },
-  {
-    section: 'content',
-    title: 'Контент',
-    description: 'Посты, рилсы, статьи, треды, цепочки текстов, сценарии видео и контент-планы.',
-    button: 'Перейти к контенту',
-    href: '/posts',
-  },
-  {
-    section: 'strategy',
-    title: 'Стратегия',
-    description: 'О себе, позиционирование, целевая аудитория, УТП и другие стратегические разделы.',
-    button: 'Перейти к стратегии',
-    href: '/strategy/about',
-  },
-  {
-    section: 'products',
-    title: 'Продукты',
-    description: 'Основной продукт, мини-продукт, лид-магнит, офферы и продуктовая линейка.',
-    button: 'Перейти к продуктам',
-    href: '/products/main',
-  },
-];
-
-const tableRows: Array<{ key: UsageLimitKey; label: string; note?: string }> = [
-  { key: 'contentUnits', label: 'Контент-единицы' },
-  { key: 'aiMessagesToday', label: 'AI-сообщения сегодня' },
-  { key: 'aiGenerations', label: 'AI-генерации' },
-  { key: 'projects', label: 'Проекты' },
-  { key: 'heavyGenerations', label: 'Тяжёлые генерации' },
-  { key: 'strategyRebuilds', label: 'Пересборки стратегии' },
-  { key: 'youtubeScripts', label: 'YouTube-сценарии' },
-  { key: 'longreads', label: 'Лонгриды' },
-  { key: 'credits', label: 'Credits', note: 'технический показатель' },
-];
-
-const explanations = [
-  ['Контент-единицы', 'Контент-единицы — это материалы, которые вы создаёте в Luma IQ: посты, сценарии, статьи, треды, контент-планы, цепочки текстов и другие форматы.'],
-  ['AI-сообщения', 'AI-сообщения — это сообщения в диалоге с AI. Этот лимит обновляется каждый день.'],
-  ['AI-генерации', 'AI-генерации — это создание или доработка материалов с помощью AI в разделах стратегии, продуктов и контента.'],
-  ['Тяжёлые генерации', 'Тяжёлые генерации — это более объёмные действия: пересборка стратегии, создание длинного сценария, лонгрида, структуры лендинга, продуктовой упаковки или воронки.'],
-  ['Credits', 'Credits — это технический внутренний баланс платформы для расчёта нагрузки AI. Обычно вам не нужно следить за ним вручную.'],
-];
-
-function formatRenewalDate(value?: string): string {
+function formatRenewalDate(value?: string | null): string {
   if (!value) return 'Лимиты обновятся в следующем расчётном периоде';
   return `Лимиты обновятся ${new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`;
+}
+
+function formatHistoryDate(value: string): string {
+  return new Date(value).toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function Skeleton() {
@@ -88,12 +36,13 @@ function Skeleton() {
       <div className={s.header}>
         <div>
           <h2 className={s.title}>Лимиты</h2>
-          <p className={s.subtitle}>Загружаем лимиты...</p>
+          <p className={s.subtitle}>Загружаем AI-баланс и тариф...</p>
         </div>
         <div className={s.planCardSkeleton} />
       </div>
-      <div className={s.grid}>
-        {Array.from({ length: 4 }).map((_, index) => <div className={s.skeletonCard} key={index} />)}
+      <div className={s.mainGrid}>
+        <div className={s.skeletonCard} />
+        <div className={s.skeletonCard} />
       </div>
     </div>
   );
@@ -115,7 +64,7 @@ export default function Limits() {
     );
   }
 
-  if (!billing?.plan) {
+  if (!billing?.plan || !billing.publicLimits) {
     return (
       <div className={s.root}>
         <div className={s.stateCard}>
@@ -127,112 +76,137 @@ export default function Limits() {
     );
   }
 
+  const limits = billing.publicLimits;
+  const aiPercent = limits.aiBalanceTotal > 0
+    ? Math.min(100, Math.max(0, (limits.aiBalanceUsed / limits.aiBalanceTotal) * 100))
+    : 0;
+  const projectsPercent = limits.projectsTotal > 0
+    ? Math.min(100, Math.max(0, (limits.projectsUsed / limits.projectsTotal) * 100))
+    : 0;
+  const aiIsEmpty = limits.aiBalanceRemaining <= 0;
+  const aiIsLow = !aiIsEmpty && limits.aiBalanceTotal > 0 && limits.aiBalanceRemaining / limits.aiBalanceTotal < 0.15;
+  const projectsEmpty = limits.projectsRemaining <= 0;
+
   return (
     <div className={s.root}>
       <div className={s.header}>
         <div>
           <h2 className={s.title}>Лимиты</h2>
           <p className={s.subtitle}>
-            Здесь собраны лимиты вашего тарифа: контент, AI-сообщения, проекты, стратегия и продукты.
+            Здесь показано, сколько AI-баланса и проектов доступно на вашем тарифе.
           </p>
         </div>
         <aside className={s.planCard}>
           <span>Текущий тариф</span>
-          <strong>{billing.plan.name}</strong>
-          <p>{formatRenewalDate(billing.period.currentPeriodEnd)}</p>
+          <strong>{limits.planName}</strong>
+          <p>{formatRenewalDate(limits.limitsResetAt)}</p>
           <Link className={s.secondaryButton} to={appPath('/pricing')}>Изменить тариф</Link>
         </aside>
       </div>
 
-      <section className={s.grid} aria-label="Главные лимиты">
-        {mainCards.map((card) => {
-          const value = getLimitValue(billing, card.key);
-          return (
-            <UsageLimitCard
-              key={card.key}
-              title={card.title}
-              description={card.description}
-              used={value.used}
-              remaining={value.remaining}
-              limit={value.limit}
-            />
-          );
-        })}
+      <section className={s.mainGrid}>
+        <article className={`${s.balanceCard}${aiIsEmpty ? ` ${s.cardCritical}` : aiIsLow ? ` ${s.cardWarning}` : ''}`}>
+          <div className={s.cardHeader}>
+            <span>AI-баланс</span>
+            {aiIsEmpty && <b>закончился</b>}
+            {aiIsLow && <b>скоро закончится</b>}
+          </div>
+          <div className={s.balanceValue}>
+            {formatLimitNumber(limits.aiBalanceRemaining)} из {formatLimitNumber(limits.aiBalanceTotal)} баллов осталось
+          </div>
+          <div className={s.progressTrack} aria-hidden="true">
+            <div className={s.progressBar} style={{ width: `${aiPercent}%` }} />
+          </div>
+          <p>
+            AI-баланс расходуется на диалог с ИИ, стратегию, продукты, офферы, посты, статьи, сценарии и другие AI-действия.
+          </p>
+          {aiIsEmpty && (
+            <p className={s.alertText}>
+              Вы можете продолжить работать с уже созданными материалами, но новые AI-действия временно недоступны.
+            </p>
+          )}
+          {aiIsLow && (
+            <p className={s.alertText}>
+              Этого хватит примерно на несколько крупных генераций или на большое количество сообщений в диалоге.
+            </p>
+          )}
+          <button className={s.disabledButton} type="button" disabled>Пополнить AI-баланс скоро</button>
+        </article>
+
+        <article className={s.projectsCard}>
+          <div className={s.cardHeader}>
+            <span>Проекты</span>
+            {projectsEmpty && <b>лимит закончился</b>}
+          </div>
+          <div className={s.balanceValue}>
+            {formatLimitNumber(limits.projectsRemaining)} из {formatLimitNumber(limits.projectsTotal)} проектов доступно
+          </div>
+          <div className={s.progressTrack} aria-hidden="true">
+            <div className={s.progressBar} style={{ width: `${projectsPercent}%` }} />
+          </div>
+          <p>Проект — это отдельное направление, ниша, продукт или сегмент аудитории.</p>
+          <Link className={projectsEmpty ? s.secondaryButton : s.primaryButton} to={projectsEmpty ? appPath('/pricing') : appPath('/dashboard')}>
+            {projectsEmpty ? 'Изменить тариф' : 'Создать проект'}
+          </Link>
+        </article>
       </section>
 
       <section className={s.section}>
         <div className={s.sectionIntro}>
-          <h3>Лимиты по разделам сервиса</h3>
-          <p>Каждый раздел Luma IQ использует свои лимиты. Так проще понять, что именно расходуется при работе.</p>
+          <h3>На что хватит AI-баланса</h3>
+          <p>Разные действия используют разное количество AI-баллов. Простое сообщение в диалоге стоит меньше, чем сборка продукта или полноценной стратегии.</p>
         </div>
-        <div className={s.sectionGrid}>
-          {sectionCards.map((card) => (
-            <article className={s.serviceCard} key={card.section}>
-              <h4>{card.title}</h4>
-              <p>{card.description}</p>
-              <div className={s.localList}>
-                {SECTION_LIMITS[card.section].map((key) => {
-                  const value = getLimitValue(billing, key);
-                  return <UsageLimitBadge key={key} label={value.label} used={value.used} remaining={value.remaining} limit={value.limit} />;
-                })}
-              </div>
-              <Link className={s.cardButton} to={appPath(card.href)}>{card.button}</Link>
-            </article>
+        <div className={s.costGrid}>
+          {capacityRows.map(([label, cost]) => (
+            <div className={s.costRow} key={label}>
+              <span>{label}</span>
+              <strong>{cost}</strong>
+            </div>
           ))}
         </div>
       </section>
 
       <section className={s.section}>
         <div className={s.sectionIntro}>
-          <h3>Все лимиты тарифа</h3>
+          <h3>История списаний</h3>
         </div>
-        <div className={s.tableWrap}>
-          <table className={s.table}>
-            <thead>
-              <tr>
-                <th>Лимит</th>
-                <th>Использовано</th>
-                <th>Осталось</th>
-                <th>Всего</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((row) => {
-                const value = getLimitValue(billing, row.key);
-                return (
-                  <tr key={row.key}>
-                    <td>{row.label}{row.note && <span className={s.tableNote}> {row.note}</span>}</td>
-                    <td>{formatLimitNumber(value.used)}</td>
-                    <td>{value.limit === 0 ? 'Недоступно' : formatLimitNumber(value.remaining)}</td>
-                    <td>{formatLimitNumber(Math.max(0, value.limit))}</td>
+        {billing.usageHistory.length === 0 ? (
+          <div className={s.emptyHistory}>
+            <h4>Пока списаний нет</h4>
+            <p>Когда вы начнёте создавать материалы с помощью ИИ, история появится здесь.</p>
+          </div>
+        ) : (
+          <div className={s.tableWrap}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Действие</th>
+                  <th>Раздел</th>
+                  <th>Списано</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billing.usageHistory.map((item) => (
+                  <tr key={item.id}>
+                    <td>{formatHistoryDate(item.createdAt)}</td>
+                    <td>{item.actionLabel}</td>
+                    <td>{item.sectionLabel}</td>
+                    <td>{formatLimitNumber(item.aiPointsCharged)} AI-баллов</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section className={s.section}>
-        <div className={s.sectionIntro}>
-          <h3>Что означают лимиты</h3>
-        </div>
-        <div className={s.explainGrid}>
-          {explanations.map(([title, text]) => (
-            <details className={s.explainCard} key={title}>
-              <summary>{title}</summary>
-              <p>{text}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section className={s.cta}>
-        <div>
-          <h3>Нужно больше лимитов?</h3>
-          <p>Перейдите на более высокий тариф, если вам нужно больше проектов, контента, AI-сообщений или сопровождение маркетолога.</p>
-        </div>
-        <Link className={s.primaryButton} to={appPath('/pricing')}>Увеличить лимиты</Link>
+      <section className={s.helpCard}>
+        <h3>Что означает AI-баланс</h3>
+        <p>AI-баланс — это ресурс вашего тарифа для работы с искусственным интеллектом.</p>
+        <p>Он расходуется, когда вы создаёте или дорабатываете материалы с помощью AI: пишете в диалог, собираете стратегию, создаёте продукты, офферы, посты, статьи, сценарии и контент-планы.</p>
+        <p>Простые действия списывают меньше баллов. Большие сборки стратегии и продуктов списывают больше баллов.</p>
+        <p>Просмотр уже созданных материалов, переходы по разделам и ручное редактирование текста AI-баланс не расходуют.</p>
       </section>
 
       <LegalInfoBlock />

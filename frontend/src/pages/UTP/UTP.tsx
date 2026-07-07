@@ -68,6 +68,7 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
         },
       });
       persistUtp(resp.content.trim());
+      toast.success(`УТП готово. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`);
     } catch (err) {
       console.error('[UTP] AI error:', err);
       toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -105,7 +106,7 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
         },
       });
       persistUtp(resp.content.trim());
-      toast.success('УТП улучшено');
+      toast.success(`УТП улучшено. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`);
     } catch (err) {
       console.warn('[UTP] improve error:', err);
       toast.error('Не удалось улучшить');

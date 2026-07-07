@@ -763,7 +763,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
         persistState(next, { syncMaterial: false });
       }
       persistState(next);
-      toast.success('Лид-магнит создан');
+      toast.success('Лид-магнит создан. Списано 70 AI-баллов.');
     } catch (err) {
       console.error('[LeadMagnet create] AI error:', err);
       const message = getRequestErrorMessage(err);

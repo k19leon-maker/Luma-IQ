@@ -1,5 +1,5 @@
 .root {
-  max-width: 1180px;
+  max-width: 1120px;
 }
 
 .header {
@@ -18,7 +18,7 @@
 }
 
 .subtitle {
-  max-width: 650px;
+  max-width: 620px;
   margin: 8px 0 0;
   color: var(--text-secondary);
   font-size: 14px;
@@ -27,18 +27,24 @@
 
 .planCard,
 .stateCard,
-.cta {
-  border: 1px solid rgba(212,168,71,0.26);
+.balanceCard,
+.projectsCard,
+.helpCard,
+.emptyHistory {
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(212,168,71,0.07);
+  background: var(--bg-surface);
 }
 
 .planCard {
-  min-width: 250px;
+  min-width: 260px;
   padding: 16px;
+  border-color: rgba(212,168,71,0.26);
+  background: rgba(212,168,71,0.07);
 }
 
-.planCard span {
+.planCard span,
+.cardHeader span {
   display: block;
   color: var(--text-muted);
   font-size: 11px;
@@ -61,77 +67,87 @@
   font-size: 12px;
 }
 
-.grid {
+.mainGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+  gap: 14px;
+}
+
+.balanceCard,
+.projectsCard {
+  padding: 22px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.section {
-  margin-top: 28px;
-}
-
-.sectionIntro {
-  margin-bottom: 14px;
-}
-
-.sectionIntro h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 18px;
+.cardHeader b {
+  color: #b88b25;
+  font-size: 12px;
   font-weight: 800;
 }
 
-.sectionIntro p {
-  max-width: 720px;
-  margin: 6px 0 0;
+.cardCritical .cardHeader b {
+  color: #b42318;
+}
+
+.balanceValue {
+  margin-top: 14px;
+  color: var(--text-primary);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 9px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: inherit;
+  background: #D4A847;
+}
+
+.cardWarning .progressBar {
+  background: #E87F2F;
+}
+
+.cardCritical .progressBar {
+  background: #E5484D;
+}
+
+.balanceCard p,
+.projectsCard p,
+.helpCard p,
+.emptyHistory p {
+  margin: 14px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-.sectionGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.serviceCard {
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-surface);
-}
-
-.serviceCard h4 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.serviceCard p {
-  margin: 8px 0 14px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.localList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+.alertText {
+  font-weight: 700;
 }
 
 .primaryButton,
 .secondaryButton,
-.cardButton {
+.disabledButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 9px 13px;
+  min-height: 38px;
+  padding: 9px 14px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 800;
@@ -144,11 +160,82 @@
   color: #fff;
 }
 
-.secondaryButton,
-.cardButton {
+.secondaryButton {
   border: 1px solid rgba(212,168,71,0.42);
   background: #fff;
   color: #b88b25;
+}
+
+.disabledButton {
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  background: #F2EFE7;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.projectsCard .primaryButton,
+.projectsCard .secondaryButton {
+  margin-top: 18px;
+}
+
+.section {
+  margin-top: 28px;
+}
+
+.sectionIntro {
+  margin-bottom: 14px;
+}
+
+.sectionIntro h3,
+.helpCard h3,
+.emptyHistory h4,
+.stateCard h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.sectionIntro p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.costGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.costRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.costRow span,
+.costRow strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.costRow span {
+  color: var(--text-secondary);
+}
+
+.costRow strong {
+  white-space: nowrap;
+  font-weight: 800;
 }
 
 .tableWrap {
@@ -161,7 +248,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 620px;
+  min-width: 680px;
 }
 
 .table th,
@@ -181,8 +268,8 @@
   letter-spacing: 0.4px;
 }
 
-.table th:not(:first-child),
-.table td:not(:first-child) {
+.table th:last-child,
+.table td:last-child {
   text-align: right;
 }
 
@@ -190,65 +277,14 @@
   border-bottom: none;
 }
 
-.tableNote {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.explainGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.explainCard {
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-surface);
-}
-
-.explainCard summary {
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.explainCard p {
-  margin: 10px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.cta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  margin-top: 28px;
-  padding: 20px;
-}
-
-.cta h3,
-.stateCard h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.cta p,
-.stateCard p {
-  margin: 7px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
+.emptyHistory,
+.helpCard,
 .stateCard {
   padding: 22px;
+}
+
+.helpCard {
+  margin-top: 28px;
 }
 
 .stateCard .primaryButton {
@@ -262,40 +298,36 @@
 }
 
 .planCardSkeleton {
-  width: 250px;
+  width: 260px;
   height: 128px;
 }
 
 .skeletonCard {
-  height: 170px;
+  height: 220px;
 }
 
-@media (max-width: 1000px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .header,
-  .cta {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
     flex-direction: column;
-    align-items: stretch;
   }
 
   .planCard,
   .planCardSkeleton {
     width: 100%;
   }
-
-  .sectionGrid,
-  .explainGrid {
-    grid-template-columns: 1fr;
-  }
 }
 
-@media (max-width: 560px) {
-  .grid {
+@media (max-width: 720px) {
+  .costGrid {
     grid-template-columns: 1fr;
+  }
+
+  .balanceValue {
+    font-size: 22px;
   }
 }

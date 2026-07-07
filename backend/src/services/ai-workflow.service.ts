@@ -515,6 +515,8 @@ export const aiWorkflowService = {
         mock: response.mock,
         model: response.model,
         provider: response.provider,
+        aiPointsCharged: executed.aiPointsCharged,
+        aiBalanceRemaining: executed.aiBalanceRemaining,
       };
     } catch (err) {
       await prisma.aIWorkflowStep.update({

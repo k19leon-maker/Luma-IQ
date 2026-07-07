@@ -109,6 +109,7 @@ ${basePrompt}`;
       }
       completeSocial();
       setMaterialStatus('Материал social.md обновлен в knowledge base');
+      toast.success(`Оформление соцсетей готово. Списано ${resp.aiPointsCharged ?? 15} AI-баллов.`);
       setTimeout(() => setMaterialStatus(''), 2500);
     } catch (err) {
       console.error('[Social] AI error for', key, err);

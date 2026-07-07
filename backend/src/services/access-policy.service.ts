@@ -1,10 +1,11 @@
-import { GenerationClass, Subscription, SubscriptionPlan } from '@prisma/client';
+import { GenerationClass, Prisma, Subscription, SubscriptionPlan } from '@prisma/client';
 import { PLAN_LIMITS, FeatureCode, PlanLimitConfig } from '../config/ai-economy';
 import { CONTENT_UNIT_COSTS, UsageAction } from '../config/pricing-plans';
 import { prisma } from '../lib/prisma';
 import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
 import { featurePricingService } from './feature-pricing.service';
+import { aiBalanceService } from './ai-balance.service';
 
 export class AccessPolicyError extends Error {
   status: number;
@@ -146,6 +147,7 @@ export const accessPolicyService = {
     projectId?: string | null;
     featureCode: FeatureCode;
     estimatedCredits?: number;
+    metadata?: Prisma.InputJsonValue;
   }) {
     await accessPolicyService.assertProjectOwner(input.userId, input.projectId);
     const access = await accessPolicyService.getUserAccess(input.userId);
@@ -169,27 +171,16 @@ export const accessPolicyService = {
     }
 
     const pricing = await featurePricingService.resolve(input.featureCode);
-    const requiredCredits = input.estimatedCredits ?? pricing.creditPrice;
-    if (access.creditBalance < requiredCredits) {
-      throw new AccessPolicyError('Недостаточно credits для генерации', 402, 'INSUFFICIENT_CREDITS');
-    }
-
-    await accessPolicyService.assertRollingLimits({
+    await aiBalanceService.assertEnough({
       userId: input.userId,
-      featureCode: input.featureCode,
-      generationClass: pricing.generationClass,
-      chatDailyLimit: access.limits.chatDailyLimit,
-      dailyGenerationLimit: access.limits.dailyGenerationLimit,
-      monthlyGenerationLimit: access.limits.monthlyGenerationLimit,
-      heavyGenerationLimit: access.limits.heavyGenerationLimit,
       billingPeriodId: access.billingPeriod.id,
+      total: access.limits.monthlyCredits,
+      featureCode: input.featureCode,
+      metadata: input.metadata,
       planId: access.plan,
-      monthlyContentUnits: access.limits.monthlyContentUnits,
-      youtubeScriptsLimit: access.limits.youtubeScriptsLimit,
-      longreadsLimit: access.limits.longreadsLimit,
     });
 
-    return { ...access, allowed: true, requiredCredits };
+    return { ...access, allowed: true, requiredCredits: input.estimatedCredits ?? pricing.creditPrice };
   },
 
   async assertRollingLimits(input: {

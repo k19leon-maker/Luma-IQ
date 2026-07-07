@@ -2,6 +2,7 @@ import { FeatureCode } from '../config/ai-economy';
 import { CONTENT_UNIT_COSTS, getPlanBySubscriptionPlan, PRICING_PLANS, UsageAction } from '../config/pricing-plans';
 import { prisma } from '../lib/prisma';
 import { accessPolicyService } from './access-policy.service';
+import { aiBalanceService } from './ai-balance.service';
 
 function featureToUsageAction(featureCode: string): UsageAction | null {
   switch (featureCode as FeatureCode) {
@@ -49,6 +50,8 @@ export const billingService = {
       heavyGenerationsUsed,
       projectsUsed,
       generationsByFeature,
+      aiBalanceUsed,
+      usageHistory,
     ] = await Promise.all([
       prisma.aIGeneration.count({
         where: {
@@ -83,6 +86,8 @@ export const billingService = {
         },
         _count: { _all: true },
       }),
+      aiBalanceService.getUsedInPeriod({ userId, billingPeriodId: access.billingPeriod.id }),
+      aiBalanceService.getHistory({ userId, billingPeriodId: access.billingPeriod.id, limit: 30 }),
     ]);
 
     const contentUnitsUsed = generationsByFeature.reduce((sum, item) => {
@@ -102,16 +107,29 @@ export const billingService = {
       .filter((item) => ['positioning', 'audience', 'utp', 'jtbd'].includes(item.featureCode))
       .reduce((sum, item) => sum + item._count._all, 0);
 
+    const planStatus = access.subscription?.status?.toLowerCase() ?? 'active';
+    const publicLimits = aiBalanceService.buildPlanLimits({
+      planName: plan.name,
+      planStatus,
+      aiBalanceTotal: limits.monthlyCredits,
+      aiBalanceUsed,
+      projectsTotal: limits.projectsLimit,
+      projectsUsed,
+      limitsResetAt: access.billingPeriod.periodEnd,
+    });
+
     return {
       plan: {
         id: plan.id,
         scenario: plan.scenario,
         name: plan.name,
         priceMonthlyRub: plan.priceMonthlyRub,
-        subscriptionStatus: access.subscription?.status?.toLowerCase() ?? 'active',
+        subscriptionStatus: planStatus,
         currency: plan.currency,
         billingPeriod: plan.billingPeriod,
       },
+      publicLimits,
+      usageHistory,
       limits,
       usage: {
         creditsUsed: access.billingPeriod.creditsUsed,

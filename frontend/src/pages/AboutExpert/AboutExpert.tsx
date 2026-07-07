@@ -385,7 +385,10 @@ export default function AboutExpert() {
         idempotencyKey: `about-summary:${activeProjectId}:${Date.now()}`,
       });
       const nextProfile = { ...profile, aiSummary: response.summary };
-      await persistProfile(nextProfile, `AI-резюме готово. Списано credits: ${response.creditsCharged}`);
+      const chargedText = typeof response.aiPointsCharged === 'number'
+        ? `Списано ${response.aiPointsCharged} AI-баллов.`
+        : 'AI-резюме готово.';
+      await persistProfile(nextProfile, chargedText);
     } catch (err) {
       toast.error(limitMessage(err, 'Не удалось улучшить резюме с помощью ИИ'));
     } finally {

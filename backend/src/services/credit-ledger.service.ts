@@ -36,7 +36,7 @@ export const creditLedgerService = {
       const balance = await currentBalance(input.userId, tx);
       const balanceAfter = balance + input.amount;
       if (balanceAfter < 0) {
-        throw Object.assign(new Error('Недостаточно credits'), { status: 402 });
+        throw Object.assign(new Error('AI-баланс закончился'), { status: 402 });
       }
 
       return tx.creditLedgerEntry.create({

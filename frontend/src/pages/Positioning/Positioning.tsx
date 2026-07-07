@@ -371,7 +371,7 @@ export default function Positioning() {
         },
       });
       setActiveTab('variants');
-      toast.success('Варианты позиционирования готовы', { id: 'positioning-variants' });
+      toast.success(`Варианты позиционирования готовы. Списано ${variantsResp.aiPointsCharged ?? 20} AI-баллов.`, { id: 'positioning-variants' });
     } catch (error) {
       toast.error(getApiErrorMessage(error) ?? 'Не удалось сгенерировать варианты позиционирования', { id: 'positioning-variants' });
     } finally {
@@ -419,7 +419,7 @@ export default function Positioning() {
       setDifferentiation(nextDifferentiation);
       setProof(nextProof);
       setActiveTab('final');
-      toast.success('Финальная сборка обновлена', { id: 'positioning-final' });
+      toast.success(`Финальная сборка обновлена. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`, { id: 'positioning-final' });
     } catch (error) {
       toast.error(getApiErrorMessage(error) ?? 'Не удалось сформулировать финальное позиционирование', { id: 'positioning-final' });
     } finally {
