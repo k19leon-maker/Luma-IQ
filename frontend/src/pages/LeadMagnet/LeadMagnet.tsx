@@ -8,9 +8,10 @@ import { useProgressStore } from '../../store/progress.store';
 import { useModelStore } from '../../store/model.store';
 import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
+import { exportMarkdownToDocx } from '../../utils/exportDocx';
+import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
-import html2pdf from 'html2pdf.js';
 import s from './LeadMagnet.module.css';
 
 type StepStatus = 'idle' | 'running' | 'done';
@@ -170,28 +171,24 @@ function splitLeadMagnetMarkdownToMessages(markdown: string, fallbackTitle = 'Л
 
 function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
   const formatTitle = state.selectedFormat ? FORMAT_LABELS[state.selectedFormat] : 'Лид-магнит';
-  if (state.description?.trim()) {
-    const content = cleanCodeFence(state.description);
-    return content.includes('# Лид-магнит') ? content : `# Лид-магнит\n\n${content}`;
-  }
-
   const assistantContent = (state.chatMessages ?? [])
-    .filter((message) => message.role === 'assistant')
+    .filter((message) => message.role === 'assistant' && !message.content.startsWith('Да, зафиксировал название:'))
     .map((message) => message.content.trim())
     .filter(Boolean)
     .join('\n\n');
 
   return [
     '# Лид-магнит',
+    state.name ? `## Название\n${state.name}` : '',
     `## Формат\n${formatTitle}`,
-    assistantContent,
+    assistantContent || (state.description?.trim() ? cleanCodeFence(state.description).replace(/^#\s+Лид-магнит\s*/i, '').trim() : ''),
   ].filter(Boolean).join('\n\n');
 }
 
 function buildLeadMagnetBrief(state: LeadMagnetState): string {
   const formatTitle = state.selectedFormat ? FORMAT_LABELS[state.selectedFormat] : 'Лид-магнит';
   const assistantBlocks = (state.chatMessages ?? [])
-    .filter((message) => message.role === 'assistant')
+    .filter((message) => message.role === 'assistant' && !message.content.startsWith('Да, зафиксировал название:'))
     .map((message) => {
       const title = message.stepTitle ? `## ${message.stepTitle}` : '';
       return [title, limitText(message.content, 1400)].filter(Boolean).join('\n');
@@ -201,6 +198,7 @@ function buildLeadMagnetBrief(state: LeadMagnetState): string {
 
   return [
     '# Лид-магнит',
+    state.name ? `## Название\n${state.name}` : '',
     `## Формат\n${formatTitle}`,
     assistantBlocks,
   ].filter(Boolean).join('\n\n');
@@ -218,134 +216,6 @@ function extractName(markdown: string, fallback: string): string {
 function getRequestErrorMessage(err: unknown): string {
   const error = err as AxiosError<{ error?: string }>;
   return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function markdownToPdfHtml(markdown: string): string {
-  return markdown
-    .split('\n')
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return '<div style="height: 10px"></div>';
-      if (trimmed.startsWith('# ')) return `<h1>${escapeHtml(trimmed.slice(2))}</h1>`;
-      if (trimmed.startsWith('## ')) return `<h2>${escapeHtml(trimmed.slice(3))}</h2>`;
-      if (trimmed.startsWith('### ')) return `<h3>${escapeHtml(trimmed.slice(4))}</h3>`;
-      if (/^\|.*\|$/.test(trimmed)) return `<p class="table-line">${escapeHtml(trimmed)}</p>`;
-      if (/^\d+\.\s+/.test(trimmed) || /^[-•]\s+/.test(trimmed)) return `<p class="bullet">${escapeHtml(trimmed)}</p>`;
-      return `<p>${escapeHtml(trimmed)}</p>`;
-    })
-    .join('');
-}
-
-async function downloadLeadMagnetPdf(state: LeadMagnetState, projectName: string): Promise<void> {
-  const markdown = buildLeadMagnetMarkdown(state);
-  const safeFileName = (state.name || projectName || 'lead-magnet')
-    .replace(/[\\/:*?"<>|]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const root = document.createElement('div');
-  root.style.position = 'absolute';
-  root.style.left = '0';
-  root.style.top = '0';
-  root.style.zIndex = '-1';
-  root.innerHTML = `
-    <style>
-      .lead-pdf {
-        width: 794px;
-        min-height: 1123px;
-        box-sizing: border-box;
-        padding: 44px 52px;
-        background: #ffffff;
-        color: #1a1a1a;
-        font-family: Inter, Arial, sans-serif;
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 34px;
-        color: #1a1a1a;
-        font-weight: 900;
-        font-size: 18px;
-      }
-      .mark {
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
-        background: #1a1a1a;
-        color: #D4A847;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      h1 { font-size: 34px; line-height: 1.15; margin: 0 0 22px; }
-      h2 {
-        margin: 26px 0 10px;
-        padding-top: 14px;
-        border-top: 1px solid #E5E3DC;
-        color: #9A6A00;
-        font-size: 16px;
-        text-transform: uppercase;
-        letter-spacing: 1.1px;
-      }
-      h3 { margin: 16px 0 8px; font-size: 15px; }
-      p { margin: 0 0 8px; font-size: 13px; line-height: 1.55; }
-      .bullet { padding-left: 10px; }
-      .table-line {
-        font-family: Arial, sans-serif;
-        font-size: 11px;
-        color: #333;
-        background: #F7F5EF;
-        padding: 6px 8px;
-        border-radius: 4px;
-      }
-      .footer {
-        margin-top: 34px;
-        padding-top: 14px;
-        border-top: 1px solid #E5E3DC;
-        color: #888;
-        font-size: 11px;
-        display: flex;
-        justify-content: space-between;
-      }
-    </style>
-    <div class="lead-pdf">
-      <div class="brand"><div class="mark">✦</div><div><span style="color:#D4A847">Luma</span>IQ</div></div>
-      ${markdownToPdfHtml(markdown)}
-      <div class="footer"><span>${escapeHtml(projectName)}</span><span>lumaiq.ru</span></div>
-    </div>
-  `;
-
-  document.body.appendChild(root);
-  try {
-    const pdfElement = root.querySelector<HTMLElement>('.lead-pdf');
-    if (!pdfElement) throw new Error('Не удалось подготовить PDF');
-    await (html2pdf() as {
-      set: (opts: Record<string, unknown>) => {
-        from: (el: HTMLElement) => { save: () => Promise<void> };
-      };
-    })
-      .set({
-        margin: 0,
-        filename: `LumaIQ_${safeFileName || 'lead-magnet'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 794, windowWidth: 794 },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-      })
-      .from(pdfElement)
-      .save();
-  } finally {
-    document.body.removeChild(root);
-  }
 }
 
 function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
@@ -387,7 +257,7 @@ export default function LeadMagnet() {
   const [state, setState] = useState<LeadMagnetState>(EMPTY_LEAD_MAGNET);
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [docxLoading, setDocxLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const loadedLeadMagnetKeyRef = useRef('');
 
@@ -914,6 +784,24 @@ ${currentMarkdown || 'Пока пусто.'}`;
     const userMessage: LeadMagnetChatMessage = { role: 'user', content: text };
     const stateWithUser = withMessage(state, userMessage);
     setChatInput('');
+
+    const preferredName = extractPreferredProductName(text);
+    if (preferredName) {
+      const next = withMessage({
+        ...stateWithUser,
+        name: preferredName,
+        generated: true,
+      }, {
+        role: 'assistant',
+        content: confirmationForProductName(preferredName),
+        stepId: 'headline',
+        stepTitle: 'Название лид-магнита',
+      });
+      persistState(next);
+      toast.success('Название лид-магнита обновлено');
+      return;
+    }
+
     persistState(stateWithUser, { syncMaterial: false });
     setLoading(true);
 
@@ -950,15 +838,19 @@ ${currentMarkdown || 'Пока пусто.'}`;
   }
 
   async function handleDownload() {
-    if (!state.generated || pdfLoading) return;
-    setPdfLoading(true);
+    if (!state.generated || docxLoading) return;
+    setDocxLoading(true);
     try {
-      await downloadLeadMagnetPdf(state, projectName);
+      await exportMarkdownToDocx(
+        state.name || 'Лид-магнит',
+        buildLeadMagnetMarkdown(state),
+        `LumaIQ_${productDocFilename(state.name, projectName || 'lead-magnet')}`,
+      );
     } catch (err) {
-      console.error('[LeadMagnet PDF]', err);
-      toast.error('Не удалось скачать PDF');
+      console.error('[LeadMagnet DOCX]', err);
+      toast.error('Не удалось скачать DOCX');
     } finally {
-      setPdfLoading(false);
+      setDocxLoading(false);
     }
   }
 
@@ -1091,16 +983,16 @@ ${currentMarkdown || 'Пока пусто.'}`;
           <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               onClick={() => void handleDownload()}
-              disabled={pdfLoading}
+              disabled={docxLoading}
               style={{
                 ...btnOutlined,
                 width: '100%',
                 padding: '9px 0',
                 fontSize: 12,
-                color: pdfLoading ? '#bbb' : '#555',
+                color: docxLoading ? '#bbb' : '#555',
               }}
             >
-              {pdfLoading ? 'Генерирую PDF...' : 'Скачать PDF'}
+              {docxLoading ? 'Готовлю DOCX...' : 'Скачать DOCX'}
             </button>
           </div>
         )}

@@ -8,9 +8,10 @@ import { useProgressStore } from '../../store/progress.store';
 import { useModelStore } from '../../store/model.store';
 import { aiApi } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
+import { exportMarkdownToDocx } from '../../utils/exportDocx';
+import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
-import html2pdf from 'html2pdf.js';
 
 type StepStatus = 'idle' | 'running' | 'done';
 
@@ -160,13 +161,17 @@ function normalizeProduct(saved?: ProductDraft): MiniProductState {
 
 function buildMiniProductMarkdown(product: MiniProductState): string {
   const assistantContent = (product.chatMessages ?? [])
-    .filter((message) => message.role === 'assistant' && !message.stepTitle?.toLowerCase().includes('ошибка'))
+    .filter((message) => (
+      message.role === 'assistant' &&
+      !message.stepTitle?.toLowerCase().includes('ошибка') &&
+      !message.content.startsWith('Да, зафиксировал название:')
+    ))
     .map((message) => message.content.trim())
     .filter(Boolean)
     .join('\n\n');
 
   if (assistantContent) {
-    return ['# Мини-продукт', assistantContent].join('\n\n');
+    return ['# Мини-продукт', product.name ? `## Название\n${product.name}` : '', assistantContent].filter(Boolean).join('\n\n');
   }
 
   const hasStructuredData = Boolean(
@@ -201,7 +206,11 @@ function buildMiniProductMarkdown(product: MiniProductState): string {
 
 function buildMiniProductBrief(product: MiniProductState): string {
   const assistantBlocks = (product.chatMessages ?? [])
-    .filter((message) => message.role === 'assistant' && !message.stepTitle?.toLowerCase().includes('ошибка'))
+    .filter((message) => (
+      message.role === 'assistant' &&
+      !message.stepTitle?.toLowerCase().includes('ошибка') &&
+      !message.content.startsWith('Да, зафиксировал название:')
+    ))
     .map((message) => {
       const title = message.stepTitle ? `## ${message.stepTitle}` : '';
       return [title, limitText(message.content, 1100)].filter(Boolean).join('\n');
@@ -210,7 +219,7 @@ function buildMiniProductBrief(product: MiniProductState): string {
     .join('\n\n');
 
   if (assistantBlocks) {
-    return ['# Мини-продукт', assistantBlocks].join('\n\n');
+    return ['# Мини-продукт', product.name ? `## Название\n${product.name}` : '', assistantBlocks].filter(Boolean).join('\n\n');
   }
 
   return [
@@ -251,123 +260,6 @@ function getRequestErrorMessage(err: unknown): string {
   return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function markdownToPdfHtml(markdown: string): string {
-  return markdown
-    .split('\n')
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return '<div style="height: 10px"></div>';
-      if (trimmed.startsWith('# ')) return `<h1>${escapeHtml(trimmed.slice(2))}</h1>`;
-      if (trimmed.startsWith('## ')) return `<h2>${escapeHtml(trimmed.slice(3))}</h2>`;
-      if (/^\d+\.\s+/.test(trimmed) || /^[-•]\s+/.test(trimmed)) return `<p class="bullet">${escapeHtml(trimmed)}</p>`;
-      return `<p>${escapeHtml(trimmed)}</p>`;
-    })
-    .join('');
-}
-
-async function downloadProductPresentationPdf(product: MiniProductState, projectName: string): Promise<void> {
-  const markdown = buildMiniProductMarkdown(product);
-  const safeFileName = (product.name || projectName || 'product-mini')
-    .replace(/[\\/:*?"<>|]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const root = document.createElement('div');
-  root.style.position = 'absolute';
-  root.style.left = '0';
-  root.style.top = '0';
-  root.style.zIndex = '-1';
-  root.innerHTML = `
-    <style>
-      .product-pdf {
-        width: 794px;
-        min-height: 1123px;
-        box-sizing: border-box;
-        padding: 44px 52px;
-        background: #ffffff;
-        color: #1a1a1a;
-        font-family: Inter, Arial, sans-serif;
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 34px;
-        color: #1a1a1a;
-        font-weight: 900;
-        font-size: 18px;
-      }
-      .mark {
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
-        background: #1a1a1a;
-        color: #D4A847;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      h1 { font-size: 34px; line-height: 1.15; margin: 0 0 22px; }
-      h2 {
-        margin: 26px 0 10px;
-        padding-top: 14px;
-        border-top: 1px solid #E5E3DC;
-        color: #9A6A00;
-        font-size: 16px;
-        text-transform: uppercase;
-        letter-spacing: 1.1px;
-      }
-      p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; }
-      .bullet { padding-left: 10px; }
-      .footer {
-        margin-top: 34px;
-        padding-top: 14px;
-        border-top: 1px solid #E5E3DC;
-        color: #888;
-        font-size: 11px;
-        display: flex;
-        justify-content: space-between;
-      }
-    </style>
-    <div class="product-pdf">
-      <div class="brand"><div class="mark">✦</div><div><span style="color:#D4A847">Luma</span>IQ</div></div>
-      ${markdownToPdfHtml(markdown)}
-      <div class="footer"><span>${escapeHtml(projectName)}</span><span>lumaiq.ru</span></div>
-    </div>
-  `;
-
-  document.body.appendChild(root);
-  try {
-    const pdfElement = root.querySelector<HTMLElement>('.product-pdf');
-    if (!pdfElement) throw new Error('Не удалось подготовить PDF');
-    await (html2pdf() as {
-      set: (opts: Record<string, unknown>) => {
-        from: (el: HTMLElement) => { save: () => Promise<void> };
-      };
-    })
-      .set({
-        margin: 0,
-        filename: `LumaIQ_${safeFileName || 'product-mini'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 794, windowWidth: 794 },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-      })
-      .from(pdfElement)
-      .save();
-  } finally {
-    document.body.removeChild(root);
-  }
-}
-
 export default function ProductMini() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
@@ -379,7 +271,7 @@ export default function ProductMini() {
   const [state, setState] = useState<MiniProductState>(EMPTY_PRODUCT);
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [docxLoading, setDocxLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const loadedProductKeyRef = useRef('');
 
@@ -790,6 +682,25 @@ ${currentProduct}
     const userMessage: ProductChatMessage = { role: 'user', content: text };
     const stateWithUser = withMessage(state, userMessage);
     setChatInput('');
+
+    const preferredName = extractPreferredProductName(text);
+    if (preferredName) {
+      const next = withMessage({
+        ...stateWithUser,
+        name: preferredName,
+        nameOptions: [preferredName, ...(stateWithUser.nameOptions ?? []).filter((name) => name && name !== preferredName)].slice(0, 3),
+        generated: true,
+      }, {
+        role: 'assistant',
+        content: confirmationForProductName(preferredName),
+        stepId: 'bestName',
+        stepTitle: 'Лучшее название мини-продукта',
+      });
+      persistState(next);
+      toast.success('Название мини-продукта обновлено');
+      return;
+    }
+
     persistState(stateWithUser, { syncMaterial: false });
     setLoading(true);
 
@@ -821,15 +732,19 @@ ${currentProduct}
   }
 
   async function handleDownload() {
-    if (!state.generated || pdfLoading) return;
-    setPdfLoading(true);
+    if (!state.generated || docxLoading) return;
+    setDocxLoading(true);
     try {
-      await downloadProductPresentationPdf(state, projectName);
+      await exportMarkdownToDocx(
+        state.name || 'Мини-продукт',
+        buildMiniProductMarkdown(state),
+        `LumaIQ_${productDocFilename(state.name, projectName || 'mini-product')}`,
+      );
     } catch (err) {
-      console.error('[ProductMini PDF]', err);
-      toast.error('Не удалось скачать PDF');
+      console.error('[ProductMini DOCX]', err);
+      toast.error('Не удалось скачать DOCX');
     } finally {
-      setPdfLoading(false);
+      setDocxLoading(false);
     }
   }
 
@@ -921,16 +836,16 @@ ${currentProduct}
           <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               onClick={() => void handleDownload()}
-              disabled={pdfLoading}
+              disabled={docxLoading}
               style={{
                 ...btnOutlined,
                 width: '100%',
                 padding: '9px 0',
                 fontSize: 12,
-                color: pdfLoading ? '#bbb' : '#555',
+                color: docxLoading ? '#bbb' : '#555',
               }}
             >
-              {pdfLoading ? 'Генерирую PDF...' : 'Скачать PDF'}
+              {docxLoading ? 'Готовлю DOCX...' : 'Скачать DOCX'}
             </button>
           </div>
         )}
