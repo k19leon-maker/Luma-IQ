@@ -4,6 +4,8 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
+const DOCUMENT_FONT = 'Arial';
+
 function safeFileName(filename: string): string {
   return filename.replace(/[<>:"/\\|?*]/g, '').trim() || 'document';
 }
@@ -25,22 +27,22 @@ function inlineRuns(value: string, size = 24): TextRun[] {
 
   while ((match = pattern.exec(value)) !== null) {
     if (match.index > cursor) {
-      runs.push(new TextRun({ text: value.slice(cursor, match.index), size }));
+      runs.push(new TextRun({ text: value.slice(cursor, match.index), font: DOCUMENT_FONT, size }));
     }
     const token = match[0];
     if (token.startsWith('**')) {
-      runs.push(new TextRun({ text: token.slice(2, -2), bold: true, size }));
+      runs.push(new TextRun({ text: token.slice(2, -2), font: DOCUMENT_FONT, bold: true, size }));
     } else if (token.startsWith('`')) {
-      runs.push(new TextRun({ text: token.slice(1, -1), font: 'Courier New', size }));
+      runs.push(new TextRun({ text: token.slice(1, -1), font: DOCUMENT_FONT, size }));
     }
     cursor = match.index + token.length;
   }
 
   if (cursor < value.length) {
-    runs.push(new TextRun({ text: value.slice(cursor), size }));
+    runs.push(new TextRun({ text: value.slice(cursor), font: DOCUMENT_FONT, size }));
   }
 
-  return runs.length ? runs : [new TextRun({ text: value, size })];
+  return runs.length ? runs : [new TextRun({ text: value, font: DOCUMENT_FONT, size })];
 }
 
 function markdownToDocxParagraphs(markdown: string): Paragraph[] {
@@ -56,7 +58,7 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
 
     if (line.startsWith('# ')) {
       paragraphs.push(new Paragraph({
-        text: stripMarkdownMarkers(line.slice(2)),
+        children: [new TextRun({ text: stripMarkdownMarkers(line.slice(2)), font: DOCUMENT_FONT, bold: true, size: 34 })],
         heading: HeadingLevel.HEADING_1,
         spacing: { before: 160, after: 220 },
         keepNext: true,
@@ -66,7 +68,7 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
 
     if (line.startsWith('## ')) {
       paragraphs.push(new Paragraph({
-        text: stripMarkdownMarkers(line.slice(3)),
+        children: [new TextRun({ text: stripMarkdownMarkers(line.slice(3)), font: DOCUMENT_FONT, bold: true, size: 26, color: '9A6A00' })],
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 260, after: 140 },
         keepNext: true,
@@ -79,7 +81,7 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
 
     if (line.startsWith('### ')) {
       paragraphs.push(new Paragraph({
-        text: stripMarkdownMarkers(line.slice(4)),
+        children: [new TextRun({ text: stripMarkdownMarkers(line.slice(4)), font: DOCUMENT_FONT, bold: true, size: 24 })],
         heading: HeadingLevel.HEADING_3,
         spacing: { before: 180, after: 100 },
         keepNext: true,
@@ -90,10 +92,12 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
     const numbered = line.match(/^(\d+)[\.\)]\s+(.+)$/);
     if (numbered) {
       paragraphs.push(new Paragraph({
-        children: inlineRuns(numbered[2]),
-        bullet: { level: 0 },
+        children: [
+          new TextRun({ text: `${numbered[1]}. `, font: DOCUMENT_FONT, size: 24 }),
+          ...inlineRuns(numbered[2]),
+        ],
         spacing: { after: 100 },
-        indent: { left: 360, hanging: 180 },
+        indent: { left: 240 },
       }));
       continue;
     }
@@ -101,10 +105,12 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
     const bullet = line.match(/^[-•]\s+(.+)$/);
     if (bullet) {
       paragraphs.push(new Paragraph({
-        children: inlineRuns(bullet[1]),
-        bullet: { level: 0 },
+        children: [
+          new TextRun({ text: '• ', font: DOCUMENT_FONT, size: 24 }),
+          ...inlineRuns(bullet[1]),
+        ],
         spacing: { after: 100 },
-        indent: { left: 360, hanging: 180 },
+        indent: { left: 240 },
       }));
       continue;
     }
@@ -143,6 +149,7 @@ export async function exportToDocx(
                 children: [
                   new TextRun({
                     text: 'Создано в LumaIQ',
+                    font: DOCUMENT_FONT,
                     size: 18,
                     color: '888888',
                   }),
@@ -154,7 +161,7 @@ export async function exportToDocx(
         },
         children: [
           new Paragraph({
-            text: title,
+            children: [new TextRun({ text: title, font: DOCUMENT_FONT, bold: true, size: 34 })],
             heading: HeadingLevel.HEADING_1,
             spacing: { after: 240 },
           }),
@@ -177,6 +184,14 @@ export async function exportMarkdownToDocx(
 ): Promise<void> {
   const doc = new Document({
     styles: {
+      default: {
+        document: {
+          run: {
+            font: DOCUMENT_FONT,
+            size: 24,
+          },
+        },
+      },
       paragraphStyles: [
         {
           id: 'Heading1',
@@ -184,7 +199,7 @@ export async function exportMarkdownToDocx(
           basedOn: 'Normal',
           next: 'Normal',
           quickFormat: true,
-          run: { size: 34, bold: true, color: '1A1A1A' },
+          run: { font: DOCUMENT_FONT, size: 34, bold: true, color: '1A1A1A' },
           paragraph: { spacing: { before: 160, after: 220 } },
         },
         {
@@ -193,7 +208,7 @@ export async function exportMarkdownToDocx(
           basedOn: 'Normal',
           next: 'Normal',
           quickFormat: true,
-          run: { size: 26, bold: true, color: '9A6A00', allCaps: true },
+          run: { font: DOCUMENT_FONT, size: 26, bold: true, color: '9A6A00', allCaps: true },
           paragraph: { spacing: { before: 260, after: 140 } },
         },
         {
@@ -202,7 +217,7 @@ export async function exportMarkdownToDocx(
           basedOn: 'Normal',
           next: 'Normal',
           quickFormat: true,
-          run: { size: 24, bold: true, color: '333333' },
+          run: { font: DOCUMENT_FONT, size: 24, bold: true, color: '333333' },
           paragraph: { spacing: { before: 180, after: 100 } },
         },
       ],
@@ -218,7 +233,7 @@ export async function exportMarkdownToDocx(
           default: new Footer({
             children: [
               new Paragraph({
-                children: [new TextRun({ text: 'Создано в LumaIQ', size: 18, color: '888888' })],
+                children: [new TextRun({ text: 'Создано в LumaIQ', font: DOCUMENT_FONT, size: 18, color: '888888' })],
                 alignment: AlignmentType.CENTER,
               }),
             ],
@@ -226,7 +241,7 @@ export async function exportMarkdownToDocx(
         },
         children: [
           new Paragraph({
-            children: [new TextRun({ text: title, bold: true, size: 38, color: '1A1A1A' })],
+            children: [new TextRun({ text: title, font: DOCUMENT_FONT, bold: true, size: 38, color: '1A1A1A' })],
             spacing: { after: 280 },
             keepNext: true,
           }),
