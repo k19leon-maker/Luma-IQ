@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { isDemoContentText } from '../utils/demo-products';
 
 const createSchema = z.object({
   projectId: z.string().uuid(),
@@ -38,7 +39,7 @@ export const contentPlanController = {
         where:   { projectId },
         orderBy: { date: 'asc' },
       });
-      res.json({ items });
+      res.json({ items: items.filter((item) => !isDemoContentText(item)) });
     } catch (err) {
       console.error('[ContentPlan] list:', err);
       res.status(500).json({ error: 'Ошибка при загрузке плана' });
@@ -50,6 +51,10 @@ export const contentPlanController = {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
     const owned = await assertProjectOwner(req.userId!, parsed.data.projectId);
     if (!owned) { res.status(403).json({ error: 'Нет доступа' }); return; }
+    if (isDemoContentText(parsed.data)) {
+      res.status(400).json({ error: 'Демо-контент больше не добавляется в план' });
+      return;
+    }
     try {
       const item = await prisma.contentPlanItem.create({ data: parsed.data });
       res.status(201).json({ item });
@@ -68,6 +73,11 @@ export const contentPlanController = {
       if (!existing) { res.status(404).json({ error: 'Не найдено' }); return; }
       const owned = await assertProjectOwner(req.userId!, existing.projectId);
       if (!owned) { res.status(403).json({ error: 'Нет доступа' }); return; }
+      if (isDemoContentText({ ...existing, ...parsed.data })) {
+        await prisma.contentPlanItem.delete({ where: { id } });
+        res.status(410).json({ error: 'Демо-контент удалён из плана' });
+        return;
+      }
       const item = await prisma.contentPlanItem.update({
         where: { id },
         data:  parsed.data,

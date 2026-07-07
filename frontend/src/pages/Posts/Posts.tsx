@@ -11,6 +11,7 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
+import { isDemoContentText } from '../../utils/demoDataCleanup';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -87,86 +88,6 @@ const FACTURE_HINTS = [
   '3. Какой инсайт хотите донести?',
   '4. Что изменилось у клиента после работы с вами?',
 ];
-
-// ─── Seed posts ───────────────────────────────────────────────────────────────
-
-function makeSeedPosts(): SavedPost[] {
-  return [
-    {
-      id:           'seed-1',
-      postType:     'pain',
-      platform:     'telegram',
-      theme:        'Вы ссоритесь об одном и том же снова и снова',
-      offer:        'lead',
-      keyword:      'БЛИЗОСТЬ',
-      editedTitle:  'Пост-боль · Telegram',
-      editedContent: '',
-      createdAt:    '12 апр 2026',
-      content:
-`Вы ссоритесь об одном и том же уже который год.
-
-Сначала — повышенный голос. Потом — обиженное молчание. Потом — «ладно, забудем». А через две недели — снова.
-
-Дело не в тарелках. Не в деньгах. Не в том, кто прав.
-
-За каждой повторяющейся ссорой стоит одно: оба чувствуют себя невидимыми. Один хочет уважения. Другой — близости. Но оба говорят об этом через претензию, а не через потребность.
-
-Один конкретный шаг: в следующий раз, когда почувствуете раздражение — остановитесь и скажите вслух, что вам на самом деле нужно. Не «ты всегда», а «мне важно».
-
-Если узнали свою ситуацию — напишите БЛИЗОСТЬ в директ.
-Я пришлю бесплатный материал.`,
-    },
-    {
-      id:           'seed-2',
-      postType:     'insight',
-      platform:     'instagram',
-      theme:        'Большинство пар ссорятся не из-за проблем',
-      offer:        'mini',
-      keyword:      'СТАРТ',
-      editedTitle:  'Пост-инсайт · Instagram',
-      editedContent: '',
-      createdAt:    '10 апр 2026',
-      content:
-`Большинство пар ссорятся не из-за проблем, а из-за того, как они о них говорят.
-
-Мозг воспринимает критику как угрозу. Буквально. Запускается та же реакция, что при физической опасности. Поэтому партнёр «закрывается» — это не упрямство, это защита.
-
-Была клиентка: жаловалась, что муж не слышит её. На сессии выяснилось — она говорила: «Ты никогда не помогаешь». Он слышал: «Ты плохой». И замолкал.
-
-Поменяли формулировку: «Мне сейчас нужна помощь». Муж начал откликаться.
-
-Один вывод: проблема не в партнёре. Проблема в том, как мы доносим своё состояние.
-
-Напишите СТАРТ — пришлю мини-курс.
-
-Ссылка в шапке профиля 👆`,
-    },
-    {
-      id:           'seed-3',
-      postType:     'story',
-      platform:     'telegram',
-      theme:        'Она пришла через 8 лет брака',
-      offer:        'main',
-      keyword:      'ПОМОЩЬ',
-      editedTitle:  'Пост-история · Telegram',
-      editedContent: '',
-      createdAt:    '8 апр 2026',
-      content:
-`Ко мне пришла она. 34 года, двое детей, 8 лет в браке. Ситуация: ссорились каждые две-три недели — об одном и том же.
-
-Что происходило: она чувствовала себя одинокой рядом с мужем. Говорила об этом через упрёки. Он уходил в себя. Она злилась сильнее. Он замолкал ещё больше.
-
-Работали с тем, как она выражает потребность в близости. Не «ты не уделяешь мне времени», а «я скучаю по нам». Звучит похоже — действует иначе.
-
-Результат: через три недели написала — «Мы поговорили нормально первый раз за год. Просто поговорили».
-
-Мораль: конфликт — это не про правоту. Это про то, чтобы быть услышанным. И этому можно научиться.
-
-Узнали себя? Напишите ПОМОЩЬ — расскажу о программе работы.`,
-    },
-  ];
-}
-
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -247,8 +168,8 @@ export default function Posts() {
 
   useEffect(() => {
     if (!activeProjectId || !dbLoaded) return;
-    const fromDb = dbItems.map(postFromDb);
-    const legacy = loadPosts(activeProjectId);
+    const fromDb = dbItems.map(postFromDb).filter((post) => !isDemoContentText(post));
+    const legacy = loadPosts(activeProjectId).filter((post) => !isDemoContentText(post));
     if (fromDb.length > 0) {
       setPosts(fromDb);
       setSelectedId(fromDb[0]?.id ?? null);
@@ -276,10 +197,9 @@ export default function Posts() {
       }))).then(() => markMigrated(activeProjectId, 'posts'));
       return;
     }
-    const seeds = makeSeedPosts();
-    setPosts(seeds);
-    setSelectedId(seeds[0]?.id ?? null);
-    setPhase('editor');
+    setPosts([]);
+    setSelectedId(null);
+    setPhase('step1');
   }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
   // Phase

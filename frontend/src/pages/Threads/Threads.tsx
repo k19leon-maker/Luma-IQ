@@ -6,6 +6,7 @@ import { projectsApi } from '../../api/projects.api';
 import { useContentApi } from '../../hooks/useContentApi';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { isDemoContentText } from '../../utils/demoDataCleanup';
 import s from './Threads.module.css';
 
 type ThreadsPostFormat = 'single_post' | 'mini_thread' | 'deep_thread';
@@ -249,7 +250,8 @@ export default function Threads() {
 
   useEffect(() => {
     if (!loaded || dbItems.length === 0) return;
-    const latest = dbItems[0];
+    const latest = dbItems.find((item) => !isDemoContentText(item));
+    if (!latest) return;
     const parsed = resultFromDb(latest);
     if (!parsed) return;
     setResult(parsed);

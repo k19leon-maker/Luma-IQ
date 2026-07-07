@@ -1,7 +1,7 @@
 import { GeneratedTextType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ProjectContext, buildProjectContext } from '../utils/buildProjectContext';
-import { isDemoProductText, sanitizeProjectStrategyData } from '../utils/demo-products';
+import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from '../utils/demo-products';
 
 export type ContextPriority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -383,7 +383,8 @@ export const projectContextService = {
     const strategySummary = summarizeStrategy(strategyData, project.strategySummary);
     const audienceSummary = summarizeAudience(project.audienceAvatars, project.jtbdSessions);
     const productsSummary = summarizeProducts(project.products);
-    const contentHistorySummary = summarizeContentHistory(project.generatedTexts, input.workflow);
+    const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
+    const contentHistorySummary = summarizeContentHistory(realGeneratedTexts, input.workflow);
     const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);
     const profile = {
       expertName: stringify(about.expertName ?? about.name ?? about.displayName),

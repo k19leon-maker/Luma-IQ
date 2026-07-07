@@ -11,6 +11,7 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
+import { isDemoContentText } from '../../utils/demoDataCleanup';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -165,33 +166,6 @@ const FACTURE_HINTS = [
 ];
 
 
-const MOCK_REEL_CONTENT: Record<ReelType, string> = {
-  tips: `3 техники снятия тревоги за 5 минут\n\n[Слайд 1] Дыхание 4-7-8\nВдох 4 сек → задержка 7 → выдох 8. Повтори 3 раза.\n\n[Слайд 2] Метод «5-4-3-2-1»\n5 вещей видишь, 4 слышишь, 3 ощущаешь, 2 чувствуешь запах, 1 вкус.\n\n[Слайд 3] Физическая разрядка\nСожми кулаки на 5 сек — резко разожми. 5 раз.\n\nПодпись: Напиши мне — пришлю памятку с 10 техниками.`,
-  story: `История клиентки\n\nОна пришла полгода назад. Ситуация: тревога, страх ошибиться.\n\nЧто работало: не советы — вопросы. «Что произойдёт если вы ошибётесь?» → «Меня уволят» → «И что тогда?» → тишина. Потом: «Наверное, ничего страшного».\n\nРезультат: через 6 сессий — новая работа, другое качество жизни.\n\nМораль: страх — это не правда. Это гипотеза которую можно проверить.`,
-  myth: `Миф: к специалисту ходят только если «совсем плохо»\n\n🚫 Реальность: ко мне приходят люди которые хотят лучше.\n\nК эксперту ходят чтобы:\n— разобраться в отношениях пока они ещё есть\n— понять себя до того как это стало проблемой\n— принять важное решение осознанно\n\nПрофилактика работает. Не ждите когда станет невыносимо.`,
-};
-
-// ─── Seed reels ───────────────────────────────────────────────────────────────
-
-function makeSeedReels(): SavedReel[] {
-  return [
-    {
-      id: 'reel-seed-1', reelType: 'tips', platform: 'reels',
-      goal: 'lead', tone: 'expert', intensity: 'medium',
-      theme: '3 техники снятия тревоги за 5 минут', hook: 'Тревога не всегда просит “успокоиться”. Иногда она просит вернуть себе контроль.', keyword: 'ПОКОЙ',
-      editedTitle: 'Советы · Instagram', editedContent: '', createdAt: '12 апр 2026',
-      content: MOCK_REEL_CONTENT.tips,
-    },
-    {
-      id: 'reel-seed-2', reelType: 'myth', platform: 'telegram',
-      goal: 'mini', tone: 'deep', intensity: 'medium',
-      theme: 'Миф: эксперт советует что делать', hook: 'Если вы ждете от эксперта совет, вы можете пропустить главное.', keyword: 'СТАРТ',
-      editedTitle: 'Миф · Telegram', editedContent: '', createdAt: '10 апр 2026',
-      content: MOCK_REEL_CONTENT.myth,
-    },
-  ];
-}
-
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 function reelsKey(projectId: string) { return `reels_${projectId}`; }
@@ -267,8 +241,8 @@ export default function Reels() {
 
   useEffect(() => {
     if (!activeProjectId || !dbLoaded) return;
-    const fromDb = dbItems.map(reelFromDb);
-    const legacy = loadReels(activeProjectId);
+    const fromDb = dbItems.map(reelFromDb).filter((reel) => !isDemoContentText(reel));
+    const legacy = loadReels(activeProjectId).filter((reel) => !isDemoContentText(reel));
     if (fromDb.length > 0) {
       setReels(fromDb);
       setSelectedId(fromDb[0]?.id ?? null);
@@ -299,10 +273,9 @@ export default function Reels() {
       }))).then(() => markMigrated(activeProjectId, 'reels'));
       return;
     }
-    const seeds = makeSeedReels();
-    setReels(seeds);
-    setSelectedId(seeds[0]?.id ?? null);
-    setPhase('editor');
+    setReels([]);
+    setSelectedId(null);
+    setPhase('step1');
   }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
   const [phase,     setPhase]     = useState<Phase>('step1');

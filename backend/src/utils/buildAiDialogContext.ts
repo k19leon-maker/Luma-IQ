@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { isDemoProductText, sanitizeProjectStrategyData } from './demo-products';
+import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from './demo-products';
 
 function shorten(value: unknown, max = 1200): string {
   if (value === null || value === undefined) return 'нет данных';
@@ -17,8 +17,10 @@ function currentStage(project: {
   contentPlanItems: unknown[];
 }): string {
   const realProducts = project.products.filter((product) => !isDemoProductText(product));
-  if (project.contentPlanItems.length > 0) return 'контент-план';
-  if (project.generatedTexts.length > 0) return 'контент';
+  const realPlanItems = project.contentPlanItems.filter((item) => !isDemoContentText(item));
+  const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
+  if (realPlanItems.length > 0) return 'контент-план';
+  if (realGeneratedTexts.length > 0) return 'контент';
   if (realProducts.length > 0) return 'продуктовая линейка';
   if (project.utpData) return 'УТП';
   if (project.strategyCompletedAt) return 'стратегия завершена';
@@ -66,16 +68,24 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
 
   const strategyData = sanitizeProjectStrategyData(project.strategyData);
   const realProducts = project.products.filter((product) => !isDemoProductText(product));
-  const stage = currentStage({ ...project, strategyData, products: realProducts });
+  const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
+  const realPlanItems = project.contentPlanItems.filter((item) => !isDemoContentText(item));
+  const stage = currentStage({
+    ...project,
+    strategyData,
+    products: realProducts,
+    generatedTexts: realGeneratedTexts,
+    contentPlanItems: realPlanItems,
+  });
   const products = realProducts.map((p) =>
     `- ${p.type}: ${p.title}; формат: ${p.format ?? 'не указан'}; результат: ${p.transformation ?? p.shortDescription ?? 'не указан'}; цена: ${p.priceText ?? 'не указана'}`,
   ).join('\n') || 'продукты пока не созданы';
 
-  const content = project.generatedTexts.map((item) =>
+  const content = realGeneratedTexts.map((item) =>
     `- ${item.type}: ${item.title ?? 'без названия'}; ${shorten(item.content, 260)}`,
   ).join('\n') || 'контент пока не создан';
 
-  const plan = project.contentPlanItems.map((item) =>
+  const plan = realPlanItems.map((item) =>
     `- ${item.date}: ${item.title} (${item.type}, ${item.status})${item.platform ? `, ${item.platform}` : ''}`,
   ).join('\n') || 'контент-план пока пуст';
 

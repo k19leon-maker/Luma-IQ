@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { contentPlanApi } from '../api/content-plan.api';
+import { isDemoContentText } from '../utils/demoDataCleanup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,18 +55,20 @@ export const useContentPlanStore = create<ContentPlanState>()((set, get) => ({
   loadItems: async (projectId: string) => {
     try {
       const apiItems = await contentPlanApi.list(projectId);
-      const items: ContentPlanItem[] = apiItems.map((i) => ({
-        id:        i.id,
-        dbId:      i.id,
-        date:      i.date,
-        type:      i.type as ContentType,
-        title:     i.title,
-        content:   i.content ?? undefined,
-        platform:  i.platform ?? undefined,
-        status:    i.status as ContentStatus,
-        projectId: i.projectId,
-        sourceId:  i.sourceId ?? undefined,
-      }));
+      const items: ContentPlanItem[] = apiItems
+        .filter((i) => !isDemoContentText(i))
+        .map((i) => ({
+          id:        i.id,
+          dbId:      i.id,
+          date:      i.date,
+          type:      i.type as ContentType,
+          title:     i.title,
+          content:   i.content ?? undefined,
+          platform:  i.platform ?? undefined,
+          status:    i.status as ContentStatus,
+          projectId: i.projectId,
+          sourceId:  i.sourceId ?? undefined,
+        }));
       set({ items });
     } catch {
       // БД недоступна — items остаются как есть

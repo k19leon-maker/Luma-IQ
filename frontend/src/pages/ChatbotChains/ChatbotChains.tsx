@@ -12,6 +12,7 @@ import { useModelStore } from '../../store/model.store';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { isMigrated, markMigrated, metadataString, readLegacyObjectWithProjectFallback } from '../../utils/generatedContentPersistence';
+import { isDemoContentText } from '../../utils/demoDataCleanup';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,56 +67,12 @@ const MSG_DEFS: Array<{ index: number; part: 1|2|3; role: string; dayDelay: numb
   { index: 13, part: 3, role: 'Последний шанс',  dayDelay: 16 },
 ];
 
-// ─── Seed chain ───────────────────────────────────────────────────────────────
-
-function makeSeedChain(): StoredChain {
-  return {
-    format: 'article',
-    botName: '',
-    meetingSchedule: '',
-    messages: buildChain('article', '', '', null),
-  };
-}
-
-// ─── Mock chain generator ─────────────────────────────────────────────────────
-
-function buildChain(
-  format: Format,
-  botName: string,
-  meetingSchedule: string,
-  strat: StrategyData | null,
-): ChainMessage[] {
-  const formatLabel = format === 'article' ? 'статью' : 'видео-урок';
-  const seg   = strat?.chosenSegment?.split('\n')[0]?.slice(0, 60) ?? 'клиент';
-  const meet  = meetingSchedule.trim() || 'каждую пятницу в 19:00';
-  const bot   = botName.trim();
-
-  const texts: Record<number, string> = {
-    1: `Привет!${bot ? ` Это бот «${bot}»` : ''} 👋\n\nЗдесь я буду делиться инструментами, которые реально помогают ${seg}.\n\nНачнём с главного — получите ${formatLabel} прямо сейчас.\n\n👇 Нажмите «Получить»`,
-    2: `Вы замечали такое?\n\nЧувствуете, что что-то не так — но не можете точно назвать что. Пробовали разные подходы, но ситуация возвращается.\n\nЭто не ваша вина. Это паттерн.\n\nИменно о нём — ${formatLabel}. Прочитали/посмотрели?`,
-    3: `Ключевой инсайт из ${format === 'article' ? 'статьи' : 'видео'}:\n\nВидимая проблема — почти никогда не настоящая проблема.\n\nЗа ней всегда стоит невысказанная потребность. Пока её не назовёшь прямо — ситуация будет повторяться.\n\nЭто меняет всё.`,
-    4: `История из практики (с разрешения).\n\nКо мне обратился клиент с запросом — ситуация казалась безвыходной. Несколько сессий, одно упражнение — и паттерн начал разрушаться.\n\nКлиент сказал: «Я наконец чувствую себя собой».\n\nЭто работает.`,
-    5: `Последнее сообщение о ${format === 'article' ? 'статье' : 'видео'}.\n\nЕсли вы с ним познакомились — у вас уже есть понимание. Но понимание и изменение — разные вещи.\n\nСледующий шаг — практика.\n\nРасскажу о ней завтра.`,
-    6: `Как и обещала — рассказываю.\n\nЯ провожу интенсив — 3 часа живой работы. Не лекция, а практика: разбираем вашу ситуацию, отрабатываем конкретные инструменты.\n\nДля кого: те, кто понимает что происходит — но не может изменить.\n\nЗавтра расскажу подробнее.`,
-    7: `Вот почему одного понимания недостаточно.\n\nПаттерны живут в теле, в рефлексах. Их нельзя изменить через чтение — только через практику.\n\nИменно поэтому интенсив — это практика в безопасном пространстве.\n\n3 часа = годы сэкономленного времени.`,
-    8: `Следующий продукт — что внутри:\n\n✦ Разбор вашей ситуации\n✦ Ключевые инструменты изменения\n✦ Практика или задания\n✦ Материалы для продолжения\n\nФормат: [формат]\nСтоимость: [цена]\nДата: [дата]\n\nВопросы — пишите сюда.`,
-    9: `Если у вас мысль «это не для меня» — давайте разберём.\n\n«Слишком дорого» — сколько стоит год одинаковых конфликтов?\n«Нет времени» — 3 часа один раз или бесконечный круг?\n«Не поможет» — понимаю. Первая сессия бесплатная.\n\nКаков ваш главный вопрос?`,
-    10: `Регистрация открыта.\n\nМест немного — работаю в небольших группах.\n\nЕсли чувствуете что пора — это сигнал.\n\n👉 [ссылка на запись]\n\nЕсть вопросы — напишите. Отвечу лично.`,
-    11: `Хочу пригласить вас на кое-что.\n\nКаждую неделю (${meet}) я провожу живой разбор.\n\nЭто не вебинар. Живой разговор, реальные ситуации, реальные ответы.\n\nБесплатно.\n\nВ эту встречу — тема из вашей области.\n\nХотите прийти?`,
-    12: `Зачем приходить, если можно просто читать?\n\nЧитая — вы получаете информацию. На разборе — видите как это применяется к живым ситуациям.\n\nПлюс: можно задать вопрос анонимно.\n\nСледующая встреча — ${meet}.\n\n👉 [ссылка]`,
-    13: `Напоминание — сегодня встреча.\n\n${meet} начинается разбор.\n\nБесплатно. Присоединяйтесь.\n\n👉 [ссылка]\n\nНе сможете — напишите «ЗАПИСЬ», пришлю ссылку после.`,
-  };
-
-  return MSG_DEFS.map(def => ({
-    id:            `gen-${def.index}`,
-    index:         def.index,
-    part:          def.part,
-    role:          def.role,
-    dayDelay:      def.dayDelay,
-    content:       texts[def.index] ?? '',
-    editedContent: '',
-  }));
-}
+const EMPTY_CHAIN: StoredChain = {
+  format: 'article',
+  botName: '',
+  meetingSchedule: '',
+  messages: [],
+};
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -216,8 +173,8 @@ export default function ChatbotChains() {
   const [meetingSchedule, setMeetingSchedule] = useState('');
 
   // Step 2 state
-  const [chain,      setChain]      = useState<StoredChain>(makeSeedChain());
-  const [activeId,   setActiveId]   = useState<string>('c1');
+  const [chain,      setChain]      = useState<StoredChain>(EMPTY_CHAIN);
+  const [activeId,   setActiveId]   = useState<string>('');
 
   // Unsaved edits per message
   const [editMap, setEditMap] = useState<Record<string, string>>({});
@@ -226,7 +183,8 @@ export default function ChatbotChains() {
   useEffect(() => {
     if (!activeProjectId || !dbLoaded) return;
 
-    const dbChain = dbItems[0] ? chainFromDb(dbItems[0]) : null;
+    const dbItem = dbItems.find((item) => !isDemoContentText(item));
+    const dbChain = dbItem ? chainFromDb(dbItem) : null;
     if (dbChain) {
       setChain(dbChain);
       setActiveId(dbChain.messages[0]?.id ?? '');
@@ -235,7 +193,7 @@ export default function ChatbotChains() {
     }
 
     const legacy = loadChain(activeProjectId);
-    if (legacy && !isMigrated(activeProjectId, 'chatbot-chain')) {
+    if (legacy && !isDemoContentText(legacy) && !isMigrated(activeProjectId, 'chatbot-chain')) {
       setChain(legacy);
       setActiveId(legacy.messages[0]?.id ?? '');
       setPhase('step2');
@@ -251,9 +209,8 @@ export default function ChatbotChains() {
       return;
     }
 
-    const seed = makeSeedChain();
-    setChain(seed);
-    setActiveId(seed.messages[0]?.id ?? 'c1');
+    setChain(EMPTY_CHAIN);
+    setActiveId('');
     setPhase('step1');
   }, [activeProjectId, dbItems, dbLoaded, saveToApi]);
 
@@ -361,7 +318,7 @@ export default function ChatbotChains() {
         part:          def.part,
         role:          def.role,
         dayDelay:      def.dayDelay,
-        content:       msgTexts[i] ?? buildChain(format, botName, meetingSchedule, hasStrategy ? strat : null)[i]?.content ?? '',
+        content:       msgTexts[i] ?? '',
         editedContent: '',
       }));
 

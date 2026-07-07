@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { isDemoContentText } from '../utils/demo-products';
 
 const ALLOWED_TYPES = ['POST', 'REEL', 'ARTICLE', 'VIDEO_SCRIPT', 'CHATBOT_CHAIN', 'THREADS', 'OTHER'] as const;
 
@@ -72,10 +73,12 @@ export const contentController = {
         take: limit,
         include: { project: { select: { name: true } } },
       });
-      const result = items.map(({ project, ...item }) => ({
-        ...item,
-        projectName: project.name,
-      }));
+      const result = items
+        .filter((item) => !isDemoContentText(item))
+        .map(({ project, ...item }) => ({
+          ...item,
+          projectName: project.name,
+        }));
       res.json({ items: result });
     } catch (err) {
       console.error('[Content] history:', err);
@@ -96,7 +99,7 @@ export const contentController = {
         },
         orderBy: { createdAt: 'desc' },
       });
-      res.json({ items });
+      res.json({ items: items.filter((item) => !isDemoContentText(item)) });
     } catch (err) {
       console.error('[Content] list:', err);
       res.status(500).json({ error: 'Ошибка при загрузке контента' });
@@ -109,6 +112,10 @@ export const contentController = {
     const { projectId, type, title, content, platform, isMock, metadata } = parsed.data;
     const owned = await assertProjectOwner(req.userId!, projectId);
     if (!owned) { res.status(403).json({ error: 'Нет доступа' }); return; }
+    if (isDemoContentText({ title, content, platform, metadata })) {
+      res.status(400).json({ error: 'Демо-контент больше не сохраняется' });
+      return;
+    }
     try {
       const item = await prisma.generatedText.create({
         data: {
@@ -139,6 +146,11 @@ export const contentController = {
       const owned = await assertProjectOwner(req.userId!, existing.projectId);
       if (!owned) { res.status(403).json({ error: 'Нет доступа' }); return; }
       const { title, content, metadata } = parsed.data;
+      if (isDemoContentText({ ...existing, title: title ?? existing.title, content: content ?? existing.content, metadata: metadata ?? existing.metadata })) {
+        await prisma.generatedText.delete({ where: { id } });
+        res.status(410).json({ error: 'Демо-контент удалён' });
+        return;
+      }
       const item = await prisma.generatedText.update({
         where: { id },
         data: {

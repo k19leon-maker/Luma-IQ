@@ -6,10 +6,37 @@ const DEMO_PRODUCT_PATTERNS = [
   /групповая\s+программа\s+для\s+пар.*восстановить\s+доверие/i,
 ];
 
+const DEMO_CONTENT_PATTERNS = [
+  /вы\s+ссоритесь\s+об\s+одном\s+и\s+том\s+же/i,
+  /большинство\s+пар\s+ссорятся/i,
+  /ко\s+мне\s+пришла\s+она.*34\s+года/i,
+  /почему\s+пары\s+ссорятся\s+об\s+одном\s+и\s+том\s+же/i,
+  /интеллект\s+не\s+помогает\s+договориться/i,
+  /3\s+техники\s+снятия\s+тревоги/i,
+  /тревога\s+не\s+всегда\s+просит/i,
+  /миф:\s*к\s+специалисту\s+ходят/i,
+  /история\s+клиентки.*тревога/i,
+  /маша\s+и\s+игор/i,
+  /невысказанные\s+ожидания\s+разрушают\s+отношения/i,
+  /пост-боль\s*·\s*telegram/i,
+  /пост-инсайт\s*·\s*instagram/i,
+  /пост-история\s*·\s*telegram/i,
+];
+
 export function isDemoProductText(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return DEMO_PRODUCT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isDemoContentText(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return DEMO_CONTENT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isDemoText(value: unknown): boolean {
+  return isDemoProductText(value) || isDemoContentText(value);
 }
 
 function isProductMaterial(value: Record<string, unknown>): boolean {
