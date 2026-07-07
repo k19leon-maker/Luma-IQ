@@ -12,6 +12,7 @@ import { formatLimitNumber } from '../../utils/planLimits';
 import s from './UsageLimits.module.css';
 
 export type SectionUsageLimitsSection =
+  | 'overview'
   | 'ai_chat'
   | 'content'
   | 'youtube_scripts'
@@ -31,6 +32,15 @@ function toneClass(tone: ReturnType<typeof getTone>): string {
   if (tone === 'empty') return ` ${s.badgeEmpty}`;
   return '';
 }
+
+const costHints = [
+  'Диалог с ИИ — 1 балл',
+  'Пост или рилс — 5-7 баллов',
+  'Позиционирование — 20 AI-баллов',
+  'Основной продукт — 60 AI-баллов',
+  'Мини-продукт — 80 AI-баллов',
+  'Лид-магнит — 70 AI-баллов',
+];
 
 export function useBillingMe() {
   const [billing, setBilling] = useState<BillingMe | null>(null);
@@ -114,18 +124,33 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
   }
 
   const tone = getTone(limits.aiBalanceRemaining, limits.aiBalanceTotal);
-  const action = SECTION_PRIMARY_ACTION[section] ?? 'ai_chat';
+  const action = SECTION_PRIMARY_ACTION[section] ?? null;
+  const usedPercent = limits.aiBalanceTotal > 0
+    ? Math.min(100, Math.max(0, (limits.aiBalanceUsed / limits.aiBalanceTotal) * 100))
+    : 0;
 
   return (
     <div className={s.localWrap}>
       <div className={s.badgeRow}>
         <span className={`${s.badge}${toneClass(tone)}`}>
-          <strong>
-            {tone === 'empty'
-              ? 'AI-баланс закончился'
-              : `AI-баланс: ${formatLimitNumber(limits.aiBalanceRemaining)} из ${formatLimitNumber(limits.aiBalanceTotal)} баллов осталось`}
-          </strong>
-          <span>{actionCostText(action)}</span>
+          <span className={s.balanceMain}>
+            <strong>
+              {tone === 'empty'
+                ? 'AI-баланс закончился'
+                : `AI-баланс: ${formatLimitNumber(limits.aiBalanceRemaining)} из ${formatLimitNumber(limits.aiBalanceTotal)} баллов осталось`}
+            </strong>
+            <span className={s.progressTrack} aria-hidden="true">
+              <span className={s.progressBar} style={{ width: `${usedPercent}%` }} />
+            </span>
+          </span>
+          <span className={s.infoWrap}>
+            <button className={s.infoButton} type="button" aria-label="Сколько AI-баллов списывается?">!</button>
+            <span className={s.infoBubble}>
+              {action && <span>{actionCostText(action)}</span>}
+              {costHints.map((hint) => <span key={hint}>{hint}</span>)}
+              <Link to={appPath('/limits')}>Посмотреть все лимиты</Link>
+            </span>
+          </span>
           {tone === 'empty' && <Link className={s.upgradeLink} to={upgradeHref}>Изменить тариф</Link>}
         </span>
       </div>

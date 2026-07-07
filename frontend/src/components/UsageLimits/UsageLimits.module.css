@@ -1,5 +1,5 @@
 .localWrap {
-  margin-bottom: 16px;
+  margin: 0;
 }
 
 .badgeRow {
@@ -14,9 +14,9 @@
 .errorBadge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 8px 11px;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px 7px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-surface);
@@ -26,14 +26,25 @@
   line-height: 1.3;
 }
 
+.badge {
+  position: relative;
+}
+
 .badge strong {
   color: var(--text-primary);
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .badge span {
   color: var(--text-muted);
   font-weight: 600;
+}
+
+.balanceMain {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
 }
 
 .badgeWarning {
@@ -119,17 +130,81 @@
 
 .progressTrack {
   width: 100%;
-  height: 7px;
-  margin-top: auto;
+  height: 5px;
+  margin-top: 0;
   border-radius: 999px;
-  background: rgba(0,0,0,0.07);
+  background: rgba(20, 120, 66, 0.13);
   overflow: hidden;
 }
 
 .progressBar {
   height: 100%;
   border-radius: inherit;
-  background: #D4A847;
+  background: #22a06b;
+}
+
+.infoWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.infoButton {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(34, 160, 107, 0.3);
+  border-radius: 999px;
+  background: rgba(34, 160, 107, 0.08);
+  color: #147842;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: help;
+}
+
+.infoBubble {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 9px);
+  z-index: 80;
+  width: 280px;
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(34, 160, 107, 0.24);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-secondary);
+  box-shadow: 0 16px 38px rgba(0,0,0,0.14);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.infoBubble span,
+.infoBubble a {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.infoBubble a {
+  color: #147842;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.infoBubble a:hover {
+  text-decoration: underline;
+}
+
+.infoWrap:hover .infoBubble,
+.infoWrap:focus-within .infoBubble {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .progressText {

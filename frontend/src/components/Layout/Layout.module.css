@@ -613,16 +613,38 @@
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   padding: 0 24px;
   gap: 12px;
   flex-shrink: 0;
 }
 
-.topbarTitle {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+.topbarSpacer {
   flex: 1;
+}
+
+.topbarLimits {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    height: auto;
+    min-height: var(--topbar-height);
+    padding: 10px 14px;
+  }
+
+  .topbarSpacer {
+    display: none;
+  }
+
+  .topbarLimits {
+    width: 100%;
+    justify-content: stretch;
+  }
 }
 
 .topbarActions {
@@ -709,7 +731,7 @@
 }
 
 .contentAiDialog {
-  --workspace-safe-top: 14px;
+  --workspace-safe-top: 16px;
   --workspace-safe-bottom: 16px;
 }
 

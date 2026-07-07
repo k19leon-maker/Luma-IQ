@@ -223,21 +223,29 @@
 
 .linkPanel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
-  gap: 16px;
-  align-items: end;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
   border: 1px solid #e6e1d8;
   background: #fbfaf7;
   border-radius: 8px;
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 20px;
+}
+
+.linkHeader {
+  display: grid;
+  grid-template-columns: minmax(260px, max-content) minmax(0, 1fr);
+  gap: 18px;
+  align-items: baseline;
 }
 
 .importTitle {
   color: #25242a;
   font-size: 15px;
   font-weight: 750;
-  margin-bottom: 6px;
+  margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .importText {
@@ -343,9 +351,13 @@
   .layout,
   .fields,
   .additionalFields,
-  .importPanel,
-  .linkPanel {
+  .importPanel {
     grid-template-columns: 1fr;
+  }
+
+  .linkHeader {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   .summaryCard {

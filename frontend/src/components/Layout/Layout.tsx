@@ -637,11 +637,12 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        {appLocationPath !== '/dashboard' && !isAiWorkspace && (
-          <header className={s.topbar}>
-            <h1 className={s.topbarTitle}>{title}</h1>
-          </header>
-        )}
+        <header className={s.topbar} aria-label={title}>
+          <div className={s.topbarSpacer} aria-hidden="true" />
+          <div className={s.topbarLimits}>
+            <SectionUsageLimits section={localLimitsSection ?? 'overview'} />
+          </div>
+        </header>
         <main className={appLocationPath === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}` : s.content}>
           {projectsLoading && projects.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
@@ -649,7 +650,6 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           ) : (
             <ErrorBoundary key={`${activeProjectId ?? 'no-project'}:${appLocationPath}`}>
-              {localLimitsSection && <SectionUsageLimits section={localLimitsSection} />}
               {children}
             </ErrorBoundary>
           )}

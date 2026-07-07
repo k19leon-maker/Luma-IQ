@@ -440,7 +440,7 @@ export default function AboutExpert() {
           <div className={s.layout}>
             <main className={s.card}>
               <div className={s.linkPanel}>
-                <div>
+                <div className={s.linkHeader}>
                   <div className={s.importTitle}>Добавить документ по ссылке</div>
                   <div className={s.importText}>
                     Вставьте ссылку на Google Docs, Google Sheets, PDF, Word, Excel или текстовый файл. Для Google Drive файл должен быть доступен по ссылке.
