@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useGeneratedStore } from '../../store/generated.store';
+import { useGeneratedStore, type AiResultVersion } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
@@ -10,7 +10,7 @@ import FormattedText from '../../components/FormattedText/FormattedText';
 
 
 export default function UTP() {
-  const { activeProjectId, context } = useProjectMarketingContext();
+  const { activeProjectId } = useProjectMarketingContext();
   const savedData    = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveUtp      = useGeneratedStore((s) => s.setUtp);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
@@ -32,13 +32,35 @@ export default function UTP() {
     setUtpText(savedUtp);
   }, [activeProjectId, savedData.utp]);
 
-  function persistUtp(value: string) {
+  function buildVersion(value: string, title: string, source: AiResultVersion<string>['source'], meta?: Partial<AiResultVersion<string>>): AiResultVersion<string> {
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      createdAt: new Date().toISOString(),
+      source,
+      workflowRunId: meta?.workflowRunId,
+      workflowStepId: meta?.workflowStepId,
+      artifactId: meta?.artifactId,
+      generationId: meta?.generationId,
+      value,
+    };
+  }
+
+  function persistUtp(value: string, version?: AiResultVersion<string>) {
     setUtpText(value);
-    if (activeProjectId) saveUtp(activeProjectId, value);
+    if (activeProjectId) {
+      const history = version ? [version, ...(savedData.utpHistory ?? [])].slice(0, 20) : savedData.utpHistory;
+      saveUtp(activeProjectId, value, history);
+    }
     if (activeProjectId) upsertMaterial(activeProjectId, buildUtpMaterial(value));
     completeUtp();
     setMaterialStatus('Материал обновлен в knowledge base');
     setTimeout(() => setMaterialStatus(''), 2500);
+  }
+
+  function restoreVersion(version: AiResultVersion<string>) {
+    persistUtp(version.value, buildVersion(version.value, `Восстановлено: ${version.title}`, 'restore'));
+    toast.success('Версия УТП восстановлена');
   }
 
   async function handleGenerate() {
@@ -49,25 +71,16 @@ export default function UTP() {
     }
     setLoading(true);
     try {
-      const prompt   = `Ты маркетолог-стратег. Создай УТП (уникальное торговое предложение) для проекта в 2–3 предложениях.
-Работай строго по контексту проекта. Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
-${inputText ? `\nДополнительно: ${inputText}` : ''}
-
-Структура: Кому помогаю + Какую проблему решаю + Какой результат получает клиент + За счёт чего (метод).
-Напиши только текст УТП, без заголовков и пояснений.`;
-
       const resp = await aiApi.startWorkflow('strategy.utp.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
-          prompt,
+          mode: 'generate',
           inputText,
         },
       });
-      persistUtp(resp.content.trim());
+      const value = resp.content.trim();
+      persistUtp(value, buildVersion(value, 'AI-генерация УТП', 'ai', resp));
       toast.success(`УТП готово. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`);
     } catch (err) {
       console.error('[UTP] AI error:', err);
@@ -85,27 +98,17 @@ ${inputText ? `\nДополнительно: ${inputText}` : ''}
     }
     setLoading(true);
     try {
-      const prompt   = `Улучши это УТП проекта — сделай его более конкретным, убедительным и привязанным к контексту.
-Не меняй нишу и не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
-
-${utpText}
-${inputText ? `\nПожелания: ${inputText}` : ''}
-
-Напиши только улучшенный текст УТП, без пояснений.`;
-
       const resp = await aiApi.startWorkflow('strategy.utp.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
-          prompt,
+          mode: 'improve',
           currentUtp: utpText,
           inputText,
         },
       });
-      persistUtp(resp.content.trim());
+      const value = resp.content.trim();
+      persistUtp(value, buildVersion(value, 'AI-улучшение УТП', 'ai', resp));
       toast.success(`УТП улучшено. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`);
     } catch (err) {
       console.warn('[UTP] improve error:', err);
@@ -198,6 +201,37 @@ ${inputText ? `\nПожелания: ${inputText}` : ''}
       </div>
       {materialStatus && (
         <div style={{ marginTop: 12, fontSize: 13, color: '#3B6D11' }}>{materialStatus}</div>
+      )}
+
+      {Boolean(savedData.utpHistory?.length) && (
+        <div style={{ marginTop: 24, borderTop: '1px solid #E5E3DC', paddingTop: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#777', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            История версий
+          </div>
+          <div style={{ display: 'grid', gap: 8, maxWidth: 720 }}>
+            {savedData.utpHistory?.slice(0, 6).map((version) => (
+              <button
+                key={version.id}
+                type="button"
+                onClick={() => restoreVersion(version)}
+                style={{
+                  textAlign: 'left',
+                  background: '#F5F4F0',
+                  border: '1px solid #E5E3DC',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  color: '#1a1a1a',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{version.title}</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                  {new Date(version.createdAt).toLocaleString('ru-RU')}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

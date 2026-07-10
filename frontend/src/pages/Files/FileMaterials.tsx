@@ -241,7 +241,7 @@ export default function FileMaterials() {
           className={s.hiddenInput}
           type="file"
           multiple
-          accept=".txt,.md,.doc,.docx,.pdf"
+          accept=".txt,.md,.csv,.doc,.docx,.pdf,.xls,.xlsx"
           onChange={(event) => void handleUpload(event.target.files)}
         />
       </div>

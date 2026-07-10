@@ -16,18 +16,6 @@ interface PlatformState {
 }
 
 
-const PLATFORM_PROMPTS: Record<string, string> = {
-  instagram: `Напиши описание профиля Instagram (bio).
-Требования: максимум 150 символов, уместные эмодзи, ниша + аудитория + понятный результат + призыв к действию.
-Напиши только текст bio, без пояснений.`,
-  telegram: `Напиши описание Telegram-канала или профиля.
-Требования: 2–3 предложения, профессиональный тон, ниша + что получит подписчик + призыв.
-Напиши только текст описания.`,
-  vk: `Напиши описание страницы ВКонтакте.
-Требования: 2–3 предложения, профессиональный тон, ниша/подход + аудитория + призыв к действию.
-Напиши только текст описания.`,
-};
-
 const PLATFORMS = [
   { key: 'instagram', name: 'Instagram', icon: '📸' },
   { key: 'telegram',  name: 'Telegram',  icon: '✈️' },
@@ -43,7 +31,7 @@ const INIT_STATE = {
 };
 
 export default function Social() {
-  const { activeProjectId, context } = useProjectMarketingContext();
+  const { activeProjectId } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveSocial = useGeneratedStore((s) => s.setSocial);
@@ -79,22 +67,12 @@ export default function Social() {
 
     try {
       const settings  = getSettings('social');
-      const basePrompt = PLATFORM_PROMPTS[key] ?? '';
-      const prompt    = `Ты маркетолог-стратег. Работай строго по контексту проекта.
-Не подставляй психологию, если ее нет в контексте.
-
-Контекст проекта:
-${context || 'Контекст пока не заполнен.'}
-
-${basePrompt}`;
-
       const resp = await aiApi.startWorkflow('strategy.social.generate', {
         projectId: activeProjectId,
         provider: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
         inputs: {
           platform: PLATFORMS.find((p) => p.key === key)?.name ?? key,
-          prompt,
         },
       });
 

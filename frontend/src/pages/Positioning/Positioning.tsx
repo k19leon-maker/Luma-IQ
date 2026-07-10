@@ -6,7 +6,21 @@ import { projectsApi } from '../../api/projects.api';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useMaterialsStore } from '../../store/materials.store';
+import type { AiResultVersion } from '../../store/generated.store';
 import { buildPositioningMaterial } from '../../utils/projectMaterials';
+import {
+  EditableVariantPreview,
+  EmptyState,
+  Field,
+  MarkdownBlock,
+  POSITIONING_MODELS,
+  buildStatement,
+  extractVariantTitle,
+  getFieldValue,
+  parseVariants,
+  variantSummary,
+  variantType,
+} from './positioning.helpers';
 import s from './Positioning.module.css';
 
 export interface PositioningData {
@@ -27,6 +41,7 @@ export interface PositioningData {
   statement: string;
   completed: boolean;
   updatedAt: string;
+  versionHistory?: AiResultVersion<PositioningData>[];
 }
 
 interface ExpertProfileData {
@@ -46,166 +61,6 @@ function getApiErrorMessage(error: unknown): string | null {
   const response = (error as { response?: { data?: { error?: unknown; message?: unknown } } }).response;
   const message = response?.data?.error ?? response?.data?.message;
   return typeof message === 'string' && message.trim() ? message : null;
-}
-
-const POSITIONING_MODELS = [
-  {
-    title: 'По нише',
-    type: 'Нишевое позиционирование',
-    note: 'Хорошо работает, когда ниша уже понятна и у эксперта есть сильные кейсы в одном рынке.',
-    detail: 'Сужает рынок до понятного сегмента. Подходит, если у эксперта уже есть повторяемые кейсы в одной нише и понятный язык аудитории.',
-    pros: 'Проще объяснять ценность, быстрее собирать доверие, легче делать контент под одну аудиторию.',
-    cons: 'Можно слишком рано сузиться и потерять соседние платежеспособные сегменты.',
-    money: 'Чек растет, если ниша платежеспособная и проблема дорогая.',
-  },
-  {
-    title: 'По задаче / результату',
-    type: 'По задаче клиента',
-    note: 'Часто лучше продает, потому что говорит языком результата клиента, а не профессии эксперта.',
-    detail: 'Ставит в центр не профессию эксперта, а конкретную задачу, ради которой клиент готов платить.',
-    pros: 'Хорошо цепляет спрос, помогает быстро объяснить зачем покупать.',
-    cons: 'Если результат слишком широкий, позиционирование снова становится generic.',
-    money: 'Обычно дает сильный коммерческий фокус и понятную связь с продуктами.',
-  },
-  {
-    title: 'По проблеме',
-    type: 'Проблемное позиционирование',
-    note: 'Полезно, когда аудитория остро осознает боль и ищет решение прямо сейчас.',
-    detail: 'Работает от боли: человек узнает свою ситуацию и понимает, что эксперт специализируется именно на ней.',
-    pros: 'Высокое узнавание, сильные хуки, хороший прогрев через контент.',
-    cons: 'Может звучать слишком тревожно, если перегнуть с болью.',
-    money: 'Сильнее всего работает там, где проблема уже стоит дорого для клиента.',
-  },
-  {
-    title: 'По механизму',
-    type: 'По авторскому механизму',
-    note: 'Усиливает доверие и премиальность, если у эксперта есть понятная методология.',
-    detail: 'Фокус на способе решения: метод, система, процесс, технология, авторский подход.',
-    pros: 'Добавляет экспертность, отличает от “я просто консультирую”.',
-    cons: 'Механизм должен быть понятным, иначе он усложнит продажу.',
-    money: 'Поднимает чек, если механизм выглядит внедряемым и снижает риск для клиента.',
-  },
-  {
-    title: 'По аудитории',
-    type: 'По целевой аудитории',
-    note: 'Помогает быстро сузиться и стать “своим” для конкретного сегмента.',
-    detail: 'Показывает, для кого именно работает эксперт. Полезно, если аудитория хочет видеть “своего” специалиста.',
-    pros: 'Проще писать контент, собирать кейсы и делать офферы под одну группу.',
-    cons: 'Если аудитория описана слишком широко, модель не дает отличия.',
-    money: 'Чек зависит от платежеспособности выбранного сегмента.',
-  },
-  {
-    title: 'По роли / авторитету',
-    type: 'По экспертной роли',
-    note: 'Работает для премиального образа и сильной экспертной позиции.',
-    detail: 'Формирует роль эксперта на рынке: архитектор, стратег, наставник, внедренец, редактор, продюсер.',
-    pros: 'Создает статус, помогает выйти из товарного сравнения по цене.',
-    cons: 'Нужны доказательства: кейсы, цифры, опыт, публичность или методология.',
-    money: 'Хорошо работает для премиальных услуг и консультационных форматов.',
-  },
-  {
-    title: 'По трансформации',
-    type: 'По трансформации',
-    note: 'Показывает путь из текущего состояния в желаемое и хорошо связывается с продуктами.',
-    detail: 'Описывает переход клиента из точки А в точку Б. Хорошо подходит для упаковки воронки и продуктовой линейки.',
-    pros: 'Дает понятную драматургию, сильные кейсы и ясное обещание.',
-    cons: 'Трансформация должна быть конкретной, иначе будет звучать как мотивационный лозунг.',
-    money: 'Повышает ценность, если точка Б измерима и важна для бизнеса или жизни клиента.',
-  },
-];
-
-function extractVariantTitle(text: string): string {
-  return text.split('\n')[0]?.replace(/^#+\s*/, '').trim() || 'Вариант позиционирования';
-}
-
-function cleanMarkdownLabel(value: string): string {
-  return value.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
-}
-
-function stripLeadingLabel(text: string): string {
-  return text.replace(/^#+\s*/, '').replace(/^\d+[\).]\s*/, '').trim();
-}
-
-function getFieldValue(text: string, label: string): string {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = text.match(new RegExp(`${escaped}:\\s*([^\\n]+)`, 'i'));
-  return match?.[1]?.trim() ?? '';
-}
-
-function variantSummary(text: string): string {
-  return getFieldValue(text, 'Формулировка') || stripLeadingLabel(text).split('\n').slice(0, 2).join(' ');
-}
-
-function variantType(text: string): string {
-  return getFieldValue(text, 'Тип') || 'Стратегический вариант';
-}
-
-function renderLineWithAccent(line: string) {
-  const labelMatch = line.match(/^([^:]{2,42}):\s*(.+)$/);
-  if (!labelMatch) return line;
-  return <><strong>{labelMatch[1]}:</strong> {labelMatch[2]}</>;
-}
-
-function parseVariants(content: string): string[] {
-  const chunks = content
-    .split(/\n(?=###\s+)/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (chunks.length > 1) return chunks;
-  return content
-    .split(/\n(?=\d+[\).]\s+)/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 80);
-}
-
-function buildStatement(data: {
-  role: string;
-  audience: string;
-  problem: string;
-  result: string;
-  mechanism: string;
-  differentiation: string;
-  proof: string;
-  selectedVariant: string;
-}): string {
-  const framework = [
-    data.role ? `Кто вы: ${data.role}` : '',
-    data.audience ? `Для кого: ${data.audience}` : '',
-    data.problem ? `Проблема: ${data.problem}` : '',
-    data.result ? `Результат: ${data.result}` : '',
-    data.mechanism ? `Механизм: ${data.mechanism}` : '',
-    data.differentiation ? `Отличие: ${data.differentiation}` : '',
-    data.proof ? `Почему доверять: ${data.proof}` : '',
-  ].filter(Boolean).join('\n');
-  return framework;
-}
-
-function MarkdownBlock({ content, compact = false }: { content: string; compact?: boolean }) {
-  if (!content.trim()) return null;
-  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
-  return (
-    <div className={`${s.richText} ${compact ? s.richTextCompact : ''}`}>
-      {lines.map((line, index) => {
-        if (/^##+\s+/.test(line)) {
-          return <h3 key={`${line}-${index}`}>{cleanMarkdownLabel(line)}</h3>;
-        }
-        if (/^[-—]\s+/.test(line)) {
-          return <p className={s.bulletLine} key={`${line}-${index}`}>{renderLineWithAccent(line.replace(/^[-—]\s+/, ''))}</p>;
-        }
-        if (/^\d+[\).]\s+/.test(line)) {
-          return <p className={s.bulletLine} key={`${line}-${index}`}>{renderLineWithAccent(line.replace(/^\d+[\).]\s+/, ''))}</p>;
-        }
-        return <p key={`${line}-${index}`}>{renderLineWithAccent(line)}</p>;
-      })}
-    </div>
-  );
-}
-
-function updateTextLine(source: string, index: number, nextLine: string) {
-  const lines = source.split('\n');
-  lines[index] = nextLine;
-  return lines.join('\n');
 }
 
 export default function Positioning() {
@@ -235,6 +90,7 @@ export default function Positioning() {
   const [proof, setProof] = useState('');
   const [score, setScore] = useState('');
   const [assets, setAssets] = useState('');
+  const [versionHistory, setVersionHistory] = useState<AiResultVersion<PositioningData>[]>([]);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const parsedVariants = useMemo(() => parseVariants(variants), [variants]);
@@ -266,7 +122,8 @@ export default function Positioning() {
     statement: finalStatement.trim(),
     completed: canFinalize,
     updatedAt: new Date().toISOString(),
-  }), [assets, audience, canFinalize, differentiation, finalStatement, mechanism, problem, proof, result, role, score, selectedVariant, variants]);
+    versionHistory,
+  }), [assets, audience, canFinalize, differentiation, finalStatement, mechanism, problem, proof, result, role, score, selectedVariant, variants, versionHistory]);
   const hasPositioningDraft = Boolean(
     variants.trim() ||
     selectedVariant.trim() ||
@@ -338,10 +195,66 @@ export default function Positioning() {
         setVariants(saved.variants ?? '');
         setScore(saved.score ?? '');
         setAssets(saved.assets ?? '');
+        setVersionHistory(saved.versionHistory ?? []);
       })
       .catch(() => toast.error('Не удалось загрузить позиционирование'))
       .finally(() => setLoading(false));
   }, [activeProjectId]);
+
+  function makeVersion(
+    value: PositioningData,
+    title: string,
+    source: AiResultVersion<PositioningData>['source'],
+    meta?: Partial<AiResultVersion<PositioningData>>,
+  ): AiResultVersion<PositioningData> {
+    const { versionHistory: _history, ...cleanValue } = value;
+    void _history;
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      createdAt: new Date().toISOString(),
+      source,
+      workflowRunId: meta?.workflowRunId,
+      workflowStepId: meta?.workflowStepId,
+      artifactId: meta?.artifactId,
+      generationId: meta?.generationId,
+      value: cleanValue as PositioningData,
+    };
+  }
+
+  function withVersion(
+    value: PositioningData,
+    title: string,
+    source: AiResultVersion<PositioningData>['source'],
+    meta?: Partial<AiResultVersion<PositioningData>>,
+  ): PositioningData {
+    const nextHistory = [makeVersion(value, title, source, meta), ...versionHistory].slice(0, 20);
+    setVersionHistory(nextHistory);
+    return { ...value, versionHistory: nextHistory };
+  }
+
+  function restoreVersion(version: AiResultVersion<PositioningData>) {
+    const value = version.value;
+    setRole(value.role ?? '');
+    setAudience(value.audience ?? '');
+    setProblem(value.problem ?? '');
+    setResult(value.result ?? '');
+    setMechanism(value.mechanism ?? '');
+    setDifferentiation(value.differentiation ?? '');
+    setProof(value.proof ?? '');
+    setSelectedVariant(value.selectedVariant ?? '');
+    setPreviewVariant(value.selectedVariant ?? '');
+    setVariants(value.variants ?? '');
+    setScore(value.score ?? '');
+    setAssets(value.assets ?? '');
+
+    if (activeProjectId) {
+      const restored = withVersion({ ...value, completed: true, updatedAt: new Date().toISOString() }, `Восстановлено: ${version.title}`, 'restore');
+      void projectsApi.saveStrategy(activeProjectId, { positioningData: restored }).catch(() => {});
+      upsertMaterial(activeProjectId, buildPositioningMaterial(restored));
+    }
+    toast.success('Версия позиционирования восстановлена');
+  }
 
   async function runVariants() {
     if (!activeProjectId) {
@@ -362,14 +275,13 @@ export default function Positioning() {
       setPreviewVariant(nextVariants[0] ?? '');
       setVariantDraft(nextVariants[0] ?? '');
 
-      await projectsApi.saveStrategy(activeProjectId, {
-        positioningData: {
-          ...positioningDraft,
-          variants: variantsResp.content,
-          completed: canFinalize,
-          updatedAt: new Date().toISOString(),
-        },
-      });
+      const positioningData = withVersion({
+        ...positioningDraft,
+        variants: variantsResp.content,
+        completed: canFinalize,
+        updatedAt: new Date().toISOString(),
+      }, 'AI-варианты позиционирования', 'ai', variantsResp);
+      await projectsApi.saveStrategy(activeProjectId, { positioningData });
       setActiveTab('variants');
       toast.success(`Варианты позиционирования готовы. Списано ${variantsResp.aiPointsCharged ?? 20} AI-баллов.`, { id: 'positioning-variants' });
     } catch (error) {
@@ -418,6 +330,31 @@ export default function Positioning() {
       setMechanism(nextMechanism);
       setDifferentiation(nextDifferentiation);
       setProof(nextProof);
+      const nextStatement = buildStatement({
+        role: nextRole,
+        audience: nextAudience,
+        problem: nextProblem,
+        result: nextResult,
+        mechanism: nextMechanism,
+        differentiation: nextDifferentiation,
+        proof: nextProof,
+        selectedVariant,
+      });
+      const positioningData = withVersion({
+        ...positioningDraft,
+        role: nextRole.trim(),
+        audience: nextAudience.trim(),
+        problem: nextProblem.trim(),
+        result: nextResult.trim(),
+        mechanism: nextMechanism.trim(),
+        differentiation: nextDifferentiation.trim(),
+        proof: nextProof.trim(),
+        statement: nextStatement.trim(),
+        completed: true,
+        updatedAt: new Date().toISOString(),
+      }, 'AI-финальная сборка позиционирования', 'ai', resp);
+      await projectsApi.saveStrategy(activeProjectId, { positioningData });
+      upsertMaterial(activeProjectId, buildPositioningMaterial(positioningData));
       setActiveTab('final');
       toast.success(`Финальная сборка обновлена. Списано ${resp.aiPointsCharged ?? 20} AI-баллов.`, { id: 'positioning-final' });
     } catch (error) {
@@ -461,22 +398,21 @@ export default function Positioning() {
       selectedVariant: nextVariant,
     });
     if (activeProjectId) {
-      void projectsApi.saveStrategy(activeProjectId, {
-        positioningData: {
-          ...positioningDraft,
-          role: nextRole.trim(),
-          audience: nextAudience.trim(),
-          problem: nextProblem.trim(),
-          result: nextResult.trim(),
-          mechanism: nextMechanism.trim(),
-          differentiation: nextDifferentiation.trim(),
-          proof: nextProof.trim(),
-          selectedVariant: nextVariant.trim(),
-          statement: nextStatement.trim(),
-          completed: true,
-          updatedAt: new Date().toISOString(),
-        },
-      }).catch(() => {});
+      const positioningData = withVersion({
+        ...positioningDraft,
+        role: nextRole.trim(),
+        audience: nextAudience.trim(),
+        problem: nextProblem.trim(),
+        result: nextResult.trim(),
+        mechanism: nextMechanism.trim(),
+        differentiation: nextDifferentiation.trim(),
+        proof: nextProof.trim(),
+        selectedVariant: nextVariant.trim(),
+        statement: nextStatement.trim(),
+        completed: true,
+        updatedAt: new Date().toISOString(),
+      }, 'Ручной выбор варианта позиционирования', 'manual');
+      void projectsApi.saveStrategy(activeProjectId, { positioningData }).catch(() => {});
     }
     setActiveTab('final');
     toast.success('Вариант зафиксирован. Финальная сборка обновлена.');
@@ -498,7 +434,11 @@ export default function Positioning() {
       return;
     }
 
-    const positioningData: PositioningData = { ...positioningDraft, completed: true, updatedAt: new Date().toISOString() };
+    const positioningData: PositioningData = withVersion(
+      { ...positioningDraft, completed: true, updatedAt: new Date().toISOString() },
+      'Ручное сохранение позиционирования',
+      'manual',
+    );
 
     setSaving(true);
     try {
@@ -519,7 +459,7 @@ export default function Positioning() {
       <div className={s.shell}>
         <div className={s.hero}>
           <div>
-            <div className={s.kicker}>Позиционирование</div>
+            <div className={s.kicker}>Стратегия</div>
             <h1 className={s.title}>Позиционирование</h1>
             <p className={s.subtitle}>
               Сначала выберите подходящую модель, затем сгенерируйте варианты и зафиксируйте финальную формулировку на основе раздела «О себе».
@@ -701,6 +641,35 @@ export default function Positioning() {
                   </button>
                 </div>
 
+                {versionHistory.length ? (
+                  <div className={s.resultBlock}>
+                    <div className={s.boxTitle}>История версий</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {versionHistory.slice(0, 6).map((version) => (
+                        <button
+                          key={version.id}
+                          type="button"
+                          onClick={() => restoreVersion(version)}
+                          style={{
+                            textAlign: 'left',
+                            background: '#fff',
+                            border: '1px solid #E5E3DC',
+                            borderRadius: 8,
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            color: '#1a1a1a',
+                          }}
+                        >
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{version.title}</div>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                            {new Date(version.createdAt).toLocaleString('ru-RU')}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {score ? (
                   <div className={s.resultBlock}>
                     <div className={s.boxTitle}>Оценка позиционирования</div>
@@ -719,117 +688,6 @@ export default function Positioning() {
           </main>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  const ref = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.style.height = 'auto';
-    ref.current.style.height = `${ref.current.scrollHeight}px`;
-  }, [value]);
-
-  return (
-    <label className={s.field}>
-      <span>{label}</span>
-      <textarea ref={ref} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={2} />
-    </label>
-  );
-}
-
-function EditableVariantPreview({ value, onChange }: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const lines = value.split('\n');
-
-  if (!value.trim()) {
-    return <p className={s.placeholderText}>Выберите вариант слева, чтобы посмотреть и отредактировать его.</p>;
-  }
-
-  return (
-    <div className={s.editablePreview}>
-      {lines.map((line, index) => {
-        const heading = line.match(/^###\s*(.+)$/);
-        const labelMatch = line.match(/^([^:]{2,34}):\s*(.*)$/);
-
-        if (heading) {
-          return (
-            <AutoGrowInput
-              className={s.editableHeading}
-              key={`${index}-heading`}
-              value={heading[1]}
-              onChange={(next) => onChange(updateTextLine(value, index, `### ${next}`))}
-            />
-          );
-        }
-
-        if (labelMatch) {
-          return (
-            <label className={s.editableFact} key={`${index}-${labelMatch[1]}`}>
-              <strong>{labelMatch[1]}:</strong>
-              <AutoGrowInput
-                value={labelMatch[2]}
-                onChange={(next) => onChange(updateTextLine(value, index, `${labelMatch[1]}: ${next}`))}
-              />
-            </label>
-          );
-        }
-
-        if (!line.trim()) {
-          return <div className={s.editableSpacer} key={`${index}-empty`} />;
-        }
-
-        return (
-          <AutoGrowInput
-            key={`${index}-plain`}
-            value={line}
-            onChange={(next) => onChange(updateTextLine(value, index, next))}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function AutoGrowInput({ value, onChange, className }: {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-}) {
-  const ref = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.style.height = 'auto';
-    ref.current.style.height = `${ref.current.scrollHeight}px`;
-  }, [value]);
-
-  return (
-    <textarea
-      ref={ref}
-      className={className}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      rows={1}
-    />
-  );
-}
-
-function EmptyState({ onRun }: { onRun: () => void }) {
-  return (
-    <div className={s.empty}>
-      <div className={s.emptyTitle}>Варианты еще не готовы</div>
-      <p>Сгенерируйте варианты позиционирования на основе раздела «О себе».</p>
-      <button className={s.primaryButton} onClick={() => void onRun()}>Сгенерировать варианты</button>
     </div>
   );
 }

@@ -91,6 +91,15 @@ const aiWorkspacePaths = new Set([
   '/threads',
 ]);
 
+const scrollableAiWorkspacePaths = new Set([
+  '/posts',
+  '/reels',
+  '/articles',
+  '/video-scripts',
+  '/chatbot-chains',
+  '/threads',
+]);
+
 function getLocalLimitsSection(path: string): SectionUsageLimitsSection | null {
   if (path === '/ai-dialog') return 'ai_chat';
   if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/content-plan') return 'content';
@@ -300,6 +309,7 @@ export default function Layout({ children }: LayoutProps) {
   const projectMatch = appLocationPath.match(/^\/projects\/(.+)$/);
   const isAiWorkspace = aiWorkspacePaths.has(appLocationPath);
   const isAiDialog = appLocationPath === '/ai-dialog';
+  const isScrollableAiWorkspace = scrollableAiWorkspacePaths.has(appLocationPath);
   const localLimitsSection = getLocalLimitsSection(appLocationPath);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
@@ -338,7 +348,7 @@ export default function Layout({ children }: LayoutProps) {
   const handleCreateProject = async () => {
     const name = newProjectName.trim();
     if (!name || createLoading) return;
-    if (billing && billing.usage.projectsRemaining <= 0) {
+    if (billing && billing.publicLimits.projectsRemaining <= 0) {
       setCreateError('Лимит проектов на вашем тарифе исчерпан. Чтобы создать новый проект, увеличьте лимиты.');
       return;
     }
@@ -643,7 +653,7 @@ export default function Layout({ children }: LayoutProps) {
             <SectionUsageLimits section={localLimitsSection ?? 'overview'} />
           </div>
         </header>
-        <main className={appLocationPath === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}` : s.content}>
+        <main className={appLocationPath === '/dashboard' || isAiWorkspace ? `${s.contentFull}${isAiDialog ? ' ' + s.contentAiDialog : ''}${isScrollableAiWorkspace ? ' ' + s.contentFullScrollable : ''}` : s.content}>
           {projectsLoading && projects.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
               Загрузка…
@@ -686,7 +696,7 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 className={s.modalCreate}
                 onClick={() => void handleCreateProject()}
-                disabled={!newProjectName.trim() || createLoading || Boolean(billing && billing.usage.projectsRemaining <= 0)}
+                disabled={!newProjectName.trim() || createLoading || Boolean(billing && billing.publicLimits.projectsRemaining <= 0)}
               >
                 {createLoading ? 'Создаём…' : 'Создать и начать стратегию'}
               </button>

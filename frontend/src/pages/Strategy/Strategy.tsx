@@ -14,6 +14,15 @@ import { downloadStrategyPdf } from '../../api/strategy.api';
 import { projectsApi } from '../../api/projects.api';
 import { buildAudienceMaterial } from '../../utils/projectMaterials';
 import type { AudienceAnswers } from '../../store/audience.store';
+import {
+  ChoiceCard,
+  buildChoiceOptionsFallback,
+  extractChoiceCandidate,
+  isAffirmativeChoice,
+  looksLikeContinueIntent,
+  normalizeChoiceOptions,
+  previousChoiceSourceKey,
+} from './strategy.choice';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -93,308 +102,6 @@ interface PositioningData {
   statement?: string;
 }
 
-// ── ChoiceCard sub-component ───────────────────────────────────────────────────
-
-function ChoiceCard({
-  title,
-  options,
-  onConfirm,
-}: {
-  title:     string;
-  options:   string[];
-  onConfirm: (value: string) => void;
-}) {
-  const [selected, setSelected] = useState<string | null>(null);
-  return (
-    <div style={{ background: '#fff', border: '1px solid #E5E3DC', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#D4A847', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 14 }}>
-        👆 {title}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        {options.map((opt, i) => (
-          <button
-            key={i}
-            onClick={() => setSelected(opt)}
-            style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px',
-              borderRadius: 8, border: selected === opt ? '1.5px solid #D4A847' : '1px solid #E5E3DC',
-              background: selected === opt ? '#FFF8E8' : '#F5F4F0', cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <span style={{ color: selected === opt ? '#D4A847' : '#aaa', fontSize: 14, marginTop: 1, flexShrink: 0 }}>
-              {selected === opt ? '●' : '○'}
-            </span>
-            <span style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.5 }}>{opt}</span>
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => { if (selected) onConfirm(selected); }}
-        disabled={!selected}
-        style={{
-          padding: '9px 20px', borderRadius: 8, border: 'none',
-          background: selected ? '#D4A847' : '#F0EEE8', color: selected ? '#fff' : '#bbb',
-          fontSize: 13, fontWeight: 500, cursor: selected ? 'pointer' : 'not-allowed',
-        }}
-      >
-        ✅ Подтвердить выбор
-      </button>
-    </div>
-  );
-}
-
-// ── AI step prompts ────────────────────────────────────────────────────────────
-
-function buildStepPrompt(stepId: number, answers: Partial<AudienceAnswers>, projectContext: string, strict = false): string {
-  const seg  = (answers.chosenSegment    ?? '').slice(0, 200) || (answers.segments ?? '').slice(0, 400);
-  const sub  = (answers.chosenSubsegment ?? '').slice(0, 200);
-  const req  = (answers.chosenRequest    ?? '').slice(0, 200);
-  const ctx  = `Контекст проекта:\n${projectContext || 'Контекст пока не заполнен.'}\n\n`;
-  const baseRules = [
-    'Работай строго на основе контекста проекта, выбранных ответов и текущего шага.',
-    'Не подставляй психологию, коучинг или любую другую нишу, если она прямо не следует из контекста.',
-    'Пиши конкретно для ниши пользователя, без универсальных клише и без абстрактного маркетингового языка.',
-    'Если данных мало, делай аккуратные гипотезы из контекста, но не проси уточнений.',
-  ].join('\n');
-  const expertRole = [
-    'Роль на этом шаге: ты отвечаешь как сам эксперт/проект пользователя.',
-    'У тебя 25 лет практического опыта в этой нише, большая клиентская база и глубокое понимание реальных ситуаций клиентов.',
-    'Ты видишь рынок изнутри: кто покупает, у кого боль острее, кто быстрее принимает решение и где выше коммерческий потенциал.',
-  ].join('\n');
-  const clientRole = [
-    'Роль на этом шаге: ты НЕ маркетолог и НЕ эксперт. Ты выбранный клиент.',
-    `Выбранный сегмент: ${seg || 'не указан'}.`,
-    `Выбранный подсегмент: ${sub || 'не указан'}.`,
-    `Выбранный запрос: ${req || 'не указан'}.`,
-    'Пиши языком обычного клиента: просто, живо, от первого лица, без терминов, без экспертных диагнозов и без красивых маркетинговых формулировок.',
-  ].join('\n');
-  const expertCtx = `${ctx}${baseRules}\n\n${expertRole}\n\n`;
-  const clientCtx = `${ctx}${baseRules}\n\n${clientRole}\n\n`;
-  const strictPrefix = strict
-    ? 'ВАЖНО: Выдай ТОЛЬКО пронумерованный список. Никаких вопросов. Никаких уточнений. Только список в точном формате ниже.\n\n'
-    : '';
-  switch (stepId) {
-    case 1:  return expertCtx + 'Сгенерируй 10 сегментов целевой аудитории. Сегменты должны быть коммерчески осмысленными: разные ситуации, разные мотивы покупки, разные уровни срочности боли. Для каждого сегмента укажи: название сегмента, ситуацию «Когда:», желание «Хочу:» и цель «Чтобы:». Формат строго: «Сегмент N — **[название]**». Строго 10 сегментов.';
-    case 2:  return expertCtx + strictPrefix + `Из этих 10 сегментов:\n${answers.segments ?? ''}\n\nВыбери ТОП 3 сегмента по сумме факторов: острота боли, платежеспособность, срочность запроса, понятность оффера и вероятность покупки. Никаких вопросов, никаких уточнений.\nФормат СТРОГО (только это, ничего лишнего):\n🥇 Сегмент 1 — [название]\n[1–2 предложения почему]\n🥈 Сегмент 2 — [название]\n[1–2 предложения почему]\n🥉 Сегмент 3 — [название]\n[1–2 предложения почему]`;
-    case 4:  return expertCtx + strictPrefix + `Для выбранного сегмента «${seg}» выдай ТОЛЬКО список из 5 подсегментов. Подсегменты должны отличаться конкретной ситуацией, мотивацией и покупательской готовностью.\nФормат СТРОГО (только это, ничего лишнего):\nПодсегмент 1 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\nПодсегмент 2 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\n(и так далее до Подсегмент 5)`;
-    case 6:  return expertCtx + `Для подсегмента «${sub}» составь список «ХОЧУ» — 10–12 конкретных желаний клиентов. Формулируй так, как клиенты реально говорят на консультации, в заявке, в переписке или в голове. Начинай каждый пункт с «• Хочу».`;
-    case 7:  return expertCtx + strictPrefix + `Для сегмента «${seg}» (подсегмент: «${sub}») выдай ТОЛЬКО список из 10 конкретных запросов, с которыми клиент мог бы прийти к эксперту. Запросы должны быть живыми, покупательскими и привязанными к ситуации подсегмента.\nФормат СТРОГО (только список, ничего лишнего):\n1. [запрос на живом языке клиента]\n2. [запрос]\n...\n10. [запрос]`;
-    case 8:  return expertCtx + strictPrefix + `Из этих 10 запросов:\n${answers.requests ?? ''}\n\nОпредели ТОП 3 запроса по срочности, боли, частоте встречаемости и вероятности покупки. Покажи короткую логику выбора.\nФормат СТРОГО:\n🥇 Запрос 1 — [формулировка запроса]\n[1–2 предложения почему]\n🥈 Запрос 2 — [формулировка запроса]\n[1–2 предложения почему]\n🥉 Запрос 3 — [формулировка запроса]\n[1–2 предложения почему]`;
-    case 10: return clientCtx + 'Напиши 8–10 болезненных вопросов, которые я как клиент задаю себе внутри по выбранному запросу. Каждый вопрос должен звучать как реальная мысль в голове. Начинай каждый пункт с «•».';
-    case 11: return clientCtx + 'Опиши 6–8 сокровенных желаний, которые я как клиент обычно не произношу вслух, но очень хочу получить. Пиши от первого лица: «Я хочу...», «Мне хочется...», «Я мечтаю...». Начинай каждый пункт с «•».';
-    case 12: return clientCtx + 'Сформулируй одним живым предложением главный конечный результат, к которому я как клиент хочу прийти. Не пиши «после работы с экспертом/психологом/специалистом». Опиши именно желаемое изменение в моей жизни, бизнесе или ситуации.';
-    case 13: return clientCtx + 'Напиши монолог от первого лица (150–250 слов): что меня больше всего бесит, изматывает и уже достало в этой ситуации. Максимально живо, эмоционально и на языке клиента. Без заголовков.';
-    default: return expertCtx + `Шаг ${stepId}: продолжи анализ целевой аудитории.`;
-  }
-}
-
-function stripMd(s: string): string {
-  return s.replace(/\*+/g, '').replace(/__/g, '').trim();
-}
-
-function parseChoiceOptions(stepId: number, text: string): string[] {
-  if (stepId === 9) {
-    const requestOptions = parseRequestChoiceOptions(text);
-    if (requestOptions.length >= 2) return requestOptions;
-  }
-
-  // Pattern 1: "Сегмент N —", "Подсегмент N —", "Запрос N —" (handles ** wrapping)
-  {
-    const matches: string[] = [];
-    for (const m of text.matchAll(
-      /(?:подсегмент|сегмент|запрос|вариант)\s+\d+\s*[—\-–:]+\s*\*{0,2}([^\n*:]{3,})/gi,
-    )) {
-      const val = stripMd(m[1]);
-      if (val.length > 3) matches.push(val);
-    }
-    if (matches.length >= 2) {
-      console.log(`[Audience step ${stepId}] P1 found:`, matches);
-      return matches.slice(0, 5);
-    }
-  }
-
-  // Pattern 2: emoji medals 🥇🥈🥉
-  {
-    const matches: string[] = [];
-    for (const m of text.matchAll(
-      /(?:^|\n)\s*\*{0,2}[🥇🥈🥉]\s*\*{0,2}\s*(?:(?:сегмент|запрос|вариант)\s+\d+\s*[—\-–]\s*)?([^\n*:]{3,})/gim,
-    )) {
-      const val = stripMd(m[1]);
-      if (val.length > 3) matches.push(val);
-    }
-    if (matches.length >= 2) {
-      console.log(`[Audience step ${stepId}] P2 found:`, matches);
-      return matches.slice(0, 5);
-    }
-  }
-
-  // Pattern 3: numbered list
-  {
-    const matches: string[] = [];
-    for (const m of text.matchAll(/(?:^|\n)\s*\d+[.)]\s*\*{0,2}([^\n*]{5,80})/gm)) {
-      const val = stripMd(m[1]).split(':')[0].trim();
-      if (val.length > 3) matches.push(val);
-    }
-    if (matches.length >= 2) {
-      console.log(`[Audience step ${stepId}] P3 found:`, matches);
-      return matches.slice(0, 5);
-    }
-  }
-
-  // Pattern 4: standalone **Bold** titles
-  {
-    const matches: string[] = [];
-    for (const m of text.matchAll(/\*\*([^*\n]{5,60})\*\*/g)) {
-      const val = m[1].trim();
-      if (val.length > 3) matches.push(val);
-    }
-    if (matches.length >= 2) {
-      console.log(`[Audience step ${stepId}] P4 found:`, matches);
-      return matches.slice(0, 5);
-    }
-  }
-
-  const fallback = text.split('\n')
-    .map((l) => l.replace(/^[\s*#\d.)🥇🥈🥉—\-–:«»]+/, '').replace(/\*+/g, '').trim())
-    .filter((l) => l.length > 10 && l.length < 120)
-    .slice(0, 5);
-  console.warn(`[Audience step ${stepId}] fallback lines:`, fallback, '\nRaw:', text.slice(0, 300));
-  return fallback;
-}
-
-function cleanChoiceLine(line: string): string {
-  return stripMd(line)
-    .replace(/^[\s#.)🥇🥈🥉—\-–:«»]+/, '')
-    .replace(/^(?:топ\s*)?(?:сегмент|подсегмент|запрос|вариант)\s*\d*\s*[—\-–:.)]*/i, '')
-    .replace(/^[«"“”]+|[»"“”]+$/g, '')
-    .trim();
-}
-
-function parseRequestChoiceOptions(text: string): string[] {
-  const matches: string[] = [];
-  const push = (value: string | undefined) => {
-    const cleaned = cleanChoiceLine(value ?? '').split(/\s+—\s+почему/i)[0].trim();
-    if (cleaned.length >= 8 && cleaned.length <= 180 && !/^(почему|логика|вывод|итого)/i.test(cleaned)) {
-      matches.push(cleaned);
-    }
-  };
-
-  for (const m of text.matchAll(/(?:^|\n)\s*[🥇🥈🥉]\s*(?:\*{0,2}(?:запрос\s*\d*)\*{0,2}\s*[—\-–:])?\s*([^\n]+)/gim)) {
-    push(m[1]);
-  }
-
-  if (matches.length < 2) {
-    for (const m of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]|[-•])\s*(?:\*{0,2}(?:запрос\s*\d*)\*{0,2}\s*[—\-–:])?\s*([^\n]+)/gim)) {
-      push(m[1]);
-    }
-  }
-
-  if (matches.length < 2) {
-    for (const m of text.matchAll(/(?:^|\n)\s*\*{0,2}запрос\s*\d+\*{0,2}\s*[—\-–:]\s*([^\n]+)/gim)) {
-      push(m[1]);
-    }
-  }
-
-  return Array.from(new Set(matches)).slice(0, 3);
-}
-
-function filterOutQuestions(options: string[]): string[] {
-  return options.filter((opt) => {
-    if (opt.includes('?')) return false;
-    if (/^(кто|что|как|когда|почему|зачем|какой|какая|какие|уточни|можете|расскажи|поясни)/i.test(opt)) return false;
-    return true;
-  });
-}
-
-function normalizeChoiceOptions(stepId: number, text: string): string[] {
-  const options = parseChoiceOptions(stepId, text);
-  return stepId === 9 ? options : filterOutQuestions(options);
-}
-
-function buildChoiceOptionsFallback(
-  stepId: number,
-  answers: Partial<AudienceAnswers>,
-  positioning: PositioningData | null,
-): string[] {
-  if (stepId === 9) {
-    const fromTop = parseRequestChoiceOptions(answers.top3requests ?? '');
-    if (fromTop.length >= 2) return fromTop;
-
-    const fromRequests = parseRequestChoiceOptions(answers.requests ?? '');
-    if (fromRequests.length >= 2) return fromRequests.slice(0, 3);
-
-    return [
-      'Самый срочный запрос клиента',
-      'Запрос с самой сильной эмоциональной болью',
-      'Запрос, по которому клиент быстрее готов купить решение',
-    ];
-  }
-
-  return buildFallbackOptions(stepId, positioning);
-}
-
-function buildFallbackOptions(stepId: number, positioning: PositioningData | null): string[] {
-  const audience = positioning?.audience || 'основная аудитория проекта';
-  const problem = positioning?.problem || 'ключевая проблема';
-  const result = positioning?.result || 'желаемый результат';
-
-  if (stepId === 3) {
-    return [
-      `${audience}: высокая срочность проблемы «${problem}»`,
-      `${audience}: уже пробовали решить проблему, но не получили ${result}`,
-      `${audience}: осознали проблему и готовы к работе`,
-    ];
-  }
-
-  if (stepId === 5) {
-    return [
-      `Нужен быстрый первый шаг по теме «${problem}»`,
-      `Есть повторяющийся сценарий, который мешает получить ${result}`,
-      `Нужна понятная система действий без перегруза`,
-    ];
-  }
-
-  return [
-    `Как справиться с проблемой «${problem}»`,
-    `Что делать, чтобы получить ${result}`,
-    `С чего начать работу над этой задачей`,
-  ];
-}
-
-function isAffirmativeChoice(text: string): boolean {
-  return /^(да|ок|окей|выбираю|хочу выбрать|берем|берём|подтверждаю|согласен|согласна|продолжаем|продолжай|готов|готова|готов продолжать|готова продолжать|двигаемся дальше|идем дальше|идём дальше|давай дальше)/i.test(text.trim());
-}
-
-function looksLikeContinueIntent(text: string): boolean {
-  return /(продолж|готов|дальше|двигаемся|идем|идём|выбираю|берем|берём|подтверждаю)/i.test(text.trim());
-}
-
-function extractChoiceCandidate(text: string, stepId: number): string | null {
-  const bold = [...text.matchAll(/\*\*([^*\n]{4,140})\*\*/g)].map((m) => m[1].trim()).filter(Boolean);
-  if (bold.length) return bold[bold.length - 1];
-
-  const quoted = [...text.matchAll(/[«"]([^»"\n]{4,140})[»"]/g)].map((m) => m[1].trim()).filter(Boolean);
-  if (quoted.length) return quoted[quoted.length - 1];
-
-  const label = stepId === 3 ? 'сегмент' : stepId === 5 ? 'подсегмент' : 'запрос';
-  const byLabel = text.match(new RegExp(`${label}\\s*[—:-]\\s*([^\\n.?!]{4,140})`, 'i'))?.[1]?.trim();
-  if (byLabel) return byLabel;
-
-  const direct = text
-    .replace(/^(добавь|добавить|предложи|хочу выбрать|выбираю|берем|берём)\s+/i, '')
-    .replace(new RegExp(`^${label}\\s*`, 'i'), '')
-    .trim();
-  if (direct.length >= 8 && direct.length <= 140 && !direct.includes('?')) return direct;
-
-  return null;
-}
-
-function previousChoiceSourceKey(stepId: number): keyof AudienceAnswers | null {
-  if (stepId === 3) return 'top3segments';
-  if (stepId === 5) return 'subsegments';
-  if (stepId === 9) return 'top3requests';
-  return null;
-}
 
 function nextStepId(stepId: number): number {
   const index = STEPS.findIndex((step) => step.id === stepId);
@@ -484,7 +191,13 @@ export default function Strategy() {
     return { projectContext, mergedProfile };
   }, [activeProjectName, positioningData, unpackingProfile]);
 
-  async function runAudienceWorkflow(prompt: string, mergedProfile: Record<string, string>): Promise<string> {
+  async function runAudienceWorkflow(
+    stepId: number,
+    answers: Partial<AudienceAnswers>,
+    projectContext: string,
+    mergedProfile: Record<string, string>,
+    extraInputs: Record<string, unknown> = {},
+  ): Promise<string> {
     const settings = getSettings('audience');
     const resp = await aiApi.startWorkflow('strategy.audience.generate', {
       projectId: activeProjectId,
@@ -492,9 +205,12 @@ export default function Strategy() {
       openaiModel: settings.openaiModel,
       claudeModel: settings.claudeModel,
       inputs: {
-        prompt,
+        stepId,
+        answers,
+        projectContext,
         activeProjectName,
         unpackingProfile: mergedProfile,
+        ...extraInputs,
       },
     });
     return resp.content;
@@ -752,8 +468,7 @@ export default function Strategy() {
 
         let content: string;
         try {
-          const prompt = buildStepPrompt(step.id, answers, projectContext);
-          content = await runAudienceWorkflow(prompt, mergedProfile);
+          content = await runAudienceWorkflow(step.id, answers, projectContext, mergedProfile);
         } catch (err: unknown) {
           console.error('[AI audience step', step.id, ']:', err);
           toast.error('Неполадки со связью. Попробуйте обновить страницу и интернет соединение.');
@@ -795,8 +510,7 @@ export default function Strategy() {
             isRetryingRef.current = true;
             try {
               const sourceStepId = step.id === 3 ? 2 : step.id === 5 ? 4 : 8;
-              const strictPrompt = buildStepPrompt(sourceStepId, answers, projectContext, true);
-              const retryContent = await runAudienceWorkflow(strictPrompt, mergedProfile);
+              const retryContent = await runAudienceWorkflow(sourceStepId, answers, projectContext, mergedProfile, { strict: true });
               const retryOptions = normalizeChoiceOptions(step.id, retryContent);
               if (retryOptions.length >= 2) {
                 options = retryOptions;
@@ -1019,16 +733,14 @@ export default function Strategy() {
     setStepChatLoading(true);
 
     try {
-      const content = await runAudienceWorkflow([
-          `Контекст проекта:\n${projectContext}`,
-          `Текущий шаг: ${stepTitle}`,
-          `Текущий результат шага:\n${currentResult}`,
-          `Вопрос пользователя:\n${question}`,
-          isChoicePending
-            ? 'Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**. Не спрашивай "готов ли продолжать" и не проси написать, когда пользователь будет готов. Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.'
-            : 'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.',
-          `История переписки:\n${history.map((m) => `${m.role}: ${m.content}`).join('\n')}`,
-        ].join('\n\n'), mergedProfile);
+      const content = await runAudienceWorkflow(stepId, answersRef.current, projectContext, mergedProfile, {
+        mode: 'stepChat',
+        stepTitle,
+        currentResult,
+        question,
+        isChoicePending,
+        history: history.map((m) => `${m.role}: ${m.content}`).join('\n'),
+      });
       const responseCandidate = currentEntry && isChoicePending
         ? extractChoiceCandidate(content, currentEntry.stepId)
         : null;

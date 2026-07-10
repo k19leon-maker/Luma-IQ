@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { AxiosError } from 'axios';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useGeneratedStore, type AiResultVersion, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useModelStore } from '../../store/model.store';
-import { aiApi } from '../../api/ai';
+import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
-import { exportMarkdownToDocx } from '../../utils/exportDocx';
+import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
 import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
@@ -177,6 +177,10 @@ function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
     .filter(Boolean)
     .join('\n\n');
 
+  if (!assistantContent && state.description?.trim().includes('# Лид-магнит')) {
+    return cleanCodeFence(state.description);
+  }
+
   return [
     '# Лид-магнит',
     state.name ? `## Название\n${state.name}` : '',
@@ -216,6 +220,39 @@ function extractName(markdown: string, fallback: string): string {
 function getRequestErrorMessage(err: unknown): string {
   const error = err as AxiosError<{ error?: string }>;
   return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
+}
+
+function withWorkflowMeta<T extends LeadMagnetState>(state: T, resp: WorkflowResponse): T {
+  return {
+    ...state,
+    workflowRunId: resp.workflowRunId,
+    workflowStepId: resp.workflowStepId,
+    artifactId: resp.artifactId,
+    generationId: resp.generationId,
+  };
+}
+
+function withoutVersionHistory<T extends LeadMagnetState>(state: T): T {
+  const { versionHistory: _versionHistory, ...rest } = state;
+  void _versionHistory;
+  return rest as T;
+}
+
+function appendLeadMagnetVersion(state: LeadMagnetState, title: string, source: AiResultVersion<ProductDraft>['source']): LeadMagnetState {
+  if (!state.generated) return state;
+  const value = withoutVersionHistory({ ...state, description: buildLeadMagnetMarkdown(state) });
+  const version: AiResultVersion<ProductDraft> = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    createdAt: new Date().toISOString(),
+    source,
+    workflowRunId: state.workflowRunId,
+    workflowStepId: state.workflowStepId,
+    artifactId: state.artifactId,
+    generationId: state.generationId,
+    value: value as ProductDraft,
+  };
+  return { ...state, versionHistory: [version, ...(state.versionHistory ?? [])].slice(0, 20) };
 }
 
 function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
@@ -258,6 +295,7 @@ export default function LeadMagnet() {
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [docxLoading, setDocxLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const loadedLeadMagnetKeyRef = useRef('');
 
@@ -280,7 +318,10 @@ export default function LeadMagnet() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chatMessages?.length, loading]);
 
-  function persistState(next: LeadMagnetState, opts: { syncMaterial?: boolean } = {}) {
+  function persistState(next: LeadMagnetState, opts: { syncMaterial?: boolean; versionTitle?: string; versionSource?: AiResultVersion<ProductDraft>['source'] } = {}) {
+    if (opts.versionTitle) {
+      next = appendLeadMagnetVersion(next, opts.versionTitle, opts.versionSource ?? 'ai');
+    }
     const withMarkdown = { ...next, description: buildLeadMagnetMarkdown(next) };
     setState(withMarkdown);
     if (activeProjectId) {
@@ -299,11 +340,20 @@ export default function LeadMagnet() {
     return { ...leadMagnet, chatMessages: [...(leadMagnet.chatMessages ?? []), message] };
   }
 
+  function restoreVersion(version: AiResultVersion<ProductDraft>) {
+    const restored = normalizeLeadMagnet(version.value);
+    persistState(
+      appendLeadMagnetVersion({ ...restored, generated: true }, `Восстановлено: ${version.title}`, 'restore'),
+      { syncMaterial: true },
+    );
+    toast.success('Версия восстановлена');
+  }
+
   async function requestLeadMagnetStep(
     stepId: string,
     current: LeadMagnetState,
     options: { stepLabel?: string; stepTask?: string; userRequest?: string } = {},
-  ): Promise<string> {
+  ): Promise<WorkflowResponse> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
@@ -322,7 +372,7 @@ export default function LeadMagnet() {
           userRequest: options.userRequest ?? '',
         },
       });
-      return cleanCodeFence(resp.content);
+      return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
       throw new Error(getRequestErrorMessage(err));
     }
@@ -743,10 +793,12 @@ ${currentMarkdown || 'Пока пусто.'}`;
         };
         persistState(next, { syncMaterial: false });
 
-        const content = await requestLeadMagnetStep(step.id, next, {
+        const resp = await requestLeadMagnetStep(step.id, next, {
           stepLabel: step.label,
           stepTask: `Сгенерируй блок "${step.label}" для формата "${FORMAT_LABELS[selectedFormat]}". Работай только над этим шагом, сохрани логику воронки и связь с текущим черновиком.`,
         });
+        const content = resp.content;
+        next = withWorkflowMeta(next, resp);
         next = withMessage({
           ...next,
           stepStatuses: { ...(next.stepStatuses ?? {}), [step.id]: 'done' },
@@ -762,7 +814,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
         };
         persistState(next, { syncMaterial: false });
       }
-      persistState(next);
+      persistState(next, { versionTitle: `Полная AI-сборка: ${FORMAT_LABELS[selectedFormat]}`, versionSource: 'ai' });
       toast.success('Лид-магнит создан. Списано 70 AI-баллов.');
     } catch (err) {
       console.error('[LeadMagnet create] AI error:', err);
@@ -797,7 +849,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
         stepId: 'headline',
         stepTitle: 'Название лид-магнита',
       });
-      persistState(next);
+      persistState(next, { versionTitle: `Ручной выбор названия: ${preferredName}`, versionSource: 'manual' });
       toast.success('Название лид-магнита обновлено');
       return;
     }
@@ -806,15 +858,16 @@ ${currentMarkdown || 'Пока пусто.'}`;
     setLoading(true);
 
     try {
-      const response = await requestLeadMagnetStep('edit', stateWithUser, {
+      const resp = await requestLeadMagnetStep('edit', stateWithUser, {
         stepLabel: 'Редактирование лид-магнита',
         stepTask: `Выполни правку по запросу пользователя и верни цельный обновленный материал в markdown. Сохрани выбранный формат: ${FORMAT_LABELS[selectedFormat]}.`,
         userRequest: text,
       });
+      const response = resp.content;
 
       const description = response.includes('# Лид-магнит') ? response : `# Лид-магнит\n\n## Формат\n${FORMAT_LABELS[selectedFormat]}\n\n${response}`;
       persistState({
-        ...stateWithUser,
+        ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
         description,
         name: stateWithUser.name || extractName(description, FORMAT_LABELS[selectedFormat]),
@@ -825,7 +878,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
             stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
           })),
         ],
-      });
+      }, { versionTitle: 'AI-правка лид-магнита', versionSource: 'ai' });
     } catch (err) {
       console.error('[LeadMagnet chat] AI error:', err);
       persistState(withMessage(stateWithUser, {
@@ -851,6 +904,23 @@ ${currentMarkdown || 'Пока пусто.'}`;
       toast.error('Не удалось скачать DOCX');
     } finally {
       setDocxLoading(false);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!state.generated || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      await exportMarkdownToPdf(
+        state.name || 'Лид-магнит',
+        buildLeadMagnetMarkdown(state),
+        `LumaIQ_${productDocFilename(state.name, projectName || 'lead-magnet')}`,
+      );
+    } catch (err) {
+      console.error('[LeadMagnet PDF]', err);
+      toast.error('Не удалось скачать PDF');
+    } finally {
+      setPdfLoading(false);
     }
   }
 
@@ -994,6 +1064,50 @@ ${currentMarkdown || 'Пока пусто.'}`;
             >
               {docxLoading ? 'Готовлю DOCX...' : 'Скачать DOCX'}
             </button>
+            <button
+              onClick={() => void handleDownloadPdf()}
+              disabled={pdfLoading}
+              style={{
+                ...btnOutlined,
+                width: '100%',
+                padding: '9px 0',
+                fontSize: 12,
+                color: pdfLoading ? '#bbb' : '#555',
+              }}
+            >
+              {pdfLoading ? 'Готовлю PDF...' : 'Скачать PDF'}
+            </button>
+          </div>
+        )}
+
+        {Boolean(state.versionHistory?.length) && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#777', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+              История версий
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {state.versionHistory?.slice(0, 6).map((version) => (
+                <button
+                  key={version.id}
+                  type="button"
+                  onClick={() => restoreVersion(version)}
+                  style={{
+                    textAlign: 'left',
+                    background: '#fff',
+                    border: '1px solid #E5E3DC',
+                    borderRadius: 6,
+                    padding: '8px 9px',
+                    cursor: 'pointer',
+                    color: '#333',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{version.title}</div>
+                  <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>
+                    {new Date(version.createdAt).toLocaleString('ru-RU')}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

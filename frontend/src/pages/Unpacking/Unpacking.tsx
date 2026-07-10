@@ -81,12 +81,9 @@ export default function Unpacking() {
       openaiModel: settings.openaiModel,
       claudeModel: settings.claudeModel,
       inputs: {
-        prompt: [
-          `Проект: ${projectName || 'Проект'}`,
-          formattedHistory ? `История диалога:\n${formattedHistory}` : '',
-          `Сообщение пользователя:\n${message}`,
-          'Ответь как AI-маркетолог в разделе “О себе”: задай точный уточняющий вопрос или помоги структурировать информацию об эксперте. Если информации достаточно, предложи завершить распаковку.',
-        ].filter(Boolean).join('\n\n'),
+        projectName: projectName || 'Проект',
+        history: formattedHistory,
+        message,
       },
     });
     return resp.content;
@@ -173,8 +170,14 @@ export default function Unpacking() {
     setUserMsgCount((c) => c + 1);
 
     try {
+      const extractedText = await aiApi.extractFileText(file);
       const content = await runUnpackingWorkflow(
-        `Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}). Учти его при формировании стратегии.`,
+        [
+          `Пользователь загрузил файл «${file.name}» (${formatBytes(file.size)}).`,
+          'Извлеченный текст файла:',
+          extractedText.slice(0, 12000),
+          'Учти этот материал при формировании стратегии и задай следующий уточняющий вопрос только если данных все еще мало.',
+        ].join('\n\n'),
       );
       const aiMsg: ChatMsg = { role: 'ai', text: content, time: nowTime() };
       setMessages((prev) => [...prev, aiMsg]);
@@ -378,12 +381,12 @@ export default function Unpacking() {
               + Прикрепить файл
             </button>
             <span style={{ fontSize: 12, color: '#aaa' }}>
-              PDF, DOCX, TXT — резюме, кейсы, описание практики
+              PDF, Word, TXT/MD/CSV, Excel — резюме, кейсы, описание практики
             </span>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.docx,.txt"
+              accept=".txt,.md,.csv,.doc,.docx,.pdf,.xls,.xlsx"
               style={{ display: 'none' }}
               onChange={(e) => void handleFileChange(e)}
             />

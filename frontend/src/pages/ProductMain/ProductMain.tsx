@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useGeneratedStore, type AiResultVersion, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useModelStore } from '../../store/model.store';
-import { aiApi } from '../../api/ai';
+import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
-import { exportMarkdownToDocx } from '../../utils/exportDocx';
+import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
 import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
@@ -126,15 +126,21 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
 }
 
 function buildMainProductMarkdown(product: ProductState): string {
-  const hasStructuredData = Boolean(
-    product.nameOptions?.some(Boolean) ||
-    product.offer ||
-    product.productDescription ||
-    product.modulesText ||
-    product.transformation,
-  );
+  const assistantContent = (product.chatMessages ?? [])
+    .filter((message) => (
+      message.role === 'assistant' &&
+      !message.stepTitle?.toLowerCase().includes('ошибка') &&
+      !message.content.startsWith('Да, зафиксировал название:')
+    ))
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n');
 
-  if (!hasStructuredData && product.description?.trim() && product.description.includes('# Основной продукт')) {
+  if (assistantContent) {
+    return ['# Основной продукт', product.name ? `## Название\n${product.name}` : '', assistantContent].filter(Boolean).join('\n\n');
+  }
+
+  if (product.description?.trim().includes('# Основной продукт')) {
     return product.description.trim();
   }
 
@@ -151,6 +157,23 @@ function buildMainProductMarkdown(product: ProductState): string {
 }
 
 function buildMainProductBrief(product: ProductState): string {
+  const assistantBlocks = (product.chatMessages ?? [])
+    .filter((message) => (
+      message.role === 'assistant' &&
+      !message.stepTitle?.toLowerCase().includes('ошибка') &&
+      !message.content.startsWith('Да, зафиксировал название:')
+    ))
+    .map((message) => {
+      const title = message.stepTitle ? `## ${message.stepTitle}` : '';
+      return [title, limitText(message.content, 1200)].filter(Boolean).join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (assistantBlocks) {
+    return ['# Основной продукт', product.name ? `## Название\n${product.name}` : '', assistantBlocks].filter(Boolean).join('\n\n');
+  }
+
   return [
     '# Основной продукт',
     product.nameOptions?.filter(Boolean).length
@@ -177,6 +200,39 @@ function getRequestErrorMessage(err: unknown): string {
   return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
 }
 
+function withWorkflowMeta<T extends ProductState>(product: T, resp: WorkflowResponse): T {
+  return {
+    ...product,
+    workflowRunId: resp.workflowRunId,
+    workflowStepId: resp.workflowStepId,
+    artifactId: resp.artifactId,
+    generationId: resp.generationId,
+  };
+}
+
+function withoutVersionHistory<T extends ProductState>(product: T): T {
+  const { versionHistory: _versionHistory, ...rest } = product;
+  void _versionHistory;
+  return rest as T;
+}
+
+function appendProductVersion(product: ProductState, title: string, source: AiResultVersion<ProductDraft>['source']): ProductState {
+  if (!product.generated) return product;
+  const value = withoutVersionHistory({ ...product, description: buildMainProductMarkdown(product) });
+  const version: AiResultVersion<ProductDraft> = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    createdAt: new Date().toISOString(),
+    source,
+    workflowRunId: product.workflowRunId,
+    workflowStepId: product.workflowStepId,
+    artifactId: product.artifactId,
+    generationId: product.generationId,
+    value: value as ProductDraft,
+  };
+  return { ...product, versionHistory: [version, ...(product.versionHistory ?? [])].slice(0, 20) };
+}
+
 export default function ProductMain() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
@@ -189,6 +245,7 @@ export default function ProductMain() {
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [docxLoading, setDocxLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const loadedProductKeyRef = useRef('');
 
@@ -205,7 +262,10 @@ export default function ProductMain() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chatMessages?.length, loading]);
 
-  function persistState(next: ProductState, opts: { syncMaterial?: boolean } = {}) {
+  function persistState(next: ProductState, opts: { syncMaterial?: boolean; versionTitle?: string; versionSource?: AiResultVersion<ProductDraft>['source'] } = {}) {
+    if (opts.versionTitle) {
+      next = appendProductVersion(next, opts.versionTitle, opts.versionSource ?? 'ai');
+    }
     const withMarkdown = { ...next, description: buildMainProductMarkdown(next) };
     setState(withMarkdown);
     if (activeProjectId) {
@@ -224,11 +284,20 @@ export default function ProductMain() {
     return { ...product, chatMessages: [...(product.chatMessages ?? []), message] };
   }
 
+  function restoreVersion(version: AiResultVersion<ProductDraft>) {
+    const restored = normalizeProduct(version.value);
+    persistState(
+      appendProductVersion({ ...restored, generated: true }, `Восстановлено: ${version.title}`, 'restore'),
+      { syncMaterial: true },
+    );
+    toast.success('Версия восстановлена');
+  }
+
   async function requestProductStep(
     stepId: ProductStep['id'] | 'edit',
     current: ProductState,
     userRequest = '',
-  ): Promise<string> {
+  ): Promise<WorkflowResponse> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
@@ -244,7 +313,7 @@ export default function ProductMain() {
           userRequest,
         },
       });
-      return cleanCodeFence(resp.content);
+      return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
       throw new Error(getRequestErrorMessage(err));
     }
@@ -351,7 +420,9 @@ ${currentProduct}
         };
         persistState(next, { syncMaterial: false });
 
-        const content = await requestProductStep(step.id, next);
+        const resp = await requestProductStep(step.id, next);
+        const content = resp.content;
+        next = withWorkflowMeta(next, resp);
         if (step.id === 'names') {
           const nameLines = stripMarkdown(content).split('\n').filter(Boolean).slice(0, 3);
           next.nameOptions = nameLines;
@@ -372,7 +443,9 @@ ${currentProduct}
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'running' },
       };
       persistState(next, { syncMaterial: false });
-      const modulesContent = await requestProductStep(moduleStep.id, next);
+      const modulesResp = await requestProductStep(moduleStep.id, next);
+      const modulesContent = modulesResp.content;
+      next = withWorkflowMeta(next, modulesResp);
       next = withMessage({
         ...next,
         modulesText: modulesContent,
@@ -386,13 +459,15 @@ ${currentProduct}
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'running' },
       };
       persistState(next, { syncMaterial: false });
-      const promiseContent = await requestProductStep(promiseStep.id, next);
+      const promiseResp = await requestProductStep(promiseStep.id, next);
+      const promiseContent = promiseResp.content;
+      next = withWorkflowMeta(next, promiseResp);
       next = withMessage({
         ...next,
         transformation: promiseContent,
         stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'done' },
       }, { role: 'assistant', content: promiseContent, stepId: promiseStep.id, stepTitle: promiseStep.label });
-      persistState(next);
+      persistState(next, { versionTitle: 'Полная AI-сборка основного продукта', versionSource: 'ai' });
       toast.success('Основной продукт создан. Списано 60 AI-баллов.');
     } catch (err) {
       console.error('[ProductMain create] AI error:', err);
@@ -428,7 +503,7 @@ ${currentProduct}
         stepId: 'names',
         stepTitle: 'Название продукта',
       });
-      persistState(next);
+      persistState(next, { versionTitle: `Ручной выбор названия: ${preferredName}`, versionSource: 'manual' });
       toast.success('Название продукта обновлено');
       return;
     }
@@ -437,14 +512,15 @@ ${currentProduct}
     setLoading(true);
 
     try {
-      const response = await requestProductStep('edit', stateWithUser, text);
+      const resp = await requestProductStep('edit', stateWithUser, text);
+      const response = resp.content;
 
       const next = withMessage(
-        {
+        withWorkflowMeta({
           ...stateWithUser,
           generated: true,
           description: response.includes('# Основной продукт') ? response : `# Основной продукт\n\n${response}`,
-        },
+        }, resp),
         { role: 'assistant', content: response, stepTitle: 'Редактирование продукта' },
       );
       persistState({
@@ -456,7 +532,7 @@ ${currentProduct}
             stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
           })),
         ],
-      });
+      }, { versionTitle: 'AI-правка основного продукта', versionSource: 'ai' });
     } catch (err) {
       console.error('[ProductMain chat] AI error:', err);
       persistState(withMessage(stateWithUser, {
@@ -482,6 +558,23 @@ ${currentProduct}
       toast.error('Не удалось скачать DOCX');
     } finally {
       setDocxLoading(false);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!state.generated || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      await exportMarkdownToPdf(
+        state.name || 'Основной продукт',
+        buildMainProductMarkdown(state),
+        `LumaIQ_${productDocFilename(state.name, projectName || 'main-product')}`,
+      );
+    } catch (err) {
+      console.error('[ProductMain PDF]', err);
+      toast.error('Не удалось скачать PDF');
+    } finally {
+      setPdfLoading(false);
     }
   }
 
@@ -584,6 +677,50 @@ ${currentProduct}
             >
               {docxLoading ? 'Готовлю DOCX...' : 'Скачать DOCX'}
             </button>
+            <button
+              onClick={() => void handleDownloadPdf()}
+              disabled={pdfLoading}
+              style={{
+                ...btnOutlined,
+                width: '100%',
+                padding: '9px 0',
+                fontSize: 12,
+                color: pdfLoading ? '#bbb' : '#555',
+              }}
+            >
+              {pdfLoading ? 'Готовлю PDF...' : 'Скачать PDF'}
+            </button>
+          </div>
+        )}
+
+        {Boolean(state.versionHistory?.length) && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#777', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+              История версий
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {state.versionHistory?.slice(0, 6).map((version) => (
+                <button
+                  key={version.id}
+                  type="button"
+                  onClick={() => restoreVersion(version)}
+                  style={{
+                    textAlign: 'left',
+                    background: '#fff',
+                    border: '1px solid #E5E3DC',
+                    borderRadius: 6,
+                    padding: '8px 9px',
+                    cursor: 'pointer',
+                    color: '#333',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{version.title}</div>
+                  <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>
+                    {new Date(version.createdAt).toLocaleString('ru-RU')}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

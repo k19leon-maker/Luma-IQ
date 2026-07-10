@@ -221,18 +221,12 @@ export default function VideoScripts() {
     setPhase('step2-loading');
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
-      const prompt   = `Ты контент-стратег для эксперта. Предложи 5 тем для YouTube-видео (~${duration} минут).
-Целевой сегмент: ${seg}
-
-Верни только нумерованный список из 5 тем (одна тема — одна строка), без лишних пояснений.`;
-
       const resp = await aiApi.startWorkflow('video.topic.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
         inputs: {
           duration,
           segment: seg,
-          prompt,
         },
       });
 
@@ -271,24 +265,6 @@ export default function VideoScripts() {
         ? 'CTA: подписаться на Telegram-канал эксперта'
         : `CTA: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
 
-      const prompt = `Ты сценарист для эксперта. Напиши сценарий YouTube-видео (~${duration} минут).
-
-Тема: ${selectedTheme}
-${seg ? `Целевой сегмент: ${seg}` : ''}
-${facture.trim() ? `Материал из практики эксперта: ${facture.trim()}` : ''}
-${ctaText}
-
-Структура сценария:
-- КРЮЧОК (первые ~40 сек): зацепить проблемой
-- ПРОБЛЕМА: объяснить почему это происходит
-- КЕЙС: история из практики
-- РЕШЕНИЕ: конкретные инструменты
-- ПРАКТИКА: что зрители могут сделать сразу
-${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
-- ПРИЗЫВ К ДЕЙСТВИЮ
-
-Для каждого блока укажи тайминг и текст «на камеру». Используй живой разговорный язык.`;
-
       const resp = await aiApi.startWorkflow('video.script.write', {
         projectId: activeProjectId,
         provider: 'chatgpt',
@@ -298,7 +274,6 @@ ${duration === '12' ? '- РАБОТА С ВОЗРАЖЕНИЯМИ' : ''}
           segment: seg,
           facture,
           cta: ctaText,
-          prompt,
         },
       });
 

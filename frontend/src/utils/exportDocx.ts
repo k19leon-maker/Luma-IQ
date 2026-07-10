@@ -3,6 +3,7 @@ import {
   Footer, AlignmentType, BorderStyle,
 } from 'docx';
 import { saveAs } from 'file-saver';
+import html2pdf from 'html2pdf.js';
 
 const DOCUMENT_FONT = 'Arial';
 
@@ -13,10 +14,30 @@ function safeFileName(filename: string): string {
 function stripMarkdownMarkers(value: string): string {
   return value
     .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*_]{3,}\s*$/gm, '')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .trim();
+}
+
+function normalizeMarkdown(markdown: string): string {
+  return markdown
+    .replace(/\r\n/g, '\n')
+    .replace(/```(?:json|markdown|md)?/gi, '')
+    .replace(/```/g, '')
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function inlineRuns(value: string, size = 24): TextRun[] {
@@ -47,7 +68,7 @@ function inlineRuns(value: string, size = 24): TextRun[] {
 
 function markdownToDocxParagraphs(markdown: string): Paragraph[] {
   const paragraphs: Paragraph[] = [];
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeMarkdown(markdown).split('\n');
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -130,6 +151,67 @@ function markdownToDocxParagraphs(markdown: string): Paragraph[] {
   }
 
   return paragraphs;
+}
+
+function markdownToHtml(markdown: string): string {
+  const lines = normalizeMarkdown(markdown).split('\n');
+  const html: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+
+  const closeList = () => {
+    if (listType) {
+      html.push(`</${listType}>`);
+      listType = null;
+    }
+  };
+
+  const inline = (value: string) => escapeHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length, 3);
+      html.push(`<h${level}>${inline(stripMarkdownMarkers(heading[2]))}</h${level}>`);
+      continue;
+    }
+
+    const numbered = line.match(/^(\d+)[\.\)]\s+(.+)$/);
+    if (numbered) {
+      if (listType !== 'ol') {
+        closeList();
+        listType = 'ol';
+        html.push('<ol>');
+      }
+      html.push(`<li>${inline(numbered[2])}</li>`);
+      continue;
+    }
+
+    const bullet = line.match(/^[-•]\s+(.+)$/);
+    if (bullet) {
+      if (listType !== 'ul') {
+        closeList();
+        listType = 'ul';
+        html.push('<ul>');
+      }
+      html.push(`<li>${inline(bullet[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    html.push(`<p>${inline(line)}</p>`);
+  }
+
+  closeList();
+  return html.join('\n');
 }
 
 export async function exportToDocx(
@@ -245,7 +327,7 @@ export async function exportMarkdownToDocx(
             spacing: { after: 280 },
             keepNext: true,
           }),
-          ...markdownToDocxParagraphs(markdown.replace(/^#\s+.+\n?/, '').trim()),
+          ...markdownToDocxParagraphs(normalizeMarkdown(markdown).replace(/^#\s+.+\n?/, '').trim()),
         ],
       },
     ],
@@ -253,4 +335,132 @@ export async function exportMarkdownToDocx(
 
   const blob = await Packer.toBlob(doc);
   saveAs(blob, `${safeFileName(filename)}.docx`);
+}
+
+async function waitForPdfRender(): Promise<void> {
+  if ('fonts' in document) {
+    await document.fonts.ready;
+  }
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+export async function exportMarkdownToPdf(
+  title: string,
+  markdown: string,
+  filename: string,
+): Promise<void> {
+  const root = document.createElement('div');
+  root.style.position = 'absolute';
+  root.style.left = '0';
+  root.style.top = '0';
+  root.style.zIndex = '-1';
+  root.style.pointerEvents = 'none';
+  root.innerHTML = `
+    <style>
+      .liq-product-pdf {
+        width: 794px;
+        min-height: 1123px;
+        box-sizing: border-box;
+        padding: 52px 58px 64px;
+        background: #ffffff;
+        color: #1a1a1a;
+        font-family: Arial, Calibri, sans-serif;
+      }
+      .liq-product-pdf h1 {
+        margin: 0 0 24px;
+        font-size: 30px;
+        line-height: 1.18;
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      .liq-product-pdf h2 {
+        margin: 26px 0 10px;
+        padding-top: 12px;
+        border-top: 1px solid #e5e3dc;
+        color: #8a6500;
+        font-size: 18px;
+        line-height: 1.32;
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      .liq-product-pdf h3 {
+        margin: 20px 0 8px;
+        color: #333333;
+        font-size: 15px;
+        line-height: 1.35;
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      .liq-product-pdf p,
+      .liq-product-pdf li {
+        font-size: 12.5px;
+        line-height: 1.62;
+      }
+      .liq-product-pdf p {
+        margin: 0 0 9px;
+      }
+      .liq-product-pdf ul,
+      .liq-product-pdf ol {
+        margin: 0 0 12px 20px;
+        padding: 0;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .liq-product-pdf li {
+        margin-bottom: 5px;
+      }
+      .liq-product-pdf strong {
+        font-weight: 700;
+      }
+      .liq-product-pdf code {
+        font-family: Arial, Calibri, sans-serif;
+      }
+      .liq-product-footer {
+        margin-top: 28px;
+        padding-top: 12px;
+        border-top: 1px solid #ece8df;
+        color: #888888;
+        font-size: 10px;
+        text-align: center;
+      }
+    </style>
+    <article class="liq-product-pdf">
+      <h1>${escapeHtml(title)}</h1>
+      ${markdownToHtml(normalizeMarkdown(markdown).replace(/^#\s+.+\n?/, '').trim())}
+      <div class="liq-product-footer">Создано в LumaIQ</div>
+    </article>
+  `;
+  document.body.appendChild(root);
+
+  try {
+    await waitForPdfRender();
+    const pdfElement = root.querySelector<HTMLElement>('.liq-product-pdf');
+    if (!pdfElement || pdfElement.offsetWidth === 0 || pdfElement.offsetHeight === 0) {
+      throw new Error('Не удалось подготовить PDF-макет');
+    }
+    const options = {
+      margin: 0,
+      filename: `${safeFileName(filename)}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: pdfElement.offsetWidth,
+        windowWidth: pdfElement.offsetWidth,
+      },
+      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['h1', 'h2', 'h3', 'ul', 'ol'] },
+    } as Record<string, unknown>;
+    await (html2pdf() as {
+      set: (opts: Record<string, unknown>) => {
+        from: (el: HTMLElement) => { save: () => Promise<void> };
+      };
+    })
+      .set(options)
+      .from(pdfElement)
+      .save();
+  } finally {
+    document.body.removeChild(root);
+  }
 }

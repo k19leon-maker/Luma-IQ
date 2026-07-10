@@ -256,20 +256,6 @@ export default function Posts() {
       insight: 'пост-инсайт с новым взглядом',
       story: 'пост-история или кейс',
     };
-    const prompt = `Придумай 5 конкретных тем для раздела “Посты” в Luma IQ.
-
-Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}
-Тип поста: ${typeLabels[postType]}
-${segCtx}
-
-Требования к темам:
-- темы должны быть привязаны к текущему проекту, эксперту, позиционированию и ЦА;
-- каждая тема должна цеплять за живую боль, инсайт, ошибку, желание или внутренний конфликт аудитории;
-- не используй generic-формулировки;
-- не привязывайся к нише психологии, если проект не про психологию;
-- формулируй темы так, чтобы по ним можно было сразу написать сильный пост.
-
-Формат ответа: только 5 тем нумерованным списком, без пояснений.`;
     try {
       const resp = await aiApi.startWorkflow('posts.topic.generate', {
         projectId: activeProjectId,
@@ -279,7 +265,6 @@ ${segCtx}
           postType: typeLabels[postType],
           goal: offer === 'lead' ? 'продать лид-магнит' : offer === 'mini' ? 'продать мини-продукт' : 'продать основной продукт',
           selectedSegment: segCtx || null,
-          prompt,
         },
       });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
@@ -310,9 +295,6 @@ ${segCtx}
     }
     startGenerationTask(activeProjectId, 'posts', 'Пишу пост', selectedTheme || 'Собираю текст поста');
     setPhase('generating');
-    const segCtx = strat.chosenSegment
-      ? `Сегмент: ${strat.chosenSegment.split('\n')[0]?.slice(0, 100)}. Боли: ${(strat.corePains ?? '').slice(0, 200)}.`
-      : '';
     const extraCtx = [
       keyword && `Ключевое слово/фраза: "${keyword}".`,
       facture && `Дополнительная фактура от эксперта: "${facture}".`,
@@ -323,25 +305,6 @@ ${segCtx}
       insight: 'пост-инсайт с новым взглядом и механизмом решения',
       story: 'пост-история/кейс из практики',
     };
-    const prompt = `Напиши готовый пост для раздела “Посты” в Luma IQ.
-
-Платформа: ${platform === 'telegram' ? 'Telegram' : 'Instagram'}
-Тип поста: ${typeLabels[postType]}
-Тема: «${selectedTheme}»
-${segCtx}
-${extraCtx}
-
-Требования:
-- пост должен быть привязан к текущему проекту, эксперту, позиционированию, ЦА и продуктовой логике;
-- не используй нишу психологии, если текущий проект не про психологию;
-- первые 2 строки должны цеплять внимание;
-- текст должен давать узнавание, напряжение, новый взгляд и вести к CTA;
-- CTA должен быть нативным и логичным, без давления;
-- форматирование должно быть готово для публикации в ${platform === 'telegram' ? 'Telegram' : 'Instagram'}: короткие абзацы, визуальный ритм, читаемость с телефона;
-- используй **жирные акценты** только там, где они усиливают смысл;
-- не добавляй объяснения, комментарии или служебные подписи.
-
-Верни только готовый текст поста.`;
     let content: string;
     let workflowMeta: Pick<SavedPost, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'> = {};
     try {
@@ -357,7 +320,6 @@ ${extraCtx}
           keyword,
           cta: extraCtx,
           topicsWorkflowRunId: topicsWorkflowRunId || null,
-          prompt,
         },
       });
       content = resp.content;

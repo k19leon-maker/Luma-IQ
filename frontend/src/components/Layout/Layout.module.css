@@ -51,7 +51,7 @@
   font-size: 15px;
   font-weight: 600;
   color: #fff;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 
 .nav {
@@ -627,10 +627,23 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex: 1;
   min-width: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 760px) {
+  .root {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+  }
+
   .topbar {
     height: auto;
     min-height: var(--topbar-height);
@@ -644,6 +657,11 @@
   .topbarLimits {
     width: 100%;
     justify-content: stretch;
+  }
+
+  .content,
+  .contentFull {
+    padding: 16px;
   }
 }
 
@@ -728,6 +746,10 @@
   min-width: 0;
   min-height: 0;
   background: var(--bg-base);
+}
+
+.contentFullScrollable {
+  overflow-y: auto;
 }
 
 .contentAiDialog {
@@ -894,6 +916,31 @@
 }
 
 @media (max-width: 720px) {
+  .root {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: 44vh;
+    border-right: 0;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .logo {
+    height: 48px;
+  }
+
+  .nav {
+    max-height: calc(44vh - 48px - 72px);
+  }
+
+  .main {
+    min-height: 56vh;
+  }
+
   .topbarActions {
     gap: 6px;
   }

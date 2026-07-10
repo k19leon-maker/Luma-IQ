@@ -132,7 +132,10 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
   return (
     <div className={s.localWrap}>
       <div className={s.badgeRow}>
-        <span className={`${s.badge}${toneClass(tone)}`}>
+        <span
+          className={`${s.badge}${toneClass(tone)}`}
+          aria-label={`AI-баланс: ${formatLimitNumber(limits.aiBalanceRemaining)} из ${formatLimitNumber(limits.aiBalanceTotal)} баллов осталось`}
+        >
           <span className={s.balanceMain}>
             <strong>
               {tone === 'empty'
@@ -144,8 +147,16 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
             </span>
           </span>
           <span className={s.infoWrap}>
-            <button className={s.infoButton} type="button" aria-label="Сколько AI-баллов списывается?">!</button>
+            <button
+              className={s.infoButton}
+              type="button"
+              aria-label="Сколько AI-баллов списывается?"
+              title="AI-баланс списывается только после успешных AI-действий"
+            >
+              !
+            </button>
             <span className={s.infoBubble}>
+              <span>Баллы списываются только после успешной генерации.</span>
               {action && <span>{actionCostText(action)}</span>}
               {costHints.map((hint) => <span key={hint}>{hint}</span>)}
               <Link to={appPath('/limits')}>Посмотреть все лимиты</Link>

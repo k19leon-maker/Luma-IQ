@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { AxiosError } from 'axios';
 import { useProjectMarketingContext } from '../../hooks/useProjectMarketingContext';
-import { useGeneratedStore, type ProductDraft } from '../../store/generated.store';
+import { useGeneratedStore, type AiResultVersion, type ProductDraft } from '../../store/generated.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useModelStore } from '../../store/model.store';
-import { aiApi } from '../../api/ai';
+import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
-import { exportMarkdownToDocx } from '../../utils/exportDocx';
+import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
 import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
@@ -174,18 +174,7 @@ function buildMiniProductMarkdown(product: MiniProductState): string {
     return ['# Мини-продукт', product.name ? `## Название\n${product.name}` : '', assistantContent].filter(Boolean).join('\n\n');
   }
 
-  const hasStructuredData = Boolean(
-    product.nameOptions?.some(Boolean) ||
-    product.offer ||
-    product.productDescription ||
-    product.lesson1 ||
-    product.lesson2 ||
-    product.lesson3 ||
-    product.bonuses ||
-    product.transformation,
-  );
-
-  if (!hasStructuredData && product.description?.trim() && product.description.includes('# Мини-продукт')) {
+  if (product.description?.trim().includes('# Мини-продукт')) {
     return product.description.trim();
   }
 
@@ -260,6 +249,39 @@ function getRequestErrorMessage(err: unknown): string {
   return error.response?.data?.error || (err instanceof Error ? err.message : 'Ошибка AI-сервиса');
 }
 
+function withWorkflowMeta<T extends MiniProductState>(product: T, resp: WorkflowResponse): T {
+  return {
+    ...product,
+    workflowRunId: resp.workflowRunId,
+    workflowStepId: resp.workflowStepId,
+    artifactId: resp.artifactId,
+    generationId: resp.generationId,
+  };
+}
+
+function withoutVersionHistory<T extends MiniProductState>(product: T): T {
+  const { versionHistory: _versionHistory, ...rest } = product;
+  void _versionHistory;
+  return rest as T;
+}
+
+function appendProductVersion(product: MiniProductState, title: string, source: AiResultVersion<ProductDraft>['source']): MiniProductState {
+  if (!product.generated) return product;
+  const value = withoutVersionHistory({ ...product, description: buildMiniProductMarkdown(product) });
+  const version: AiResultVersion<ProductDraft> = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    createdAt: new Date().toISOString(),
+    source,
+    workflowRunId: product.workflowRunId,
+    workflowStepId: product.workflowStepId,
+    artifactId: product.artifactId,
+    generationId: product.generationId,
+    value: value as ProductDraft,
+  };
+  return { ...product, versionHistory: [version, ...(product.versionHistory ?? [])].slice(0, 20) };
+}
+
 export default function ProductMini() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
@@ -272,6 +294,7 @@ export default function ProductMini() {
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [docxLoading, setDocxLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const loadedProductKeyRef = useRef('');
 
@@ -288,7 +311,10 @@ export default function ProductMini() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chatMessages?.length, loading]);
 
-  function persistState(next: MiniProductState, opts: { syncMaterial?: boolean } = {}) {
+  function persistState(next: MiniProductState, opts: { syncMaterial?: boolean; versionTitle?: string; versionSource?: AiResultVersion<ProductDraft>['source'] } = {}) {
+    if (opts.versionTitle) {
+      next = appendProductVersion(next, opts.versionTitle, opts.versionSource ?? 'ai');
+    }
     const withMarkdown = { ...next, description: buildMiniProductMarkdown(next) };
     setState(withMarkdown);
     if (activeProjectId) {
@@ -307,11 +333,20 @@ export default function ProductMini() {
     return { ...product, chatMessages: [...(product.chatMessages ?? []), message] };
   }
 
+  function restoreVersion(version: AiResultVersion<ProductDraft>) {
+    const restored = normalizeProduct(version.value);
+    persistState(
+      appendProductVersion({ ...restored, generated: true }, `Восстановлено: ${version.title}`, 'restore'),
+      { syncMaterial: true },
+    );
+    toast.success('Версия восстановлена');
+  }
+
   async function requestProductStep(
     stepId: ProductStep['id'] | 'edit',
     current: MiniProductState,
     userRequest = '',
-  ): Promise<string> {
+  ): Promise<WorkflowResponse> {
     if (!activeProjectId) {
       throw new Error('Сначала выберите проект');
     }
@@ -327,7 +362,7 @@ export default function ProductMini() {
           userRequest,
         },
       });
-      return cleanCodeFence(resp.content);
+      return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
       throw new Error(getRequestErrorMessage(err));
     }
@@ -638,7 +673,9 @@ ${currentProduct}
         next = { ...next, stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' } };
         persistState(next, { syncMaterial: false });
 
-        const content = await requestProductStep(step.id, next);
+        const resp = await requestProductStep(step.id, next);
+        const content = resp.content;
+        next = withWorkflowMeta(next, resp);
         if (step.id === 'bestName') {
           next.name = extractMarkdownSection(content, /^##\s+рекомендуемый/i)
             ? stripMarkdown(extractMarkdownSection(content, /^##\s+рекомендуемый/i)).split('\n')[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт'
@@ -660,7 +697,7 @@ ${currentProduct}
         }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
         persistState(next, { syncMaterial: false });
       }
-      persistState(next);
+      persistState(next, { versionTitle: 'Полная AI-сборка мини-продукта', versionSource: 'ai' });
       toast.success('Мини-продукт создан. Списано 80 AI-баллов.');
     } catch (err) {
       console.error('[ProductMini create] AI error:', err);
@@ -696,7 +733,7 @@ ${currentProduct}
         stepId: 'bestName',
         stepTitle: 'Лучшее название мини-продукта',
       });
-      persistState(next);
+      persistState(next, { versionTitle: `Ручной выбор названия: ${preferredName}`, versionSource: 'manual' });
       toast.success('Название мини-продукта обновлено');
       return;
     }
@@ -705,11 +742,12 @@ ${currentProduct}
     setLoading(true);
 
     try {
-      const response = await requestProductStep('edit', stateWithUser, text);
+      const resp = await requestProductStep('edit', stateWithUser, text);
+      const response = resp.content;
 
       const description = response.includes('# Мини-продукт') ? response : `# Мини-продукт\n\n${response}`;
       persistState({
-        ...stateWithUser,
+        ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
         description,
         chatMessages: [
@@ -719,7 +757,7 @@ ${currentProduct}
             stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
           })),
         ],
-      });
+      }, { versionTitle: 'AI-правка мини-продукта', versionSource: 'ai' });
     } catch (err) {
       console.error('[ProductMini chat] AI error:', err);
       persistState(withMessage(stateWithUser, {
@@ -745,6 +783,23 @@ ${currentProduct}
       toast.error('Не удалось скачать DOCX');
     } finally {
       setDocxLoading(false);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!state.generated || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      await exportMarkdownToPdf(
+        state.name || 'Мини-продукт',
+        buildMiniProductMarkdown(state),
+        `LumaIQ_${productDocFilename(state.name, projectName || 'mini-product')}`,
+      );
+    } catch (err) {
+      console.error('[ProductMini PDF]', err);
+      toast.error('Не удалось скачать PDF');
+    } finally {
+      setPdfLoading(false);
     }
   }
 
@@ -847,6 +902,50 @@ ${currentProduct}
             >
               {docxLoading ? 'Готовлю DOCX...' : 'Скачать DOCX'}
             </button>
+            <button
+              onClick={() => void handleDownloadPdf()}
+              disabled={pdfLoading}
+              style={{
+                ...btnOutlined,
+                width: '100%',
+                padding: '9px 0',
+                fontSize: 12,
+                color: pdfLoading ? '#bbb' : '#555',
+              }}
+            >
+              {pdfLoading ? 'Готовлю PDF...' : 'Скачать PDF'}
+            </button>
+          </div>
+        )}
+
+        {Boolean(state.versionHistory?.length) && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #E5E3DC' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#777', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+              История версий
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {state.versionHistory?.slice(0, 6).map((version) => (
+                <button
+                  key={version.id}
+                  type="button"
+                  onClick={() => restoreVersion(version)}
+                  style={{
+                    textAlign: 'left',
+                    background: '#fff',
+                    border: '1px solid #E5E3DC',
+                    borderRadius: 6,
+                    padding: '8px 9px',
+                    cursor: 'pointer',
+                    color: '#333',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{version.title}</div>
+                  <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>
+                    {new Date(version.createdAt).toLocaleString('ru-RU')}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

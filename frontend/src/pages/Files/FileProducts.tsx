@@ -210,6 +210,9 @@ export default function FileProducts() {
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const generatedProject = useGeneratedStore((s) => activeProjectId ? s.projects[activeProjectId] : undefined);
   const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
+  const saveProductMain = useGeneratedStore((s) => s.setProductMain);
+  const saveProductMini = useGeneratedStore((s) => s.setProductMini);
+  const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -242,6 +245,24 @@ export default function FileProducts() {
     if (!activeProjectId) return;
 
     const meta = PRODUCT_KIND_META[item.kind];
+    const currentDraft = item.kind === 'product-main'
+      ? generatedProject?.productMain
+      : item.kind === 'product-mini'
+        ? generatedProject?.productMini
+        : generatedProject?.leadMagnet;
+    const title = productNameFromContent(text) || item.meta || currentDraft?.name || meta.title;
+    const format = extractSection(text, 'Формат') || currentDraft?.format || meta.meta;
+    const draft: ProductDraft = {
+      ...(currentDraft ?? {
+        price: item.kind === 'lead-magnet' ? 'Бесплатно' : '',
+        duration: '',
+      }),
+      name: title,
+      format,
+      description: text,
+      generated: true,
+    };
+
     upsertMaterial(activeProjectId, {
       ...(item.material ?? {}),
       id: item.material?.id ?? `${item.kind}.md`,
@@ -252,8 +273,11 @@ export default function FileProducts() {
       summaryStatus: 'fresh',
       linkedMaterialIds: item.material?.linkedMaterialIds ?? linkedMaterialsForKind(item.kind),
     });
+    if (item.kind === 'product-main') saveProductMain(activeProjectId, draft);
+    if (item.kind === 'product-mini') saveProductMini(activeProjectId, draft);
+    if (item.kind === 'lead-magnet') saveLeadMagnet(activeProjectId, draft);
     toast.success(`${meta.title} сохранен в материалах`);
-  }, [activeProjectId, upsertMaterial]);
+  }, [activeProjectId, generatedProject, saveLeadMagnet, saveProductMain, saveProductMini, upsertMaterial]);
 
   if (products.length === 0) {
     return (
