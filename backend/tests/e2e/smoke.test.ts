@@ -52,7 +52,17 @@ describe('E2E smoke foundation', () => {
     const app = createApp();
     const registration = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'new@lumaiq.ru', password: 'password123', name: 'Леонид' })
+      .send({
+        email: 'new@lumaiq.ru',
+        password: 'password123',
+        name: 'Леонид',
+        consents: {
+          privacyAccepted: true,
+          personalDataAccepted: true,
+          offerAccepted: true,
+          documentVersion: 'v1',
+        },
+      })
       .expect(201);
 
     expect(registration.body.tokens.accessToken).toBe('access.jwt');

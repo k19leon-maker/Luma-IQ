@@ -14,7 +14,14 @@ vi.mock('../../src/services/feature-pricing.service', () => ({
 
 vi.mock('../../src/services/access-policy.service', () => ({
   accessPolicyService: {
-    assertCanUseFeature: vi.fn(() => Promise.resolve({ billingPeriod: { id: 'period-1' }, requiredCredits: 1 })),
+    assertCanUseFeature: vi.fn(() => Promise.resolve({
+      user: { id: 'user-1', role: 'USER', _count: { projects: 1 } },
+      plan: 'PRO',
+      limits: { monthlyCredits: 3000 },
+      billingPeriod: { id: 'period-1' },
+      allowed: true,
+      requiredCredits: 1,
+    })),
   },
   AccessPolicyError: class AccessPolicyError extends Error {},
 }));
@@ -50,6 +57,7 @@ const prismaMock = vi.hoisted(() => ({
     create: vi.fn(({ data }) => Promise.resolve({ id: 'generation-1', ...data })),
     update: vi.fn(() => Promise.resolve()),
     findFirst: vi.fn(() => Promise.resolve({ creditsReserved: 1 })),
+    findMany: vi.fn(() => Promise.resolve([{ featureCode: 'ai_chat', metadata: null }])),
   },
   aIUsageEvent: { create: vi.fn(() => Promise.resolve()) },
   featureUsageDaily: { upsert: vi.fn(() => Promise.resolve()) },
@@ -81,6 +89,24 @@ describe('AI accounting integration', () => {
     expect(prismaMock.aIGeneration.create).toHaveBeenCalled();
     expect(prismaMock.aIGeneration.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'SUCCEEDED' }),
+    }));
+  });
+
+  it('does not charge successful usage when provider execution fails', async () => {
+    await expect(aiGenerationService.run({
+      userId: 'user-1',
+      projectId: 'project-1',
+      featureCode: 'ai_chat',
+      provider: 'OPENAI',
+      model: 'gpt-5.4',
+      execute: async () => {
+        throw new Error('provider failed');
+      },
+    })).rejects.toThrow('provider failed');
+
+    expect(prismaMock.billingPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.aIGeneration.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'FAILED' }),
     }));
   });
 });

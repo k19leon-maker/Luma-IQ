@@ -77,8 +77,22 @@ function extensionFromMime(mimeType: string | null): string {
   return '';
 }
 
+function extensionFromSignature(buffer: Buffer): string {
+  if (startsWith(buffer, [0x25, 0x50, 0x44, 0x46])) return '.pdf';
+  if (startsWith(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return '.doc';
+  if (
+    startsWith(buffer, [0x50, 0x4b, 0x03, 0x04]) ||
+    startsWith(buffer, [0x50, 0x4b, 0x05, 0x06]) ||
+    startsWith(buffer, [0x50, 0x4b, 0x07, 0x08])
+  ) {
+    return '.xlsx';
+  }
+  if (looksLikeText(buffer)) return '.txt';
+  return '';
+}
+
 function validateFileLike(originalName: string, mimeType: string | null, buffer: Buffer): string {
-  const ext = path.extname(originalName).toLowerCase() || extensionFromMime(mimeType);
+  const ext = path.extname(originalName).toLowerCase() || extensionFromMime(mimeType) || extensionFromSignature(buffer);
   if (!SUPPORTED_EXTENSIONS.has(ext)) {
     throw Object.assign(new Error('Поддерживаются только .txt, .md, .csv, .doc, .docx, .xls, .xlsx, .pdf'), { status: 400 });
   }
@@ -133,7 +147,9 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await withTimeout(parser.getText(), PDF_PARSE_TIMEOUT_MS, 'PDF слишком долго обрабатывается');
-    return result.text.trim() || '[PDF-файл загружен, но текст в нем не найден. Возможно, это скан или изображение без текстового слоя.]';
+    const text = result.text.trim();
+    const meaningfulText = text.replace(/--\s*\d+\s+of\s+\d+\s*--/gi, '').trim();
+    return meaningfulText || '[PDF-файл загружен, но текст в нем не найден. Возможно, это скан или изображение без текстового слоя.]';
   } finally {
     await parser.destroy().catch(() => {});
   }

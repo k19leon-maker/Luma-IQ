@@ -93,6 +93,94 @@ const buildPositioningLabPrompt = () => `Ты — senior стратег по п�
 - Пиши только на русском языке.
 `.trim();
 
+const getAudienceAnswers = (inputs: Record<string, unknown>) => {
+  const answers = inputs.answers && typeof inputs.answers === 'object' ? inputs.answers as Record<string, unknown> : {};
+  const read = (key: string) => typeof answers[key] === 'string' ? String(answers[key]) : '';
+  return {
+    segments: read('segments'),
+    chosenSegment: read('chosenSegment'),
+    chosenSubsegment: read('chosenSubsegment'),
+    requests: read('requests'),
+    chosenRequest: read('chosenRequest'),
+  };
+};
+
+const buildAudienceStepPrompt = (inputs: Record<string, unknown>) => {
+  const stepId = Number(inputs.stepId ?? 1);
+  if (value(inputs, 'mode') === 'stepChat') {
+    const choiceInstruction = inputs.isChoicePending
+      ? 'Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**. Не спрашивай "готов ли продолжать" и не проси написать, когда пользователь будет готов. Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.'
+      : 'Ответь как AI-маркетолог. Если пользователь просит добавить варианты, предложи конкретные дополнительные варианты. Не запускай следующий шаг автоматически.';
+    return `Контекст проекта:
+${value(inputs, 'projectContext', 'Контекст пока не заполнен.')}
+
+Текущий шаг: ${value(inputs, 'stepTitle', `Шаг ${stepId}`)}
+
+Текущий результат шага:
+${value(inputs, 'currentResult', 'Результатов по шагам пока нет.')}
+
+Вопрос пользователя:
+${value(inputs, 'question', 'нет вопроса')}
+
+${choiceInstruction}
+
+История переписки:
+${value(inputs, 'history', 'Истории пока нет.')}`;
+  }
+  const answers = getAudienceAnswers(inputs);
+  const seg = (answers.chosenSegment || answers.segments).slice(0, 400);
+  const sub = answers.chosenSubsegment.slice(0, 200);
+  const req = answers.chosenRequest.slice(0, 200);
+  const projectContext = value(inputs, 'projectContext', 'Контекст пока не заполнен.');
+  const ctx = `Контекст проекта:\n${projectContext}\n\n`;
+  const baseRules = [
+    'Работай строго на основе контекста проекта, выбранных ответов и текущего шага.',
+    'Не подставляй психологию, коучинг или любую другую нишу, если она прямо не следует из контекста.',
+    'Пиши конкретно для ниши пользователя, без универсальных клише и без абстрактного маркетингового языка.',
+    'Если данных мало, делай аккуратные гипотезы из контекста, но не проси уточнений.',
+  ].join('\n');
+  const expertRole = [
+    'Роль на этом шаге: ты отвечаешь как сам эксперт/проект пользователя.',
+    'У тебя 25 лет практического опыта в этой нише, большая клиентская база и глубокое понимание реальных ситуаций клиентов.',
+    'Ты видишь рынок изнутри: кто покупает, у кого боль острее, кто быстрее принимает решение и где выше коммерческий потенциал.',
+  ].join('\n');
+  const clientRole = [
+    'Роль на этом шаге: ты НЕ маркетолог и НЕ эксперт. Ты выбранный клиент.',
+    `Выбранный сегмент: ${seg || 'не указан'}.`,
+    `Выбранный подсегмент: ${sub || 'не указан'}.`,
+    `Выбранный запрос: ${req || 'не указан'}.`,
+    'Пиши языком обычного клиента: просто, живо, от первого лица, без терминов, без экспертных диагнозов и без красивых маркетинговых формулировок.',
+  ].join('\n');
+  const expertCtx = `${ctx}${baseRules}\n\n${expertRole}\n\n`;
+  const clientCtx = `${ctx}${baseRules}\n\n${clientRole}\n\n`;
+  const strictPrefix = inputs.strict ? 'ВАЖНО: Выдай ТОЛЬКО пронумерованный список. Никаких вопросов. Никаких уточнений. Только список в точном формате ниже.\n\n' : '';
+
+  switch (stepId) {
+    case 1:
+      return expertCtx + 'Сгенерируй 10 сегментов целевой аудитории. Сегменты должны быть коммерчески осмысленными: разные ситуации, разные мотивы покупки, разные уровни срочности боли. Для каждого сегмента укажи: название сегмента, ситуацию «Когда:», желание «Хочу:» и цель «Чтобы:». Формат строго: «Сегмент N — **[название]**». Строго 10 сегментов.';
+    case 2:
+      return expertCtx + strictPrefix + `Из этих 10 сегментов:\n${answers.segments}\n\nВыбери ТОП 3 сегмента по сумме факторов: острота боли, платежеспособность, срочность запроса, понятность оффера и вероятность покупки. Никаких вопросов, никаких уточнений.\nФормат СТРОГО (только это, ничего лишнего):\n🥇 Сегмент 1 — [название]\n[1–2 предложения почему]\n🥈 Сегмент 2 — [название]\n[1–2 предложения почему]\n🥉 Сегмент 3 — [название]\n[1–2 предложения почему]`;
+    case 4:
+      return expertCtx + strictPrefix + `Для выбранного сегмента «${seg}» выдай ТОЛЬКО список из 5 подсегментов. Подсегменты должны отличаться конкретной ситуацией, мотивацией и покупательской готовностью.\nФормат СТРОГО (только это, ничего лишнего):\nПодсегмент 1 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\nПодсегмент 2 — [название]\nКогда: ...\nХочу: ...\nЧтобы: ...\n(и так далее до Подсегмент 5)`;
+    case 6:
+      return expertCtx + `Для подсегмента «${sub}» составь список «ХОЧУ» — 10–12 конкретных желаний клиентов. Формулируй так, как клиенты реально говорят на консультации, в заявке, в переписке или в голове. Начинай каждый пункт с «• Хочу».`;
+    case 7:
+      return expertCtx + strictPrefix + `Для сегмента «${seg}» (подсегмент: «${sub}») выдай ТОЛЬКО список из 10 конкретных запросов, с которыми клиент мог бы прийти к эксперту. Запросы должны быть живыми, покупательскими и привязанными к ситуации подсегмента.\nФормат СТРОГО (только список, ничего лишнего):\n1. [запрос на живом языке клиента]\n2. [запрос]\n...\n10. [запрос]`;
+    case 8:
+      return expertCtx + strictPrefix + `Из этих 10 запросов:\n${answers.requests}\n\nОпредели ТОП 3 запроса по срочности, боли, частоте встречаемости и вероятности покупки. Покажи короткую логику выбора.\nФормат СТРОГО:\n🥇 Запрос 1 — [формулировка запроса]\n[1–2 предложения почему]\n🥈 Запрос 2 — [формулировка запроса]\n[1–2 предложения почему]\n🥉 Запрос 3 — [формулировка запроса]\n[1–2 предложения почему]`;
+    case 10:
+      return clientCtx + 'Напиши 8–10 болезненных вопросов, которые я как клиент задаю себе внутри по выбранному запросу. Каждый вопрос должен звучать как реальная мысль в голове. Начинай каждый пункт с «•».';
+    case 11:
+      return clientCtx + 'Опиши 6–8 сокровенных желаний, которые я как клиент обычно не произношу вслух, но очень хочу получить. Пиши от первого лица: «Я хочу...», «Мне хочется...», «Я мечтаю...». Начинай каждый пункт с «•».';
+    case 12:
+      return clientCtx + 'Сформулируй одним живым предложением главный конечный результат, к которому я как клиент хочу прийти. Не пиши «после работы с экспертом/психологом/специалистом». Опиши именно желаемое изменение в моей жизни, бизнесе или ситуации.';
+    case 13:
+      return clientCtx + 'Напиши монолог от первого лица (150–250 слов): что меня больше всего бесит, изматывает и уже достало в этой ситуации. Максимально живо, эмоционально и на языке клиента. Без заголовков.';
+    default:
+      return expertCtx + `Шаг ${stepId}: продолжи анализ целевой аудитории.`;
+  }
+};
+
 const MINI_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
   { step: 'bestName', label: 'Лучшее название мини-продукта', maxTokens: 2600, minLength: 450, task: 'Дай 10 вариантов названия мини-продукта и выбери рекомендуемый вариант. Названия должны быть связаны с болью и первым результатом, без пустого инфобизнеса.' },
   { step: 'mainOffer', label: 'Главный оффер', maxTokens: 2600, minLength: 450, task: 'Сформулируй 5 вариантов главного оффера мини-продукта и выбери рекомендуемый. Формула: за 7 дней / 3 занятия / конкретный первый результат / без старого болезненного способа.' },
@@ -466,11 +554,21 @@ ${contextAppendix(context)}
     maxTokens: 4200,
     artifactType: 'product_main_block',
     systemPrompt: (context) => buildMainProductPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор основного продукта.
+
+Текущий краткий черновик продукта:
+${value(inputs, 'currentProduct', 'Пока пусто.')}
+
+Запрос пользователя / задача:
+${value(inputs, 'userRequest', value(inputs, 'task', 'Создай или доработай фрагмент основного продукта.'))}
+
+Правила:
+- Не пересобирай весь продукт, если запрос точечный.
+- Используй selective project context ниже.
+- Верни только готовый результат без служебных комментариев.
 
 ${contextAppendix(context)}
-
-Ответь только по задаче пользователя. Без служебных комментариев.`,
+`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
   ...MAIN_PRODUCT_STEPS.map<PromptConfig>((step) => ({
@@ -516,11 +614,22 @@ ${contextAppendix(context)}`,
     maxTokens: 4200,
     artifactType: 'product_mini_block',
     systemPrompt: (context) => buildMainProductPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор мини-продукта.
+
+Текущий краткий черновик мини-продукта:
+${value(inputs, 'currentProduct', 'Пока пусто.')}
+
+Запрос пользователя / задача:
+${value(inputs, 'userRequest', value(inputs, 'task', 'Создай или доработай фрагмент мини-продукта.'))}
+
+Правила:
+- Мини-продукт длится 7 дней и состоит из 3 занятий, если пользователь явно не указал другое.
+- Не пересобирай весь мини-продукт, если запрос точечный.
+- Используй selective project context ниже.
+- Верни только готовый результат без служебных комментариев.
 
 ${contextAppendix(context)}
-
-Ответь только по задаче пользователя. Без служебных комментариев.`,
+`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
   ...MINI_PRODUCT_STEPS.map<PromptConfig>((step) => ({
@@ -566,11 +675,22 @@ ${contextAppendix(context)}`,
     maxTokens: 4600,
     artifactType: 'lead_magnet_block',
     systemPrompt: (context) => buildLeadMagnetPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `Раздел: Конструктор лид-магнита.
+Формат: ${value(inputs, 'format', 'лид-магнит')}
+
+Текущий краткий черновик:
+${value(inputs, 'currentProduct', 'Пока пусто.')}
+
+Запрос пользователя / задача:
+${value(inputs, 'userRequest', value(inputs, 'task', 'Создай или доработай фрагмент лид-магнита.'))}
+
+Правила:
+- Не пересобирай весь лид-магнит, если запрос точечный.
+- Используй selective project context ниже.
+- Верни только готовый результат без служебных комментариев.
 
 ${contextAppendix(context)}
-
-Ответь только по задаче пользователя. Без служебных комментариев.`,
+`,
     validationRules: { minLength: 250, structuredOutput: 'text' },
   },
   ...LEAD_MAGNET_STEPS.map<PromptConfig>((step) => ({
@@ -899,7 +1019,7 @@ ${contextAppendix(context)}
     maxTokens: 5200,
     artifactType: 'audience_block',
     systemPrompt: (context) => buildAudiencePrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `${buildAudienceStepPrompt(inputs)}
 
 ${contextAppendix(context)}
 
@@ -917,7 +1037,19 @@ ${contextAppendix(context)}
     maxTokens: 2600,
     artifactType: 'utp',
     systemPrompt: (context) => buildUTPPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'mode') === 'improve' ? 'Улучши текущее УТП проекта.' : 'Создай УТП (уникальное торговое предложение) для проекта.'}
+
+Текущее УТП:
+${value(inputs, 'currentUtp', 'Пока нет.')}
+
+Дополнительные пожелания пользователя:
+${value(inputs, 'inputText', 'не указаны')}
+
+Требования:
+- Работай строго по selective project context.
+- Не меняй нишу и не подставляй психологию, если ее нет в контексте.
+- Структура смысла: кому помогаем + какую проблему решаем + какой результат получает клиент + за счет чего.
+- Длина: 2-3 предложения.
 
 ${contextAppendix(context)}
 
@@ -935,9 +1067,17 @@ ${contextAppendix(context)}
     maxTokens: 3200,
     artifactType: 'social_packaging',
     systemPrompt: (context) => buildSocialPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `Создай описание для площадки: ${value(inputs, 'platform', 'соцсеть')}.
 
-Площадка: ${value(inputs, 'platform', 'соцсеть')}
+Требования по площадкам:
+- Instagram: bio до 150 символов, ниша + аудитория + понятный результат + призыв к действию, уместные эмодзи.
+- Telegram: 2-3 предложения, профессиональный тон, что получит подписчик, понятный призыв.
+- ВКонтакте: 2-3 предложения, ниша/подход + аудитория + призыв к действию.
+
+Общие правила:
+- Работай строго по selective project context.
+- Не подставляй психологию, если ее нет в контексте.
+- Не добавляй пояснения, варианты или служебные комментарии.
 
 ${contextAppendix(context)}
 
@@ -955,7 +1095,16 @@ ${contextAppendix(context)}
     maxTokens: 5200,
     artifactType: 'positioning_block',
     systemPrompt: () => buildPositioningLabPrompt(),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'prompt')}
+    userPromptBuilder: ({ inputs, context }) => `Проект: ${value(inputs, 'projectName', 'Проект')}
+
+История диалога:
+${value(inputs, 'history', 'Истории пока нет.')}
+
+Сообщение пользователя:
+${value(inputs, 'message', 'нет сообщения')}
+
+Задача:
+Ответь как AI-маркетолог в разделе "О себе": задай точный уточняющий вопрос или помоги структурировать информацию об эксперте. Если информации достаточно, предложи завершить распаковку.
 
 ${contextAppendix(context)}
 

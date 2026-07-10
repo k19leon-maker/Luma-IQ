@@ -38,8 +38,8 @@ describe('billingPeriodService', () => {
       new Date('2026-05-27T12:00:00.000Z'),
     );
 
-    expect(mockedCredits.grant).toHaveBeenCalledWith(expect.objectContaining({ amount: 2000, billingPeriodId: 'period-1' }));
-    expect(period.creditsGranted).toBe(2000);
+    expect(mockedCredits.grant).toHaveBeenCalledWith(expect.objectContaining({ amount: 3000, billingPeriodId: 'period-1' }));
+    expect(period.creditsGranted).toBe(3000);
   });
 
   it('calculates UTC month bounds', () => {

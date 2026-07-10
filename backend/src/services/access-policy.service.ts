@@ -1,6 +1,5 @@
 import { GenerationClass, Prisma, Subscription, SubscriptionPlan } from '@prisma/client';
 import { PLAN_LIMITS, FeatureCode, PlanLimitConfig } from '../config/ai-economy';
-import { CONTENT_UNIT_COSTS, UsageAction } from '../config/pricing-plans';
 import { prisma } from '../lib/prisma';
 import { billingPeriodService } from './billing-period.service';
 import { creditLedgerService } from './credit-ledger.service';
@@ -61,30 +60,6 @@ function mergeLimitOverrides(base: PlanLimitConfig, subscription: Subscription |
     hasImplementationSupport: typeof overrides.hasImplementationSupport === 'boolean' ? overrides.hasImplementationSupport : base.hasImplementationSupport,
     features: overrides.features ? { ...base.features, ...overrides.features } : base.features,
   };
-}
-
-function featureToUsageAction(featureCode: FeatureCode): UsageAction | null {
-  switch (featureCode) {
-    case 'ai_chat': return 'ai_chat_message';
-    case 'post': return 'content_post';
-    case 'reel': return 'reels_script';
-    case 'threads': return 'threads_post';
-    case 'video_script': return 'youtube_script';
-    case 'article': return 'longread';
-    case 'lead_magnet': return 'longread';
-    case 'content_plan': return 'content_plan_30_days';
-    case 'product_main':
-    case 'product_mini': return 'product_packaging';
-    case 'positioning':
-    case 'audience':
-    case 'utp':
-    case 'social':
-    case 'jtbd':
-    case 'chatbot_chain':
-      return 'heavy_generation';
-    default:
-      return null;
-  }
 }
 
 function limitExceeded(params: {
@@ -260,92 +235,10 @@ export const accessPolicyService = {
       }
     }
 
-    if (input.generationClass === 'HEAVY' || input.generationClass === 'EXTREME') {
-      const heavyInPeriod = await prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          billingPeriodId: input.billingPeriodId,
-          generationClass: { in: ['HEAVY', 'EXTREME'] },
-          status: 'SUCCEEDED',
-        },
-      });
-      if (heavyInPeriod >= input.heavyGenerationLimit) {
-        throw limitExceeded({
-          message: 'Лимит тяжелых генераций на период исчерпан',
-          limitType: 'heavyGenerationsLimit',
-          current: heavyInPeriod,
-          limit: input.heavyGenerationLimit,
-          planId: input.planId,
-          status: 429,
-        });
-      }
-    }
-
-    const action = featureToUsageAction(input.featureCode);
-    const unitCost = action ? CONTENT_UNIT_COSTS[action] ?? 0 : 0;
-    if (unitCost > 0) {
-      const generations = await prisma.aIGeneration.groupBy({
-        by: ['featureCode'],
-        where: {
-          userId: input.userId,
-          billingPeriodId: input.billingPeriodId,
-          status: 'SUCCEEDED',
-        },
-        _count: { _all: true },
-      });
-      const usedUnits = generations.reduce((sum, item) => {
-        const itemAction = featureToUsageAction(item.featureCode as FeatureCode);
-        return sum + (itemAction ? (CONTENT_UNIT_COSTS[itemAction] ?? 0) * item._count._all : 0);
-      }, 0);
-      if (usedUnits + unitCost > input.monthlyContentUnits) {
-        throw limitExceeded({
-          message: 'Месячный лимит контент-единиц исчерпан',
-          limitType: 'monthlyContentUnits',
-          current: usedUnits,
-          limit: input.monthlyContentUnits,
-          planId: input.planId,
-        });
-      }
-    }
-
-    if (input.featureCode === 'video_script') {
-      const youtubeCount = await prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          billingPeriodId: input.billingPeriodId,
-          featureCode: 'video_script',
-          status: 'SUCCEEDED',
-        },
-      });
-      if (youtubeCount >= input.youtubeScriptsLimit) {
-        throw limitExceeded({
-          message: 'Лимит YouTube-сценариев исчерпан',
-          limitType: 'youtubeScriptsLimit',
-          current: youtubeCount,
-          limit: input.youtubeScriptsLimit,
-          planId: input.planId,
-        });
-      }
-    }
-
-    if (input.featureCode === 'article' || input.featureCode === 'lead_magnet') {
-      const longreadsCount = await prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          billingPeriodId: input.billingPeriodId,
-          featureCode: { in: ['article', 'lead_magnet'] },
-          status: 'SUCCEEDED',
-        },
-      });
-      if (longreadsCount >= input.longreadsLimit) {
-        throw limitExceeded({
-          message: 'Лимит лонгридов исчерпан',
-          limitType: 'longreadsLimit',
-          current: longreadsCount,
-          limit: input.longreadsLimit,
-          planId: input.planId,
-        });
-      }
-    }
+    void input.generationClass;
+    void input.heavyGenerationLimit;
+    void input.monthlyContentUnits;
+    void input.youtubeScriptsLimit;
+    void input.longreadsLimit;
   },
 };
