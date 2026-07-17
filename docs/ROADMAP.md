@@ -1,149 +1,172 @@
 # Luma IQ Roadmap
 
-Обновлено: 2026-06-14
+Обновлено: 2026-07-10
 
 ## Current State
 
 | Area | Status |
 |---|---|
-| Production frontend/backend | Done |
-| PostgreSQL/Prisma foundation | Done |
-| Auth/admin/manual access | Done |
-| OpenAI + Anthropic integration | Done |
-| AI usage/token/cost accounting | Foundation done |
-| Prompt improvements for Posts/Reels/Articles/Chains | MVP done |
-| AI orchestration foundation | Live |
-| Frontend migration to workflow API | Partial |
-| Threads ИИ | Live |
+| Production frontend/backend | Live |
+| PostgreSQL/Prisma foundation | Live |
+| Auth/admin/manual access | Live |
+| OpenAI + Anthropic integration | Live |
+| AI usage/token/cost accounting | Foundation live |
+| User-facing AI balance UI | Live foundation |
+| Public/admin billing separation | In progress |
+| Prompt/workflow foundation | Live |
+| Frontend workflow migration | Partial |
+| Product builder main/mini/lead magnet | Live, versioning needs hardening |
+| Product DOCX export | Live |
+| File upload/link text extraction | Live foundation |
+| Mock/demo cleanup in user UI | Mostly done, needs regression checks |
 | Public B2C family portal | Live |
 | B2C AI psychologist quiz/chat | Live MVP |
 | Legal pages/consent/cookie infrastructure | Live foundation |
-| B2C cabinet backend persistence | Future |
+| B2C backend persistence | Future |
+| Workflow observability | Future |
 | CMS/content management | Future |
-| Frontend limits display | UI foundation live |
-| Subscription/autobilling | Future |
-| Social import/style analysis | Future |
 
 ## Done Recently
 
-- OpenAI/Anthropic real AI responses enabled for production flows.
-- Model routing configured by section intent.
-- AI usage tracking writes `ai_generations` and `ai_usage_events`.
-- Token usage and model pricing seed added.
-- Posts prompt improved and psychology hardcode removed.
-- Chatbot Chains prompt replaced with Telegram direct-response logic.
-- Reels Engine MVP added: goals, hooks, facture, scripts.
-- Articles Engine MVP added: topic generation, platform/tone/depth, SEO article output.
-- Threads ИИ added:
-  - route `/threads`;
-  - sidebar item in Content group;
-  - fixed 7-day Threads plan;
-  - ready posts/threads;
-  - strict JSON workflow prompts;
-  - `GeneratedText.type = THREADS`;
-  - shared AI economy feature `threads`.
-- Frontend limit summary added to the service UI; it currently shows tariff limits, with real usage balances still planned.
-- Credit ledger race condition fixed with project-level advisory lock / transaction protection.
-- AI orchestration foundation added:
-  - prompt registry;
-  - project context builder;
-  - workflow API;
-  - workflow runs/steps/artifacts;
-  - validation/repair layer.
-- Public B2C contour added:
-  - `/` is now the public family-focused homepage;
-  - B2B auth remains at `/auth`;
-  - B2B app/admin remain separate;
-  - SEO routes for articles, categories, problems, experts, programs, webinars and tests exist.
-- Homepage repositioned:
-  - from generic psychological portal to family/parent relationship space;
-  - communication focuses on family situations, not psychology services.
-- B2C AI psychologist MVP added:
-  - short quiz at `/diagnostics/ai-psychologist`;
-  - final contact step with email/phone and legal consents;
-  - direct transition to `/diagnostics/ai-psychologist/chat`;
-  - left profile sidebar and wide chat workspace;
-  - thinking indicator and progressive AI reply typing;
-  - markdown normalization for headings/lists;
-  - public CTA changes to `Вернуться к ИИ-психологу` after completion.
-- Legal readiness foundation added:
-  - public legal pages;
-  - footer links;
-  - required consent checkboxes;
-  - consent logging infrastructure;
-  - cookie banner;
-  - document versioning.
+- Backend tests stabilized: `backend npm run test` passes.
+- User-facing limits were simplified around AI balance, projects, plan, reset date and usage history.
+- Topbar AI balance was added to the B2B app shell.
+- Old technical usage concepts were hidden from user-facing UI where already migrated.
+- Backend access policy and billing logic were adjusted toward shared AI balance.
+- User-facing mock products/content were removed from major user sections.
+- Content pages were made scrollable inside AI workspace, so setup actions are reachable.
+- Manual access/admin user form was updated.
+- File ingestion was expanded:
+  - TXT/MD;
+  - PDF;
+  - DOC/DOCX;
+  - CSV;
+  - XLS/XLSX;
+  - public Google Docs links;
+  - public Google Sheets links;
+  - public Google Drive file links.
+- Product builder was improved:
+  - product chat title selection no longer needs full product regeneration;
+  - current draft handling improved;
+  - DOCX export uses common fonts;
+  - markdown is converted into readable document formatting.
+- Positioning next-route bug was fixed.
+- Large frontend pages started being split into helpers/components.
+- Latest production deploy:
+  - commit `fe5f6e4`;
+  - Vercel deployment `dpl_BveXUQKV7XbNt14HhHFrhLrWSMQe`.
 
 ## Next Engineering Priorities
 
-### P0 — B2C Backend Persistence
+### P0 - Finish AI Balance Backend Model
+
+- Remove or disable remaining user-facing gates for old limits:
+  - daily/monthly AI generation limits;
+  - content units;
+  - heavy generations;
+  - youtube script limits;
+  - longread limits.
+- Keep technical cost/tokens/request data for admin only.
+- Verify that strategy and products do not get blocked as content units.
+- Verify charge rules:
+  - charge only after successful generation;
+  - no charge on page open/navigation/manual save/viewing/refresh/error.
+
+### P0 - Split Public Billing And Admin Billing
+
+- Public billing response should include only:
+  - plan;
+  - plan status;
+  - AI balance total/used/remaining;
+  - project total/used/remaining;
+  - reset date;
+  - user-readable usage history.
+- Admin billing/analytics can keep:
+  - credits;
+  - tokens;
+  - cost;
+  - request count;
+  - content units;
+  - heavy generations;
+  - feature-level accounting.
+- Update frontend types so user UI cannot accidentally render technical fields.
+
+### P1 - Product Builder Versioning
+
+- Define a canonical current version for:
+  - main product;
+  - mini-product;
+  - lead magnet.
+- Save manual and AI edits into that current version.
+- Add version history and restore/select version UX.
+- Ensure `Мои материалы -> Продукты` loads real user-created products only.
+- Ensure export always uses the current version.
+
+### P1 - Product Export QA
+
+- Regression-check DOCX export for main product, mini-product and lead magnet.
+- Confirm titles, headings, lists and bold formatting are preserved.
+- If PDF export stays available, fix page breaks and raw markdown rendering there too.
+
+### P1 - File Ingestion QA
+
+- Regression-check each supported local format.
+- Regression-check public Google Docs/Sheets/Drive links.
+- Confirm scanned PDFs return a helpful message.
+- Confirm extraction does not charge AI balance.
+- Decide separately whether Google Drive OAuth/file picker is needed in the next release.
+
+### P1 - Finish Prompt/Workflow Migration
+
+- Identify screens that still assemble strategic prompts in frontend.
+- Move remaining product/strategy/content flows to workflow API where useful.
+- Preserve existing DB/localStorage compatibility while migrating.
+- Store workflow runs, steps, artifacts and generation links consistently.
+
+### P2 - Frontend Maintainability
+
+- Continue splitting large pages:
+  - `Strategy.tsx`;
+  - `Positioning.tsx`;
+  - `Admin.tsx`.
+- Keep UI polish targeted and local.
+- Run frontend build after each coherent UI batch.
+
+### P2 - Workflow Observability
+
+- Admin view for workflow runs.
+- Filters by user, project, workflow, status and date.
+- Show model, cost, tokens, failed steps and artifacts.
+
+### P2 - B2C Backend Persistence
 
 - Replace localStorage-only B2C profile/messages with backend-backed B2C user/session storage.
 - Keep B2C user separate from B2B SaaS users/projects.
 - Preserve quiz answers, chat history, consents and contact data.
 - Add migration-compatible reader from current localStorage state.
 
-### P0 — B2C Safety And Product Guardrails
+### P2 - B2C Safety And Product Guardrails
 
 - Add stronger crisis/safety handling for AI psychologist.
 - Add clear disclaimers around medical/crisis/emergency help.
-- Add backend-side message limits, not only client-side limits.
+- Add backend-side message limits.
 - Add admin/analytics visibility for B2C diagnostic starts/completions.
 
-### P0 — Backend-Backed Limits In UI
+### P3 - CMS And Content Management
 
-- Replace frontend tariff-only limit display with real backend balances.
-- Show actual monthly credits remaining, daily AI generations used/left, plan and reset dates.
-- Keep copy/view/save operations free; generation/regeneration should spend limits through AI economy.
+- Replace B2C mock/editorial content with CMS or backend content storage.
+- Add editorial workflow for articles, categories, problems, experts, programs, webinars and tests.
 
-### P0 — Finish Prompt/Workflow Migration
+### P3 - Billing And Payments
 
-- Identify remaining complex frontend prompt assembly.
-- Move screens to workflow API without breaking existing UX.
-- Keep DB persistence and localStorage compatibility where necessary during migration.
-
-### P1 — Workflow Observability
-
-- Admin view for workflow runs.
-- Artifact history per project.
-- Cost per workflow and feature.
-- Basic filters: user, project, workflow, status, date.
-
-### P1 — Threads ИИ Follow-Up
-
-- Add history/version picker for previous Threads generations.
-- Add quick rewrite actions: softer, sharper, shorter, more expert.
-- Add stronger JSON schema validation for Threads result shape.
-- Optionally connect selected Threads items to universal content-plan after explicit product decision.
-
-### P2 — Prompt Registry Hardening
-
-- Add schema-level structured output validation, not only JSON parse checks.
-- Add prompt version visibility in admin.
-- Add repair telemetry by workflow/step.
-
-### P2 — Memory Optimization
-
-- Lightweight summaries.
-- Repeated themes/hooks detection.
-- Content history compression.
-- No vector DB yet.
-
-### P3 — Social Context Import
-
-- Telegram channel import.
-- Instagram professional account import.
-- Content style profile.
-- “Write in my style” mode.
-
-### P3 — Billing Readiness
-
-- Stripe/Telegram payments later.
 - Tribute/manual remains current pilot path.
 - YooKassa stays disabled unless explicitly retested and enabled.
+- Future subscription/autobilling should be designed after AI balance model is stable.
 
 ## Product Principle
 
 Do not build autonomous agents. Build deterministic, observable, context-aware workflows.
+
+For B2B: the user should understand one simple model - AI balance is spent on AI actions, projects are counted separately, and history shows where the balance went.
 
 For B2C: do not turn the homepage into a generic psychology catalog. Keep the product anchored in family situations, parent-child relationships and relationships between parents.

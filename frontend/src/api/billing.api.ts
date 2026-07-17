@@ -7,6 +7,7 @@ export type BillingPlan = {
   scenario: BillingScenario;
   name: string;
   priceMonthlyRub: number;
+  aiCostBudgetRub?: number;
   subscriptionStatus?: string;
   currency: 'RUB';
   billingPeriod: 'month';
@@ -20,6 +21,7 @@ export type BillingMe = {
     aiBalanceTotal: number;
     aiBalanceUsed: number;
     aiBalanceRemaining: number;
+    aiCostBudgetRub?: number | null;
     projectsTotal: number;
     projectsUsed: number;
     projectsRemaining: number;

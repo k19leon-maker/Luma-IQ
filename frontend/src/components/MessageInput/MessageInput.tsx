@@ -7,6 +7,7 @@ import {
   OpenAIModelId,
   useModelStore,
 } from '../../store/model.store';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import styles from './MessageInput.module.css';
 
 function CopyIcon() {
@@ -143,6 +144,10 @@ export function MessageInput({
 }: MessageInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [attachOpen, setAttachOpen] = useState(false);
+  const voice = useAudioRecorder(
+    (text) => onChange(value.trim() ? `${value.trim()} ${text}` : text),
+    (message) => toast.error(message),
+  );
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -205,7 +210,14 @@ export function MessageInput({
               </div>
             )}
           </div>
-          <button type="button" className={styles.iconBtn} onClick={() => toast('Голосовой ввод будет подключен следующим шагом')} title="Голосовое сообщение" aria-label="Голосовое сообщение">
+          <button
+            type="button"
+            className={`${styles.iconBtn}${voice.isRecording ? ' ' + styles.iconBtnActive : ''}`}
+            onClick={voice.toggle}
+            title={voice.isRecording ? 'Остановить запись' : voice.isTranscribing ? 'Распознаём...' : 'Записать голосом'}
+            aria-label={voice.isRecording ? 'Остановить запись' : 'Записать голосом'}
+            disabled={isLoading || disabled || voice.isTranscribing || !voice.isSupported}
+          >
             <MicIcon />
           </button>
           <button type="button" className={styles.iconBtn} onClick={() => toast('Google Drive будет подключен после интеграции')} title="Google Drive" aria-label="Google Drive">

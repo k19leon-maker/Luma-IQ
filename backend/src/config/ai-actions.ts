@@ -48,7 +48,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   social: 'Оформление соцсетей',
   product_main: 'Основной продукт',
   product_mini: 'Мини-продукт',
-  lead_magnet: 'Лид-магнит',
+  lead_magnet: 'Сборка лид-магнита',
   content_post: 'Пост',
   content_reel: 'Рилс',
   content_thread: 'Цепочка постов',
@@ -119,6 +119,12 @@ export function aiPointsForGeneration(featureCode: string, metadata?: unknown): 
   const workflow = metadataField(metadata, 'workflow');
   const step = metadataField(metadata, 'step');
 
+  if (step === 'edit') {
+    if (featureCode === 'product_main' || featureCode === 'product_mini' || featureCode === 'lead_magnet') {
+      return 10;
+    }
+  }
+
   if (featureCode === 'product_main' && workflow === 'product.main') {
     return 12;
   }
@@ -128,13 +134,8 @@ export function aiPointsForGeneration(featureCode: string, metadata?: unknown): 
     return fivePointSteps.has(step) ? 5 : 6;
   }
 
-  if (featureCode === 'lead_magnet') {
-    if (workflow === 'leadmagnet.video-lesson' || workflow === 'leadmagnet.pdf-guide') {
-      return 14;
-    }
-    if (workflow === 'leadmagnet.sales-longread') {
-      return step === 'finalCta' ? 4 : 3;
-    }
+  if (featureCode === 'lead_magnet' && workflow === 'leadmagnet') {
+    return step === 'finalCta' ? 10 : 5;
   }
 
   return aiPointsForFeature(featureCode);

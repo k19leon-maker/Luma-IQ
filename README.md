@@ -1,5 +1,7 @@
 # Luma IQ
 
+Главный актуальный контекст проекта: [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md).
+
 Luma IQ состоит из двух контуров:
 
 1. Публичный B2C-контур для родителей и семей: лендинг, SEO-страницы, короткая диагностика и диалог с ИИ-психологом.
@@ -14,7 +16,8 @@ Luma IQ состоит из двух контуров:
 - Backend: Hetzner VPS, PM2 process `lumaiq-backend`
 - Frontend deploy: Vercel production deploy from repo root with `npx vercel --prod --yes`
 - Backend deploy: SSH to `/app`, pull `main`, migrate, generate Prisma client, build, restart PM2
-- Latest B2C frontend deploy verified: `dpl_ApfF5b7A4gEBdEsKSusxMRxaUyMe`
+- Latest production deploy verified: `dpl_BveXUQKV7XbNt14HhHFrhLrWSMQe`
+- Latest deployed commit: `fe5f6e4`
 
 ## Stack
 
@@ -94,6 +97,8 @@ OPENAI_B2C_PSYCHOLOGY_MODEL=gpt-5.4
 - cookie banner сохраняет факт принятия;
 - версии документов фиксируются через document version.
 
+### B2B SaaS
+
 - Strategy: About Expert, Positioning, Audience, UTP, Social profiles
 - Product Builder: Main Product, Mini Product, Lead Magnet
 - Content: Posts, Reels, Articles, Video Scripts, Chatbot Chains, Threads ИИ, Content Plan
@@ -101,6 +106,43 @@ OPENAI_B2C_PSYCHOLOGY_MODEL=gpt-5.4
 - Admin: users, manual access, subscriptions/payments, AI usage analytics
 - AI Economy: usage tracking, model pricing, cost accounting
 - AI Orchestration Foundation: prompt registry, project context builder, workflow runs/steps/artifacts
+
+Current B2B product state:
+
+- пользовательский UI лимитов упрощен до AI-баланса, проектов, тарифа, даты обновления и истории списаний;
+- технические credits/tokens/cost/request count/content units остаются для admin/analytics, но не должны показываться пользователю;
+- backend access policy больше не должен блокировать пользовательские сценарии отдельными контентными лимитами вроде heavy/content/youtube/longread;
+- стратегия и продукты списываются через общий AI-баланс, а не как контент-единицы;
+- верхний AI-баланс вынес в topbar B2B-приложения;
+- страницы Content имеют отдельный scroll внутри AI-workspace, чтобы нижние кнопки настройки были доступны.
+
+### Project Files And Materials
+
+Файловый импорт используется в разделе `О себе` и материалах проекта.
+
+Поддерживаемые источники:
+
+- локальные файлы: TXT/MD, PDF, DOC/DOCX, CSV, XLS/XLSX;
+- публичные ссылки Google Docs;
+- публичные ссылки Google Sheets;
+- публичные Google Drive file links.
+
+Важно:
+
+- загрузка и извлечение текста не должны списывать AI-баланс;
+- PDF без текстового слоя возвращает понятное сообщение пользователю;
+- полноценная привязка Google Drive OAuth пока остается отдельной будущей задачей.
+
+### Product Builder Export
+
+Продуктовый конструктор поддерживает основной продукт, мини-продукт и лид-магнит.
+
+Текущие правила:
+
+- правки названия продукта должны фиксироваться без полной пересборки, если пользователь просто выбрал название;
+- экспорт должен брать актуальную версию продукта, а не первую генерацию;
+- DOCX-экспорт использует универсальные шрифты и преобразует markdown в нормальные заголовки, списки и жирный текст;
+- PDF-экспорт, если используется, требует отдельной проверки качества разрывов страниц.
 
 ## Backend AI
 
@@ -120,32 +162,32 @@ POST /api/v1/ai/workflows/:workflow/step
 
 Current workflow prompt configs:
 
-- `ai.dialog.message`
-- `posts.topic.generate`
-- `posts.post.write`
-- `reels.hooks.generate`
-- `reels.script.write`
-- `articles.topic.generate`
-- `articles.article.write`
-- `chatbot.chain.generate`
-- `video.topic.generate`
-- `video.script.write`
-- `product.main.generate`
-- `product.mini.generate`
-- `leadmagnet.generate`
-- `positioning.analysis.generate`
-- `positioning.models.generate`
-- `positioning.variants.generate`
-- `positioning.gap-analysis.generate`
-- `positioning.final.generate`
-- `positioning.score.generate`
-- `positioning.assets.generate`
-- `strategy.audience.generate`
-- `strategy.utp.generate`
-- `strategy.social.generate`
-- `strategy.positioning.generate`
-- `threads.plan.generate`
-- `threads.post.regenerate`
+- `ai.dialog.message.v1`
+- `posts.topic.generate.v1`
+- `posts.post.write.v1`
+- `reels.hooks.generate.v1`
+- `reels.script.write.v1`
+- `articles.topic.generate.v1`
+- `articles.article.write.v1`
+- `chatbot.chain.generate.v1`
+- `video.topic.generate.v1`
+- `video.script.write.v1`
+- `product.main.generate.v1`
+- `product.mini.generate.v1`
+- `leadmagnet.generate.v1`
+- `positioning.analysis.generate.v1`
+- `positioning.models.generate.v1`
+- `positioning.variants.generate.v1`
+- `positioning.gap-analysis.generate.v1`
+- `positioning.final.generate.v1`
+- `positioning.score.generate.v1`
+- `positioning.assets.generate.v1`
+- `strategy.audience.generate.v1`
+- `strategy.utp.generate.v1`
+- `strategy.social.generate.v1`
+- `strategy.positioning.generate.v1`
+- `threads.plan.generate.v1`
+- `threads.post.regenerate.v1`
 
 ## Threads ИИ
 
@@ -181,6 +223,7 @@ Local URLs:
 
 ```bash
 cd backend && npm run build
+cd backend && npm run test
 cd frontend && npm run build
 ```
 
@@ -192,6 +235,7 @@ curl -s -i https://api.lumaiq.ru/api/v1/health
 
 ## Docs
 
+- `PROJECT_CONTEXT.md` — единый актуальный контекст проекта
 - `CLAUDE.md` — current project context for AI/code assistants
 - `docs/architecture.md` — current architecture
 - `docs/PROMPT_STRATEGY.md` — AI roles and prompt strategy

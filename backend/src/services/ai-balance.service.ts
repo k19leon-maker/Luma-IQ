@@ -124,7 +124,7 @@ export const aiBalanceService = {
     for (const item of items) {
       const workflow = metadataText(item.metadata, 'workflow');
       const shouldGroupProductBuild =
-        (workflow === 'product.main' || workflow === 'product.mini' || workflow.startsWith('leadmagnet.')) &&
+        (workflow === 'product.main' || workflow === 'product.mini' || workflow === 'leadmagnet' || workflow.startsWith('leadmagnet.')) &&
         metadataText(item.metadata, 'step') !== 'edit';
 
       if (!shouldGroupProductBuild) {
@@ -156,6 +156,7 @@ export const aiBalanceService = {
     planStatus: string;
     aiBalanceTotal: number;
     aiBalanceUsed: number;
+    aiCostBudgetRub?: number;
     projectsTotal: number;
     projectsUsed: number;
     limitsResetAt: Date | string | null;
@@ -166,6 +167,7 @@ export const aiBalanceService = {
       aiBalanceTotal: input.aiBalanceTotal,
       aiBalanceUsed: input.aiBalanceUsed,
       aiBalanceRemaining: remaining(input.aiBalanceTotal, input.aiBalanceUsed),
+      aiCostBudgetRub: input.aiCostBudgetRub ?? null,
       projectsTotal: input.projectsTotal,
       projectsUsed: input.projectsUsed,
       projectsRemaining: remaining(input.projectsTotal, input.projectsUsed),

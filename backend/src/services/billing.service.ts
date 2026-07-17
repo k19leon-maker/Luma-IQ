@@ -10,6 +10,7 @@ export const billingService = {
       scenario: plan.scenario,
       name: plan.name,
       priceMonthlyRub: plan.priceMonthlyRub,
+      aiCostBudgetRub: plan.limits.aiCostBudgetRub,
       currency: plan.currency,
       billingPeriod: plan.billingPeriod,
     }));
@@ -31,6 +32,7 @@ export const billingService = {
       planStatus,
       aiBalanceTotal: limits.monthlyCredits,
       aiBalanceUsed,
+      aiCostBudgetRub: limits.aiCostBudgetRub,
       projectsTotal: limits.projectsLimit,
       projectsUsed,
       limitsResetAt: access.billingPeriod.periodEnd,
@@ -42,6 +44,7 @@ export const billingService = {
         scenario: plan.scenario,
         name: plan.name,
         priceMonthlyRub: plan.priceMonthlyRub,
+        aiCostBudgetRub: limits.aiCostBudgetRub,
         subscriptionStatus: planStatus,
         currency: plan.currency,
         billingPeriod: plan.billingPeriod,

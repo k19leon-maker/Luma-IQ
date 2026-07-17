@@ -1,6 +1,6 @@
 # Архитектура Luma IQ
 
-Обновлено: 2026-06-14
+Обновлено: 2026-07-10
 
 ## Production
 
@@ -49,7 +49,7 @@ All production APIs use `/api/v1`.
 | `/payments` | Manual/Tribute/YooKassa payment layer |
 | `/admin` | Admin dashboard/users/access/analytics |
 | `/strategy/export-pdf` | Strategy export |
-| `/files` | Project materials/files views |
+| `/files` | Project material text extraction and file/link ingestion |
 | `/b2c/psychologist/chat` | Public B2C AI psychologist chat |
 | `/b2c/consents` | Public/B2C consent logging |
 
@@ -194,6 +194,44 @@ Important:
 - Do not send phone/email into the AI context unless there is a deliberate future product/legal decision.
 - AI outputs render through markdown normalization in the chat UI.
 
+## User Limits And Billing Architecture
+
+The user-facing limits model is intentionally simple:
+
+- AI balance;
+- project count;
+- current plan;
+- reset date;
+- user-readable usage history.
+
+User-facing UI/API should not expose internal technical accounting fields such as:
+
+- credits;
+- tokens;
+- OpenAI/Anthropic cost;
+- request count;
+- content units;
+- heavy generations;
+- youtube script limits;
+- longread limits.
+
+Those fields can remain in admin analytics, logs and cost accounting.
+
+Charging rules:
+
+- charge AI balance only after a successful AI action returns a result;
+- do not charge on page open, navigation, manual save, viewing existing material, refresh or failed generation;
+- strategy, products and content all use the shared AI balance from the user's point of view;
+- projects remain a separate limit.
+
+Relevant files:
+
+- `backend/src/services/billing.service.ts`
+- `backend/src/services/access-policy.service.ts`
+- `backend/src/services/ai-generation.service.ts`
+- `frontend/src/api/billing.api.ts`
+- `frontend/src/components/UsageLimits/*`
+
 ## Core Backend Files
 
 - `backend/src/services/ai.service.ts` — provider calls, OpenAI/Anthropic
@@ -205,6 +243,32 @@ Important:
 - `backend/src/prompts/registry/*` — versioned workflow prompt registry
 - `backend/src/controllers/ai.controller.ts` — legacy `/ai/chat`
 - `backend/src/controllers/ai-workflow.controller.ts` — workflow API
+- `backend/src/controllers/files.controller.ts` — text extraction from uploaded files and public document links
+
+## File Ingestion Architecture
+
+File ingestion supports local upload and public document links.
+
+Supported local formats:
+
+- TXT/MD;
+- PDF with text layer;
+- DOC/DOCX;
+- CSV;
+- XLS/XLSX.
+
+Supported URL imports:
+
+- public Google Docs links;
+- public Google Sheets links;
+- public Google Drive file links.
+
+Implementation notes:
+
+- file parsing is deterministic extraction, not AI generation;
+- extraction must not charge AI balance;
+- PDF files without text layer should return a clear user-facing message;
+- Google Drive OAuth and private file picker are not implemented yet and should be treated as a separate product task.
 
 ## Database Highlights
 

@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import authRouter from './routes/auth.routes';
 import aiRouter from './routes/ai.routes';
+import audioRouter from './routes/audio.routes';
 import jtbdRouter from './routes/jtbd.routes';
 import projectRouter from './routes/project.routes';
 import contentRouter from './routes/content.routes';
@@ -69,6 +70,7 @@ export function createApp() {
 
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/ai', aiRouter);
+  app.use('/api/v1/audio', audioRouter);
   app.use('/api/v1/jtbd', jtbdRouter);
   app.use('/api/v1/projects', projectRouter);
   app.use('/api/v1/content', contentRouter);

@@ -121,6 +121,23 @@
   border-color: var(--border-color);
 }
 
+.iconBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iconBtnActive {
+  color: #fff;
+  background: #d64545;
+  border-color: #d64545;
+}
+
+.iconBtnActive:hover {
+  color: #fff;
+  background: #c43b3b;
+  border-color: #c43b3b;
+}
+
 .attachWrap {
   position: relative;
 }

@@ -117,6 +117,15 @@ export const aiApi = {
     apiClient
       .post<{ text: string; fileName: string }>('/files/extract-url', { url })
       .then((r) => r.data),
+
+  transcribeAudio: (file: Blob) => {
+    const form = new FormData();
+    const extension = file.type.includes('mp4') ? 'm4a' : file.type.includes('wav') ? 'wav' : 'webm';
+    form.append('file', file, `voice-message.${extension}`);
+    return apiClient
+      .post<{ text: string }>('/audio/transcribe', form, { timeout: 120_000 })
+      .then((r) => r.data.text);
+  },
 };
 
 export interface ProjectFile {

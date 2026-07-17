@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
@@ -12,6 +12,7 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -291,8 +292,10 @@ export default function Reels() {
   const [hooksWorkflowRunId, setHooksWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const [isListening,   setIsListening]   = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const voice = useAudioRecorder(
+    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
+    (message) => toast.error(message),
+  );
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
 
   const updateReels = useCallback((next: SavedReel[]) => {
@@ -441,17 +444,6 @@ export default function Reels() {
     finishGenerationTask(activeProjectId, 'reels');
   }
 
-  function toggleVoice() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const rec = new SR();
-    rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = false;
-    rec.onresult = (e: any) => { const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(' '); setFacture(prev => prev ? `${prev} ${t}` : t); };
-    rec.onend = () => setIsListening(false);
-    recognitionRef.current = rec; rec.start(); setIsListening(true);
-  }
-
   function getEditorState(reel: SavedReel) {
     const ov = editMap[reel.id];
     return { title: ov?.title ?? reel.editedTitle, content: ov?.content ?? (reel.editedContent || reel.content) };
@@ -550,8 +542,6 @@ export default function Reels() {
       />
     );
   }
-
-  const voiceAvailable = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   if (phase === 'step1') {
     return (
@@ -654,9 +644,9 @@ export default function Reels() {
         <div className={s.factureCard}>
           {FACTURE_HINTS.map((hint, i) => <div key={i} className={s.factureHint}>{hint}</div>)}
         </div>
-        {voiceAvailable && (
+        {voice.isSupported && (
           <div className={s.inputModeRow}>
-            <button className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`} onClick={() => { setInputMode('text'); if (isListening) toggleVoice(); }}>✏️ Текст</button>
+            <button className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`} onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}>✏️ Текст</button>
             <button className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`} onClick={() => setInputMode('voice')}>🎤 Голос</button>
           </div>
         )}
@@ -664,8 +654,8 @@ export default function Reels() {
           <textarea className={s.factureTextarea} placeholder="Опишите реальные ситуации, ошибки аудитории, кейсы, фразы клиентов, эмоции и главный инсайт для сценария..." value={facture} onChange={e => setFacture(e.target.value)} />
         ) : (
           <div className={s.voiceArea}>
-            <button className={`${s.voiceBtn}${isListening ? ' ' + s.voiceBtnActive : ''}`} onClick={toggleVoice}>
-              {isListening ? '⏹ Остановить запись' : '🎤 Начать запись'}
+            <button className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`} onClick={voice.toggle} disabled={voice.isTranscribing}>
+              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
             </button>
             {facture && <div className={s.voiceTranscript}>{facture}</div>}
           </div>

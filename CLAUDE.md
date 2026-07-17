@@ -1,6 +1,6 @@
 # Luma IQ — актуальный контекст проекта
 
-Обновлено: 2026-06-14
+Обновлено: 2026-07-10
 
 ## Что это
 
@@ -39,8 +39,8 @@ npx vercel --prod --yes
 Git push to `main` may also trigger Vercel depending on current project integration, but the reliable manual production deploy is the CLI command above from the repo root.
 Latest Luma IQ production deployment verified through Vercel CLI:
 
-- commit: `8b6c0ab`
-- Vercel deployment: `dpl_ApfF5b7A4gEBdEsKSusxMRxaUyMe`
+- commit: `fe5f6e4`
+- Vercel deployment: `dpl_BveXUQKV7XbNt14HhHFrhLrWSMQe`
 - aliases: `https://www.lumaiq.ru`, `https://lumaiq.ru`
 
 ## Stack
@@ -171,6 +171,14 @@ Important: the service supports many niches. Do not hardcode psychology.
 
 Product sections use project context, audience, UTP and product/leadmagnet logic.
 
+Current product builder behavior:
+
+- product chat edits should update the current product draft, not silently create a disconnected version;
+- if the user only confirms/selects a product name, the assistant should acknowledge and apply it without regenerating the full product unless explicitly requested;
+- DOCX export is the main editable export format;
+- DOCX export must use common system fonts and convert markdown markers into real document formatting;
+- exported files should use the latest/current product version.
+
 ### Content
 
 - `/posts`: Posts Engine MVP with improved strategic prompts.
@@ -180,6 +188,12 @@ Product sections use project context, audience, UTP and product/leadmagnet logic
 - `/chatbot-chains`: Telegram chain prompt for direct-response posts.
 - `/threads`: Threads ИИ. Generates and saves a 7-day Threads plan plus posts/threads from project strategy. Uses workflow API and stores results as `GeneratedText.type = THREADS`.
 - `/content-plan`: universal content planning section. Threads ИИ is separate and should not overwrite content-plan items.
+
+Content UI notes:
+
+- mock/demo generated content should not appear in user-facing lists;
+- content setup pages are scrollable inside AI workspace so bottom actions are reachable;
+- generated content should be loaded from saved user/project data.
 
 ### AI Dialog
 
@@ -228,6 +242,14 @@ Services:
 - `ai-generation.service.ts`
 
 Token usage is captured from OpenAI/Anthropic responses and stored in `ai_generations`.
+
+Current user-facing limits model:
+
+- user UI should show only AI-баланс, projects, current plan, reset date and user-readable usage history;
+- user UI should not show credits, tokens, OpenAI cost, request count, heavy generations, content units, youtube scripts or longreads as separate limits;
+- technical usage/cost fields remain available for admin analytics;
+- strategy/product/content AI actions spend the shared AI balance after successful generation only;
+- opening pages, viewing existing content, manual editing and failed AI requests should not charge AI balance.
 
 ## AI Orchestration Foundation
 
@@ -348,6 +370,25 @@ New `project-context.service.ts` supports:
 
 Do not pass the whole project blindly into every AI call.
 
+## File Ingestion
+
+Project material ingestion supports:
+
+- TXT/MD;
+- PDF with text layer;
+- DOC/DOCX;
+- CSV;
+- XLS/XLSX;
+- public Google Docs links;
+- public Google Sheets links;
+- public Google Drive file links.
+
+Important:
+
+- extraction/parsing is not an AI generation and should not charge AI balance;
+- scanned PDFs without a text layer should return a clear user-facing message;
+- full Google Drive OAuth/file picker is still a separate future product task.
+
 ## Important DB Entities
 
 Core:
@@ -417,11 +458,11 @@ curl -s -i https://api.lumaiq.ru/api/v1/health
 
 ## Current Next Engineering Step
 
-Backend-side workflow foundation, Threads ИИ and B2C AI psychologist are live. Next useful engineering work:
+Backend-side workflow foundation, Threads ИИ, simplified AI balance UI and B2C AI psychologist are live. Next useful engineering work:
 
-1. Continue migrating legacy content UI calls from `/ai/chat` to workflow API where still needed.
-2. Replace remaining localStorage-first content persistence with DB-first persistence.
-3. Connect frontend limit widgets to real backend usage balances instead of tariff defaults.
-4. Add workflow/artifact observability in admin.
-5. Move B2C profile/chat persistence from localStorage to backend user/session storage when the B2C cabinet is formalized.
-6. Replace B2C mock content with CMS/content storage when editorial workflow is ready.
+1. Finish backend cleanup of old limit gates so the shared AI balance is the only user-facing AI limit.
+2. Split public billing responses from admin/technical billing analytics.
+3. Continue migrating legacy content UI calls from `/ai/chat` to workflow API where still needed.
+4. Add product/version history and current-version recovery for product builder outputs.
+5. Add workflow/artifact observability in admin.
+6. Move B2C profile/chat persistence from localStorage to backend user/session storage when the B2C cabinet is formalized.

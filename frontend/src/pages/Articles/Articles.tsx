@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { NavLink } from 'react-router-dom';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
@@ -13,6 +13,7 @@ import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -237,8 +238,10 @@ export default function Articles() {
   const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const [isListening,   setIsListening]   = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const voice = useAudioRecorder(
+    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
+    (message) => toast.error(message),
+  );
 
   // Editor unsaved changes
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
@@ -450,22 +453,6 @@ export default function Articles() {
     }
   }
 
-  // ── Voice input ───────────────────────────────────────────────────────────────
-  function toggleVoice() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const rec = new SR();
-    rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = false;
-    rec.onresult = (e: any) => {
-      const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(' ');
-      setFacture(prev => prev ? `${prev} ${t}` : t);
-    };
-    rec.onend = () => setIsListening(false);
-    recognitionRef.current = rec;
-    rec.start(); setIsListening(true);
-  }
-
   // ── Editor helpers ────────────────────────────────────────────────────────────
   function getEditorState(art: SavedArticle) {
     const ov = editMap[art.id];
@@ -633,10 +620,6 @@ export default function Articles() {
       />
     );
   }
-
-  const voiceAvailable = !!(
-    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  );
 
   // ── Step 1 ────────────────────────────────────────────────────────────────────
   if (phase === 'step1') {
@@ -827,11 +810,11 @@ export default function Articles() {
           ))}
         </div>
 
-        {voiceAvailable && (
+        {voice.isSupported && (
           <div className={s.inputModeRow}>
             <button
               className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => { setInputMode('text'); if (isListening) toggleVoice(); }}
+              onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}
             >✏️ Текст</button>
             <button
               className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`}
@@ -850,10 +833,11 @@ export default function Articles() {
         ) : (
           <div className={s.voiceArea}>
             <button
-              className={`${s.voiceBtn}${isListening ? ' ' + s.voiceBtnActive : ''}`}
-              onClick={toggleVoice}
+              className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`}
+              onClick={voice.toggle}
+              disabled={voice.isTranscribing}
             >
-              {isListening ? '⏹ Остановить запись' : '🎤 Начать запись'}
+              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
             </button>
             {facture && <div className={s.voiceTranscript}>{facture}</div>}
           </div>

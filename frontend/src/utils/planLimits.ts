@@ -16,12 +16,12 @@ export interface PlanLimits {
 export const FRONTEND_PLAN_LIMITS: Record<PlanCode, PlanLimits> = {
   FREE: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
   START: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
-  PRO: { monthlyCredits: 3000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
-  EXPERT: { monthlyCredits: 7000, projectLimit: 7, chatDailyLimit: 100, dailyGenerationLimit: 700 },
-  SUPPORT: { monthlyCredits: 4000, projectLimit: 3, chatDailyLimit: 50, dailyGenerationLimit: 400 },
-  MARKETING_PARTNER: { monthlyCredits: 7000, projectLimit: 5, chatDailyLimit: 100, dailyGenerationLimit: 700 },
-  IMPLEMENTATION: { monthlyCredits: 10000, projectLimit: 7, chatDailyLimit: 200, dailyGenerationLimit: 1000 },
-  ANNUAL: { monthlyCredits: 3000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
+  PRO: { monthlyCredits: 10000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
+  EXPERT: { monthlyCredits: 10000, projectLimit: 7, chatDailyLimit: 100, dailyGenerationLimit: 700 },
+  SUPPORT: { monthlyCredits: 7000, projectLimit: 3, chatDailyLimit: 50, dailyGenerationLimit: 400 },
+  MARKETING_PARTNER: { monthlyCredits: 12000, projectLimit: 5, chatDailyLimit: 100, dailyGenerationLimit: 700 },
+  IMPLEMENTATION: { monthlyCredits: 20000, projectLimit: 7, chatDailyLimit: 200, dailyGenerationLimit: 1000 },
+  ANNUAL: { monthlyCredits: 10000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
 };
 
 export const PLAN_LABELS: Record<PlanCode, string> = {

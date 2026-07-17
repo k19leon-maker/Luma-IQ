@@ -28,6 +28,7 @@ export type UsageAction =
 export type PricingPlanLimits = {
   projectsLimit: number;
   monthlyCredits: number;
+  aiCostBudgetRub: number;
   monthlyContentUnits: number;
   dailyAiMessagesLimit: number;
   monthlyAiGenerationsLimit: number;
@@ -63,7 +64,8 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     billingPeriod: 'month',
     limits: {
       projectsLimit: 1,
-      monthlyCredits: 1000,
+      monthlyCredits: 2000,
+      aiCostBudgetRub: 1200,
       monthlyContentUnits: 50,
       dailyAiMessagesLimit: 10,
       monthlyAiGenerationsLimit: 100,
@@ -83,12 +85,13 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     id: 'pro',
     scenario: 'self',
     name: 'Pro',
-    priceMonthlyRub: 24000,
+    priceMonthlyRub: 12000,
     currency: 'RUB',
     billingPeriod: 'month',
     limits: {
       projectsLimit: 3,
-      monthlyCredits: 3000,
+      monthlyCredits: 10000,
+      aiCostBudgetRub: 1200,
       monthlyContentUnits: 150,
       dailyAiMessagesLimit: 30,
       monthlyAiGenerationsLimit: 300,
@@ -113,7 +116,8 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     billingPeriod: 'month',
     limits: {
       projectsLimit: 7,
-      monthlyCredits: 7000,
+      monthlyCredits: 10000,
+      aiCostBudgetRub: 3900,
       monthlyContentUnits: 350,
       dailyAiMessagesLimit: 100,
       monthlyAiGenerationsLimit: 700,
@@ -138,7 +142,8 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     billingPeriod: 'month',
     limits: {
       projectsLimit: 3,
-      monthlyCredits: 4000,
+      monthlyCredits: 7000,
+      aiCostBudgetRub: 3900,
       monthlyContentUnits: 150,
       dailyAiMessagesLimit: 50,
       monthlyAiGenerationsLimit: 400,
@@ -163,7 +168,8 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     billingPeriod: 'month',
     limits: {
       projectsLimit: 5,
-      monthlyCredits: 7000,
+      monthlyCredits: 12000,
+      aiCostBudgetRub: 5900,
       monthlyContentUnits: 250,
       dailyAiMessagesLimit: 100,
       monthlyAiGenerationsLimit: 700,
@@ -188,7 +194,8 @@ export const PRICING_PLANS: Record<PlanId, PricingPlan> = {
     billingPeriod: 'month',
     limits: {
       projectsLimit: 7,
-      monthlyCredits: 10000,
+      monthlyCredits: 20000,
+      aiCostBudgetRub: 8900,
       monthlyContentUnits: 400,
       dailyAiMessagesLimit: 200,
       monthlyAiGenerationsLimit: 1000,

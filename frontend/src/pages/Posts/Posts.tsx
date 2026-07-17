@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SplitEditor, SplitItem } from '../../components/SplitEditor/SplitEditor';
@@ -12,6 +12,7 @@ import { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -217,8 +218,10 @@ export default function Posts() {
   const [facture,       setFacture]       = useState('');
   const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
   const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const [isListening,   setIsListening]   = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const voice = useAudioRecorder(
+    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
+    (message) => toast.error(message),
+  );
 
   // Editor edit-in-progress (unsaved changes per post id)
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
@@ -366,29 +369,6 @@ export default function Posts() {
     finishGenerationTask(activeProjectId, 'posts');
   }
 
-  // ── Voice input ───────────────────────────────────────────────────────────────
-  function toggleVoice() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = 'ru-RU';
-    rec.continuous = true;
-    rec.interimResults = false;
-    rec.onresult = (e: any) => {
-      const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(' ');
-      setFacture(prev => prev ? `${prev} ${t}` : t);
-    };
-    rec.onend = () => setIsListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setIsListening(true);
-  }
-
   // ── Editor helpers ────────────────────────────────────────────────────────────
   function getEditorState(post: SavedPost) {
     const ov = editMap[post.id];
@@ -530,10 +510,6 @@ export default function Posts() {
     );
   }
 
-  const voiceAvailable = !!(
-    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  );
-
   // ── Step 1 ────────────────────────────────────────────────────────────────────
   if (phase === 'step1') {
     return (
@@ -661,11 +637,11 @@ export default function Posts() {
           ))}
         </div>
 
-        {voiceAvailable && (
+        {voice.isSupported && (
           <div className={s.inputModeRow}>
             <button
               className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => { setInputMode('text'); if (isListening) toggleVoice(); }}
+              onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}
             >
               ✏️ Текст
             </button>
@@ -688,10 +664,11 @@ export default function Posts() {
         ) : (
           <div className={s.voiceArea}>
             <button
-              className={`${s.voiceBtn}${isListening ? ' ' + s.voiceBtnActive : ''}`}
-              onClick={toggleVoice}
+              className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`}
+              onClick={voice.toggle}
+              disabled={voice.isTranscribing}
             >
-              {isListening ? '⏹ Остановить запись' : '🎤 Начать запись'}
+              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
             </button>
             {facture && <div className={s.voiceTranscript}>{facture}</div>}
           </div>

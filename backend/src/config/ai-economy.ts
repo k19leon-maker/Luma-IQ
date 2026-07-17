@@ -31,6 +31,7 @@ export interface FeaturePricingConfig {
 
 export interface PlanLimitConfig {
   monthlyCredits: number;
+  aiCostBudgetRub: number;
   projectLimit: number;
   heavyGenerationLimit: number;
   chatDailyLimit: number;
@@ -196,6 +197,7 @@ const ALL_FEATURES = Object.keys(FEATURE_PRICING).reduce<Record<string, boolean>
 function toPlanLimitConfig(limits: PricingPlanLimits): PlanLimitConfig {
   return {
     monthlyCredits: limits.monthlyCredits,
+    aiCostBudgetRub: limits.aiCostBudgetRub,
     projectLimit: limits.projectsLimit,
     heavyGenerationLimit: limits.heavyGenerationsLimit,
     chatDailyLimit: limits.dailyAiMessagesLimit,
