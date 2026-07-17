@@ -1,19 +1,48 @@
 import { Link } from 'react-router-dom';
 import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
 import { useBillingMe } from '../../components/UsageLimits/UsageLimits';
+import { AI_ACTION_COSTS } from '../../config/ai-balance';
 import { appPath } from '../../utils/appRoutes';
 import { formatLimitNumber } from '../../utils/planLimits';
 import s from './Limits.module.css';
 
-const capacityRows = [
-  ['Сообщение в диалоге с ИИ', '1 балл'],
-  ['Пост или рилс', '5-7 баллов'],
-  ['Статья или лонгрид', '30 баллов'],
-  ['Раздел стратегии', '15-25 баллов'],
-  ['Основной продукт', '60 баллов'],
-  ['Мини-продукт', '80 баллов'],
-  ['Лид-магнит', '120 баллов'],
-  ['Полная пересборка стратегии', '100 баллов'],
+const capacityGroups = [
+  {
+    title: 'Стратегия',
+    items: [
+      { label: 'Раздел «О себе»', cost: AI_ACTION_COSTS.strategy_about },
+      { label: 'Позиционирование', cost: AI_ACTION_COSTS.positioning },
+      { label: 'Целевая аудитория', cost: AI_ACTION_COSTS.audience },
+      { label: 'УТП', cost: AI_ACTION_COSTS.utp },
+      { label: 'Оформление соцсетей', cost: AI_ACTION_COSTS.social },
+      { label: 'Полная пересборка стратегии', cost: AI_ACTION_COSTS.strategy_rebuild },
+    ],
+  },
+  {
+    title: 'Продукты',
+    items: [
+      { label: 'Основной продукт', cost: AI_ACTION_COSTS.product_main },
+      { label: 'Мини-продукт', cost: AI_ACTION_COSTS.product_mini },
+      { label: 'Лид-магнит', cost: AI_ACTION_COSTS.lead_magnet },
+    ],
+  },
+  {
+    title: 'Контент',
+    items: [
+      { label: 'Посты', cost: AI_ACTION_COSTS.content_post },
+      { label: 'Рилсы', cost: AI_ACTION_COSTS.content_reel },
+      { label: 'Цепочки постов', cost: AI_ACTION_COSTS.content_thread },
+      { label: 'Статьи / лонгриды', cost: AI_ACTION_COSTS.content_article },
+      { label: 'YouTube-сценарии', cost: AI_ACTION_COSTS.youtube_script },
+      { label: 'Контент-планы', cost: AI_ACTION_COSTS.content_plan },
+    ],
+  },
+  {
+    title: 'Диалог',
+    items: [
+      { label: 'Сообщения в диалоге с ИИ', cost: AI_ACTION_COSTS.ai_chat },
+    ],
+  },
 ];
 
 function formatRenewalDate(value?: string | null): string {
@@ -28,6 +57,11 @@ function formatHistoryDate(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function getCapacityCount(balance: number, cost: number): number {
+  if (cost <= 0) return 0;
+  return Math.max(0, Math.floor(balance / cost));
 }
 
 function Skeleton() {
@@ -153,15 +187,39 @@ export default function Limits() {
 
       <section className={s.section}>
         <div className={s.sectionIntro}>
-          <h3>На что хватит AI-баланса</h3>
-          <p>Разные действия используют разное количество AI-баллов. Простое сообщение в диалоге стоит меньше, чем сборка продукта или полноценной стратегии.</p>
+          <h3>Сколько ещё можно создать в этом месяце</h3>
+          <p>Это расчёт от текущего остатка AI-баланса. Если весь остаток потратить только на один тип действия, вы сможете создать примерно столько материалов.</p>
         </div>
-        <div className={s.costGrid}>
-          {capacityRows.map(([label, cost]) => (
-            <div className={s.costRow} key={label}>
-              <span>{label}</span>
-              <strong>{cost}</strong>
-            </div>
+        <div className={s.capacityGrid}>
+          {capacityGroups.map((group) => (
+            <article className={s.capacityGroup} key={group.title}>
+              <h4>{group.title}</h4>
+              <div className={s.capacityList}>
+                {group.items.map((item) => {
+                  const remainingCount = getCapacityCount(limits.aiBalanceRemaining, item.cost);
+                  const totalCount = getCapacityCount(limits.aiBalanceTotal, item.cost);
+                  const capacityPercent = totalCount > 0
+                    ? Math.min(100, Math.max(0, (remainingCount / totalCount) * 100))
+                    : 0;
+
+                  return (
+                    <div className={s.capacityItem} key={item.label}>
+                      <div className={s.capacityTopline}>
+                        <span>{item.label}</span>
+                        <strong>{formatLimitNumber(remainingCount)} осталось</strong>
+                      </div>
+                      <div className={s.capacityMeta}>
+                        <span>{formatLimitNumber(item.cost)} AI-баллов за 1 действие</span>
+                        <span>до {formatLimitNumber(totalCount)} на тарифе</span>
+                      </div>
+                      <div className={s.capacityTrack} aria-hidden="true">
+                        <div className={s.capacityBar} style={{ width: `${capacityPercent}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
           ))}
         </div>
       </section>
