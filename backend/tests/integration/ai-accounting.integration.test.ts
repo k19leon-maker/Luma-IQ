@@ -109,4 +109,29 @@ describe('AI accounting integration', () => {
       data: expect.objectContaining({ status: 'FAILED' }),
     }));
   });
+
+  it('does not create or charge a second generation for a completed idempotency key', async () => {
+    prismaMock.aIGeneration.findUnique.mockResolvedValueOnce({
+      id: 'generation-existing',
+      status: 'SUCCEEDED',
+    } as never);
+
+    await expect(aiGenerationService.run({
+      userId: 'user-1',
+      projectId: 'project-1',
+      featureCode: 'ai_chat',
+      provider: 'OPENAI',
+      model: 'gpt-5.4',
+      idempotencyKey: 'same-request',
+      execute: async () => ({
+        result: { content: 'should not run' },
+        usage: { inputTokens: 10, outputTokens: 20 },
+        provider: 'OPENAI',
+        model: 'gpt-5.4',
+      }),
+    })).rejects.toMatchObject({ code: 'IDEMPOTENCY_REPLAY' });
+
+    expect(prismaMock.aIGeneration.create).not.toHaveBeenCalled();
+    expect(prismaMock.billingPeriod.update).not.toHaveBeenCalled();
+  });
 });

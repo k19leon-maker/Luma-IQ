@@ -9,6 +9,9 @@ interface ListItem {
   title: string;
   text: string;
   meta?: string;
+  image?: string;
+  imageAlt?: string;
+  tags?: string[];
 }
 
 export default function ListPage({
@@ -45,11 +48,13 @@ export default function ListPage({
       <section className={s.section}>
         <div className={s.grid}>
           {items.map((item) => (
-            <Link key={item.slug} to={`${basePath}/${item.slug}`} className={s.card}>
+            <Link key={item.slug} to={`${basePath}/${item.slug}`} className={`${s.card} ${item.image ? s.articleCard : ''}`}>
+              {item.image && <img src={item.image} alt={item.imageAlt ?? ''} width="720" height="405" loading="lazy" />}
               <div>
                 {item.meta && <span className={s.meta}>{item.meta}</span>}
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
+                {item.tags && <div className={s.cardTags}>{item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>}
               </div>
               <span className={s.cardLink}>Открыть <span>→</span></span>
             </Link>

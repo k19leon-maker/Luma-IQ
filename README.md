@@ -240,4 +240,5 @@ curl -s -i https://api.lumaiq.ru/api/v1/health
 - `docs/architecture.md` — current architecture
 - `docs/PROMPT_STRATEGY.md` — AI roles and prompt strategy
 - `docs/PROMPTS_AUDIT.md` — prompt/orchestration audit
-- `docs/ROADMAP.md` — current roadmap
+- `../2. Беклог задач/Luma IQ — B2B SaaS — дорожная карта.md` — дорожная карта B2B-сервиса
+- `../2. Беклог задач/Luma IQ — B2C SEO-портал — дорожная карта.md` — дорожная карта публичного B2C-портала

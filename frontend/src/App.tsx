@@ -21,6 +21,8 @@ import PublicLayout from './pages/PublicPortal/PublicLayout';
 import HomePage from './pages/PublicPortal/HomePage';
 import ListPage from './pages/PublicPortal/ListPage';
 import DetailPage from './pages/PublicPortal/DetailPage';
+import { ArticlePage } from './pages/PublicPortal/ArticlePage';
+import { ProblemPage } from './pages/PublicPortal/ProblemPage';
 import NotFoundPage from './pages/PublicPortal/NotFoundPage';
 import LegalPage from './pages/PublicPortal/LegalPage';
 import ContactsPage from './pages/PublicPortal/ContactsPage';
@@ -72,8 +74,10 @@ const articleItems = publicArticles.map((item) => ({
   title: item.title,
   description: item.excerpt,
   text: item.excerpt,
-  content: item.content,
-  meta: `${item.author} · ${new Date(item.publishedAt).toLocaleDateString('ru-RU')}`,
+  meta: `${item.author.name} · ${item.readingTime ?? new Date(item.publishedAt).toLocaleDateString('ru-RU')}`,
+  image: item.coverImage,
+  imageAlt: item.coverAlt,
+  tags: item.tags,
 }));
 
 const categoryItems = categories.map((item) => ({
@@ -203,7 +207,7 @@ export default function App() {
           path="/articles"
           element={publicPage(<ListPage title="Статьи" description="Материалы о психологических трудностях, отношениях, тревоге, разводе и восстановлении ресурса." basePath="/articles" items={articleItems} />)}
         />
-        <Route path="/articles/:slug" element={publicPage(<DetailPage items={articleItems} sectionTitle="Статьи" sectionPath="/articles" fallbackTitle="Статья не найдена" />)} />
+        <Route path="/articles/:slug" element={publicPage(<ArticlePage />)} />
         <Route
           path="/categories"
           element={publicPage(<ListPage title="Категории" description="Тематические направления будущего информационного портала Luma IQ." basePath="/categories" items={categoryItems} />)}
@@ -213,7 +217,7 @@ export default function App() {
           path="/problems"
           element={publicPage(<ListPage title="Проблемы" description="Отдельные SEO-страницы для жизненных и психологических ситуаций, с которыми пользователи приходят за помощью." basePath="/problems" items={problemItems} />)}
         />
-        <Route path="/problems/:slug" element={publicPage(<DetailPage items={problemItems} sectionTitle="Проблемы" sectionPath="/problems" fallbackTitle="Проблема не найдена" />)} />
+        <Route path="/problems/:slug" element={publicPage(<ProblemPage />)} />
         <Route
           path="/experts"
           element={publicPage(<ListPage title="Специалисты" description="Профили специалистов Luma IQ и направления помощи." basePath="/experts" items={expertItems} />)}

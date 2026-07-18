@@ -7,6 +7,7 @@ export interface ProductDraft {
   format: string;
   duration: string;
   description: string;
+  currentMarkdown?: string;
   generated: boolean;
   workflowRunId?: string;
   workflowStepId?: string;

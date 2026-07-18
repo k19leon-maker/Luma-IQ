@@ -6,6 +6,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildUtpMaterial } from '../../utils/projectMaterials';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 
 
@@ -71,13 +72,16 @@ export default function UTP() {
     }
     setLoading(true);
     try {
+      const workflow = 'strategy.utp.generate';
+      const inputs = {
+        mode: 'generate',
+        inputText,
+      };
       const resp = await aiApi.startWorkflow('strategy.utp.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          mode: 'generate',
-          inputText,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       const value = resp.content.trim();
       persistUtp(value, buildVersion(value, 'AI-генерация УТП', 'ai', resp));
@@ -98,14 +102,17 @@ export default function UTP() {
     }
     setLoading(true);
     try {
+      const workflow = 'strategy.utp.generate';
+      const inputs = {
+        mode: 'improve',
+        currentUtp: utpText,
+        inputText,
+      };
       const resp = await aiApi.startWorkflow('strategy.utp.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          mode: 'improve',
-          currentUtp: utpText,
-          inputText,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       const value = resp.content.trim();
       persistUtp(value, buildVersion(value, 'AI-улучшение УТП', 'ai', resp));

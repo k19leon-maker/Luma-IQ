@@ -13,6 +13,36 @@ import {
 import { contextAppendix, value } from './helpers';
 import { PromptConfig } from './types';
 
+function objectValue(inputs: Record<string, unknown>, key: string): Record<string, unknown> {
+  const current = inputs[key];
+  return current && typeof current === 'object' && !Array.isArray(current) ? current as Record<string, unknown> : {};
+}
+
+function profileField(profile: Record<string, unknown>, key: string): string {
+  const current = profile[key];
+  return typeof current === 'string' ? current.trim() : '';
+}
+
+function aboutSummarySource(inputs: Record<string, unknown>): string {
+  const profile = objectValue(inputs, 'profile');
+  return [
+    ['Кто эксперт и чем занимается', profileField(profile, 'whoYouAre')],
+    ['Кому помогает', profileField(profile, 'targetAudience')],
+    ['Продукты и услуги', profileField(profile, 'productsAndServices')],
+    ['Экспертность и сильные стороны', profileField(profile, 'expertiseAndStrengths')],
+    ['Факты доверия', profileField(profile, 'trustProofs')],
+    ['Имя / обращение', profileField(profile, 'name')],
+    ['Опыт в годах', profileField(profile, 'experienceYears')],
+    ['Формат работы', profileField(profile, 'workFormats')],
+    ['Ограничения', profileField(profile, 'antiPreferences')],
+    ['Образование и сертификаты', profileField(profile, 'credentials')],
+    ['Текст из файлов', profileField(profile, 'uploadedFileText')],
+  ]
+    .map(([label, text]) => text ? `${label}:\n${text}` : '')
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 const MAIN_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
   {
     step: 'names',
@@ -1007,6 +1037,33 @@ ${contextAppendix(context)}
 
 Верни только готовые материалы.`,
     validationRules: { requiredIncludes: ['## Короткое позиционирование', '## CTA'], minLength: 700, minHeadings: 5, structuredOutput: 'text' },
+  },
+  {
+    id: 'strategy.about.summary.v1',
+    version: 'v1',
+    feature: 'about_ai_summary',
+    workflow: 'strategy.about',
+    step: 'summary',
+    model: 'gpt-5.5',
+    temperature: 0.2,
+    maxTokens: 900,
+    artifactType: 'about_summary',
+    systemPrompt: () => [
+      'Ты помогаешь платформе Luma IQ подготовить компактное резюме проекта для дальнейших AI-разделов.',
+      'Задача: структурировать только факты, которые дал пользователь.',
+      'Строго запрещено выдумывать кейсы, цифры, опыт, сертификаты, клиентов, результаты, должности, аудитории и продукты.',
+      'Если фактов мало, аккуратно обобщи имеющееся и не добавляй новых утверждений.',
+      'Верни только готовое резюме на русском языке без markdown-заголовков, без списков проверки и без комментариев.',
+      'Объем: 800-1500 знаков. Резюме должно покрыть: кто эксперт; кому помогает; с какой проблемой; какие продукты продает; сильные стороны; факты доверия.',
+    ].join('\n'),
+    userPromptBuilder: ({ inputs, context }) => `Исходные поля раздела "О себе":
+
+${aboutSummarySource(inputs)}
+
+${contextAppendix(context)}
+
+Верни только компактное резюме для AI-контекста.`,
+    validationRules: { minLength: 250, maxLength: 1700, structuredOutput: 'text' },
   },
   {
     id: 'strategy.audience.generate.v1',

@@ -13,6 +13,7 @@ import { contentGenerationKey, useContentGenerationStore } from '../../store/con
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -260,15 +261,18 @@ export default function Posts() {
       story: 'пост-история или кейс',
     };
     try {
+      const workflow = 'posts.topic.generate';
+      const inputs = {
+        platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+        postType: typeLabels[postType],
+        goal: offer === 'lead' ? 'продать лид-магнит' : offer === 'mini' ? 'продать мини-продукт' : 'продать основной продукт',
+        selectedSegment: segCtx || null,
+      };
       const resp = await aiApi.startWorkflow('posts.topic.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
-          postType: typeLabels[postType],
-          goal: offer === 'lead' ? 'продать лид-магнит' : offer === 'mini' ? 'продать мини-продукт' : 'продать основной продукт',
-          selectedSegment: segCtx || null,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       const lines = resp.content.split('\n').map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).slice(0, 5);
       setThemes(lines);
@@ -311,19 +315,22 @@ export default function Posts() {
     let content: string;
     let workflowMeta: Pick<SavedPost, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'> = {};
     try {
+      const workflow = 'posts.post.write';
+      const inputs = {
+        platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
+        postType: typeLabels[postType],
+        goal: offer === 'lead' ? 'лид-магнит' : offer === 'mini' ? 'мини-продукт' : 'основной продукт',
+        topic: selectedTheme,
+        facture,
+        keyword,
+        cta: extraCtx,
+        topicsWorkflowRunId: topicsWorkflowRunId || null,
+      };
       const resp = await aiApi.startWorkflow('posts.post.write', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
-          postType: typeLabels[postType],
-          goal: offer === 'lead' ? 'лид-магнит' : offer === 'mini' ? 'мини-продукт' : 'основной продукт',
-          topic: selectedTheme,
-          facture,
-          keyword,
-          cta: extraCtx,
-          topicsWorkflowRunId: topicsWorkflowRunId || null,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       content = resp.content;
       workflowMeta = {

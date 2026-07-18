@@ -8,6 +8,8 @@ export type BillingPlan = {
   name: string;
   priceMonthlyRub: number;
   aiCostBudgetRub?: number;
+  aiBalanceTotal?: number;
+  projectsTotal?: number;
   subscriptionStatus?: string;
   currency: 'RUB';
   billingPeriod: 'month';

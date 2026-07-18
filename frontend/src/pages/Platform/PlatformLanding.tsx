@@ -52,7 +52,7 @@ const platformPlans: PlatformPlan[] = [
     id: 'pro',
     scenario: 'self',
     name: 'Pro',
-    price: 24000,
+    price: 12000,
     period: 'в месяц',
     description: 'Для эксперта, который хочет системно вести контент и развивать несколько продуктов.',
     features: [
@@ -398,7 +398,7 @@ export default function PlatformLanding() {
                     <p>Упаковка, продукты, контент и задачи в одном контексте.</p>
                   </div>
                   <div className={styles.previewBadges} aria-label="Статус проекта">
-                    <span>Credits 148</span>
+                    <span>AI-баланс 148</span>
                     <span>Pro</span>
                     <span>AI ready</span>
                   </div>

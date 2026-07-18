@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { billingApi } from '../../api/billing.api';
+import { billingApi, type BillingPlan } from '../../api/billing.api';
 import { paymentApi } from '../../api/projects.api';
 import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
 import { useAuthStore } from '../../store/auth.store';
@@ -20,6 +20,12 @@ type PricingPlan = {
   features: string[];
   badge?: string;
   buttonText: string;
+};
+
+type RuntimePlan = PricingPlan & {
+  aiBalanceTotal?: number;
+  aiCostBudgetRub?: number;
+  projectsTotal?: number;
 };
 
 const scenarioTabs: Array<{ id: BillingScenario; label: string }> = [
@@ -54,7 +60,7 @@ const pricingPlans: PricingPlan[] = [
     id: 'pro',
     scenario: 'self',
     name: 'Pro',
-    price: 24000,
+    price: 12000,
     period: 'в месяц',
     description: 'Для эксперта, который хочет системно вести контент и развивать несколько продуктов',
     features: [
@@ -185,10 +191,27 @@ function formatPrice(value: number) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value) + ' ₽';
 }
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value);
+}
+
 function normalizeActivePlan(value?: string | null) {
   if (!value) return null;
   const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
   return planAliases[normalized] ?? normalized.toLowerCase();
+}
+
+function enrichPlan(plan: PricingPlan, billingPlan?: BillingPlan): RuntimePlan {
+  if (!billingPlan) return plan;
+  return {
+    ...plan,
+    scenario: billingPlan.scenario,
+    name: billingPlan.name,
+    price: billingPlan.priceMonthlyRub,
+    aiBalanceTotal: billingPlan.aiBalanceTotal,
+    aiCostBudgetRub: billingPlan.aiCostBudgetRub,
+    projectsTotal: billingPlan.projectsTotal,
+  };
 }
 
 function getCheckoutErrorMessage(error: unknown) {
@@ -205,13 +228,23 @@ export default function Pricing() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
   const [checkoutPlanId, setCheckoutPlanId] = useState<PaidPlanId | null>(null);
+  const [billingPlans, setBillingPlans] = useState<BillingPlan[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    billingApi.getMe()
-      .then((billing) => {
+    Promise.allSettled([billingApi.getMe(), billingApi.listPlans()])
+      .then(([billingResult, plansResult]) => {
         if (cancelled) return;
-        setActivePlanId(billing.plan.id);
+        if (billingResult.status === 'fulfilled') {
+          setActivePlanId(billingResult.value.plan.id);
+        } else {
+          const fallbackPlan = (user as { plan?: string; tariff?: string } | null)?.plan
+            ?? (user as { plan?: string; tariff?: string } | null)?.tariff;
+          setActivePlanId(normalizeActivePlan(fallbackPlan));
+        }
+        if (plansResult.status === 'fulfilled') {
+          setBillingPlans(plansResult.value);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -224,8 +257,10 @@ export default function Pricing() {
   }, [user]);
 
   const visiblePlans = useMemo(
-    () => pricingPlans.filter((plan) => plan.scenario === scenario),
-    [scenario],
+    () => pricingPlans
+      .map((plan) => enrichPlan(plan, billingPlans.find((item) => item.id === plan.id)))
+      .filter((plan) => plan.scenario === scenario),
+    [billingPlans, scenario],
   );
 
   async function handleSelectPlan(plan: PricingPlan) {
@@ -298,6 +333,24 @@ export default function Pricing() {
               </div>
 
               <ul className={s.features}>
+                {typeof plan.aiBalanceTotal === 'number' && (
+                  <li>
+                    <span className={s.check}>✓</span>
+                    <span>{formatNumber(plan.aiBalanceTotal)} AI-баллов в месяц</span>
+                  </li>
+                )}
+                {typeof plan.projectsTotal === 'number' && (
+                  <li>
+                    <span className={s.check}>✓</span>
+                    <span>{formatNumber(plan.projectsTotal)} {plan.projectsTotal === 1 ? 'проект' : 'проектов'} на тарифе</span>
+                  </li>
+                )}
+                {typeof plan.aiCostBudgetRub === 'number' && (
+                  <li>
+                    <span className={s.check}>✓</span>
+                    <span>AI-бюджет тарифа: до {formatPrice(plan.aiCostBudgetRub)} расходов сервиса</span>
+                  </li>
+                )}
                 {plan.features.map((feature) => (
                   <li key={feature}>
                     <span className={s.check}>✓</span>

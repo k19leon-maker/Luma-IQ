@@ -13,6 +13,7 @@ import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { isMigrated, markMigrated, metadataString, readLegacyObjectWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './ChatbotChains.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -252,17 +253,20 @@ export default function ChatbotChains() {
       const formatLabel = format === 'article' ? 'статью' : 'видео-урок';
       const meet        = meetingSchedule.trim() || 'каждую пятницу в 19:00';
       const bot         = botName.trim() || 'Telegram-бот';
+      const workflow    = 'chatbot.chain.generate';
+      const inputs      = {
+        botName: bot,
+        segment: seg,
+        leadMagnetFormat: formatLabel,
+        meetingSchedule: meet,
+      };
 
       const resp = await aiApi.startWorkflow('chatbot.chain.generate', {
         projectId: activeProjectId,
         provider: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
-        inputs: {
-          botName: bot,
-          segment: seg,
-          leadMagnetFormat: formatLabel,
-          meetingSchedule: meet,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       // Parse 13 messages from response

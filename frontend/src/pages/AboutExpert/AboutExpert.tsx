@@ -7,6 +7,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { buildExpertProfileMaterial } from '../../utils/projectMaterials';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './AboutExpert.module.css';
 
 export interface ExpertProfileData {
@@ -367,8 +368,8 @@ export default function AboutExpert() {
 
     setEnhancing(true);
     try {
-      const response = await aiApi.improveAboutSummary({
-        projectId: activeProjectId,
+      const workflow = 'strategy.about.summary';
+      const inputs = {
         profile: {
           whoYouAre: profile.whoYouAre,
           targetAudience: profile.targetAudience,
@@ -382,9 +383,13 @@ export default function AboutExpert() {
           credentials: profile.credentials,
           uploadedFileText: profile.uploadedFileText,
         },
-        idempotencyKey: `about-summary:${activeProjectId}:${Date.now()}`,
+      };
+      const response = await aiApi.startWorkflow('strategy.about.summary', {
+        projectId: activeProjectId,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
-      const nextProfile = { ...profile, aiSummary: response.summary };
+      const nextProfile = { ...profile, aiSummary: response.content };
       const chargedText = typeof response.aiPointsCharged === 'number'
         ? `Списано ${response.aiPointsCharged} AI-баллов.`
         : 'AI-резюме готово.';

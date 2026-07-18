@@ -8,7 +8,8 @@ import { useModelStore } from '../../store/model.store';
 import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
 import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
-import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import type { AxiosError } from 'axios';
@@ -125,7 +126,7 @@ function normalizeProduct(saved?: ProductDraft): ProductState {
   };
 }
 
-function buildMainProductMarkdown(product: ProductState): string {
+function buildMainProductMarkdownFromParts(product: ProductState): string {
   const assistantContent = (product.chatMessages ?? [])
     .filter((message) => (
       message.role === 'assistant' &&
@@ -156,7 +157,15 @@ function buildMainProductMarkdown(product: ProductState): string {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildMainProductMarkdown(product: ProductState): string {
+  return product.currentMarkdown?.trim() || buildMainProductMarkdownFromParts(product);
+}
+
 function buildMainProductBrief(product: ProductState): string {
+  if (product.currentMarkdown?.trim()) {
+    return limitText(product.currentMarkdown, 6500);
+  }
+
   const assistantBlocks = (product.chatMessages ?? [])
     .filter((message) => (
       message.role === 'assistant' &&
@@ -303,15 +312,18 @@ export default function ProductMain() {
     }
     try {
       const settings = getSettings('product-main');
-      const resp = await aiApi.startWorkflow(`product.main.${stepId}`, {
+      const workflow = `product.main.${stepId}`;
+      const inputs = {
+        currentProduct: buildMainProductBrief(current),
+        userRequest,
+      };
+      const resp = await aiApi.startWorkflow(workflow, {
         projectId: activeProjectId,
         provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        inputs: {
-          currentProduct: buildMainProductBrief(current),
-          userRequest,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
@@ -492,10 +504,16 @@ ${currentProduct}
 
     const preferredName = extractPreferredProductName(text);
     if (preferredName) {
+      const currentMarkdown = applyProductNameToMarkdown(
+        stateWithUser.currentMarkdown || buildMainProductMarkdownFromParts(stateWithUser),
+        'Основной продукт',
+        preferredName,
+      );
       const next = withMessage({
         ...stateWithUser,
         name: preferredName,
         nameOptions: [preferredName, ...(stateWithUser.nameOptions ?? []).filter((name) => name && name !== preferredName)].slice(0, 3),
+        currentMarkdown,
         generated: true,
       }, {
         role: 'assistant',
@@ -519,6 +537,7 @@ ${currentProduct}
         withWorkflowMeta({
           ...stateWithUser,
           generated: true,
+          currentMarkdown: response.includes('# Основной продукт') ? response : `# Основной продукт\n\n${response}`,
           description: response.includes('# Основной продукт') ? response : `# Основной продукт\n\n${response}`,
         }, resp),
         { role: 'assistant', content: response, stepTitle: 'Редактирование продукта' },

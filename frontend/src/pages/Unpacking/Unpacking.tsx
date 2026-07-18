@@ -8,6 +8,7 @@ import { aiApi } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useModelStore } from '../../store/model.store';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 
 const WELCOME_MSG =
   'Привет! Я ваш AI-маркетолог.\nЧтобы создать стратегию продвижения, мне нужно познакомиться с вашей практикой.\n\nРасскажите о себе: кто вы, чем занимаетесь, кому помогаете и какой результат получают ваши клиенты. Можете писать в свободной форме — я задам уточняющие вопросы.';
@@ -75,16 +76,19 @@ export default function Unpacking() {
       .map((m) => `${m.role === 'ai' ? 'assistant' : 'user'}: ${m.text}`)
       .join('\n');
     const settings = getSettings('unpacking');
+    const workflow = 'strategy.positioning.generate';
+    const inputs = {
+      projectName: projectName || 'Проект',
+      history: formattedHistory,
+      message,
+    };
     const resp = await aiApi.startWorkflow('strategy.positioning.generate', {
       projectId: activeProjectId,
       provider: settings.provider,
       openaiModel: settings.openaiModel,
       claudeModel: settings.claudeModel,
-      inputs: {
-        projectName: projectName || 'Проект',
-        history: formattedHistory,
-        message,
-      },
+      inputs,
+      idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
     });
     return resp.content;
   }

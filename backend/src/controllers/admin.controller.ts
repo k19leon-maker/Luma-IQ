@@ -10,7 +10,8 @@ import { promptRegistry } from '../prompts/registry';
 import { promptCmsService } from '../services/prompt-cms.service';
 import { setRefreshCookie } from '../utils/auth-cookies';
 import { isDemoProductText } from '../utils/demo-products';
-import { isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
+import { getPlanBySubscriptionPlan, isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
+import { AI_ACTION_LABELS, AI_ACTION_SECTIONS, aiPointsForGeneration, featureCodeToAiAction } from '../config/ai-actions';
 
 const subscriptionPlanValues = ['FREE', 'START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
 const commercialPlanValues = ['START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'] as const;
@@ -20,6 +21,15 @@ const listSchema = z.object({
   plan: z.enum(['ALL', ...subscriptionPlanValues]).optional().default('ALL'),
   status: z.enum(['ALL', 'ACTIVE', 'INACTIVE', 'HIGH_COST']).optional().default('ALL'),
   archive: z.enum(['ACTIVE', 'ARCHIVED', 'ALL']).optional().default('ACTIVE'),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
+
+const workflowListSchema = z.object({
+  userId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional(),
+  workflow: z.string().min(1).max(120).optional(),
+  status: z.string().min(1).max(80).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
@@ -38,6 +48,19 @@ function marginPercent(revenue: number, costUsd: number): number {
   const costRub = costUsd * 100;
   if (revenue <= 0) return costUsd > 0 ? -100 : 0;
   return Math.round(((revenue - costRub) / revenue) * 100);
+}
+
+function costRub(costUsd: number): number {
+  return Math.round(costUsd * 100);
+}
+
+function avg(total: number, count: number): number {
+  return count > 0 ? total / count : 0;
+}
+
+function planAiBudgetRub(plan: string): number {
+  if (plan === 'FREE') return 0;
+  return getPlanBySubscriptionPlan(plan).limits.aiCostBudgetRub;
 }
 
 function projectHealth(project: {
@@ -221,6 +244,8 @@ export const adminController = {
         retainedUsers30d,
         promptVersionsCount,
         runningPromptExperiments,
+        userEconomyProfiles,
+        aiEconomyGenerations,
       ] = await Promise.all([
         prisma.user.count({ where: nonArchivedUser }),
         prisma.user.count({ where: { ...nonArchivedUser, createdAt: { gte: sevenDaysAgo } } }),
@@ -378,6 +403,26 @@ export const adminController = {
         }),
         prisma.promptVersion.count(),
         prisma.promptExperiment.count({ where: { status: 'RUNNING' } }),
+        prisma.user.findMany({
+          where: nonArchivedUser,
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            subscription: { select: { plan: true } },
+            payments: { where: { status: 'SUCCEEDED' }, select: { amount: true } },
+          },
+        }),
+        prisma.aIGeneration.findMany({
+          where: { user: nonArchivedUser, status: 'SUCCEEDED', createdAt: { gte: thirtyDaysAgo } },
+          select: {
+            userId: true,
+            featureCode: true,
+            metadata: true,
+            actualCostUsd: true,
+            totalTokens: true,
+          },
+        }),
       ]);
 
       const revenue = Number(revenueAgg._sum.amount ?? 0);
@@ -411,6 +456,65 @@ export const adminController = {
       const activatedSet = new Set(activatedUsers.map((item) => item.userId));
       const retained7Set = new Set(retainedUsers7d.map((item) => item.userId));
       const retained30Set = new Set(retainedUsers30d.map((item) => item.userId));
+      const userProfileById = new Map(userEconomyProfiles.map((user) => [user.id, user]));
+      const userEconomyMap = new Map<string, {
+        userId: string;
+        email: string;
+        name: string | null;
+        plan: string;
+        revenueRub: number;
+        requests: number;
+        tokens: number;
+        aiPointsUsed: number;
+        aiCostUsd: number;
+      }>();
+      const actionEconomyMap = new Map<string, {
+        actionType: string;
+        actionLabel: string;
+        sectionLabel: string;
+        requests: number;
+        tokens: number;
+        aiPoints: number;
+        costUsd: number;
+      }>();
+      for (const generation of aiEconomyGenerations) {
+        const profile = userProfileById.get(generation.userId);
+        const actionType = featureCodeToAiAction(generation.featureCode);
+        const points = aiPointsForGeneration(generation.featureCode, generation.metadata);
+        const tokens = generation.totalTokens ?? 0;
+        const costUsdValue = usd(generation.actualCostUsd);
+        const userRow = userEconomyMap.get(generation.userId) ?? {
+          userId: generation.userId,
+          email: profile?.email ?? 'unknown',
+          name: profile?.name ?? null,
+          plan: profile?.subscription?.plan ?? 'FREE',
+          revenueRub: profile?.payments.reduce((sum, payment) => sum + Number(payment.amount), 0) ?? 0,
+          requests: 0,
+          tokens: 0,
+          aiPointsUsed: 0,
+          aiCostUsd: 0,
+        };
+        userRow.requests += 1;
+        userRow.tokens += tokens;
+        userRow.aiPointsUsed += points;
+        userRow.aiCostUsd += costUsdValue;
+        userEconomyMap.set(generation.userId, userRow);
+
+        const actionRow = actionEconomyMap.get(actionType) ?? {
+          actionType,
+          actionLabel: AI_ACTION_LABELS[actionType],
+          sectionLabel: AI_ACTION_SECTIONS[actionType],
+          requests: 0,
+          tokens: 0,
+          aiPoints: 0,
+          costUsd: 0,
+        };
+        actionRow.requests += 1;
+        actionRow.tokens += tokens;
+        actionRow.aiPoints += points;
+        actionRow.costUsd += costUsdValue;
+        actionEconomyMap.set(actionType, actionRow);
+      }
 
       const workflowMap = new Map<string, {
         workflow: string;
@@ -490,9 +594,44 @@ export const adminController = {
           })),
           marginByPlan: revenuePlanRows.map((item) => ({
             ...item,
-            aiCostRub: item.aiCostUsd * 100,
+            aiCostRub: costRub(item.aiCostUsd),
+            aiBudgetRub: planAiBudgetRub(item.plan) * item.users,
+            aiBudgetUsedPercent: planAiBudgetRub(item.plan) * item.users > 0
+              ? Math.round((costRub(item.aiCostUsd) / (planAiBudgetRub(item.plan) * item.users)) * 100)
+              : 0,
+            aiBudgetDeltaRub: planAiBudgetRub(item.plan) * item.users - costRub(item.aiCostUsd),
             marginPercent: marginPercent(item.revenueRub, item.aiCostUsd),
           })),
+          userEconomics: Array.from(userEconomyMap.values())
+            .map((item) => {
+              const aiCostRub = costRub(item.aiCostUsd);
+              const aiBudgetRub = planAiBudgetRub(item.plan);
+              return {
+                ...item,
+                aiCostUsd: usd(item.aiCostUsd),
+                aiCostRub,
+                aiBudgetRub,
+                aiBudgetUsedPercent: aiBudgetRub > 0 ? Math.round((aiCostRub / aiBudgetRub) * 100) : 0,
+                aiBudgetDeltaRub: aiBudgetRub - aiCostRub,
+                avgTokensPerRequest: Math.round(avg(item.tokens, item.requests)),
+                avgCostUsd: usd(avg(item.aiCostUsd, item.requests)),
+                avgCostRub: costRub(avg(item.aiCostUsd, item.requests)),
+                avgAiPointsPerAction: Math.round(avg(item.aiPointsUsed, item.requests)),
+              };
+            })
+            .sort((a, b) => b.aiBudgetUsedPercent - a.aiBudgetUsedPercent || b.aiCostRub - a.aiCostRub)
+            .slice(0, 15),
+          actionEconomics: Array.from(actionEconomyMap.values())
+            .map((item) => ({
+              ...item,
+              costUsd: usd(item.costUsd),
+              costRub: costRub(item.costUsd),
+              avgTokensPerRequest: Math.round(avg(item.tokens, item.requests)),
+              avgCostUsd: usd(avg(item.costUsd, item.requests)),
+              avgCostRub: costRub(avg(item.costUsd, item.requests)),
+              avgAiPoints: Math.round(avg(item.aiPoints, item.requests)),
+            }))
+            .sort((a, b) => b.costRub - a.costRub),
           promptExperiments: {
             versions: promptVersionsCount,
             running: runningPromptExperiments,
@@ -520,6 +659,159 @@ export const adminController = {
     } catch (err) {
       console.error('[Admin] dashboard:', err);
       res.status(500).json({ error: 'Ошибка загрузки метрик' });
+    }
+  },
+
+  async listWorkflows(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = workflowListSchema.safeParse(req.query);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.errors[0].message }); return; }
+
+    const { userId, projectId, workflow, status, limit, offset } = parsed.data;
+    const where: Prisma.AIWorkflowRunWhereInput = {
+      user: { archivedAt: null },
+      ...(userId ? { userId } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(workflow ? { workflow: { contains: workflow, mode: 'insensitive' } } : {}),
+      ...(status ? { status } : {}),
+    };
+
+    try {
+      const [total, runs] = await Promise.all([
+        prisma.aIWorkflowRun.count({ where }),
+        prisma.aIWorkflowRun.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: offset,
+          take: limit,
+          include: {
+            user: { select: { id: true, email: true, name: true } },
+            project: { select: { id: true, name: true } },
+            steps: {
+              orderBy: { createdAt: 'asc' },
+              include: {
+                artifacts: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 3,
+                  select: { id: true, type: true, title: true, workflow: true, step: true, createdAt: true },
+                },
+                generations: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 3,
+                  select: {
+                    id: true,
+                    workflowStepId: true,
+                    featureCode: true,
+                    provider: true,
+                    model: true,
+                    status: true,
+                    inputTokens: true,
+                    outputTokens: true,
+                    cachedInputTokens: true,
+                    totalTokens: true,
+                    actualCostUsd: true,
+                    latencyMs: true,
+                    errorCode: true,
+                    errorMessage: true,
+                    createdAt: true,
+                    finishedAt: true,
+                  },
+                },
+              },
+            },
+            artifacts: {
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+              select: { id: true, type: true, title: true, workflow: true, step: true, createdAt: true },
+            },
+            generations: {
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+              select: {
+                id: true,
+                workflowStepId: true,
+                featureCode: true,
+                provider: true,
+                model: true,
+                status: true,
+                inputTokens: true,
+                outputTokens: true,
+                cachedInputTokens: true,
+                totalTokens: true,
+                actualCostUsd: true,
+                latencyMs: true,
+                errorCode: true,
+                errorMessage: true,
+                createdAt: true,
+                finishedAt: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      res.json({
+        total,
+        limit,
+        offset,
+        workflows: runs.map((run) => {
+          const totalTokens = run.generations.reduce((sum, generation) => sum + generation.totalTokens, 0);
+          const costUsd = run.generations.reduce((sum, generation) => sum + usd(generation.actualCostUsd), 0);
+          const failedSteps = run.steps.filter((step) => step.status === 'FAILED' || step.error);
+          const failedGenerations = run.generations.filter((generation) => generation.status === 'FAILED' || generation.errorMessage);
+          return {
+            id: run.id,
+            workflow: run.workflow,
+            featureCode: run.featureCode,
+            status: run.status,
+            startedAt: run.startedAt,
+            completedAt: run.completedAt,
+            createdAt: run.createdAt,
+            updatedAt: run.updatedAt,
+            durationMs: run.completedAt ? run.completedAt.getTime() - run.startedAt.getTime() : null,
+            user: run.user,
+            project: run.project,
+            totals: {
+              steps: run.steps.length,
+              artifacts: run.artifacts.length,
+              generations: run.generations.length,
+              tokens: totalTokens,
+              costUsd,
+              costRub: costRub(costUsd),
+            },
+            errors: [
+              ...failedSteps.map((step) => ({ type: 'step', step: step.step, message: step.error ?? 'Step failed' })),
+              ...failedGenerations.map((generation) => ({
+                type: 'generation',
+                step: run.steps.find((step) => step.id === generation.workflowStepId)?.step ?? null,
+                message: generation.errorMessage ?? generation.errorCode ?? 'Generation failed',
+              })),
+            ].slice(0, 5),
+            steps: run.steps.map((step) => ({
+              id: step.id,
+              step: step.step,
+              status: step.status,
+              retryCount: step.retryCount,
+              latencyMs: step.latencyMs,
+              error: step.error,
+              startedAt: step.startedAt,
+              completedAt: step.completedAt,
+              artifacts: step.artifacts,
+              generations: step.generations.map((generation) => ({
+                ...generation,
+                actualCostUsd: usd(generation.actualCostUsd),
+              })),
+            })),
+            artifacts: run.artifacts,
+            generations: run.generations.map((generation) => ({
+              ...generation,
+              actualCostUsd: usd(generation.actualCostUsd),
+            })),
+          };
+        }),
+      });
+    } catch (err) {
+      console.error('[Admin] listWorkflows:', err);
+      res.status(500).json({ error: 'Ошибка загрузки workflow history' });
     }
   },
 

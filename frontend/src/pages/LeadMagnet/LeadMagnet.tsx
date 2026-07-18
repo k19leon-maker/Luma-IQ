@@ -9,7 +9,8 @@ import { useModelStore } from '../../store/model.store';
 import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
 import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
-import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import s from './LeadMagnet.module.css';
@@ -169,7 +170,7 @@ function splitLeadMagnetMarkdownToMessages(markdown: string, fallbackTitle = 'Л
   });
 }
 
-function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
+function buildLeadMagnetMarkdownFromParts(state: LeadMagnetState): string {
   const formatTitle = state.selectedFormat ? FORMAT_LABELS[state.selectedFormat] : 'Лид-магнит';
   const assistantContent = (state.chatMessages ?? [])
     .filter((message) => message.role === 'assistant' && !message.content.startsWith('Да, зафиксировал название:'))
@@ -189,7 +190,15 @@ function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildLeadMagnetMarkdown(state: LeadMagnetState): string {
+  return state.currentMarkdown?.trim() || buildLeadMagnetMarkdownFromParts(state);
+}
+
 function buildLeadMagnetBrief(state: LeadMagnetState): string {
+  if (state.currentMarkdown?.trim()) {
+    return limitText(state.currentMarkdown, 6500);
+  }
+
   const formatTitle = state.selectedFormat ? FORMAT_LABELS[state.selectedFormat] : 'Лид-магнит';
   const assistantBlocks = (state.chatMessages ?? [])
     .filter((message) => message.role === 'assistant' && !message.content.startsWith('Да, зафиксировал название:'))
@@ -359,18 +368,21 @@ export default function LeadMagnet() {
     }
     try {
       const settings = getSettings('lead-magnet');
-      const resp = await aiApi.startWorkflow(`leadmagnet.${stepId}`, {
+      const workflow = `leadmagnet.${stepId}`;
+      const inputs = {
+        format: selectedFormat ? FORMAT_LABELS[selectedFormat] : 'Лид-магнит',
+        stepLabel: options.stepLabel ?? stepId,
+        stepTask: options.stepTask ?? `Сгенерируй блок "${options.stepLabel ?? stepId}" для выбранного формата лид-магнита.`,
+        currentLeadMagnet: buildLeadMagnetBrief(current),
+        userRequest: options.userRequest ?? '',
+      };
+      const resp = await aiApi.startWorkflow(workflow, {
         projectId: activeProjectId,
         provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        inputs: {
-          format: selectedFormat ? FORMAT_LABELS[selectedFormat] : 'Лид-магнит',
-          stepLabel: options.stepLabel ?? stepId,
-          stepTask: options.stepTask ?? `Сгенерируй блок "${options.stepLabel ?? stepId}" для выбранного формата лид-магнита.`,
-          currentLeadMagnet: buildLeadMagnetBrief(current),
-          userRequest: options.userRequest ?? '',
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
@@ -839,9 +851,15 @@ ${currentMarkdown || 'Пока пусто.'}`;
 
     const preferredName = extractPreferredProductName(text);
     if (preferredName) {
+      const currentMarkdown = applyProductNameToMarkdown(
+        stateWithUser.currentMarkdown || buildLeadMagnetMarkdownFromParts(stateWithUser),
+        'Лид-магнит',
+        preferredName,
+      );
       const next = withMessage({
         ...stateWithUser,
         name: preferredName,
+        currentMarkdown,
         generated: true,
       }, {
         role: 'assistant',
@@ -869,6 +887,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
       persistState({
         ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
+        currentMarkdown: description,
         description,
         name: stateWithUser.name || extractName(description, FORMAT_LABELS[selectedFormat]),
         chatMessages: [

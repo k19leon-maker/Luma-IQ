@@ -7,6 +7,7 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './Threads.module.css';
 
 type ThreadsPostFormat = 'single_post' | 'mini_thread' | 'deep_thread';
@@ -308,17 +309,19 @@ export default function Threads() {
     setGenerating(true);
     setError('');
     try {
+      const workflow = 'threads.plan.generate';
+      const inputs = {
+        ...settings,
+        missingSections: missingSections.length ? missingSections.join(', ') : 'Нет',
+        sourceSnapshot,
+      };
       const response = await aiApi.startWorkflow('threads.plan.generate', {
         projectId: activeProjectId,
         provider: modelSettings.provider,
         openaiModel: modelSettings.openaiModel,
         claudeModel: modelSettings.claudeModel,
-        idempotencyKey: `threads-plan:${activeProjectId}:${Date.now()}`,
-        inputs: {
-          ...settings,
-          missingSections: missingSections.length ? missingSections.join(', ') : 'Нет',
-          sourceSnapshot,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       const next = parseThreadsResult(response.content);
       const enriched: ThreadsResult = {
@@ -360,19 +363,21 @@ export default function Threads() {
     setRegeneratingDay(post.dayNumber);
     setError('');
     try {
+      const workflow = 'threads.post.regenerate';
+      const inputs = {
+        ...settings,
+        dayNumber: post.dayNumber,
+        existingPost: JSON.stringify(post, null, 2),
+        sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
+        rewriteAction: 'regenerate',
+      };
       const response = await aiApi.startWorkflow('threads.post.regenerate', {
         projectId: activeProjectId!,
         provider: modelSettings.provider,
         openaiModel: modelSettings.openaiModel,
         claudeModel: modelSettings.claudeModel,
-        idempotencyKey: `threads-post:${activeProjectId}:${post.dayNumber}:${Date.now()}`,
-        inputs: {
-          ...settings,
-          dayNumber: post.dayNumber,
-          existingPost: JSON.stringify(post, null, 2),
-          sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
-          rewriteAction: 'regenerate',
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId!, workflow, inputs }),
       });
       const nextPost = normalizePost(JSON.parse(stripJsonFence(response.content)), post.dayNumber - 1);
       const nextResult: ThreadsResult = {

@@ -13,6 +13,7 @@ import { aiApi } from '../../api/ai';
 import { downloadStrategyPdf } from '../../api/strategy.api';
 import { projectsApi } from '../../api/projects.api';
 import { buildAudienceMaterial } from '../../utils/projectMaterials';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import type { AudienceAnswers } from '../../store/audience.store';
 import {
   ChoiceCard,
@@ -199,19 +200,22 @@ export default function Strategy() {
     extraInputs: Record<string, unknown> = {},
   ): Promise<string> {
     const settings = getSettings('audience');
+    const workflow = 'strategy.audience.generate';
+    const inputs = {
+      stepId,
+      answers,
+      projectContext,
+      activeProjectName,
+      unpackingProfile: mergedProfile,
+      ...extraInputs,
+    };
     const resp = await aiApi.startWorkflow('strategy.audience.generate', {
       projectId: activeProjectId,
       provider: settings.provider,
       openaiModel: settings.openaiModel,
       claudeModel: settings.claudeModel,
-      inputs: {
-        stepId,
-        answers,
-        projectContext,
-        activeProjectName,
-        unpackingProfile: mergedProfile,
-        ...extraInputs,
-      },
+      inputs,
+      idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
     });
     return resp.content;
   }

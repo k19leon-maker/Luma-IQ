@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem, type AdminCommercialPlan, type AdminSubscriptionPlan } from '../../api/admin.api';
+import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem, AdminWorkflowRun, type AdminCommercialPlan, type AdminSubscriptionPlan } from '../../api/admin.api';
 import { getAccessToken, getCsrfToken, setAdminAccessTokenBackup } from '../../api/token-session';
 import { useAuthStore } from '../../store/auth.store';
 import {
@@ -38,6 +38,13 @@ export default function Admin() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [workflows, setWorkflows] = useState<AdminWorkflowRun[]>([]);
+  const [workflowTotal, setWorkflowTotal] = useState(0);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [workflowUserId, setWorkflowUserId] = useState('');
+  const [workflowProjectId, setWorkflowProjectId] = useState('');
+  const [workflowName, setWorkflowName] = useState('');
+  const [workflowStatus, setWorkflowStatus] = useState('');
   const [selected, setSelected] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -153,6 +160,26 @@ export default function Admin() {
     }
   }
 
+  async function loadWorkflows(params?: { userId?: string; projectId?: string; workflow?: string; status?: string }) {
+    if (!isAdmin) return;
+    setWorkflowLoading(true);
+    try {
+      const data = await adminApi.workflows({
+        userId: (params?.userId ?? workflowUserId) || undefined,
+        projectId: (params?.projectId ?? workflowProjectId) || undefined,
+        workflow: (params?.workflow ?? workflowName) || undefined,
+        status: (params?.status ?? workflowStatus) || undefined,
+        limit: 50,
+      });
+      setWorkflows(data.workflows);
+      setWorkflowTotal(data.total);
+    } catch {
+      showAdminLoadError('Не удалось загрузить workflow history');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }
+
   async function openUser(user: AdminUserListItem) {
     setPreviousPage(page === 'user-detail' ? 'users' : page);
     setPage('user-detail');
@@ -194,6 +221,12 @@ export default function Admin() {
     void loadUsers();
     void loadPrompts();
   }, [currentUser, isAdmin, navigate]);
+
+  useEffect(() => {
+    if (page === 'workflows' && workflows.length === 0 && !workflowLoading) {
+      void loadWorkflows();
+    }
+  }, [page, workflows.length, workflowLoading]);
 
   async function refreshAll() {
     if (!isAdmin) return;
@@ -340,6 +373,16 @@ export default function Admin() {
     }
   }
 
+  function openSelectedUserWorkflows() {
+    if (!selected) return;
+    setWorkflowUserId(selected.id);
+    setWorkflowProjectId('');
+    setWorkflowName('');
+    setWorkflowStatus('');
+    setPage('workflows');
+    void loadWorkflows({ userId: selected.id, projectId: '', workflow: '', status: '' });
+  }
+
   function renderDashboard() {
     const m = dashboard?.metrics;
     return (
@@ -380,7 +423,7 @@ export default function Admin() {
         <section className={s.panel}>
           <div className={s.panelTitle}>AI margin по тарифам</div>
           <table className={s.table}>
-            <thead><tr><th>Тариф</th><th>Пользователи</th><th>Выручка</th><th>AI cost</th><th>Маржа</th><th>Margin %</th></tr></thead>
+            <thead><tr><th>Тариф</th><th>Пользователи</th><th>Выручка</th><th>AI cost</th><th>AI-бюджет</th><th>Бюджет</th><th>Маржа</th><th>Margin %</th></tr></thead>
             <tbody>
               {(dashboard?.ai.marginByPlan ?? []).map((item) => (
                 <tr key={item.plan}>
@@ -388,12 +431,84 @@ export default function Admin() {
                   <td>{item.users}</td>
                   <td>{fmtMoney(item.revenueRub)}</td>
                   <td>{fmtMoney(item.aiCostUsd, 'USD')}</td>
+                  <td>{fmtMoney(item.aiBudgetRub)}</td>
+                  <td>{item.aiBudgetUsedPercent}% · {fmtMoney(item.aiBudgetDeltaRub)}</td>
                   <td>{fmtMoney(item.marginRub)}</td>
                   <td>{item.marginPercent}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>AI экономика по пользователям за 30 дней</div>
+          <div className={s.tableWrap}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th>Пользователь</th>
+                  <th>Тариф</th>
+                  <th>AI-баллы</th>
+                  <th>Токены</th>
+                  <th>AI cost</th>
+                  <th>Среднее / действие</th>
+                  <th>AI-бюджет</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dashboard?.ai.userEconomics ?? []).map((item) => (
+                  <tr key={item.userId}>
+                    <td>
+                      <strong>{item.name ?? 'Без имени'}</strong>
+                      <div className={s.mutedText}>{item.email}</div>
+                    </td>
+                    <td><span className={planClass(item.plan)}>{item.plan}</span></td>
+                    <td>{item.aiPointsUsed} · {item.requests} действий</td>
+                    <td>{fmtTokens(item.tokens)}</td>
+                    <td>{fmtMoney(item.aiCostUsd, 'USD')} · {fmtMoney(item.aiCostRub)}</td>
+                    <td>{fmtTokens(item.avgTokensPerRequest)} ток. · {fmtMoney(item.avgCostRub)} · {item.avgAiPointsPerAction} баллов</td>
+                    <td>{item.aiBudgetUsedPercent}% · {fmtMoney(item.aiBudgetDeltaRub)} из {fmtMoney(item.aiBudgetRub)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {dashboard?.ai.userEconomics.length === 0 && <div className={s.emptyState}>За последние 30 дней нет успешных AI-действий</div>}
+          </div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>AI экономика по типам действий за 30 дней</div>
+          <div className={s.tableWrap}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th>Действие</th>
+                  <th>Раздел</th>
+                  <th>Запросы</th>
+                  <th>Средние токены</th>
+                  <th>Средняя стоимость</th>
+                  <th>Среднее списание</th>
+                  <th>Всего</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dashboard?.ai.actionEconomics ?? []).map((item) => (
+                  <tr key={item.actionType}>
+                    <td><strong>{item.actionLabel}</strong><div className={s.mutedText}>{item.actionType}</div></td>
+                    <td>{item.sectionLabel}</td>
+                    <td>{item.requests}</td>
+                    <td>{fmtTokens(item.avgTokensPerRequest)}</td>
+                    <td>{fmtMoney(item.avgCostUsd, 'USD')} · {fmtMoney(item.avgCostRub)}</td>
+                    <td>{item.avgAiPoints} AI-баллов</td>
+                    <td>{fmtMoney(item.costUsd, 'USD')} · {fmtTokens(item.tokens)} ток.</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {dashboard?.ai.actionEconomics.length === 0 && <div className={s.emptyState}>За последние 30 дней нет успешных AI-действий</div>}
+          </div>
+          <div className={s.emptyState}>Таблицу стоимости действий нужно пересмотреть после 10-20 платящих пользователей: сравнить средние токены, среднюю себестоимость и среднее списание AI-баллов.</div>
         </section>
       </>
     );
@@ -530,24 +645,121 @@ export default function Admin() {
 
   function renderWorkflows() {
     return (
-      <section className={s.panel}>
-        <div className={s.panelTitle}>Состояние workflow</div>
-        <table className={s.table}>
-          <thead><tr><th>Workflow</th><th>Запуски</th><th>Успешность</th><th>Ошибки</th><th>Повторы</th><th>Среднее время</th></tr></thead>
-          <tbody>
-            {(dashboard?.ai.workflowHealth ?? []).map((item) => (
-              <tr key={item.workflow}>
-                <td><strong>{item.workflow}</strong></td>
-                <td>{item.count}</td>
-                <td>{item.successRate}%</td>
-                <td>{item.failed}</td>
-                <td>{item.avgRetry}</td>
-                <td>{item.avgDurationMs ? `${Math.round(item.avgDurationMs / 1000)}s` : '—'}</td>
-              </tr>
+      <div className={s.detailStack}>
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Состояние workflow</div>
+          <table className={s.table}>
+            <thead><tr><th>Workflow</th><th>Запуски</th><th>Успешность</th><th>Ошибки</th><th>Повторы</th><th>Среднее время</th></tr></thead>
+            <tbody>
+              {(dashboard?.ai.workflowHealth ?? []).map((item) => (
+                <tr key={item.workflow}>
+                  <td><strong>{item.workflow}</strong></td>
+                  <td>{item.count}</td>
+                  <td>{item.successRate}%</td>
+                  <td>{item.failed}</td>
+                  <td>{item.avgRetry}</td>
+                  <td>{item.avgDurationMs ? `${Math.round(item.avgDurationMs / 1000)}s` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Workflow history</div>
+          <div className={s.filters}>
+            <input className={s.input} value={workflowUserId} onChange={(e) => setWorkflowUserId(e.target.value)} placeholder="User ID" />
+            <input className={s.input} value={workflowProjectId} onChange={(e) => setWorkflowProjectId(e.target.value)} placeholder="Project ID" />
+            <input className={s.input} value={workflowName} onChange={(e) => setWorkflowName(e.target.value)} placeholder="workflow, например product.main" />
+            <select className={s.select} value={workflowStatus} onChange={(e) => setWorkflowStatus(e.target.value)}>
+              <option value="">Все статусы</option>
+              <option value="RUNNING">RUNNING</option>
+              <option value="SUCCEEDED">SUCCEEDED</option>
+              <option value="SUCCEEDED_WITH_WARNINGS">SUCCEEDED_WITH_WARNINGS</option>
+              <option value="FAILED">FAILED</option>
+              <option value="CANCELED">CANCELED</option>
+            </select>
+            <button className={s.button} onClick={() => void loadWorkflows()} disabled={workflowLoading}>{workflowLoading ? 'Загружаю...' : 'Применить'}</button>
+            <button
+              className={s.secondaryButton}
+              onClick={() => {
+                setWorkflowUserId('');
+                setWorkflowProjectId('');
+                setWorkflowName('');
+                setWorkflowStatus('');
+                void loadWorkflows({ userId: '', projectId: '', workflow: '', status: '' });
+              }}
+              disabled={workflowLoading}
+            >
+              Сбросить
+            </button>
+          </div>
+
+          <div className={s.list}>
+            {workflows.map((run) => (
+              <details key={run.id} className={s.listItem} open={run.status === 'FAILED'}>
+                <summary>
+                  <strong>{run.workflow}</strong>
+                  <span>
+                    <span className={statusClass(run.status)}>{run.status}</span>
+                    {' · '}{run.user.email}
+                    {' · '}{run.project.name}
+                    {' · '}{fmtDate(run.createdAt)}
+                    {' · '}{fmtTokens(run.totals.tokens)} ток.
+                    {' · '}{fmtMoney(run.totals.costUsd, 'USD')}
+                  </span>
+                </summary>
+
+                <div className={s.metricsGridSmall}>
+                  <MetricCard label="Steps" value={run.totals.steps} hint={`${run.totals.generations} generations`} />
+                  <MetricCard label="Artifacts" value={run.totals.artifacts} />
+                  <MetricCard label="Tokens" value={fmtTokens(run.totals.tokens)} />
+                  <MetricCard label="Cost" value={fmtMoney(run.totals.costUsd, 'USD')} hint={fmtMoney(run.totals.costRub)} />
+                </div>
+
+                {run.errors.length > 0 && (
+                  <div className={s.emptyState}>
+                    {run.errors.map((error, index) => (
+                      <div key={`${run.id}-error-${index}`}>{error.type} {error.step ? `· ${error.step}` : ''}: {error.message}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div className={s.tableWrap}>
+                  <table className={s.table}>
+                    <thead><tr><th>Step</th><th>Status</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Artifacts</th><th>Error</th></tr></thead>
+                    <tbody>
+                      {run.steps.map((step) => {
+                        const generation = step.generations[0];
+                        return (
+                          <tr key={step.id}>
+                            <td><strong>{step.step}</strong><div className={s.mutedText}>{step.latencyMs ? `${Math.round(step.latencyMs / 1000)}s` : '—'} · retry {step.retryCount}</div></td>
+                            <td><span className={statusClass(step.status)}>{step.status}</span></td>
+                            <td>{generation ? `${generation.provider} / ${generation.model}` : '—'}</td>
+                            <td>{fmtTokens(generation?.totalTokens ?? 0)}</td>
+                            <td>{fmtMoney(generation?.actualCostUsd ?? 0, 'USD')}</td>
+                            <td>{step.artifacts.map((artifact) => artifact.title || artifact.type).join(', ') || '—'}</td>
+                            <td>{step.error || generation?.errorMessage || generation?.errorCode || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {run.artifacts.length > 0 && (
+                  <div className={s.mutedText}>
+                    Artifacts: {run.artifacts.map((artifact) => `${artifact.type}${artifact.title ? `: ${artifact.title}` : ''}`).join(' · ')}
+                  </div>
+                )}
+              </details>
             ))}
-          </tbody>
-        </table>
-      </section>
+            {workflowLoading && <div className={s.emptyState}>Загружаю workflow history...</div>}
+            {!workflowLoading && workflows.length === 0 && <div className={s.emptyState}>Workflow runs не найдены</div>}
+          </div>
+          <div className={s.tableFooter}>Показано: {workflows.length} · всего: {workflowTotal}</div>
+        </section>
+      </div>
     );
   }
 
@@ -761,6 +973,7 @@ export default function Admin() {
             {selected.archivedAt && <span className={`${s.badge} ${s.badgeMuted}`}>В архиве с {fmtDate(selected.archivedAt)}</span>}
           </div>
           <div className={s.actions}>
+            <button className={s.secondaryButton} onClick={openSelectedUserWorkflows}>Workflow history</button>
             <button className={s.secondaryButton} onClick={() => void handleImpersonate()} disabled={impersonateLoading || selected.id === currentUser?.id}>Войти как пользователь</button>
           </div>
         </div>

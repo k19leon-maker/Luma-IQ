@@ -7,6 +7,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import { useProgressStore } from '../../store/progress.store';
 import { aiApi } from '../../api/ai';
 import { buildSocialMaterial } from '../../utils/projectMaterials';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 
 interface PlatformState {
@@ -67,13 +68,16 @@ export default function Social() {
 
     try {
       const settings  = getSettings('social');
+      const workflow = 'strategy.social.generate';
+      const inputs = {
+        platform: PLATFORMS.find((p) => p.key === key)?.name ?? key,
+      };
       const resp = await aiApi.startWorkflow('strategy.social.generate', {
         projectId: activeProjectId,
         provider: settings.provider === 'claude' ? 'claude' : 'chatgpt',
         claudeModel: settings.claudeModel,
-        inputs: {
-          platform: PLATFORMS.find((p) => p.key === key)?.name ?? key,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const text = resp.content.trim();

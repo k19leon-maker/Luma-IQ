@@ -786,6 +786,83 @@
   line-height: 1.8;
 }
 
+.articleCard { padding: 0; overflow: hidden; }
+.articleCard > img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; background: var(--portal-surface); }
+.articleCard > div, .articleCard > .cardLink { margin-right: 28px; margin-left: 28px; }
+.articleCard > div { margin-top: 26px; }
+.articleCard > .cardLink { margin-bottom: 28px; }
+.cardTags, .articleLabels { display: flex; flex-wrap: wrap; gap: 8px; }
+.cardTags { margin-top: 20px; }
+.cardTags span, .articleLabels span { border: 1px solid var(--portal-border); border-radius: 999px; background: var(--portal-surface); color: var(--portal-accent); font-size: 12px; font-weight: 750; }
+.cardTags span { padding: 6px 10px; }
+.articlePage, .problemPage { padding-bottom: 96px; }
+.articleHero, .problemHero, .articleCover, .articleLayout, .relatedSection, .problemContent, .problemStub { width: min(1180px, calc(100% - 32px)); margin-right: auto; margin-left: auto; }
+.articleHero, .problemHero { padding: 64px 0 48px; }
+.articleLabels { margin: 24px 0 20px; }
+.articleLabels span { padding: 8px 12px; }
+.articleHero h1, .problemHero h1 { max-width: 1040px; color: #111111; font-family: var(--portal-serif); font-size: clamp(42px, 6vw, 76px); letter-spacing: -0.02em; line-height: 1.04; }
+.articleHero > p, .problemHero > p { max-width: 860px; margin-top: 26px; color: var(--portal-muted); font-size: clamp(19px, 2vw, 24px); line-height: 1.6; }
+.articleByline { display: flex; align-items: end; justify-content: space-between; gap: 24px; max-width: 860px; margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--portal-border); }
+.articleByline div { display: grid; gap: 4px; }
+.articleByline strong { color: var(--portal-accent); font-size: 15px; }
+.articleByline span, .articleByline time { color: var(--portal-muted); font-size: 13px; }
+.articleCover { overflow: hidden; border-radius: 16px; background: var(--portal-surface); }
+.articleCover img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 8.2; object-fit: cover; }
+.articleLayout { display: grid; grid-template-columns: 240px minmax(0, 760px); justify-content: center; gap: 68px; padding-top: 64px; }
+.articleToc { position: sticky; top: 116px; align-self: start; display: grid; gap: 12px; max-height: calc(100vh - 140px); overflow: auto; padding: 22px; border: 1px solid var(--portal-border); border-radius: 12px; background: #fff; }
+.articleToc strong { margin-bottom: 4px; color: var(--portal-accent); font-family: var(--portal-serif); font-size: 18px; }
+.articleToc a { color: var(--portal-muted); font-size: 13px; line-height: 1.45; }
+.articleToc a:hover { color: var(--portal-accent); }
+.articleBody, .articleContent { min-width: 0; }
+.articleContent { color: #20242b; font-size: 18px; line-height: 1.85; }
+.articleContent h2, .articleFaq h2, .articleCta h2, .relatedHeading h2, .problemContent h2, .problemCta h2 { color: #111; font-family: var(--portal-serif); font-size: clamp(30px, 4vw, 44px); line-height: 1.14; }
+.articleContent h2 { scroll-margin-top: 116px; margin: 64px 0 20px; }
+.articleContent > p + p { margin-top: 20px; }
+.articleContent ul { display: grid; gap: 12px; margin: 22px 0; padding-left: 24px; }
+.articleContent li::marker, .problemContent li::marker { color: var(--portal-gold); }
+.articleCallout, .articleContent blockquote, .reviewerCard, .safetyNote { margin: 34px 0; border-left: 3px solid var(--portal-gold); border-radius: 0 12px 12px 0; background: #fffdf7; padding: 26px 28px; }
+.articleCallout strong, .reviewerCard strong, .safetyNote strong { display: block; color: var(--portal-accent); font-size: 16px; }
+.articleCallout p, .reviewerCard p, .safetyNote p { margin-top: 8px; }
+.articleCalloutWarning, .safetyNote { border-left-color: #a9594c; background: #fff9f7; }
+.articleContent blockquote { color: var(--portal-accent); font-family: var(--portal-serif); font-size: 24px; line-height: 1.5; }
+.articleContent cite { display: block; margin-top: 12px; font-family: var(--font); font-size: 13px; font-style: normal; }
+.articleSteps { display: grid; gap: 12px; margin: 26px 0; padding: 0; list-style: none; counter-reset: article-step; }
+.articleSteps li { position: relative; min-height: 80px; padding: 18px 20px 18px 66px; border: 1px solid var(--portal-border); border-radius: 12px; background: #fff; counter-increment: article-step; }
+.articleSteps li::before { position: absolute; top: 18px; left: 18px; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--portal-accent); color: #fff; content: counter(article-step); font-size: 13px; font-weight: 800; }
+.articleSteps strong { color: var(--portal-accent); }
+.articleSteps p { margin-top: 4px; font-size: 16px; line-height: 1.65; }
+.reviewerCard span, .articleCta > span, .relatedHeading > span, .problemEyebrow, .problemContent section > span, .problemCta span { display: block; margin-bottom: 10px; color: var(--portal-gold); font-size: 12px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+.articleFaq { margin-top: 72px; }
+.articleFaq details { border-bottom: 1px solid var(--portal-border); padding: 22px 0; }
+.articleFaq summary { cursor: pointer; color: var(--portal-accent); font-size: 18px; font-weight: 750; }
+.articleFaq details p { max-width: 680px; margin-top: 14px; color: var(--portal-muted); font-size: 16px; line-height: 1.7; }
+.articleCta { margin-top: 72px; border-radius: 16px; background: var(--portal-accent); padding: 38px; color: #fff; }
+.articleCta > span, .articleCta h2 { color: #fff; }
+.articleCta p { margin: 16px 0 24px; color: rgba(255,255,255,.76); line-height: 1.65; }
+.articleCta .primaryBtn { background: #fff; color: var(--portal-accent); }
+.relatedSection { margin-top: 96px; padding-top: 58px; border-top: 1px solid var(--portal-border); }
+.relatedHeading { margin-bottom: 28px; }
+.relatedGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.relatedGrid a { min-height: 230px; border: 1px solid var(--portal-border); border-radius: 12px; background: #fff; padding: 26px; color: #111; }
+.relatedGrid a > span { color: var(--portal-gold); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.relatedGrid h3 { margin-top: 18px; font-family: var(--portal-serif); font-size: 25px; line-height: 1.16; }
+.relatedGrid p { margin-top: 12px; color: var(--portal-muted); font-size: 14px; line-height: 1.65; }
+.problemHero { max-width: 920px; text-align: center; }
+.problemHero .breadcrumbs { justify-content: center; }
+.problemEyebrow { margin-top: 28px; }
+.problemHero .primaryBtn { margin-top: 30px; }
+.problemContent { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding-top: 42px; }
+.problemContent section, .problemStub { border: 1px solid var(--portal-border); border-radius: 14px; background: #fff; padding: 34px; }
+.problemContent section > p { margin-top: 14px; color: var(--portal-muted); line-height: 1.7; }
+.problemContent ul { display: grid; gap: 13px; margin-top: 22px; padding-left: 22px; color: #25282d; line-height: 1.6; }
+.problemContent .firstStep, .problemContent .safetyNote { grid-column: 1 / -1; }
+.problemContent .firstStep { background: #fffdf7; }
+.problemContent .safetyNote { margin: 0; }
+.problemStub { max-width: 760px; color: var(--portal-muted); font-size: 18px; line-height: 1.75; }
+.problemCta { width: min(1180px, calc(100% - 32px)); margin: 88px auto 0; }
+.problemCta > div { max-width: 900px; margin: 0 auto; border: 1px solid var(--portal-border); border-radius: 16px; background: #fff; padding: 46px; text-align: center; }
+.problemCta p { max-width: 680px; margin: 16px auto 24px; color: var(--portal-muted); font-size: 17px; line-height: 1.7; }
+
 .notFound {
   min-height: 420px;
   padding: 80px 0;
@@ -836,6 +913,11 @@
 
   .familyBenefits {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .articleLayout {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 36px;
   }
 }
 
@@ -905,6 +987,44 @@
     grid-template-columns: 1fr;
   }
 
+  .articleLayout,
+  .relatedGrid,
+  .problemContent {
+    grid-template-columns: 1fr;
+  }
+
+  .articleToc {
+    position: static;
+    max-height: none;
+  }
+
+  .problemContent .firstStep,
+  .problemContent .safetyNote {
+    grid-column: auto;
+  }
+
+  .articleHero,
+  .problemHero {
+    padding-top: 42px;
+  }
+
+  .articleCover {
+    border-radius: 10px;
+  }
+
+  .articleLayout {
+    gap: 34px;
+    padding-top: 38px;
+  }
+
+  .articleContent h2 {
+    margin-top: 48px;
+  }
+
+  .relatedSection {
+    margin-top: 68px;
+  }
+
   .section {
     padding: 58px 0;
   }
@@ -949,5 +1069,24 @@
   .authLink,
   .startLink {
     flex: 1;
+  }
+
+  .articleByline {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .articleCallout,
+  .articleContent blockquote,
+  .reviewerCard,
+  .safetyNote,
+  .articleCta,
+  .problemContent section,
+  .problemCta > div {
+    padding: 22px;
+  }
+
+  .articleContent {
+    font-size: 17px;
   }
 }

@@ -14,6 +14,7 @@ import { contentGenerationKey, useContentGenerationStore } from '../../store/con
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './Articles.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -343,17 +344,20 @@ export default function Articles() {
     setPhase('step2-loading');
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? '';
+      const workflow = 'articles.topic.generate';
+      const inputs = {
+        articleType: ARTICLE_TYPE_LABELS[articleType],
+        platform: PLATFORM_LABELS[platform],
+        tone,
+        depth,
+        selectedSegment: seg || null,
+        platformFormat: PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? '',
+      };
       const resp = await aiApi.startWorkflow('articles.topic.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          articleType: ARTICLE_TYPE_LABELS[articleType],
-          platform: PLATFORM_LABELS[platform],
-          tone,
-          depth,
-          selectedSegment: seg || null,
-          platformFormat: PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? '',
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const parsed = parseTopics(resp.content);
@@ -396,22 +400,25 @@ export default function Articles() {
         soft: 'CTA: мягкий editorial CTA без давления',
       }[ctaType];
 
+      const workflow = 'articles.article.write';
+      const inputs = {
+        articleType: ARTICLE_TYPE_LABELS[articleType],
+        platform: PLATFORM_LABELS[platform],
+        tone,
+        depth,
+        topic: selectedTheme,
+        topicDetails: selectedTopic?.details ?? '',
+        selectedSegment: seg || null,
+        facture,
+        cta: ctaText,
+        botKeyword,
+        topicsWorkflowRunId: topicsWorkflowRunId || null,
+      };
       const resp = await aiApi.startWorkflow('articles.article.write', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          articleType: ARTICLE_TYPE_LABELS[articleType],
-          platform: PLATFORM_LABELS[platform],
-          tone,
-          depth,
-          topic: selectedTheme,
-          topicDetails: selectedTopic?.details ?? '',
-          selectedSegment: seg || null,
-          facture,
-          cta: ctaText,
-          botKeyword,
-          topicsWorkflowRunId: topicsWorkflowRunId || null,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const content = resp.content.trim();

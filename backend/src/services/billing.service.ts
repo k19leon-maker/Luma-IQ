@@ -11,6 +11,8 @@ export const billingService = {
       name: plan.name,
       priceMonthlyRub: plan.priceMonthlyRub,
       aiCostBudgetRub: plan.limits.aiCostBudgetRub,
+      aiBalanceTotal: plan.limits.monthlyCredits,
+      projectsTotal: plan.limits.projectsLimit,
       currency: plan.currency,
       billingPeriod: plan.billingPeriod,
     }));

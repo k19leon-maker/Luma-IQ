@@ -8,6 +8,7 @@ import { useProjectsStore } from '../../store/projects.store';
 import { useMaterialsStore } from '../../store/materials.store';
 import type { AiResultVersion } from '../../store/generated.store';
 import { buildPositioningMaterial } from '../../utils/projectMaterials';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import {
   EditableVariantPreview,
   EmptyState,
@@ -265,10 +266,12 @@ export default function Positioning() {
     setRunning(true);
     try {
       toast.loading('ИИ генерирует варианты позиционирования...', { id: 'positioning-variants' });
+      const workflow = 'positioning.variants.generate';
+      const inputs = { currentHypothesis: finalStatement };
       const variantsResp = await aiApi.startWorkflow('positioning.variants.generate', {
         projectId: activeProjectId,
-        idempotencyKey: `positioning-variants:${activeProjectId}:${Date.now()}`,
-        inputs: { currentHypothesis: finalStatement },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       setVariants(variantsResp.content);
       const nextVariants = parseVariants(variantsResp.content);
@@ -305,13 +308,15 @@ export default function Positioning() {
     setRunning(true);
     try {
       toast.loading('ИИ формулирует финальное позиционирование...', { id: 'positioning-final' });
+      const workflow = 'positioning.final.generate';
+      const inputs = {
+        selectedVariant,
+        currentDraft: finalStatement,
+      };
       const resp = await aiApi.startWorkflow('positioning.final.generate', {
         projectId: activeProjectId,
-        idempotencyKey: `positioning-final:${activeProjectId}:${Date.now()}`,
-        inputs: {
-          selectedVariant,
-          currentDraft: finalStatement,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const content = resp.content;

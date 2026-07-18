@@ -13,6 +13,7 @@ import { contentGenerationKey, useContentGenerationStore } from '../../store/con
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './VideoScripts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -224,13 +225,16 @@ export default function VideoScripts() {
     setPhase('step2-loading');
     try {
       const seg      = strat.chosenSegment ?? strat.chosenSubsegment ?? 'взрослые с психологическими проблемами';
+      const workflow = 'video.topic.generate';
+      const inputs = {
+        duration,
+        segment: seg,
+      };
       const resp = await aiApi.startWorkflow('video.topic.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          duration,
-          segment: seg,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const lines = resp.content
@@ -268,16 +272,19 @@ export default function VideoScripts() {
         ? 'CTA: подписаться на Telegram-канал эксперта'
         : `CTA: получить бесплатный материал, написав слово «${botKeyword || 'СТАРТ'}» боту`;
 
+      const workflow = 'video.script.write';
+      const inputs = {
+        duration,
+        topic: selectedTheme,
+        segment: seg,
+        facture,
+        cta: ctaText,
+      };
       const resp = await aiApi.startWorkflow('video.script.write', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          duration,
-          topic: selectedTheme,
-          segment: seg,
-          facture,
-          cta: ctaText,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
 
       const content = resp.content.trim();

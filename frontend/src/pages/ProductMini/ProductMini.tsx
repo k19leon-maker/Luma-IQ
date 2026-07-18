@@ -9,7 +9,8 @@ import { useModelStore } from '../../store/model.store';
 import { aiApi, type WorkflowResponse } from '../../api/ai';
 import { buildProductMaterial } from '../../utils/projectMaterials';
 import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
-import { confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 
@@ -159,7 +160,7 @@ function normalizeProduct(saved?: ProductDraft): MiniProductState {
   };
 }
 
-function buildMiniProductMarkdown(product: MiniProductState): string {
+function buildMiniProductMarkdownFromParts(product: MiniProductState): string {
   const assistantContent = (product.chatMessages ?? [])
     .filter((message) => (
       message.role === 'assistant' &&
@@ -193,7 +194,15 @@ function buildMiniProductMarkdown(product: MiniProductState): string {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildMiniProductMarkdown(product: MiniProductState): string {
+  return product.currentMarkdown?.trim() || buildMiniProductMarkdownFromParts(product);
+}
+
 function buildMiniProductBrief(product: MiniProductState): string {
+  if (product.currentMarkdown?.trim()) {
+    return limitText(product.currentMarkdown, 6500);
+  }
+
   const assistantBlocks = (product.chatMessages ?? [])
     .filter((message) => (
       message.role === 'assistant' &&
@@ -352,15 +361,18 @@ export default function ProductMini() {
     }
     try {
       const settings = getSettings('product-mini');
-      const resp = await aiApi.startWorkflow(`product.mini.${stepId}`, {
+      const workflow = `product.mini.${stepId}`;
+      const inputs = {
+        currentProduct: buildMiniProductBrief(current),
+        userRequest,
+      };
+      const resp = await aiApi.startWorkflow(workflow, {
         projectId: activeProjectId,
         provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        inputs: {
-          currentProduct: buildMiniProductBrief(current),
-          userRequest,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       return { ...resp, content: cleanCodeFence(resp.content) };
     } catch (err) {
@@ -722,10 +734,16 @@ ${currentProduct}
 
     const preferredName = extractPreferredProductName(text);
     if (preferredName) {
+      const currentMarkdown = applyProductNameToMarkdown(
+        stateWithUser.currentMarkdown || buildMiniProductMarkdownFromParts(stateWithUser),
+        'Мини-продукт',
+        preferredName,
+      );
       const next = withMessage({
         ...stateWithUser,
         name: preferredName,
         nameOptions: [preferredName, ...(stateWithUser.nameOptions ?? []).filter((name) => name && name !== preferredName)].slice(0, 3),
+        currentMarkdown,
         generated: true,
       }, {
         role: 'assistant',
@@ -749,6 +767,7 @@ ${currentProduct}
       persistState({
         ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
+        currentMarkdown: description,
         description,
         chatMessages: [
           ...(stateWithUser.chatMessages ?? []),

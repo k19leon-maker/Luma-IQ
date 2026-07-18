@@ -6,6 +6,7 @@ import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,17 +84,20 @@ export default function Chat() {
         throw new Error('Сначала выберите проект');
       }
       const settings = getSettings('strategy');
+      const workflow = 'ai.dialog';
+      const inputs = {
+        message: trimmed,
+        history,
+        source: 'legacy-chat',
+      };
       const res = await aiApi.startWorkflow('ai.dialog', {
         projectId: activeProjectId,
         step: 'message',
         provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        inputs: {
-          message: trimmed,
-          history,
-          source: 'legacy-chat',
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, step: 'message', inputs }),
       });
 
       setMessages((prev) => [...prev, { id: uid(), role: 'ai', text: res.content }]);

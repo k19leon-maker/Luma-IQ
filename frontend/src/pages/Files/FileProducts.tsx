@@ -82,9 +82,10 @@ function productFromMaterial(material: ProjectMaterial): Product | null {
 
 function productFromDraft(kind: ProductKind, draft?: ProductDraft): Product | null {
   if (!draft) return null;
-  const hasContent = [draft.name, draft.price, draft.format, draft.duration, draft.description]
-    .some((value) => value.trim());
-  if (!draft.generated && !hasContent) return null;
+  if (!draft.generated) return null;
+  const hasContent = [draft.name, draft.description, draft.currentMarkdown]
+    .some((value) => value?.trim());
+  if (!hasContent) return null;
 
   const meta = PRODUCT_KIND_META[kind];
   const material = buildProductMaterial(kind, meta.title, draft);
@@ -259,6 +260,7 @@ export default function FileProducts() {
       }),
       name: title,
       format,
+      currentMarkdown: text,
       description: text,
       generated: true,
     };

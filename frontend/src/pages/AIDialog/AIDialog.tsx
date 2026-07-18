@@ -7,6 +7,7 @@ import { useContentApi } from '../../hooks/useContentApi';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { isMigrated, markMigrated, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './AIDialog.module.css';
 
 interface DialogMessage {
@@ -140,16 +141,19 @@ export default function AIDialog() {
         content: m.content,
       }));
       const settings = getSettings('ai-dialog');
+      const workflow = 'ai.dialog.message';
+      const inputs = {
+        message: text,
+        history,
+        projectName,
+      };
       const response = await aiApi.startWorkflow('ai.dialog.message', {
         projectId: activeProjectId,
         provider: settings.provider,
         openaiModel: settings.openaiModel,
         claudeModel: settings.claudeModel,
-        inputs: {
-          message: text,
-          history,
-          projectName,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       setMessages((prev) => {
         const withAnswer = [...prev, { role: 'assistant' as const, content: response.content, time: nowTime() }];

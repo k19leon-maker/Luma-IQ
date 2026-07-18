@@ -151,8 +151,44 @@ export interface AdminDashboard {
       revenueRub: number;
       aiCostUsd: number;
       aiCostRub: number;
+      aiBudgetRub: number;
+      aiBudgetUsedPercent: number;
+      aiBudgetDeltaRub: number;
       marginRub: number;
       marginPercent: number;
+    }>;
+    userEconomics: Array<{
+      userId: string;
+      email: string;
+      name: string | null;
+      plan: string;
+      revenueRub: number;
+      requests: number;
+      tokens: number;
+      aiPointsUsed: number;
+      aiCostUsd: number;
+      aiCostRub: number;
+      aiBudgetRub: number;
+      aiBudgetUsedPercent: number;
+      aiBudgetDeltaRub: number;
+      avgTokensPerRequest: number;
+      avgCostUsd: number;
+      avgCostRub: number;
+      avgAiPointsPerAction: number;
+    }>;
+    actionEconomics: Array<{
+      actionType: string;
+      actionLabel: string;
+      sectionLabel: string;
+      requests: number;
+      tokens: number;
+      aiPoints: number;
+      costUsd: number;
+      costRub: number;
+      avgTokensPerRequest: number;
+      avgCostUsd: number;
+      avgCostRub: number;
+      avgAiPoints: number;
     }>;
     promptExperiments: {
       versions: number;
@@ -230,6 +266,73 @@ export interface AdminPromptExperiment {
   updatedAt: string;
 }
 
+export interface AdminWorkflowGeneration {
+  id: string;
+  workflowStepId: string | null;
+  featureCode: string;
+  provider: string;
+  model: string;
+  status: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  actualCostUsd: number;
+  latencyMs: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface AdminWorkflowArtifact {
+  id: string;
+  type: string;
+  title: string | null;
+  workflow: string;
+  step: string | null;
+  createdAt: string;
+}
+
+export interface AdminWorkflowStep {
+  id: string;
+  step: string;
+  status: string;
+  retryCount: number;
+  latencyMs: number | null;
+  error: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  artifacts: AdminWorkflowArtifact[];
+  generations: AdminWorkflowGeneration[];
+}
+
+export interface AdminWorkflowRun {
+  id: string;
+  workflow: string;
+  featureCode: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
+  user: { id: string; email: string; name: string | null };
+  project: { id: string; name: string };
+  totals: {
+    steps: number;
+    artifacts: number;
+    generations: number;
+    tokens: number;
+    costUsd: number;
+    costRub: number;
+  };
+  errors: Array<{ type: string; step: string | null; message: string }>;
+  steps: AdminWorkflowStep[];
+  artifacts: AdminWorkflowArtifact[];
+  generations: AdminWorkflowGeneration[];
+}
+
 export const adminApi = {
   dashboard: () =>
     apiClient
@@ -239,6 +342,11 @@ export const adminApi = {
   listUsers: (params?: { q?: string; plan?: string; status?: string; archive?: 'ACTIVE' | 'ARCHIVED' | 'ALL'; limit?: number; offset?: number }) =>
     apiClient
       .get<{ users: AdminUserListItem[]; total: number; limit: number; offset: number }>('/admin/users', { params })
+      .then((r) => r.data),
+
+  workflows: (params?: { userId?: string; projectId?: string; workflow?: string; status?: string; limit?: number; offset?: number }) =>
+    apiClient
+      .get<{ workflows: AdminWorkflowRun[]; total: number; limit: number; offset: number }>('/admin/workflows', { params })
       .then((r) => r.data),
 
   getUser: (id: string) =>

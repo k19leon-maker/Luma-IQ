@@ -112,106 +112,56 @@ export const aiController = {
     }
 
     const { projectId, profile, model, openaiModel, claudeModel, idempotencyKey } = parsed.data;
-    const provider = model === 'claude' ? 'anthropic' : 'openai';
-    const dbProvider = toDbProvider(provider);
-    const resolvedModel = provider === 'anthropic'
-      ? claudeModel ?? 'claude-haiku-4-5-20251001'
-      : resolveOpenAIModel('about-ai-summary', openaiModel);
+    const hasSource = Object.values(profile).some((value) => typeof value === 'string' && value.trim());
 
-    const sourceLines = [
-      ['Кто эксперт и чем занимается', profile.whoYouAre],
-      ['Кому помогает', profile.targetAudience],
-      ['Продукты и услуги', profile.productsAndServices],
-      ['Экспертность и сильные стороны', profile.expertiseAndStrengths],
-      ['Факты доверия', profile.trustProofs],
-      ['Имя / обращение', profile.name],
-      ['Опыт в годах', profile.experienceYears],
-      ['Формат работы', profile.workFormats],
-      ['Ограничения', profile.antiPreferences],
-      ['Образование и сертификаты', profile.credentials],
-      ['Текст из файлов', profile.uploadedFileText],
-    ]
-      .map(([label, value]) => {
-        const text = typeof value === 'string' ? value.trim() : '';
-        return text ? `${label}:\n${text}` : '';
-      })
-      .filter(Boolean)
-      .join('\n\n');
-
-    if (!sourceLines.trim()) {
+    if (!hasSource) {
       res.status(400).json({ error: 'Заполните несколько полей перед AI-улучшением' });
       return;
     }
 
-    const systemPrompt = withGlobalAiBehaviorPrompt([
-      'Ты помогаешь платформе Luma IQ подготовить компактное резюме проекта для дальнейших AI-разделов.',
-      'Задача: структурировать только факты, которые дал пользователь.',
-      'Строго запрещено выдумывать кейсы, цифры, опыт, сертификаты, клиентов, результаты, должности, аудитории и продукты.',
-      'Если фактов мало, аккуратно обобщи имеющееся и не добавляй новых утверждений.',
-      'Верни только готовое резюме на русском языке без markdown-заголовков, без списков проверки и без комментариев.',
-      'Объем: 800-1500 знаков. Резюме должно покрыть: кто эксперт; кому помогает; с какой проблемой; какие продукты продает; сильные стороны; факты доверия.',
-    ].join('\n'));
-
     try {
-      const generation = await aiGenerationService.run({
+      const workflow = await aiWorkflowService.run({
         userId: req.userId!,
         projectId,
-        featureCode: 'about_ai_summary',
-        provider: dbProvider,
-        model: resolvedModel,
+        workflow: 'strategy.about',
+        step: 'summary',
+        provider: model,
+        openaiModel,
+        claudeModel,
         idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
-        metadata: { section: 'about-ai-summary' },
-        execute: async () => {
-          const result = await chat({
-            provider,
-            section: 'about-ai-summary',
-            openaiModel,
-            claudeModel,
-            systemPrompt,
-            maxTokens: 900,
-            temperature: 0.2,
-            messages: [{
-              role: 'user',
-              content: `Исходные поля раздела "О себе":\n\n${sourceLines}`,
-            }],
-          });
-          return {
-            result,
-            usage: result.usage,
-            provider: responseProviderToDb(result.provider),
-            model: result.model,
-          };
-        },
+        inputs: { profile, source: 'legacy-about-summary' },
       });
 
-      const content = compactAiSummary(generation.result.content);
+      const content = compactAiSummary(workflow.content);
       void prisma.aIRequestLog.create({
         data: {
           userId: req.userId!,
-          provider,
+          provider: workflow.provider,
           section: 'about-ai-summary',
-          model: generation.result.model,
+          model: workflow.model,
           status: 'SUCCEEDED',
-          isMock: generation.result.mock,
+          isMock: workflow.mock,
         },
       }).catch(() => {});
 
       res.json({
         summary: content,
-        mock: generation.result.mock,
-        generationId: generation.generationId,
-        creditsCharged: generation.creditsCharged,
-        aiPointsCharged: generation.aiPointsCharged,
-        aiBalanceRemaining: generation.aiBalanceRemaining,
+        mock: workflow.mock,
+        workflowRunId: workflow.workflowRunId,
+        workflowStepId: workflow.workflowStepId,
+        artifactId: workflow.artifactId,
+        generationId: workflow.generationId,
+        aiPointsCharged: workflow.aiPointsCharged,
+        aiBalanceRemaining: workflow.aiBalanceRemaining,
       });
     } catch (err) {
       console.error('[AI about summary] Error:', err);
       void prisma.aIRequestLog.create({
         data: {
           userId: req.userId!,
-          provider,
+          provider: model,
           section: 'about-ai-summary',
-          model: resolvedModel,
+          model: model === 'claude' ? claudeModel ?? null : openaiModel ?? null,
           status: 'FAILED',
           error: err instanceof Error ? err.message : 'unknown',
         },

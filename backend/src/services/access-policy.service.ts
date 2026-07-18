@@ -172,71 +172,19 @@ export const accessPolicyService = {
     youtubeScriptsLimit: number;
     longreadsLimit: number;
   }): Promise<void> {
-    const today = new Date().toISOString().slice(0, 10);
-    const todayStart = new Date(`${today}T00:00:00.000Z`);
-
-    const [dailyCount, monthlyCount] = await Promise.all([
-      prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          status: 'SUCCEEDED',
-          createdAt: { gte: todayStart },
-        },
-      }),
-      prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          billingPeriodId: input.billingPeriodId,
-          status: 'SUCCEEDED',
-        },
-      }),
-    ]);
-
-    if (dailyCount >= input.dailyGenerationLimit) {
-      throw limitExceeded({
-        message: 'Дневной лимит AI-генераций исчерпан',
-        limitType: 'dailyAiMessagesLimit',
-        current: dailyCount,
-        limit: input.dailyGenerationLimit,
-        planId: input.planId,
-        status: 429,
-      });
-    }
-
-    if (monthlyCount >= input.monthlyGenerationLimit) {
-      throw limitExceeded({
-        message: 'Месячный лимит AI-генераций исчерпан',
-        limitType: 'monthlyAiGenerationsLimit',
-        current: monthlyCount,
-        limit: input.monthlyGenerationLimit,
-        planId: input.planId,
-        status: 429,
-      });
-    }
-
-    if (input.featureCode === 'ai_chat') {
-      const chatToday = await prisma.aIGeneration.count({
-        where: {
-          userId: input.userId,
-          featureCode: 'ai_chat',
-          status: 'SUCCEEDED',
-          createdAt: { gte: todayStart },
-        },
-      });
-      if (chatToday >= input.chatDailyLimit) {
-        throw limitExceeded({
-          message: 'Дневной лимит AI-диалога исчерпан',
-          limitType: 'dailyAiMessagesLimit',
-          current: chatToday,
-          limit: input.chatDailyLimit,
-          planId: input.planId,
-          status: 429,
-        });
-      }
-    }
-
+    // User-facing AI access is governed by assertCanUseFeature:
+    // feature availability, project ownership/limit and the unified AI balance.
+    // These legacy rolling limits are retained in config/admin analytics but must
+    // not block users with hidden counters that are no longer displayed in UI.
+    void input.userId;
+    void input.featureCode;
     void input.generationClass;
+    void input.chatDailyLimit;
+    void input.dailyGenerationLimit;
+    void input.monthlyGenerationLimit;
     void input.heavyGenerationLimit;
+    void input.billingPeriodId;
+    void input.planId;
     void input.monthlyContentUnits;
     void input.youtubeScriptsLimit;
     void input.longreadsLimit;

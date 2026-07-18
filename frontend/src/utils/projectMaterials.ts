@@ -184,13 +184,14 @@ export function buildProductMaterial(
   value: ProductDraft,
 ): Omit<ProjectMaterial, 'updatedAt'> {
   const fileName = `${kind}.md`;
+  const currentText = value.currentMarkdown?.trim() || value.description;
   const content = [
     `# ${title}`,
     section('Название', value.name),
     section('Цена', value.price),
     section('Формат', value.format),
     section('Длительность', value.duration),
-    section('Описание', value.description),
+    section('Описание', currentText),
   ].filter(Boolean).join('\n\n');
 
   const linkedMaterialIds = kind === 'product-main'

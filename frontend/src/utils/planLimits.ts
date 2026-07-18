@@ -15,7 +15,7 @@ export interface PlanLimits {
 
 export const FRONTEND_PLAN_LIMITS: Record<PlanCode, PlanLimits> = {
   FREE: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
-  START: { monthlyCredits: 1000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
+  START: { monthlyCredits: 2000, projectLimit: 1, chatDailyLimit: 10, dailyGenerationLimit: 100 },
   PRO: { monthlyCredits: 10000, projectLimit: 3, chatDailyLimit: 30, dailyGenerationLimit: 300 },
   EXPERT: { monthlyCredits: 10000, projectLimit: 7, chatDailyLimit: 100, dailyGenerationLimit: 700 },
   SUPPORT: { monthlyCredits: 7000, projectLimit: 3, chatDailyLimit: 50, dailyGenerationLimit: 400 },

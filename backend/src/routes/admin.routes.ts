@@ -18,6 +18,7 @@ router.use(requireAuth, requireAdmin);
 router.use(adminLimiter);
 
 router.get('/dashboard', adminController.dashboard);
+router.get('/workflows', adminController.listWorkflows);
 router.get('/prompts', adminController.listPrompts);
 router.post('/prompts/versions', adminController.createPromptVersion);
 router.post('/prompts/experiments', adminController.createPromptExperiment);

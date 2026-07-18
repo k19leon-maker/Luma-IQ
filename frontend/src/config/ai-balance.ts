@@ -26,7 +26,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   social: 15,
   product_main: 60,
   product_mini: 80,
-  lead_magnet: 120,
+  lead_magnet: 70,
   content_post: 5,
   content_reel: 7,
   content_thread: 20,

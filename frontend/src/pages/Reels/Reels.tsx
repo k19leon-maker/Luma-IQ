@@ -13,6 +13,7 @@ import { contentGenerationKey, useContentGenerationStore } from '../../store/con
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -344,21 +345,24 @@ export default function Reels() {
     }
     setPhase('step2-loading');
     try {
+      const workflow = 'reels.hooks.generate';
+      const inputs = {
+        platform: PLATFORM_LABELS[platform],
+        goal: GOAL_LABELS[goal],
+        reelType,
+        reelTypeLabel: TYPE_LABELS[reelType],
+        tone: TONE_LABELS[nextTone],
+        intensity: INTENSITY_LABELS[nextIntensity],
+        selectedSegment: strat.chosenSegment ?? null,
+        selectedSubsegment: strat.chosenSubsegment ?? null,
+        corePains: strat.corePains ?? null,
+        finalResult: strat.finalResult ?? null,
+      };
       const resp = await aiApi.startWorkflow('reels.hooks.generate', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          platform: PLATFORM_LABELS[platform],
-          goal: GOAL_LABELS[goal],
-          reelType,
-          reelTypeLabel: TYPE_LABELS[reelType],
-          tone: TONE_LABELS[nextTone],
-          intensity: INTENSITY_LABELS[nextIntensity],
-          selectedSegment: strat.chosenSegment ?? null,
-          selectedSubsegment: strat.chosenSubsegment ?? null,
-          corePains: strat.corePains ?? null,
-          finalResult: strat.finalResult ?? null,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       const parsed = parseHooks(resp.content);
       if (parsed.length === 0) {
@@ -396,26 +400,29 @@ export default function Reels() {
     let artifactId = '';
     let generationId = '';
     try {
+      const workflow = 'reels.script.write';
+      const inputs = {
+        platform: PLATFORM_LABELS[platform],
+        goal: GOAL_LABELS[goal],
+        reelType,
+        reelTypeLabel: TYPE_LABELS[reelType],
+        tone: TONE_LABELS[tone],
+        intensity: INTENSITY_LABELS[intensity],
+        hook: selectedHook,
+        facture,
+        cta: keyword ? `кодовое слово ${keyword}` : GOAL_LABELS[goal],
+        keyword,
+        hooksWorkflowRunId: hooksWorkflowRunId || null,
+        selectedSegment: strat.chosenSegment ?? null,
+        selectedSubsegment: strat.chosenSubsegment ?? null,
+        corePains: strat.corePains ?? null,
+        finalResult: strat.finalResult ?? null,
+      };
       const resp = await aiApi.startWorkflow('reels.script.write', {
         projectId: activeProjectId,
         provider: 'chatgpt',
-        inputs: {
-          platform: PLATFORM_LABELS[platform],
-          goal: GOAL_LABELS[goal],
-          reelType,
-          reelTypeLabel: TYPE_LABELS[reelType],
-          tone: TONE_LABELS[tone],
-          intensity: INTENSITY_LABELS[intensity],
-          hook: selectedHook,
-          facture,
-          cta: keyword ? `кодовое слово ${keyword}` : GOAL_LABELS[goal],
-          keyword,
-          hooksWorkflowRunId: hooksWorkflowRunId || null,
-          selectedSegment: strat.chosenSegment ?? null,
-          selectedSubsegment: strat.chosenSubsegment ?? null,
-          corePains: strat.corePains ?? null,
-          finalResult: strat.finalResult ?? null,
-        },
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
       content = resp.content;
       workflowRunId = resp.workflowRunId;

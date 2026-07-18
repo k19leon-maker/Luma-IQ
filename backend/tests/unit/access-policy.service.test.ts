@@ -45,5 +45,26 @@ describe('accessPolicyService', () => {
       youtubeScriptsLimit: 0,
       longreadsLimit: 0,
     })).resolves.toBeUndefined();
+    expect(mockedPrisma.aIGeneration.count).not.toHaveBeenCalled();
+  });
+
+  it('does not block user features by hidden daily/monthly/chat generation counters', async () => {
+    mockedPrisma.aIGeneration.count.mockResolvedValue(999 as never);
+
+    await expect(accessPolicyService.assertRollingLimits({
+      userId: 'user-1',
+      featureCode: 'ai_chat',
+      generationClass: 'LIGHT',
+      chatDailyLimit: 0,
+      dailyGenerationLimit: 0,
+      monthlyGenerationLimit: 0,
+      heavyGenerationLimit: 0,
+      billingPeriodId: 'period-1',
+      planId: 'PRO',
+      monthlyContentUnits: 0,
+      youtubeScriptsLimit: 0,
+      longreadsLimit: 0,
+    })).resolves.toBeUndefined();
+    expect(mockedPrisma.aIGeneration.count).not.toHaveBeenCalled();
   });
 });

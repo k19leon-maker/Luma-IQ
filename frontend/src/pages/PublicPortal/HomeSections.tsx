@@ -158,7 +158,7 @@ export function MaterialsSection({ articles }: { articles: Article[] }) {
       <div className={s.materialGrid}>
         {articles.map((article) => (
           <Link className={s.materialCard} key={article.slug} to={`/articles/${article.slug}`}>
-            <span>{new Date(article.publishedAt).toLocaleDateString('ru-RU')}</span>
+            <span>{article.readingTime ?? new Date(article.publishedAt).toLocaleDateString('ru-RU')}</span>
             <h3>{article.title}</h3>
             <p>{article.excerpt}</p>
           </Link>

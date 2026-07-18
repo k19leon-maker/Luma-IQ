@@ -56,29 +56,6 @@ export interface WorkflowResponse {
   aiBalanceRemaining?: number;
 }
 
-export interface AboutSummaryProfile {
-  whoYouAre?: string;
-  targetAudience?: string;
-  productsAndServices?: string;
-  expertiseAndStrengths?: string;
-  trustProofs?: string;
-  name?: string;
-  experienceYears?: string;
-  workFormats?: string;
-  antiPreferences?: string;
-  credentials?: string;
-  uploadedFileText?: string;
-}
-
-export interface AboutSummaryResponse {
-  summary: string;
-  mock: boolean;
-  generationId: string;
-  creditsCharged: number;
-  aiPointsCharged?: number;
-  aiBalanceRemaining?: number;
-}
-
 export const aiApi = {
   chat: (req: ChatRequest) =>
     apiClient
@@ -93,15 +70,6 @@ export const aiApi = {
   runWorkflowStep: (workflow: string, req: WorkflowRequest) =>
     apiClient
       .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, req, { timeout: 180_000 })
-      .then((r) => r.data),
-
-  improveAboutSummary: (req: {
-    projectId: string;
-    profile: AboutSummaryProfile;
-    idempotencyKey?: string;
-  }) =>
-    apiClient
-      .post<AboutSummaryResponse>('/ai/about-summary', req, { timeout: 180_000 })
       .then((r) => r.data),
 
   extractFileText: (file: File) => {
