@@ -55,7 +55,10 @@ function titleFromContent(content, fallback) {
     .split('\n')
     .map((line) => line.replace(/^#{1,6}\s+/, '').replace(/[*_`>]/g, '').trim())
     .filter(Boolean);
-  const candidate = lines.find((line) => !/^(формат|лид-магнит|тема и обещание)$/i.test(line));
+  const candidate = lines.find((line) => (
+    line.length >= 18
+    && !/^(формат|лид-магнит|заголовок|подзаголовок|лучший вариант|тема и обещание|тема видеоурока|обещание видеоурока|вариант\s*\d+)[:.]?$/i.test(line)
+  ));
   return (candidate || fallback).replace(/^[-–—]\s*/, '').slice(0, 100);
 }
 
@@ -228,6 +231,7 @@ async function main() {
   for (const project of projects) {
     const strategy = record(project.strategyData);
     const generated = record(strategy.generatedData);
+    const originalLeadMagnets = Array.isArray(generated.leadMagnets) ? generated.leadMagnets : [];
     const existing = Array.isArray(generated.leadMagnets)
       ? generated.leadMagnets.filter(isCreatedLeadMagnet)
       : [];
@@ -238,7 +242,12 @@ async function main() {
     const ownedArtifacts = project.aiArtifacts.filter((artifact) => artifact.userId === project.userId);
     for (const group of groupArtifacts(ownedArtifacts)) {
       const candidate = fromArtifactGroup(group);
-      if (!isDuplicate(existing, candidate)) existing.push(candidate);
+      const recoveredIndex = existing.findIndex((item) => item.id === candidate.id);
+      if (recoveredIndex >= 0) {
+        existing[recoveredIndex] = { ...existing[recoveredIndex], name: candidate.name };
+      } else if (!isDuplicate(existing, candidate)) {
+        existing.push(candidate);
+      }
     }
 
     if (!existing.length) {
@@ -252,8 +261,8 @@ async function main() {
     }
 
     existing.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-    const previousCount = Array.isArray(generated.leadMagnets) ? generated.leadMagnets.length : 0;
-    if (existing.length === previousCount) continue;
+    const previousCount = originalLeadMagnets.length;
+    if (JSON.stringify(existing) === JSON.stringify(originalLeadMagnets)) continue;
 
     report.push({ projectId: project.id, project: project.name, before: previousCount, after: existing.length });
     if (APPLY) {
