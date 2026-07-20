@@ -101,6 +101,9 @@ export const authService = {
     if (!user || !user.passwordHash) {
       throw Object.assign(new Error('Неверный email или пароль'), { status: 401 });
     }
+    if (user.archivedAt) {
+      throw Object.assign(new Error('Аккаунт архивирован. Обратитесь к администратору.'), { status: 403 });
+    }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
@@ -130,6 +133,9 @@ export const authService = {
     await prisma.refreshToken.delete({ where: { token: tokenHash } });
 
     const user = await prisma.user.findUniqueOrThrow({ where: { id: payload.sub } });
+    if (user.archivedAt) {
+      throw Object.assign(new Error('Аккаунт архивирован. Обратитесь к администратору.'), { status: 403 });
+    }
     const tokens = await authService.issueTokens(user.id);
     return { user: toAuthUser(user), tokens };
   },
@@ -149,6 +155,9 @@ export const authService = {
     });
 
     if (user) {
+      if (user.archivedAt) {
+        throw Object.assign(new Error('Аккаунт архивирован. Обратитесь к администратору.'), { status: 403 });
+      }
       if (!user.googleId) {
         user = await prisma.user.update({
           where: { id: user.id },
@@ -190,7 +199,7 @@ export const authService = {
 
   async getUserById(id: string): Promise<AuthUser | null> {
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) return null;
+    if (!user || user.archivedAt) return null;
     return toAuthUser(user);
   },
 

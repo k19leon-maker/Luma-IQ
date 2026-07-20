@@ -39,11 +39,16 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    const requestUrl = typeof original?.url === 'string' ? original.url : '';
+    const isAuthRequest = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/oauth/session'].some((path) =>
+      requestUrl.includes(path),
+    );
+
     if (error.response?.data?.error === 'LIMIT_EXCEEDED' && error.response.data.message) {
       error.response.data.error = error.response.data.message;
     }
 
-    if (!error.response || error.response.status !== 401 || original._retry) {
+    if (!error.response || error.response.status !== 401 || original?._retry || isAuthRequest) {
       return Promise.reject(error);
     }
 
