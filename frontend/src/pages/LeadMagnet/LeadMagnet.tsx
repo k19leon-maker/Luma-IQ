@@ -292,15 +292,32 @@ function normalizeLeadMagnet(saved?: ProductDraft): LeadMagnetState {
   };
 }
 
+function createLeadMagnetId(): string {
+  return `lead-magnet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatLeadMagnetDate(value?: string): string {
+  if (!value) return 'Только что';
+  return new Date(value).toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function LeadMagnet() {
   const { activeProjectId, projectName, context } = useProjectMarketingContext();
   const getSettings = useModelStore((s) => s.getSettings);
   const savedData = useGeneratedStore((s) => s.getProject(activeProjectId));
   const saveLeadMagnet = useGeneratedStore((s) => s.setLeadMagnet);
+  const saveLeadMagnets = useGeneratedStore((s) => s.setLeadMagnets);
   const upsertMaterial = useMaterialsStore((s) => s.upsertMaterial);
   const completeLeadMagnet = useProgressStore((s) => s.completeLeadMagnet);
 
   const [state, setState] = useState<LeadMagnetState>(EMPTY_LEAD_MAGNET);
+  const [view, setView] = useState<'library' | 'workspace'>('library');
+  const [activeLeadMagnetId, setActiveLeadMagnetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [docxLoading, setDocxLoading] = useState(false);
@@ -313,15 +330,34 @@ export default function LeadMagnet() {
     () => selectedFormat ? STEPS_BY_FORMAT[selectedFormat] : [],
     [selectedFormat],
   );
+  const leadMagnets = useMemo(
+    () => [...(savedData.leadMagnets ?? [])].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')),
+    [savedData.leadMagnets],
+  );
 
   useEffect(() => {
     if (loading) return;
-    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(savedData.leadMagnet ?? null)}`;
+    const nextKey = `${activeProjectId ?? 'none'}:${JSON.stringify(savedData.leadMagnets ?? savedData.leadMagnet ?? null)}`;
     if (loadedLeadMagnetKeyRef.current === nextKey) return;
     loadedLeadMagnetKeyRef.current = nextKey;
-    const savedLeadMagnet = normalizeLeadMagnet(savedData.leadMagnet);
-    setState(savedLeadMagnet);
-  }, [activeProjectId, loading, savedData.leadMagnet]);
+    const savedItems = savedData.leadMagnets ?? [];
+    const legacyLeadMagnet = savedData.leadMagnet;
+    if (!savedItems.length && legacyLeadMagnet && normalizeLeadMagnet(legacyLeadMagnet).selectedFormat) {
+      const now = new Date().toISOString();
+      const migrated = normalizeLeadMagnet({
+        ...legacyLeadMagnet,
+        id: legacyLeadMagnet.id ?? createLeadMagnetId(),
+        createdAt: legacyLeadMagnet.createdAt ?? now,
+        updatedAt: legacyLeadMagnet.updatedAt ?? now,
+        generationStatus: legacyLeadMagnet.generationStatus ?? (legacyLeadMagnet.generated ? 'ready' : 'draft'),
+      });
+      if (activeProjectId) saveLeadMagnets(activeProjectId, [migrated]);
+    }
+    if (view === 'workspace' && activeLeadMagnetId) {
+      const active = savedItems.find((item) => item.id === activeLeadMagnetId);
+      if (active) setState(normalizeLeadMagnet(active));
+    }
+  }, [activeLeadMagnetId, activeProjectId, loading, saveLeadMagnets, savedData.leadMagnet, savedData.leadMagnets, view]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -332,17 +368,32 @@ export default function LeadMagnet() {
       next = appendLeadMagnetVersion(next, opts.versionTitle, opts.versionSource ?? 'ai');
     }
     const withMarkdown = { ...next, description: buildLeadMagnetMarkdown(next) };
-    setState(withMarkdown);
+    const now = new Date().toISOString();
+    const persisted = {
+      ...withMarkdown,
+      id: withMarkdown.id ?? activeLeadMagnetId ?? createLeadMagnetId(),
+      createdAt: withMarkdown.createdAt ?? now,
+      updatedAt: now,
+      generationStatus: withMarkdown.generationStatus ?? (withMarkdown.generated ? 'ready' : 'draft'),
+    };
+    setActiveLeadMagnetId(persisted.id);
+    setState(persisted);
     if (activeProjectId) {
-      saveLeadMagnet(activeProjectId, withMarkdown as ProductDraft);
-      if (opts.syncMaterial !== false && withMarkdown.generated) {
+      const currentItems = savedData.leadMagnets ?? [];
+      const exists = currentItems.some((item) => item.id === persisted.id);
+      const nextItems = exists
+        ? currentItems.map((item) => item.id === persisted.id ? persisted : item)
+        : [persisted, ...currentItems];
+      saveLeadMagnets(activeProjectId, nextItems as ProductDraft[]);
+      saveLeadMagnet(activeProjectId, persisted as ProductDraft);
+      if (opts.syncMaterial !== false && persisted.generated) {
         upsertMaterial(activeProjectId, {
-          ...buildProductMaterial('lead-magnet', 'Лид-магнит', withMarkdown as ProductDraft),
+          ...buildProductMaterial('lead-magnet', 'Лид-магнит', persisted as ProductDraft),
           summaryStatus: 'fresh',
         });
       }
     }
-    if (withMarkdown.generated) completeLeadMagnet();
+    if (persisted.generated) completeLeadMagnet();
   }
 
   function withMessage(leadMagnet: LeadMagnetState, message: LeadMagnetChatMessage): LeadMagnetState {
@@ -765,8 +816,13 @@ ${currentMarkdown || 'Пока пусто.'}`;
   void buildStepPrompt;
 
   function selectFormat(format: LeadMagnetFormat) {
+    const now = new Date().toISOString();
     const next: LeadMagnetState = {
       ...EMPTY_LEAD_MAGNET,
+      id: createLeadMagnetId(),
+      createdAt: now,
+      updatedAt: now,
+      generationStatus: 'draft',
       selectedFormat: format,
       format: FORMAT_LABELS[format],
       price: 'Бесплатно',
@@ -778,11 +834,36 @@ ${currentMarkdown || 'Пока пусто.'}`;
       generated: false,
       stepStatuses: emptyStatuses(format),
     };
+    setActiveLeadMagnetId(next.id ?? null);
+    setView('workspace');
     persistState(next, { syncMaterial: false });
   }
 
-  function resetFormatChoice() {
-    persistState({ ...EMPTY_LEAD_MAGNET }, { syncMaterial: false });
+  function resetCurrentFormat() {
+    if (!selectedFormat) return;
+    persistState({
+      ...EMPTY_LEAD_MAGNET,
+      id: state.id,
+      createdAt: state.createdAt,
+      selectedFormat,
+      format: FORMAT_LABELS[selectedFormat],
+      price: 'Бесплатно',
+      duration: state.duration,
+      generationStatus: 'draft',
+      stepStatuses: emptyStatuses(selectedFormat),
+    }, { syncMaterial: false });
+  }
+
+  function showLibrary() {
+    if (loading) return;
+    setView('library');
+  }
+
+  function openLeadMagnet(item: ProductDraft) {
+    const normalized = normalizeLeadMagnet(item);
+    setActiveLeadMagnetId(normalized.id ?? null);
+    setState(normalized);
+    setView('workspace');
   }
 
   async function handleCreate() {
@@ -791,6 +872,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
     let next: LeadMagnetState = {
       ...state,
       generated: true,
+      generationStatus: 'generating',
       description: '',
       chatMessages: [],
       stepStatuses: emptyStatuses(selectedFormat),
@@ -826,12 +908,12 @@ ${currentMarkdown || 'Пока пусто.'}`;
         };
         persistState(next, { syncMaterial: false });
       }
-      persistState(next, { versionTitle: `Полная AI-сборка: ${FORMAT_LABELS[selectedFormat]}`, versionSource: 'ai' });
+      persistState({ ...next, generationStatus: 'ready' }, { versionTitle: `Полная AI-сборка: ${FORMAT_LABELS[selectedFormat]}`, versionSource: 'ai' });
       toast.success('Лид-магнит создан. Списано 70 AI-баллов.');
     } catch (err) {
       console.error('[LeadMagnet create] AI error:', err);
       const message = getRequestErrorMessage(err);
-      persistState(withMessage(next, {
+      persistState(withMessage({ ...next, generationStatus: 'error' }, {
         role: 'assistant',
         content: `Не удалось продолжить создание лид-магнита: ${message}`,
         stepTitle: 'Ошибка создания',
@@ -965,15 +1047,68 @@ ${currentMarkdown || 'Пока пусто.'}`;
     fontWeight: 700,
   };
 
-  if (!selectedFormat) {
+  if (view === 'library' || !selectedFormat) {
     return (
       <div className={s.formatShell}>
         <h1 className={s.formatTitle}>
           Лид-магнит
         </h1>
-        <p className={s.formatSubtitle}>
-          Выберите формат. После выбора откроется AI-чеклист с чатом, как в разделах ЦА, основного продукта и мини-продукта.
-        </p>
+        <p className={s.formatSubtitle}>Открывайте созданные материалы или начните новый. Каждый лид-магнит хранит собственный чат, контент и прогресс.</p>
+
+        <section className={s.librarySection}>
+          <div className={s.sectionHeadingRow}>
+            <div>
+              <h2 className={s.sectionHeading}>Созданные лид-магниты</h2>
+              <p className={s.sectionDescription}>Все материалы текущего проекта</p>
+            </div>
+            <span className={s.itemsCount}>{leadMagnets.length}</span>
+          </div>
+
+          {leadMagnets.length === 0 ? (
+            <div className={s.libraryEmpty}>
+              <div className={s.libraryEmptyIcon}>🎁</div>
+              <div>
+                <div className={s.libraryEmptyTitle}>Пока нет созданных лид-магнитов</div>
+                <div className={s.libraryEmptyText}>Выберите формат ниже — новый материал появится здесь автоматически.</div>
+              </div>
+            </div>
+          ) : (
+            <div className={s.libraryGrid}>
+              {leadMagnets.map((item) => {
+                const normalized = normalizeLeadMagnet(item);
+                const format = normalized.selectedFormat;
+                if (!format) return null;
+                const itemSteps = STEPS_BY_FORMAT[format];
+                const completed = itemSteps.filter((step) => normalized.stepStatuses?.[step.id] === 'done').length;
+                const status = normalized.generationStatus ?? (normalized.generated ? 'ready' : 'draft');
+                const statusLabel = status === 'ready' ? 'Готов' : status === 'error' ? 'Ошибка' : 'В работе';
+                return (
+                  <button key={normalized.id} type="button" className={s.libraryCard} onClick={() => openLeadMagnet(normalized)}>
+                    <div className={s.libraryCardTop}>
+                      <span className={s.libraryFormatIcon}>{FORMAT_OPTIONS.find((option) => option.id === format)?.icon}</span>
+                      <span className={`${s.libraryStatus} ${status === 'ready' ? s.libraryStatusReady : status === 'error' ? s.libraryStatusError : s.libraryStatusDraft}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <div className={s.libraryCardTitle}>{normalized.name || FORMAT_LABELS[format]}</div>
+                    <div className={s.libraryCardFormat}>{FORMAT_LABELS[format]}</div>
+                    <div className={s.libraryProgress}>
+                      <div className={s.libraryProgressTrack}>
+                        <span style={{ width: `${itemSteps.length ? Math.round((completed / itemSteps.length) * 100) : 0}%` }} />
+                      </div>
+                      <span>{completed} из {itemSteps.length} шагов</span>
+                    </div>
+                    <div className={s.libraryCardDate}>Изменён {formatLeadMagnetDate(normalized.updatedAt)}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className={s.createSection}>
+          <h2 className={s.sectionHeading}>Создать новый лид-магнит</h2>
+          <p className={s.sectionDescription}>Выберите формат — будет создан отдельный материал.</p>
 
         <div className={s.formatGrid}>
           {FORMAT_OPTIONS.map((format) => (
@@ -988,6 +1123,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
             </button>
           ))}
         </div>
+        </section>
       </div>
     );
   }
@@ -1020,17 +1156,17 @@ ${currentMarkdown || 'Пока пусто.'}`;
           </button>
           <button
             style={{ ...btnOutlined, width: '100%', marginTop: 8, padding: '9px 0', fontSize: 12 }}
-            onClick={() => selectFormat(selectedFormat)}
+            onClick={resetCurrentFormat}
             disabled={loading}
           >
             Сбросить этот формат
           </button>
           <button
             style={{ ...btnOutlined, width: '100%', marginTop: 8, padding: '9px 0', fontSize: 12 }}
-            onClick={resetFormatChoice}
+            onClick={showLibrary}
             disabled={loading}
           >
-            Выбрать другой формат
+            Все лид-магниты
           </button>
         </div>
 

@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { projectsApi } from '../api/projects.api';
 
 export interface ProductDraft {
+  id?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  generationStatus?: 'draft' | 'generating' | 'ready' | 'error';
   name: string;
   price: string;
   format: string;
@@ -41,6 +45,7 @@ interface ProjectGeneratedData {
   productMain?: ProductDraft;
   productMini?: ProductDraft;
   leadMagnet?: ProductDraft;
+  leadMagnets?: ProductDraft[];
 }
 
 interface GeneratedState {
@@ -52,6 +57,7 @@ interface GeneratedState {
   setProductMain: (projectId: string, value: ProductDraft) => void;
   setProductMini: (projectId: string, value: ProductDraft) => void;
   setLeadMagnet: (projectId: string, value: ProductDraft) => void;
+  setLeadMagnets: (projectId: string, value: ProductDraft[]) => void;
   getProject: (projectId: string) => ProjectGeneratedData;
 }
 
@@ -119,6 +125,13 @@ export const useGeneratedStore = create<GeneratedState>()((set, get) => ({
   setLeadMagnet: (projectId, leadMagnet) =>
     set((s) => {
       const next = { ...s.projects[projectId], leadMagnet };
+      syncGenerated(projectId, next);
+      return { projects: { ...s.projects, [projectId]: next } };
+    }),
+
+  setLeadMagnets: (projectId, leadMagnets) =>
+    set((s) => {
+      const next = { ...s.projects[projectId], leadMagnets };
       syncGenerated(projectId, next);
       return { projects: { ...s.projects, [projectId]: next } };
     }),

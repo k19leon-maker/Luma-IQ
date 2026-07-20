@@ -32,6 +32,122 @@
   line-height: 1.6;
 }
 
+.librarySection {
+  max-width: 1120px;
+  margin-bottom: 38px;
+}
+
+.createSection {
+  max-width: 1120px;
+  padding-top: 28px;
+  border-top: 1px solid #e9e6de;
+}
+
+.sectionHeadingRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sectionHeading {
+  margin: 0 0 5px;
+  color: #1a1a1a;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.sectionDescription {
+  margin: 0 0 16px;
+  color: #888;
+  font-size: 13px;
+}
+
+.sectionHeadingRow .sectionDescription { margin-bottom: 0; }
+
+.itemsCount {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 15px;
+  background: rgba(212, 168, 71, 0.12);
+  color: #a67c20;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.libraryEmpty {
+  min-height: 110px;
+  padding: 22px 24px;
+  border: 1px dashed #d9d5ca;
+  border-radius: 12px;
+  background: #faf9f6;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.libraryEmptyIcon { font-size: 28px; }
+.libraryEmptyTitle { margin-bottom: 5px; color: #333; font-size: 14px; font-weight: 800; }
+.libraryEmptyText { color: #888; font-size: 13px; line-height: 1.5; }
+
+.libraryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.libraryCard {
+  min-width: 0;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid #e5e3dc;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 7px 22px rgba(0,0,0,0.035);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.libraryCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.07);
+  transform: translateY(-1px);
+}
+
+.libraryCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.libraryFormatIcon { font-size: 23px; }
+.libraryStatus { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; }
+.libraryStatusReady { background: #eaf7ef; color: #2f7f4f; }
+.libraryStatusDraft { background: #fff5dc; color: #9a721c; }
+.libraryStatusError { background: #fdeceb; color: #b3403a; }
+.libraryCardTitle { overflow: hidden; color: #222; font-size: 14px; font-weight: 800; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.libraryCardFormat { margin-top: 5px; color: #888; font-size: 12px; }
+
+.libraryProgress {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #888;
+  font-size: 10px;
+}
+
+.libraryProgressTrack { flex: 1; height: 5px; overflow: hidden; border-radius: 3px; background: #eeeae1; }
+.libraryProgressTrack span { display: block; height: 100%; border-radius: inherit; background: #d4a847; }
+.libraryCardDate { margin-top: 11px; color: #aaa; font-size: 10px; }
+
 .formatGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
@@ -76,7 +192,7 @@
 }
 
 @media (max-width: 1100px) {
-  .formatGrid {
+  .formatGrid, .libraryGrid {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 }
@@ -89,6 +205,8 @@
   .formatGrid {
     grid-template-columns: 1fr;
   }
+
+  .libraryGrid { grid-template-columns: 1fr; }
 }
 
 /* ── Tab bar ────────────────────────────────────────────────────── */
