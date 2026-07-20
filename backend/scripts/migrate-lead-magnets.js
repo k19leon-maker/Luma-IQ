@@ -181,12 +181,17 @@ function isDuplicate(items, candidate) {
 }
 
 function isCreatedLeadMagnet(item) {
+  const meaningfulDescription = String(item?.description || '')
+    .replace(/^#{1,6}\s*(лид-магнит|формат)\s*$/gim, '')
+    .replace(/^(продающий лонгрид|видеоурок|pdf-гайд)\s*$/gim, '')
+    .trim();
   return Boolean(
     item
     && (
       item.generated
       || String(item.currentMarkdown || '').trim()
       || (Array.isArray(item.chatMessages) && item.chatMessages.length)
+      || meaningfulDescription
     )
   );
 }
