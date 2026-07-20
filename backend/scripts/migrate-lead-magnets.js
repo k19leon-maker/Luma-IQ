@@ -180,6 +180,17 @@ function isDuplicate(items, candidate) {
   });
 }
 
+function isCreatedLeadMagnet(item) {
+  return Boolean(
+    item
+    && (
+      item.generated
+      || String(item.currentMarkdown || item.description || '').trim()
+      || (Array.isArray(item.chatMessages) && item.chatMessages.length)
+    )
+  );
+}
+
 async function main() {
   const projects = await prisma.project.findMany({
     select: {
@@ -212,7 +223,9 @@ async function main() {
   for (const project of projects) {
     const strategy = record(project.strategyData);
     const generated = record(strategy.generatedData);
-    const existing = Array.isArray(generated.leadMagnets) ? [...generated.leadMagnets] : [];
+    const existing = Array.isArray(generated.leadMagnets)
+      ? generated.leadMagnets.filter(isCreatedLeadMagnet)
+      : [];
     const legacy = normalizeLegacy(generated.leadMagnet, project.updatedAt);
     if (legacy && !isDuplicate(existing, legacy)) existing.push(legacy);
 
@@ -222,12 +235,14 @@ async function main() {
       if (!isDuplicate(existing, candidate)) existing.push(candidate);
     }
 
-    const materials = Array.isArray(strategy.materialsData)
-      ? strategy.materialsData.filter((item) => record(item).kind === 'lead-magnet')
-      : [];
-    for (const material of materials) {
-      const candidate = fromMaterial(record(material), project.updatedAt);
-      if (candidate && !isDuplicate(existing, candidate)) existing.push(candidate);
+    if (!existing.length) {
+      const materials = Array.isArray(strategy.materialsData)
+        ? strategy.materialsData.filter((item) => record(item).kind === 'lead-magnet')
+        : [];
+      for (const material of materials) {
+        const candidate = fromMaterial(record(material), project.updatedAt);
+        if (candidate && !isDuplicate(existing, candidate)) existing.push(candidate);
+      }
     }
 
     existing.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
