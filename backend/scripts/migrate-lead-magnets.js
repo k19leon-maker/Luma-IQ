@@ -227,7 +227,7 @@ async function main() {
       ? generated.leadMagnets.filter(isCreatedLeadMagnet)
       : [];
     const legacy = normalizeLegacy(generated.leadMagnet, project.updatedAt);
-    if (legacy && !isDuplicate(existing, legacy)) existing.push(legacy);
+    if (legacy && isCreatedLeadMagnet(legacy) && !isDuplicate(existing, legacy)) existing.push(legacy);
 
     const ownedArtifacts = project.aiArtifacts.filter((artifact) => artifact.userId === project.userId);
     for (const group of groupArtifacts(ownedArtifacts)) {
