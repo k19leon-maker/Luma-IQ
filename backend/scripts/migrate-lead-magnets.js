@@ -185,7 +185,7 @@ function isCreatedLeadMagnet(item) {
     item
     && (
       item.generated
-      || String(item.currentMarkdown || item.description || '').trim()
+      || String(item.currentMarkdown || '').trim()
       || (Array.isArray(item.chatMessages) && item.chatMessages.length)
     )
   );
@@ -226,8 +226,9 @@ async function main() {
     const existing = Array.isArray(generated.leadMagnets)
       ? generated.leadMagnets.filter(isCreatedLeadMagnet)
       : [];
-    const legacy = normalizeLegacy(generated.leadMagnet, project.updatedAt);
-    if (legacy && isCreatedLeadMagnet(legacy) && !isDuplicate(existing, legacy)) existing.push(legacy);
+    const rawLegacy = record(generated.leadMagnet);
+    const legacy = isCreatedLeadMagnet(rawLegacy) ? normalizeLegacy(rawLegacy, project.updatedAt) : null;
+    if (legacy && !isDuplicate(existing, legacy)) existing.push(legacy);
 
     const ownedArtifacts = project.aiArtifacts.filter((artifact) => artifact.userId === project.userId);
     for (const group of groupArtifacts(ownedArtifacts)) {
