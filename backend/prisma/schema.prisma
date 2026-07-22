@@ -847,6 +847,7 @@ enum GeneratedTextType {
   VIDEO_SCRIPT
   CHATBOT_CHAIN
   THREADS
+  TG_CHANNEL
   OTHER
 }
 

@@ -1330,4 +1330,289 @@ format только: "single_post", "mini_thread" или "deep_thread".
       structuredOutput: 'json',
     },
   },
+  {
+    id: 'tg-channel.channel-for.v1',
+    version: 'v1',
+    feature: 'tg_channel_post_edit',
+    workflow: 'tg-channel.setup',
+    step: 'channelFor',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 1200,
+    artifactType: 'tg_channel_setup',
+    systemPrompt: (context) => `Ты — маркетинговый стратег Luma IQ. Формулируешь короткое описание, для кого Telegram-канал эксперта.
+
+Правила:
+- Не спрашивай цель канала. Цель канала — продажи.
+- Опирайся только на стратегию проекта, позиционирование, целевую аудиторию и УТП.
+- Не выдумывай факты, цифры, кейсы и обещания.
+- Пиши ясно, без маркетингового жаргона.
+- Формат: одно предложение до 240 символов.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Сформулируй поле "Для кого канал".
+
+Название канала: ${value(inputs, 'channelName', 'Не указано')}
+Текущий вариант пользователя: ${value(inputs, 'channelFor', 'Не указано')}
+Снимок данных интерфейса:
+${value(inputs, 'sourceSnapshot', 'Не передан')}
+
+Верни строго JSON без markdown:
+{
+  "channelFor": "Канал для..."
+}`,
+    validationRules: {
+      minLength: 40,
+      maxLength: 900,
+      requiredIncludes: ['"channelFor"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.plan.v1',
+    version: 'v1',
+    feature: 'tg_channel_plan',
+    workflow: 'tg-channel',
+    step: 'plan',
+    model: 'gpt-5.5',
+    temperature: 0.65,
+    maxTokens: 7000,
+    artifactType: 'tg_channel_plan',
+    systemPrompt: (context) => `Ты — senior content strategist и direct-response copywriter для Telegram-каналов экспертов.
+
+Ты создаёшь стартовую evergreen-контентную воронку Telegram-канала. Главная цель канала — продажи, но контент не должен выглядеть как прямолинейная продажа.
+
+Принципы:
+- Не спрашивай цель канала и не используй ее как переменную.
+- Посты должны помогать новому человеку понять: кто эксперт, кому помогает, почему ему можно доверять и какой первый шаг сделать.
+- Каждый пост закрывает конкретную задачу клиента, страх, сомнение или потребность.
+- Закрывай возражения через истории, типовые ситуации, практику, наблюдения, мини-разборы.
+- Не добавляй пост "что будет дальше в канале".
+- Не привязывай посты ко времени, запуску, неделе или дате. Все темы должны быть актуальны через 2-3 года.
+- Не используй термины "JTBD", "job", "CTA" в пользовательских полях.
+- Не выдумывай реальные кейсы, имена, цифры и результаты, если их нет в контексте. Для чувствительных ниш используй типовые ситуации.
+- Базовый результат — текстовая идея поста, но она может быть использована как текст, аудио или видео.
+
+Обязательные роли постов:
+- Пост знакомства.
+- Кому я помогаю.
+- Главная боль аудитории.
+- История из практики или типовая ситуация.
+- Клиентский кейс или case-like разбор без выдуманных фактов.
+- Ошибка, которую часто допускают.
+- Страх или возражение.
+- Метод / подход эксперта.
+- Почему не получается решить самому.
+- Личная история эксперта.
+- Мягкий переход к первому шагу.
+- Приглашение на лид-магнит / диагностику.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Собери план упаковки Telegram-канала на 10-15 evergreen-постов.
+
+Настройки канала:
+- Название канала: ${value(inputs, 'channelName', 'Не указано')}
+- Для кого канал: ${value(inputs, 'channelFor', 'Не указано')}
+- Точка конверсии: ${value(inputs, 'conversionPoint', 'Не указано')}
+- Описание первого шага: ${value(inputs, 'conversionDetails', 'Не указано')}
+
+Недостающие стратегические данные:
+${value(inputs, 'missingSections', 'Не указаны')}
+
+Снимок данных интерфейса:
+${value(inputs, 'sourceSnapshot', 'Не передан')}
+
+Верни строго JSON без markdown, без code fence:
+{
+  "title": "План ТГ-канала",
+  "strategySummary": "Коротко: как устроена воронка и куда она ведет",
+  "items": [
+    {
+      "id": "tg-1",
+      "number": 1,
+      "role": "Пост знакомства",
+      "clientTask": "понять, подходит ли мне этот эксперт",
+      "topic": "Тема поста",
+      "callToAction": "Мягкий призыв к действию",
+      "status": "idea"
+    }
+  ]
+}
+
+Требования:
+- items: от 10 до 15 элементов.
+- number: последовательность от 1.
+- status всегда "idea".
+- Поля должны быть на русском.
+- В поле callToAction пиши не "CTA", а готовый понятный призыв.`,
+    validationRules: {
+      minLength: 1000,
+      maxLength: 50000,
+      requiredIncludes: ['"items"', '"clientTask"', '"callToAction"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.post.v1',
+    version: 'v1',
+    feature: 'tg_channel_post',
+    workflow: 'tg-channel',
+    step: 'post',
+    model: 'gpt-5.5',
+    temperature: 0.68,
+    maxTokens: 3600,
+    artifactType: 'tg_channel_post',
+    systemPrompt: (context) => `Ты — редактор и direct-response copywriter Telegram-каналов экспертов.
+
+Пиши один готовый текстовый Telegram-пост по выбранной строке плана.
+
+Правила:
+- Один пост — одна главная мысль.
+- Пиши живо, конкретно, без канцелярита.
+- Закрывай задачу клиента не лекцией, а наблюдением, типовой ситуацией, историей или практическим разбором.
+- Не выдумывай реальные кейсы, имена, цифры, дипломы и результаты.
+- Не используй хэштеги по умолчанию.
+- Призыв к действию мягкий и связан с выбранной точкой конверсии.
+- Длина: 1200-2600 знаков, если пользователь не попросил другое.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Напиши готовый Telegram-пост.
+
+Название канала: ${value(inputs, 'channelName', 'Не указано')}
+Для кого канал: ${value(inputs, 'channelFor', 'Не указано')}
+Точка конверсии: ${value(inputs, 'conversionPoint', 'Не указано')}
+Описание первого шага: ${value(inputs, 'conversionDetails', 'Не указано')}
+
+Строка плана:
+${value(inputs, 'planItem', 'Не передана')}
+
+Верни строго JSON без markdown:
+{
+  "title": "Заголовок поста",
+  "text": "Готовый текст поста",
+  "callToAction": "Призыв к действию",
+  "authorComment": "Коротко: какую задачу клиента закрывает пост",
+  "status": "ready"
+}`,
+    validationRules: {
+      minLength: 700,
+      maxLength: 16000,
+      requiredIncludes: ['"title"', '"text"', '"callToAction"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.post.edit.v1',
+    version: 'v1',
+    feature: 'tg_channel_post_edit',
+    workflow: 'tg-channel',
+    step: 'edit',
+    model: 'gpt-5.5',
+    temperature: 0.62,
+    maxTokens: 3200,
+    artifactType: 'tg_channel_post_edit',
+    systemPrompt: (context) => `Ты — редактор Telegram-постов эксперта.
+
+Доработай готовый пост по конкретному действию. Не пересобирай всю воронку и не создавай новый пост с нуля, если это не требуется.
+Сохраняй фактологию, задачу клиента и связь с точкой конверсии.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Доработай Telegram-пост.
+
+Действие: ${value(inputs, 'editAction', 'Сделать лучше')}
+Точка конверсии: ${value(inputs, 'conversionPoint', 'Не указано')}
+Описание первого шага: ${value(inputs, 'conversionDetails', 'Не указано')}
+
+Строка плана:
+${value(inputs, 'planItem', 'Не передана')}
+
+Текущий пост:
+${value(inputs, 'existingPost', 'Не передан')}
+
+Верни строго JSON без markdown:
+{
+  "title": "Заголовок поста",
+  "text": "Обновленный текст поста",
+  "callToAction": "Призыв к действию",
+  "authorComment": "Что было доработано",
+  "status": "ready"
+}`,
+    validationRules: {
+      minLength: 600,
+      maxLength: 16000,
+      requiredIncludes: ['"title"', '"text"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.post.audio.v1',
+    version: 'v1',
+    feature: 'tg_channel_post_audio_adapt',
+    workflow: 'tg-channel',
+    step: 'audio',
+    model: 'gpt-5.5',
+    temperature: 0.6,
+    maxTokens: 3000,
+    artifactType: 'tg_channel_audio_script',
+    systemPrompt: (context) => `Ты — сценарист коротких аудио для Telegram-канала эксперта.
+
+Адаптируй готовый пост под устную речь: живее, короче фразы, естественные переходы. Не меняй смысл.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Адаптируй пост под аудио.
+
+Текущий пост:
+${value(inputs, 'existingPost', 'Не передан')}
+
+Верни строго JSON без markdown:
+{
+  "title": "Название аудио",
+  "text": "Сценарий аудио",
+  "callToAction": "Устный призыв к действию",
+  "authorComment": "Как записать",
+  "status": "ready"
+}`,
+    validationRules: {
+      minLength: 500,
+      maxLength: 14000,
+      requiredIncludes: ['"title"', '"text"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.post.video.v1',
+    version: 'v1',
+    feature: 'tg_channel_post_video_script',
+    workflow: 'tg-channel',
+    step: 'video',
+    model: 'gpt-5.5',
+    temperature: 0.6,
+    maxTokens: 3600,
+    artifactType: 'tg_channel_video_script',
+    systemPrompt: (context) => `Ты — сценарист коротких экспертных видео для Telegram-канала.
+
+Переделай пост в сценарий видео: хук, основная часть, что показать/сказать, мягкий призыв к действию.
+Не выдумывай факты и кейсы.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Сделай сценарий видео по посту.
+
+Текущий пост:
+${value(inputs, 'existingPost', 'Не передан')}
+
+Верни строго JSON без markdown:
+{
+  "title": "Название видео",
+  "text": "Сценарий видео с блоками: хук, основная мысль, пример, призыв к действию",
+  "callToAction": "Призыв к действию",
+  "authorComment": "Что показать в кадре или на экране",
+  "status": "ready"
+}`,
+    validationRules: {
+      minLength: 700,
+      maxLength: 16000,
+      requiredIncludes: ['"title"', '"text"'],
+      structuredOutput: 'json',
+    },
+  },
 ];

@@ -43,6 +43,7 @@ const contentNav: NavItem[] = [
   { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥' },
   { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖' },
   { path: '/threads',         label: 'Threads ИИ',           icon: '🧵' },
+  { path: '/tg-channel',      label: 'ТГ-канал',             icon: '✈️' },
 ];
 
 const filesNav: NavItem[] = [
@@ -67,6 +68,7 @@ const pageTitles: Record<string, string> = {
   '/video-scripts':   'Сценарии видео',
   '/chatbot-chains':  'Цепочка текстов',
   '/threads':         'Threads ИИ',
+  '/tg-channel':      'ТГ-канал',
   '/tasks':           'План задач',
   '/content-plan':    'Контент-план',
   '/files/materials': 'Материалы',
@@ -89,6 +91,7 @@ const aiWorkspacePaths = new Set([
   '/video-scripts',
   '/chatbot-chains',
   '/threads',
+  '/tg-channel',
 ]);
 
 const scrollableAiWorkspacePaths = new Set([
@@ -98,11 +101,12 @@ const scrollableAiWorkspacePaths = new Set([
   '/video-scripts',
   '/chatbot-chains',
   '/threads',
+  '/tg-channel',
 ]);
 
 function getLocalLimitsSection(path: string): SectionUsageLimitsSection | null {
   if (path === '/ai-dialog') return 'ai_chat';
-  if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/content-plan') return 'content';
+  if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/tg-channel' || path === '/content-plan') return 'content';
   if (path === '/articles') return 'longreads';
   if (path === '/video-scripts') return 'youtube_scripts';
   if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';

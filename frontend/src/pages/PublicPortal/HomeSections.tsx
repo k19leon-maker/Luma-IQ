@@ -3,7 +3,6 @@ import type { Article } from '../../data/public/content';
 import {
   concernCards,
   diagnosticBenefits,
-  familyExperts,
   familyHero,
   familyPrograms,
   howItWorksSteps,
@@ -112,26 +111,6 @@ export function DiagnosticOutcomeSection() {
         </div>
       </FamilySection>
     </div>
-  );
-}
-
-export function ExpertsSection() {
-  return (
-    <FamilySection id="experts" title="Специалисты Luma IQ">
-      <div className={s.expertGrid}>
-        {familyExperts.map((expert) => (
-          <article className={s.expertCard} key={expert.name}>
-            <img src={expert.image} alt={expert.name} loading="lazy" />
-            <div>
-              <span>{expert.experience}</span>
-              <h3>{expert.name}</h3>
-              <strong>{expert.role}</strong>
-              <p>{expert.description}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </FamilySection>
   );
 }
 

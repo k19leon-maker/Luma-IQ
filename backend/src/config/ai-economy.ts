@@ -17,6 +17,11 @@ export type FeatureCode =
   | 'article'
   | 'chatbot_chain'
   | 'threads'
+  | 'tg_channel_plan'
+  | 'tg_channel_post'
+  | 'tg_channel_post_edit'
+  | 'tg_channel_post_audio_adapt'
+  | 'tg_channel_post_video_script'
   | 'content_plan'
   | 'jtbd';
 
@@ -170,6 +175,46 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 3,
     includedTokens: 10000,
     maxContextTokens: 24000,
+  },
+  tg_channel_plan: {
+    featureCode: 'tg_channel_plan',
+    featureGroup: 'planning',
+    generationClass: 'MEDIUM',
+    creditPrice: 4,
+    includedTokens: 12000,
+    maxContextTokens: 26000,
+  },
+  tg_channel_post: {
+    featureCode: 'tg_channel_post',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 5000,
+    maxContextTokens: 12000,
+  },
+  tg_channel_post_edit: {
+    featureCode: 'tg_channel_post_edit',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 3500,
+    maxContextTokens: 10000,
+  },
+  tg_channel_post_audio_adapt: {
+    featureCode: 'tg_channel_post_audio_adapt',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 4000,
+    maxContextTokens: 10000,
+  },
+  tg_channel_post_video_script: {
+    featureCode: 'tg_channel_post_video_script',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 5000,
+    maxContextTokens: 12000,
   },
   content_plan: {
     featureCode: 'content_plan',

@@ -31,21 +31,32 @@ export function ArticlePage() {
       { name: article?.title ?? 'Статья не найдена', url: article ? `/articles/${article.slug}` : '/articles' },
     ]);
     if (!article) return breadcrumbs;
+    const graph: object[] = [
+      breadcrumbs,
+      {
+        '@type': 'Article',
+        headline: article.title,
+        description: article.seo?.description ?? article.excerpt,
+        datePublished: article.publishedAt,
+        dateModified: article.updatedAt ?? article.publishedAt,
+        author: { '@type': 'Organization', name: article.author.name },
+        image: article.coverImage ? absoluteUrl(article.coverImage) : undefined,
+        mainEntityOfPage: absoluteUrl(`/articles/${article.slug}`),
+      },
+    ];
+    if (article.faq?.length) {
+      graph.push({
+        '@type': 'FAQPage',
+        mainEntity: article.faq.map((item) => ({
+          '@type': 'Question',
+          name: item.question,
+          acceptedAnswer: { '@type': 'Answer', text: item.answer },
+        })),
+      });
+    }
     return {
       '@context': 'https://schema.org',
-      '@graph': [
-        breadcrumbs,
-        {
-          '@type': 'Article',
-          headline: article.title,
-          description: article.seo?.description ?? article.excerpt,
-          datePublished: article.publishedAt,
-          dateModified: article.updatedAt ?? article.publishedAt,
-          author: { '@type': 'Organization', name: article.author.name },
-          image: article.coverImage,
-          mainEntityOfPage: absoluteUrl(`/articles/${article.slug}`),
-        },
-      ],
+      '@graph': graph,
     };
   }, [article]);
 
@@ -54,6 +65,7 @@ export function ArticlePage() {
     description: article?.seo?.description ?? article?.excerpt,
     canonical: article ? `/articles/${article.slug}` : '/articles',
     type: 'article',
+    image: article?.coverImage,
     schema,
   });
 

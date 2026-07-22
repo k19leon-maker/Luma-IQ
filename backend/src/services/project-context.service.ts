@@ -38,6 +38,7 @@ const CONTENT_TYPE_BY_WORKFLOW: Record<string, GeneratedTextType[]> = {
   reels: ['REEL'],
   articles: ['ARTICLE'],
   threads: ['THREADS'],
+  'tg-channel': ['TG_CHANNEL'],
 };
 
 const EMPTY = 'Не заполнено.';
@@ -140,6 +141,9 @@ function contextBudgetFor(workflow: string, step?: string): number {
   if (workflow.startsWith('threads.')) {
     return step === 'regenerate' ? 9000 : 12000;
   }
+  if (workflow.startsWith('tg-channel.')) {
+    return step === 'plan' ? 12000 : 9000;
+  }
   if (workflow.startsWith('positioning.')) {
     if (workflow === 'positioning.variants') return 5200;
     return 4200;
@@ -165,6 +169,10 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
   }
 
   if (group === 'threads') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (workflow.startsWith('tg-channel.')) {
     return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
@@ -324,6 +332,7 @@ function summarizeWorkflowInputs(inputs: Record<string, unknown> | undefined, wo
     reels: ['platform', 'goal', 'tone', 'intensity', 'hook', 'cta', 'facture', 'selectedHook'],
     articles: ['articleType', 'platform', 'tone', 'depth', 'topic', 'cta', 'facture', 'selectedTopic', 'outline'],
     threads: ['goal', 'formatMix', 'salesIntensity', 'tone', 'missingSections', 'sourceSnapshot', 'existingPost', 'dayNumber', 'rewriteAction'],
+    'tg-channel': ['channelName', 'channelFor', 'conversionPoint', 'conversionDetails', 'missingSections', 'sourceSnapshot', 'planItem', 'existingPost', 'editAction'],
     chatbot: ['botName', 'segment', 'leadMagnetFormat', 'meetingSchedule', 'goal', 'facture'],
     video: ['duration', 'topic', 'segment', 'facture', 'cta'],
     product: ['currentProduct', 'userRequest', 'prompt', 'selectedOption'],

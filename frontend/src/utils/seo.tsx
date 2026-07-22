@@ -8,6 +8,7 @@ export interface SeoOptions {
   description?: string;
   canonical?: string;
   type?: 'website' | 'article';
+  image?: string;
   schema?: object;
 }
 
@@ -38,7 +39,7 @@ export function absoluteUrl(path = '/') {
   return `${origin()}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-export function useSeo({ title, description = DEFAULT_DESCRIPTION, canonical, type = 'website', schema }: SeoOptions) {
+export function useSeo({ title, description = DEFAULT_DESCRIPTION, canonical, type = 'website', image, schema }: SeoOptions) {
   useEffect(() => {
     const fullTitle = title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`;
     const canonicalUrl = canonical ? absoluteUrl(canonical) : window.location.href;
@@ -50,6 +51,11 @@ export function useSeo({ title, description = DEFAULT_DESCRIPTION, canonical, ty
     upsertMeta('meta[property="og:type"]', { property: 'og:type', content: type });
     upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl });
     upsertMeta('meta[property="og:site_name"]', { property: 'og:site_name', content: SITE_NAME });
+    if (image) {
+      upsertMeta('meta[property="og:image"]', { property: 'og:image', content: absoluteUrl(image) });
+      upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' });
+      upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: absoluteUrl(image) });
+    }
     upsertCanonical(canonicalUrl);
 
     const previous = document.getElementById('schema-org-jsonld');
@@ -61,7 +67,7 @@ export function useSeo({ title, description = DEFAULT_DESCRIPTION, canonical, ty
       script.textContent = JSON.stringify(schema);
       document.head.appendChild(script);
     }
-  }, [canonical, description, schema, title, type]);
+  }, [canonical, description, image, schema, title, type]);
 }
 
 export function breadcrumbSchema(items: Array<{ name: string; url: string }>) {

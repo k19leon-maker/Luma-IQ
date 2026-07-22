@@ -35,6 +35,9 @@ const capacityGroups = [
       { label: 'Статьи / лонгриды', cost: AI_ACTION_COSTS.content_article },
       { label: 'YouTube-сценарии', cost: AI_ACTION_COSTS.youtube_script },
       { label: 'Контент-планы', cost: AI_ACTION_COSTS.content_plan },
+      { label: 'План ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_plan },
+      { label: 'Пост для ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_post },
+      { label: 'Доработка поста ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_post_edit },
     ],
   },
   {

@@ -4,7 +4,6 @@ import { breadcrumbSchema, useSeo } from '../../utils/seo';
 import {
   ConcernsSection,
   DiagnosticOutcomeSection,
-  ExpertsSection,
   FamilyHero,
   FinalCtaSection,
   HowItWorksSection,
@@ -32,7 +31,6 @@ export default function HomePage() {
       <SituationsSection />
       <HowItWorksSection />
       <DiagnosticOutcomeSection />
-      <ExpertsSection />
       <ProgramsSection />
       <MaterialsSection articles={familyArticles} />
       <FinalCtaSection />

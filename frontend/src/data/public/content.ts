@@ -169,11 +169,9 @@ export const problems: Problem[] = [
   { name: 'Потеря контакта с ребёнком', slug: 'poterya-kontakta-s-rebenkom', description: 'Как постепенно возвращать доверие, разговор и чувство близости с ребенком.' },
 ];
 
-export const experts: Expert[] = [
-  { name: 'Анна Миронова', slug: 'anna-mironova', specialization: 'Семейный психолог', bio: 'Работает с разводом, изменой, конфликтами и восстановлением доверия в паре.' },
-  { name: 'Илья Соколов', slug: 'ilya-sokolov', specialization: 'КПТ-терапевт', bio: 'Помогает при тревоге, панических атаках, выгорании и навязчивых мыслях.' },
-  { name: 'Мария Ким', slug: 'mariya-kim', specialization: 'Подростковый психолог', bio: 'Специализируется на отношениях родителей и подростков, границах и школьном стрессе.' },
-];
+// Публичные профили добавляются только после подтверждения личности,
+// квалификации, фотографии и согласия специалиста на публикацию.
+export const experts: Expert[] = [];
 
 export const programs: Program[] = [
   { name: 'Опора после развода', slug: 'opora-posle-razvoda', duration: '4 недели', description: 'Пошаговая программа для эмоциональной стабилизации и планирования новой жизни.' },
@@ -455,7 +453,6 @@ export const articles: Article[] = [
 export const publicNav = [
   { label: 'Ситуации', path: '/#situations' },
   { label: 'Как работает', path: '/#how-it-works' },
-  { label: 'Специалисты', path: '/#experts' },
   { label: 'Программы', path: '/#programs' },
 ];
 

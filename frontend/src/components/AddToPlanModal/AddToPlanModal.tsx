@@ -72,17 +72,19 @@ export default function AddToPlanModal() {
     ?? '';
 
   function handleAdd() {
+    if (!pendingItem) return;
     void addItemApi({
       id:        crypto.randomUUID(),
       date:      selectedDate,
-      type:      pendingItem!.type,
-      title:     pendingItem!.title,
-      content:   pendingItem!.content,
-      platform:  (hasPlatform ? pendingItem!.platform : platform) || undefined,
+      type:      pendingItem.type,
+      title:     pendingItem.title,
+      content:   pendingItem.content,
+      platform:  (hasPlatform ? pendingItem.platform : platform) || undefined,
       status:    'draft',
-      projectId: pendingItem!.projectId,
-      sourceId:  pendingItem!.sourceId,
+      projectId: pendingItem.projectId,
+      sourceId:  pendingItem.sourceId,
     });
+    pendingItem.onAdded?.(selectedDate);
     closeAddModal();
   }
 

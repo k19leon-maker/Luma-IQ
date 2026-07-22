@@ -58,6 +58,7 @@ const Articles = lazy(() => import('./pages/Articles/Articles'));
 const VideoScripts = lazy(() => import('./pages/VideoScripts/VideoScripts'));
 const ChatbotChains = lazy(() => import('./pages/ChatbotChains/ChatbotChains'));
 const Threads = lazy(() => import('./pages/Threads/Threads'));
+const TgChannel = lazy(() => import('./pages/TgChannel/TgChannel'));
 const ContentPlan = lazy(() => import('./pages/ContentPlan/ContentPlan'));
 const FileMaterials = lazy(() => import('./pages/Files/FileMaterials'));
 const FileProducts = lazy(() => import('./pages/Files/FileProducts'));
@@ -281,6 +282,7 @@ export default function App() {
           <Route path="video-scripts" element={page(<VideoScripts />)} />
           <Route path="chatbot-chains" element={page(<ChatbotChains />)} />
           <Route path="threads" element={page(<Threads />)} />
+          <Route path="tg-channel" element={page(<TgChannel />)} />
 
           <Route path="content-plan" element={page(<ContentPlan />)} />
           <Route path="files/materials" element={page(<FileMaterials />)} />
@@ -315,6 +317,7 @@ export default function App() {
         <Route path="/video-scripts" element={<Navigate to={appPath('/video-scripts')} replace />} />
         <Route path="/chatbot-chains" element={<Navigate to={appPath('/chatbot-chains')} replace />} />
         <Route path="/threads" element={<Navigate to={appPath('/threads')} replace />} />
+        <Route path="/tg-channel" element={<Navigate to={appPath('/tg-channel')} replace />} />
         <Route path="/content-plan" element={<Navigate to={appPath('/content-plan')} replace />} />
         <Route path="/files/*" element={<Navigate to={appPath(window.location.pathname)} replace />} />
         <Route path="/projects/*" element={<Navigate to={appPath(window.location.pathname)} replace />} />

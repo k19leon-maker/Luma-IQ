@@ -28,6 +28,7 @@ export interface PendingAddItem {
   platform?:  string;
   sourceId?:  string;
   projectId?: string;
+  onAdded?:   (date: string) => void;
 }
 
 interface ContentPlanState {

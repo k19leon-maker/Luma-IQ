@@ -69,51 +69,6 @@ export const diagnosticBenefits = [
   'Возможность обратиться к специалисту',
 ];
 
-export const familyExperts = [
-  {
-    name: 'Анна Белова',
-    role: 'Семейный психолог',
-    experience: '12 лет практики',
-    description: 'Помогает при конфликтах, разводе и восстановлении доверия.',
-    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-  {
-    name: 'Мария Лебедева',
-    role: 'Подростковый психолог',
-    experience: '10 лет практики',
-    description: 'Помогает наладить отношения родителей и подростков.',
-    image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-  {
-    name: 'Ирина Волкова',
-    role: 'Психолог по детско-родительским отношениям',
-    experience: '14 лет практики',
-    description: 'Работает с агрессией, границами и эмоциональным контактом.',
-    image: 'https://images.unsplash.com/photo-1551836022-deb4988cc6c0?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-  {
-    name: 'Алексей Морозов',
-    role: 'Семейный психолог',
-    experience: '11 лет практики',
-    description: 'Специализируется на эмоциональной дистанции и конфликтах в паре.',
-    image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-  {
-    name: 'Екатерина Соколова',
-    role: 'КПТ-терапевт',
-    experience: '9 лет практики',
-    description: 'Помогает справляться с тревогой и выгоранием родителей.',
-    image: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-  {
-    name: 'Наталья Романова',
-    role: 'Психолог по отношениям',
-    experience: '13 лет практики',
-    description: 'Работает с кризисами семьи и восстановлением отношений.',
-    image: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=720&h=900&q=82',
-  },
-];
-
 export const familyPrograms = [
   {
     title: 'Когда ребёнок перестал слышать родителей',

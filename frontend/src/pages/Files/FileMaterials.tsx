@@ -55,6 +55,7 @@ const CONTENT_LABELS: Record<string, { icon: string; type: string }> = {
   VIDEO_SCRIPT: { icon: '🎥', type: 'Сценарий' },
   CHATBOT_CHAIN: { icon: '🤖', type: 'Цепочка текстов' },
   THREADS: { icon: '🧵', type: 'Threads ИИ' },
+  TG_CHANNEL: { icon: '✈️', type: 'ТГ-канал' },
   OTHER: { icon: '📄', type: 'Материал' },
 };
 

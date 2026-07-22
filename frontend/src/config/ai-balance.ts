@@ -15,6 +15,11 @@ export type AiActionType =
   | 'content_longread'
   | 'youtube_script'
   | 'content_plan'
+  | 'tg_channel_plan'
+  | 'tg_channel_post'
+  | 'tg_channel_post_edit'
+  | 'tg_channel_post_audio_adapt'
+  | 'tg_channel_post_video_script'
   | 'strategy_rebuild';
 
 export const AI_ACTION_COSTS: Record<AiActionType, number> = {
@@ -34,6 +39,11 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   content_longread: 30,
   youtube_script: 35,
   content_plan: 40,
+  tg_channel_plan: 40,
+  tg_channel_post: 5,
+  tg_channel_post_edit: 2,
+  tg_channel_post_audio_adapt: 3,
+  tg_channel_post_video_script: 5,
   strategy_rebuild: 100,
 };
 
@@ -54,6 +64,11 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   content_longread: 'Лонгрид',
   youtube_script: 'YouTube-сценарий',
   content_plan: 'Контент-план',
+  tg_channel_plan: 'План ТГ-канала',
+  tg_channel_post: 'Пост для ТГ-канала',
+  tg_channel_post_edit: 'Доработка поста ТГ-канала',
+  tg_channel_post_audio_adapt: 'Адаптация поста под аудио',
+  tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
   strategy_rebuild: 'Пересборка стратегии',
 };
 
@@ -75,6 +90,11 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   content_longread: 'Контент',
   youtube_script: 'Контент',
   content_plan: 'Контент',
+  tg_channel_plan: 'Контент',
+  tg_channel_post: 'Контент',
+  tg_channel_post_edit: 'Контент',
+  tg_channel_post_audio_adapt: 'Контент',
+  tg_channel_post_video_script: 'Контент',
 };
 
 export const SECTION_PRIMARY_ACTION: Record<string, AiActionType> = {

@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export type ContentType = 'POST' | 'REEL' | 'ARTICLE' | 'VIDEO_SCRIPT' | 'CHATBOT_CHAIN' | 'THREADS' | 'OTHER';
+export type ContentType = 'POST' | 'REEL' | 'ARTICLE' | 'VIDEO_SCRIPT' | 'CHATBOT_CHAIN' | 'THREADS' | 'TG_CHANNEL' | 'OTHER';
 
 export interface ContentItem {
   id:        string;
