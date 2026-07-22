@@ -27,7 +27,13 @@ const strategyNav: NavItem[] = [
   { path: '/strategy/positioning',  label: 'Позиционирование',      icon: '🧭' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
-  { path: '/strategy/social',       label: 'Оформление соц сетей', icon: '📱' },
+];
+
+const packagingNav: NavItem[] = [
+  { path: '/strategy/social',       label: 'Инста',                icon: '📱' },
+  { path: '/tg-channel',            label: 'ТГ-канал',             icon: '✈️' },
+  { path: '/threads',               label: 'Тредс',                icon: '🧵' },
+  { path: '/chatbot-chains',        label: 'Чат бот',              icon: '🤖' },
 ];
 
 const productNav: NavItem[] = [
@@ -41,9 +47,6 @@ const contentNav: NavItem[] = [
   { path: '/reels',           label: 'Рилсы',               icon: '🎬' },
   { path: '/articles',        label: 'Статьи',              icon: '📝' },
   { path: '/video-scripts',   label: 'Сценарии видео',      icon: '🎥' },
-  { path: '/chatbot-chains',  label: 'Цепочка текстов',     icon: '🤖' },
-  { path: '/threads',         label: 'Threads ИИ',           icon: '🧵' },
-  { path: '/tg-channel',      label: 'ТГ-канал',             icon: '✈️' },
 ];
 
 const filesNav: NavItem[] = [
@@ -58,7 +61,7 @@ const pageTitles: Record<string, string> = {
   '/strategy/positioning':  'Позиционирование',
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/utp':          'Создание УТП',
-  '/strategy/social':       'Оформление соц. сетей',
+  '/strategy/social':       'Инста',
   '/products/main':         'Основной продукт',
   '/products/mini':         'Мини-продукт',
   '/products/lead-magnet':  'Лид-магнит',
@@ -66,8 +69,8 @@ const pageTitles: Record<string, string> = {
   '/reels':           'Рилсы',
   '/articles':        'Статьи',
   '/video-scripts':   'Сценарии видео',
-  '/chatbot-chains':  'Цепочка текстов',
-  '/threads':         'Threads ИИ',
+  '/chatbot-chains':  'Чат бот',
+  '/threads':         'Тредс',
   '/tg-channel':      'ТГ-канал',
   '/tasks':           'План задач',
   '/content-plan':    'Контент-план',
@@ -486,11 +489,36 @@ export default function Layout({ children }: LayoutProps) {
                 </span>
               )}
             </NavLink>
+            <NavLink
+              to={appPath('/content-plan')}
+              className={({ isActive }) =>
+                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
+              }
+            >
+              <span className={s.navIcon}>📅</span>
+              <span className={s.navLinkLabel}>Контент-план</span>
+            </NavLink>
           </div>
 
           {/* Стратегия */}
           <Section title="Стратегия">
             {strategyNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={appPath(item.path)}
+                className={({ isActive }) =>
+                  `${s.navLink}${isActive ? ' ' + s.active : ''}`
+                }
+              >
+                <span className={s.navIcon}>{item.icon}</span>
+                <span className={s.navLinkLabel}>{item.label}</span>
+              </NavLink>
+            ))}
+          </Section>
+
+          {/* Упаковка */}
+          <Section title="Упаковка">
+            {packagingNav.map((item) => (
               <NavLink
                 key={item.path}
                 to={appPath(item.path)}
@@ -535,19 +563,6 @@ export default function Layout({ children }: LayoutProps) {
               </NavLink>
             ))}
           </Section>
-
-          {/* Контент-план — отдельный пункт */}
-          <div className={s.navSection}>
-            <NavLink
-              to={appPath('/content-plan')}
-              className={({ isActive }) =>
-                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
-              }
-            >
-              <span className={s.navIcon}>📅</span>
-              <span className={s.navLinkLabel}>Контент-план</span>
-            </NavLink>
-          </div>
 
           {/* Мои файлы */}
           <Section title="Мои файлы">
