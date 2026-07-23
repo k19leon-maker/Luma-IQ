@@ -197,6 +197,10 @@ export const authService = {
     return { accessToken, refreshToken };
   },
 
+  issueAccessToken(userId: string): string {
+    return signAccess(userId);
+  },
+
   async getUserById(id: string): Promise<AuthUser | null> {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user || user.archivedAt) return null;

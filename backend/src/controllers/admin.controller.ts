@@ -8,7 +8,6 @@ import { authService } from '../services/auth.service';
 import { creditLedgerService } from '../services/credit-ledger.service';
 import { promptRegistry } from '../prompts/registry';
 import { promptCmsService } from '../services/prompt-cms.service';
-import { setRefreshCookie } from '../utils/auth-cookies';
 import { isDemoProductText } from '../utils/demo-products';
 import { getPlanBySubscriptionPlan, isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
 import { AI_ACTION_LABELS, AI_ACTION_SECTIONS, aiPointsForGeneration, featureCodeToAiAction } from '../config/ai-actions';
@@ -1481,8 +1480,7 @@ export const adminController = {
         return;
       }
 
-      const tokens = await authService.issueTokens(user.id);
-      const csrfToken = setRefreshCookie(res, tokens.refreshToken);
+      const accessToken = authService.issueAccessToken(user.id);
       await prisma.userEvent.create({
         data: {
           userId: user.id,
@@ -1492,7 +1490,7 @@ export const adminController = {
         },
       });
 
-      res.json({ user, tokens: { accessToken: tokens.accessToken, csrfToken } });
+      res.json({ user, tokens: { accessToken } });
     } catch (err) {
       console.error('[Admin] impersonateUser:', err);
       res.status(500).json({ error: 'Ошибка входа под пользователем' });
