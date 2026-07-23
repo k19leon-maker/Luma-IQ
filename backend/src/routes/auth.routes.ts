@@ -4,6 +4,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import rateLimit from 'express-rate-limit';
 import { authController } from '../controllers/auth.controller';
 import { requireAuth } from '../middleware/auth.middleware';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { env } from '../config/env';
 
 // Keep brute-force protection, but allow normal retries/autofill corrections.
@@ -68,6 +69,8 @@ router.post('/register', authLimiter, authController.register);
 router.post('/login', authLimiter, authController.login);
 router.post('/refresh', refreshLimiter, authController.refresh);
 router.post('/logout', refreshLimiter, authController.logout);
+router.post('/admin/impersonate/:id', requireAuth, requireAdmin, authLimiter, authController.impersonateUser);
+router.post('/admin/restore-impersonation', refreshLimiter, authController.restoreAdminImpersonation);
 router.get('/me', requireAuth, authController.me);
 
 // Email verification

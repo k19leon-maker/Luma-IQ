@@ -44,6 +44,9 @@ export const authApi = {
   logout: () =>
     apiClient.post('/auth/logout').then((r) => r.data),
 
+  restoreAdminImpersonation: () =>
+    apiClient.post<AuthResponse>('/auth/admin/restore-impersonation').then((r) => r.data),
+
   me: () =>
     apiClient.get<{ user: AuthUser }>('/auth/me').then((r) => r.data.user),
 

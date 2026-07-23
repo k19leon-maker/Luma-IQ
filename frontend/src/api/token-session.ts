@@ -1,11 +1,13 @@
 const ACCESS_TOKEN_DEV = 'dev-token';
 const CSRF_COOKIE = 'csrf_token';
+const ADMIN_RETURN_CSRF_COOKIE = 'admin_return_csrf_token';
 const CSRF_SESSION_KEY = 'lumaiq_csrf_token';
 const ADMIN_BACKUP_SESSION_KEY = 'lumaiq_admin_access_backup';
 
 export interface AdminSessionBackup {
-  accessToken: string;
+  accessToken?: string;
   csrfToken?: string;
+  mode?: 'client-token' | 'server-cookie';
 }
 
 let accessToken: string | null = null;
@@ -41,6 +43,10 @@ export function getCsrfToken(): string | null {
   return csrfToken ?? readSessionValue(CSRF_SESSION_KEY) ?? readCookie(CSRF_COOKIE);
 }
 
+export function getAdminReturnCsrfToken(): string | null {
+  return readCookie(ADMIN_RETURN_CSRF_COOKIE);
+}
+
 export function setSessionTokens(nextAccessToken: string, nextCsrfToken?: string): void {
   accessToken = nextAccessToken;
   if (nextCsrfToken) {
@@ -63,9 +69,10 @@ function parseAdminSessionBackup(raw: string | null): AdminSessionBackup | null 
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<AdminSessionBackup>;
-    return parsed.accessToken ? { accessToken: parsed.accessToken, csrfToken: parsed.csrfToken } : null;
+    if (parsed.mode === 'server-cookie') return { mode: 'server-cookie' };
+    return parsed.accessToken ? { accessToken: parsed.accessToken, csrfToken: parsed.csrfToken, mode: 'client-token' } : null;
   } catch {
-    return { accessToken: raw };
+    return { accessToken: raw, mode: 'client-token' };
   }
 }
 

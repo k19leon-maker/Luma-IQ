@@ -371,7 +371,7 @@ export const adminApi = {
 
   impersonateUser: (id: string) =>
     apiClient
-      .post<AuthResponse>(`/admin/users/${id}/impersonate`)
+      .post<AuthResponse>(`/auth/admin/impersonate/${id}`)
       .then((r) => r.data),
 
   updateUserAccess: (id: string, data: {

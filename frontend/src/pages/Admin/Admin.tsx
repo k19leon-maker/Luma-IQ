@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem, AdminWorkflowRun, type AdminCommercialPlan, type AdminSubscriptionPlan } from '../../api/admin.api';
-import { getAccessToken, getCsrfToken, setAdminAccessTokenBackup } from '../../api/token-session';
+import { setAdminAccessTokenBackup } from '../../api/token-session';
 import { useAuthStore } from '../../store/auth.store';
 import {
   BreakdownBar,
@@ -300,14 +300,10 @@ export default function Admin() {
     suppressAdminLoadErrorsRef.current = true;
     adminLoadEpochRef.current += 1;
     try {
-      const currentAccess = getAccessToken();
-      const currentCsrf = getCsrfToken() ?? undefined;
       const { tokens } = await adminApi.impersonateUser(selected.id);
       const impersonatedUser = await setTokens(tokens.accessToken, tokens.csrfToken);
-      if (currentAccess) {
-        // Set after setTokens, because normal auth token updates clear impersonation state.
-        setAdminAccessTokenBackup({ accessToken: currentAccess, csrfToken: currentCsrf });
-      }
+      // Set after setTokens, because normal auth token updates clear impersonation state.
+      setAdminAccessTokenBackup({ mode: 'server-cookie' });
       toast.dismiss();
       toast.success(`Вы вошли как ${impersonatedUser?.email ?? selected.email}`);
       navigate('/dashboard', { replace: true });

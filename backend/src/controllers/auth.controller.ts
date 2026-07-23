@@ -1,11 +1,22 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import { Prisma } from '@prisma/client';
 import { authService } from '../services/auth.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { env } from '../config/env';
-import { assertRefreshCsrf, clearRefreshCookie, getRefreshCookie, setRefreshCookie } from '../utils/auth-cookies';
+import {
+  assertAdminReturnCsrf,
+  assertRefreshCsrf,
+  clearAdminReturnCookie,
+  clearRefreshCookie,
+  getAdminReturnCookie,
+  getRefreshCookie,
+  setAdminReturnCookie,
+  setRefreshCookie,
+} from '../utils/auth-cookies';
 import { legalConsentSchema, logConsent } from '../services/consent-log.service';
+import { prisma } from '../lib/prisma';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -87,6 +98,7 @@ export const authController = {
     try {
       const { email, password, consents } = parsed.data;
       const result = await authService.login(email, password);
+      clearAdminReturnCookie(res);
       if (consents) {
         await logConsentSafely({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_login' });
       }
@@ -125,7 +137,117 @@ export const authController = {
       await authService.logout(refreshToken).catch(() => {});
     }
     clearRefreshCookie(res);
+    clearAdminReturnCookie(res);
     res.json({ message: 'Выход выполнен' });
+  },
+
+  async impersonateUser(req: AuthRequest, res: Response): Promise<void> {
+    if (!req.userId) {
+      res.status(401).json({ error: 'Необходима авторизация' });
+      return;
+    }
+
+    const adminRefreshToken = getRefreshCookie(req);
+    if (!adminRefreshToken) {
+      res.status(401).json({ error: 'Админская refresh-сессия не найдена' });
+      return;
+    }
+    if (!assertRefreshCsrf(req, adminRefreshToken)) {
+      res.status(403).json({ error: 'CSRF token недействителен' });
+      return;
+    }
+    if (getAdminReturnCookie(req)) {
+      res.status(409).json({ error: 'Вложенный вход под пользователем запрещён' });
+      return;
+    }
+
+    try {
+      const admin = await authService.getUserById(req.userId);
+      if (!admin || admin.role !== 'ADMIN') {
+        res.status(403).json({ error: 'Доступ только для администратора' });
+        return;
+      }
+
+      const target = await prisma.user.findUnique({
+        where: { id: req.params.id as string },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatarUrl: true,
+          role: true,
+          isVerified: true,
+          archivedAt: true,
+          onboardingStatus: true,
+          onboardingStep: true,
+          onboardingVersion: true,
+          onboardingCompletedAt: true,
+          onboardingData: true,
+          recommendedRoute: true,
+          createdProjectId: true,
+        },
+      });
+
+      if (!target || target.archivedAt) {
+        res.status(404).json({ error: 'Пользователь не найден' });
+        return;
+      }
+      if (target.id === admin.id) {
+        res.status(400).json({ error: 'Нельзя войти под текущим администратором' });
+        return;
+      }
+
+      const result = await authService.issueTokens(target.id);
+      const csrfToken = setRefreshCookie(res, result.refreshToken);
+      setAdminReturnCookie(res, adminRefreshToken);
+
+      await prisma.userEvent.create({
+        data: {
+          userId: target.id,
+          actorId: admin.id,
+          type: 'admin_impersonation_started',
+          metadata: { email: target.email } as Prisma.InputJsonValue,
+        },
+      });
+
+      const user = await authService.getUserById(target.id);
+      res.json({ user, tokens: { accessToken: result.accessToken, csrfToken } });
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+
+  async restoreAdminImpersonation(req: Request, res: Response): Promise<void> {
+    const adminRefreshToken = getAdminReturnCookie(req);
+    if (!adminRefreshToken) {
+      res.status(401).json({ error: 'Админская сессия для возврата не найдена' });
+      return;
+    }
+    if (!assertAdminReturnCsrf(req, adminRefreshToken)) {
+      res.status(403).json({ error: 'CSRF token возврата недействителен' });
+      return;
+    }
+
+    const impersonatedRefreshToken = getRefreshCookie(req);
+    try {
+      if (impersonatedRefreshToken && impersonatedRefreshToken !== adminRefreshToken) {
+        await authService.logout(impersonatedRefreshToken).catch(() => {});
+      }
+
+      const result = await authService.refresh(adminRefreshToken);
+      if (result.user.role !== 'ADMIN') {
+        clearAdminReturnCookie(res);
+        res.status(403).json({ error: 'Сохранённая сессия не является админской' });
+        return;
+      }
+
+      clearAdminReturnCookie(res);
+      res.json(authPayload(result, res));
+    } catch (err) {
+      clearAdminReturnCookie(res);
+      clearRefreshCookie(res);
+      handleError(res, err);
+    }
   },
 
   async me(req: AuthRequest, res: Response): Promise<void> {

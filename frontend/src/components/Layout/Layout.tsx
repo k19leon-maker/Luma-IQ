@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { consumeAdminAccessTokenBackup, hasAdminAccessTokenBackup } from '../../api/token-session';
+import { authApi } from '../../api/auth.api';
 import { billingApi, type BillingMe } from '../../api/billing.api';
 import { SectionUsageLimits, type SectionUsageLimitsSection } from '../UsageLimits/UsageLimits';
 import { useProjectsStore } from '../../store/projects.store';
@@ -251,7 +252,18 @@ export default function Layout({ children }: LayoutProps) {
     if (!backup) return;
     setHasAdminBackup(false);
 
-    const restoredUser = await setTokens(backup.accessToken, backup.csrfToken);
+    const restored = backup.mode === 'server-cookie'
+      ? await authApi.restoreAdminImpersonation()
+      : backup.accessToken
+        ? { tokens: { accessToken: backup.accessToken, csrfToken: backup.csrfToken } }
+        : null;
+    if (!restored) {
+      toast.error('Не удалось восстановить админскую сессию');
+      navigate(appPath('/dashboard'), { replace: true });
+      return;
+    }
+
+    const restoredUser = await setTokens(restored.tokens.accessToken, restored.tokens.csrfToken);
     if (restoredUser?.role !== 'ADMIN') {
       toast.error('Не удалось восстановить админскую сессию');
       navigate(appPath('/dashboard'), { replace: true });

@@ -56,17 +56,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (email, password, consents) => {
+    clearSessionTokens();
+    clearAdminAccessTokenBackup();
     const { user, tokens } = await authApi.login(email, password, consents);
     resetSessionStores();
-    clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },
 
   register: async (email, password, name, consents) => {
+    clearSessionTokens();
+    clearAdminAccessTokenBackup();
     const { user, tokens } = await authApi.register(email, password, name, consents);
     resetSessionStores();
-    clearAdminAccessTokenBackup();
     setSessionTokens(tokens.accessToken, tokens.csrfToken);
     set({ user, isAuthenticated: true });
   },

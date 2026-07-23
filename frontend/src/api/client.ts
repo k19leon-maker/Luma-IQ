@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   clearSessionTokens,
   getAccessToken,
+  getAdminReturnCsrfToken,
   getCsrfToken,
   isDevSession,
   setSessionTokens,
@@ -23,10 +24,17 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  const csrfToken = getCsrfToken();
   const method = config.method?.toUpperCase();
+  const requestUrl = typeof config.url === 'string' ? config.url : '';
+  const csrfToken = requestUrl.includes('/auth/admin/restore-impersonation')
+    ? getAdminReturnCsrfToken()
+    : getCsrfToken();
   if (csrfToken && method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    config.headers['X-CSRF-Token'] = csrfToken;
+    if (requestUrl.includes('/auth/admin/restore-impersonation')) {
+      config.headers['X-Admin-Return-CSRF-Token'] = csrfToken;
+    } else {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
   }
   return config;
 });
