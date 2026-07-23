@@ -37,7 +37,11 @@ function formatDate(value: string): string {
 function isGoogleDriveLikeUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.hostname === 'drive.google.com' || url.hostname === 'docs.google.com';
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    return hostname === 'drive.google.com'
+      || hostname === 'docs.google.com'
+      || hostname === 'drive.usercontent.google.com'
+      || hostname.endsWith('.googleusercontent.com');
   } catch {
     return false;
   }
@@ -124,7 +128,7 @@ export default function CastDev() {
         setShowForm(items.length === 0);
       })
       .catch(() => {
-        if (!cancelled) toast.error('Не удалось загрузить записи Cast Dev');
+        if (!cancelled) toast.error('Не удалось загрузить записи CustDev');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -144,7 +148,7 @@ export default function CastDev() {
       return;
     }
     if (!isGoogleDriveLikeUrl(cleanUrl)) {
-      toast.error('Добавьте ссылку на файл Google Drive или Google Docs');
+      toast.error('Добавьте ссылку на файл Google Drive');
       return;
     }
 
@@ -160,10 +164,11 @@ export default function CastDev() {
       setTitle('');
       setSourceUrl('');
       setShowForm(false);
-      toast.success('Запись Cast Dev добавлена');
+      toast.success('Запись CustDev добавлена');
     } catch (err) {
-      const message = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
-      toast.error(message || 'Не удалось добавить запись');
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
+      const message = error.response?.data?.error || error.message;
+      toast.error(message || 'Не удалось добавить запись. Проверьте ссылку и выбранный проект.');
     } finally {
       setCreating(false);
     }
@@ -230,7 +235,7 @@ export default function CastDev() {
         <div className={s.emptyInner}>
           <span className={s.emptyIcon}>🎙️</span>
           <div className={s.emptyTitle}>Выберите проект</div>
-          <div className={s.emptyText}>Cast Dev хранится внутри конкретного проекта и потом будет использоваться в стратегии, продуктах и контенте.</div>
+          <div className={s.emptyText}>CustDev хранится внутри конкретного проекта и потом будет использоваться в стратегии, продуктах и контенте.</div>
         </div>
       </div>
     );
@@ -240,7 +245,7 @@ export default function CastDev() {
     <div className={s.root}>
       <aside className={s.listPanel}>
         <div className={s.listHeader}>
-          <span className={s.listTitle}>Записи Cast Dev</span>
+          <span className={s.listTitle}>Записи CustDev</span>
           <button className={s.addBtn} onClick={() => setShowForm(true)}>+ Добавить</button>
         </div>
         <div className={s.listScroll}>
@@ -281,7 +286,7 @@ export default function CastDev() {
           <header className={s.hero}>
             <div>
               <div className={s.eyebrow}>Стратегия · реальные интервью</div>
-              <h1 className={s.title}>Cast Dev</h1>
+              <h1 className={s.title}>CustDev</h1>
               <p className={s.subtitle}>
                 Добавляйте записи встреч с клиентами. На следующем этапе Luma IQ будет транскрибировать их и выделять задачи клиента, страхи, возражения и желаемые результаты.
               </p>

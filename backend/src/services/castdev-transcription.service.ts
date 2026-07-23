@@ -53,11 +53,24 @@ function safeName(value: string): string {
 
 function extractGoogleDriveFileId(value: string): string | null {
   const url = new URL(value);
-  const host = url.hostname.toLowerCase();
-  if (host !== 'drive.google.com' && host !== 'docs.google.com') return null;
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  if (
+    host !== 'drive.google.com'
+    && host !== 'docs.google.com'
+    && host !== 'drive.usercontent.google.com'
+    && !host.endsWith('.googleusercontent.com')
+  ) return null;
   const fileMatch = url.pathname.match(/\/file\/d\/([^/]+)/);
   if (fileMatch?.[1]) return fileMatch[1];
   return url.searchParams.get('id');
+}
+
+function isGoogleDriveHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  return host === 'drive.google.com'
+    || host === 'docs.google.com'
+    || host === 'drive.usercontent.google.com'
+    || host.endsWith('.googleusercontent.com');
 }
 
 function assertGoogleUrl(value: string): void {
@@ -70,7 +83,7 @@ function assertGoogleUrl(value: string): void {
   if (!['https:', 'http:'].includes(url.protocol)) {
     throw new CastDevTranscriptionError('Разрешены только HTTP/HTTPS-ссылки', 'BAD_URL');
   }
-  if (!['drive.google.com', 'docs.google.com'].includes(url.hostname.toLowerCase())) {
+  if (!isGoogleDriveHost(url.hostname)) {
     throw new CastDevTranscriptionError('Добавьте ссылку на файл Google Drive', 'NOT_GOOGLE_DRIVE');
   }
 }
@@ -118,6 +131,10 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
 async function googleDriveDownloadUrl(sourceUrl: string): Promise<Response> {
   const fileId = extractGoogleDriveFileId(sourceUrl);
   if (!fileId) {
+    const url = new URL(sourceUrl);
+    if (isGoogleDriveHost(url.hostname) && url.hostname.toLowerCase().includes('googleusercontent.com')) {
+      return fetchWithTimeout(sourceUrl, { redirect: 'follow' });
+    }
     throw new CastDevTranscriptionError('Не удалось определить ID файла Google Drive', 'NO_FILE_ID');
   }
   const params = new URLSearchParams({ export: 'download', id: fileId });

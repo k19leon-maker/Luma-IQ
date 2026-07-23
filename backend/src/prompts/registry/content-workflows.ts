@@ -1639,7 +1639,7 @@ ${value(inputs, 'existingPost', 'Не передан')}
 - transcriptFormatted должен быть читабельной версией transcript с абзацами и нейтральными подзаголовками, без изменения смысла.
 
 ${contextAppendix(context)}`,
-    userPromptBuilder: ({ inputs }) => `Проанализируй transcript Cast Dev.
+    userPromptBuilder: ({ inputs }) => `Проанализируй transcript CustDev.
 
 Название записи: ${value(inputs, 'title', 'Не указано')}
 Источник: ${value(inputs, 'sourceUrl', 'Не указан')}

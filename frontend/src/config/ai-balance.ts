@@ -71,7 +71,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_post_edit: 'Доработка поста ТГ-канала',
   tg_channel_post_audio_adapt: 'Адаптация поста под аудио',
   tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
-  castdev_analysis: 'Анализ Cast Dev',
+  castdev_analysis: 'Анализ CustDev',
   strategy_rebuild: 'Пересборка стратегии',
 };
 

@@ -39,7 +39,11 @@ async function assertProjectOwner(userId: string, projectId: string): Promise<bo
 function isGoogleDriveUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return ['drive.google.com', 'docs.google.com'].includes(url.hostname);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    return hostname === 'drive.google.com'
+      || hostname === 'docs.google.com'
+      || hostname === 'drive.usercontent.google.com'
+      || hostname.endsWith('.googleusercontent.com');
   } catch {
     return false;
   }
@@ -65,7 +69,7 @@ function extractJsonObject(content: string): Record<string, unknown> {
       }
     }
   }
-  throw new Error('AI вернул некорректный JSON для Cast Dev');
+  throw new Error('AI вернул некорректный JSON для CustDev');
 }
 
 function analysisIdempotencyKey(recordId: string, transcriptText: string): string {
@@ -95,7 +99,7 @@ export const castDevController = {
       res.json({ records });
     } catch (err) {
       console.error('[CastDev] list:', err);
-      res.status(500).json({ error: 'Ошибка при загрузке записей Cast Dev' });
+      res.status(500).json({ error: 'Ошибка при загрузке записей CustDev' });
     }
   },
 
@@ -108,7 +112,7 @@ export const castDevController = {
 
     const { projectId, title, sourceUrl } = parsed.data;
     if (!isGoogleDriveUrl(sourceUrl)) {
-      res.status(400).json({ error: 'Добавьте ссылку на файл Google Drive или Google Docs' });
+      res.status(400).json({ error: 'Добавьте ссылку на файл Google Drive' });
       return;
     }
 
@@ -136,7 +140,7 @@ export const castDevController = {
       res.status(201).json({ record });
     } catch (err) {
       console.error('[CastDev] create:', err);
-      res.status(500).json({ error: 'Ошибка при создании записи Cast Dev' });
+      res.status(500).json({ error: 'Ошибка при создании записи CustDev' });
     }
   },
 
@@ -175,7 +179,7 @@ export const castDevController = {
       res.json({ record });
     } catch (err) {
       console.error('[CastDev] update:', err);
-      res.status(500).json({ error: 'Ошибка при обновлении записи Cast Dev' });
+      res.status(500).json({ error: 'Ошибка при обновлении записи CustDev' });
     }
   },
 
@@ -193,7 +197,7 @@ export const castDevController = {
       res.json({ ok: true });
     } catch (err) {
       console.error('[CastDev] remove:', err);
-      res.status(500).json({ error: 'Ошибка при удалении записи Cast Dev' });
+      res.status(500).json({ error: 'Ошибка при удалении записи CustDev' });
     }
   },
 
@@ -323,7 +327,7 @@ export const castDevController = {
       });
     } catch (err) {
       console.error('[CastDev] analyze:', err);
-      const message = err instanceof Error ? err.message : 'Не удалось выполнить AI-разбор Cast Dev';
+      const message = err instanceof Error ? err.message : 'Не удалось выполнить AI-разбор CustDev';
       const id = req.params.id as string;
       await prisma.castDevRecord.updateMany({
         where: { id, userId: req.userId! },

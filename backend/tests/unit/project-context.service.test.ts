@@ -68,7 +68,7 @@ async function build(workflow: string) {
   });
 }
 
-describe('projectContextService Cast Dev context', () => {
+describe('projectContextService CustDev context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -82,20 +82,20 @@ describe('projectContextService Cast Dev context', () => {
     'articles.article',
     'threads.plan',
     'tg-channel',
-  ])('includes Cast Dev summary for %s without full transcript', async (workflow) => {
+  ])('includes CustDev summary for %s without full transcript', async (workflow) => {
     const context = await build(workflow);
 
-    expect(context.rendered).toContain('Cast Dev / реальные интервью клиентов');
+    expect(context.rendered).toContain('CustDev / реальные интервью клиентов');
     expect(context.rendered).toContain('Клиент хочет быстро понять');
     expect(context.rendered).toContain('Мне нужно понять, откуда будут заявки');
     expect(context.rendered).not.toContain('ПОЛНАЯ ТРАНСКРИБАЦИЯ');
     expect(context.rendered).not.toContain('ОТФОРМАТИРОВАННАЯ ТРАНСКРИБАЦИЯ');
   });
 
-  it('does not include Cast Dev summary into castdev.analysis itself', async () => {
+  it('does not include CustDev summary into castdev.analysis itself', async () => {
     const context = await build('castdev');
 
-    expect(context.rendered).not.toContain('Cast Dev / реальные интервью клиентов');
+    expect(context.rendered).not.toContain('CustDev / реальные интервью клиентов');
     expect(context.rendered).not.toContain('Клиент хочет быстро понять');
   });
 });

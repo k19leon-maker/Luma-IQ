@@ -26,7 +26,7 @@ const strategyNav: NavItem[] = [
   { path: '/strategy/about',        label: 'О себе',               icon: '👤' },
   { path: '/strategy/positioning',  label: 'Позиционирование',      icon: '🧭' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
-  { path: '/strategy/castdev',      label: 'Cast Dev',             icon: '🎙️' },
+  { path: '/strategy/castdev',      label: 'CustDev',              icon: '🎙️' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
 ];
 
@@ -61,7 +61,7 @@ const pageTitles: Record<string, string> = {
   '/ai-dialog':             'Диалог с ИИ',
   '/strategy/positioning':  'Позиционирование',
   '/strategy/audience':     'Целевая аудитория',
-  '/strategy/castdev':      'Cast Dev',
+  '/strategy/castdev':      'CustDev',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Инста',
   '/products/main':         'Основной продукт',

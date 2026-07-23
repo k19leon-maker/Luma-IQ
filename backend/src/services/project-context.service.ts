@@ -350,7 +350,7 @@ function summarizeCastDevRecords(records: unknown[]): string {
       .join('; ');
 
     return lines([
-      [`Cast Dev ${index + 1}`, field(record, ['title'])],
+      [`CustDev ${index + 1}`, field(record, ['title'])],
       ['Краткий вывод', field(analysis, ['summaryForContext'])],
       ['Ключевые задачи клиента', renderItems(tasks, 5)],
       ['Страхи / проблемы / возражения', renderItems(fears, 5)],
@@ -492,7 +492,7 @@ export const projectContextService = {
       },
       {
         key: 'castdev_summary',
-        title: 'Cast Dev / реальные интервью клиентов',
+        title: 'CustDev / реальные интервью клиентов',
         priority: workflowGroupName === 'product' || workflowGroupName === 'leadmagnet' || workflowGroupName === 'tg-channel' ? 'high' : 'medium',
         content: castDevSummary,
       },
