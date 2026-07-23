@@ -32,6 +32,7 @@ export default function Admin() {
   const isAdmin = currentUser?.role === 'ADMIN';
   const isAdminRef = useRef(isAdmin);
   const suppressAdminLoadErrorsRef = useRef(false);
+  const adminLoadEpochRef = useRef(0);
 
   const [page, setPage] = useState<Page>('dashboard');
   const [previousPage, setPreviousPage] = useState<Page>('users');
@@ -109,27 +110,45 @@ export default function Admin() {
 
   useEffect(() => {
     isAdminRef.current = isAdmin;
-    if (!isAdmin) suppressAdminLoadErrorsRef.current = true;
+    if (!isAdmin) {
+      suppressAdminLoadErrorsRef.current = true;
+      adminLoadEpochRef.current += 1;
+    }
   }, [isAdmin]);
 
-  function showAdminLoadError(message: string) {
+  function beginAdminLoad(): number | null {
+    if (!isAdminRef.current || suppressAdminLoadErrorsRef.current) return null;
+    return adminLoadEpochRef.current;
+  }
+
+  function isActiveAdminLoad(loadEpoch: number): boolean {
+    return loadEpoch === adminLoadEpochRef.current && isAdminRef.current && !suppressAdminLoadErrorsRef.current;
+  }
+
+  function showAdminLoadError(message: string, loadId?: number) {
     if (!isAdminRef.current || suppressAdminLoadErrorsRef.current) return;
+    if (loadId && !isActiveAdminLoad(loadId)) return;
     toast.error(message);
   }
 
   async function loadDashboard() {
-    if (!isAdmin) return;
+    const loadId = beginAdminLoad();
+    if (loadId === null) return;
     try {
-      setDashboard(await adminApi.dashboard());
+      const data = await adminApi.dashboard();
+      if (!isActiveAdminLoad(loadId)) return;
+      setDashboard(data);
     } catch {
-      showAdminLoadError('Не удалось загрузить бизнес-метрики');
+      showAdminLoadError('Не удалось загрузить бизнес-метрики', loadId);
     }
   }
 
   async function loadPrompts() {
-    if (!isAdmin) return;
+    const loadId = beginAdminLoad();
+    if (loadId === null) return;
     try {
       const data = await adminApi.prompts();
+      if (!isActiveAdminLoad(loadId)) return;
       setPromptRegistry(data.registry);
       setPromptVersions(data.versions);
       setPromptExperiments(data.experiments);
@@ -139,29 +158,32 @@ export default function Admin() {
         setPromptStep(first.step);
       }
     } catch {
-      showAdminLoadError('Не удалось загрузить prompt CMS');
+      showAdminLoadError('Не удалось загрузить prompt CMS', loadId);
     }
   }
 
   async function loadUsers() {
-    if (!isAdmin) {
+    const loadId = beginAdminLoad();
+    if (loadId === null) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
       const data = await adminApi.listUsers({ q: q || undefined, plan, status, archive: archiveFilter, limit: 100 });
+      if (!isActiveAdminLoad(loadId)) return;
       setUsers(data.users);
       setTotal(data.total);
     } catch {
-      showAdminLoadError('Не удалось загрузить пользователей');
+      showAdminLoadError('Не удалось загрузить пользователей', loadId);
     } finally {
-      setLoading(false);
+      if (isActiveAdminLoad(loadId)) setLoading(false);
     }
   }
 
   async function loadWorkflows(params?: { userId?: string; projectId?: string; workflow?: string; status?: string }) {
-    if (!isAdmin) return;
+    const loadId = beginAdminLoad();
+    if (loadId === null) return;
     setWorkflowLoading(true);
     try {
       const data = await adminApi.workflows({
@@ -171,12 +193,13 @@ export default function Admin() {
         status: (params?.status ?? workflowStatus) || undefined,
         limit: 50,
       });
+      if (!isActiveAdminLoad(loadId)) return;
       setWorkflows(data.workflows);
       setWorkflowTotal(data.total);
     } catch {
-      showAdminLoadError('Не удалось загрузить workflow history');
+      showAdminLoadError('Не удалось загрузить workflow history', loadId);
     } finally {
-      setWorkflowLoading(false);
+      if (isActiveAdminLoad(loadId)) setWorkflowLoading(false);
     }
   }
 
@@ -275,6 +298,7 @@ export default function Admin() {
     if (!ok) return;
     setImpersonateLoading(true);
     suppressAdminLoadErrorsRef.current = true;
+    adminLoadEpochRef.current += 1;
     try {
       const currentAccess = getAccessToken();
       const currentCsrf = getCsrfToken() ?? undefined;
@@ -284,6 +308,7 @@ export default function Admin() {
         // Set after setTokens, because normal auth token updates clear impersonation state.
         setAdminAccessTokenBackup({ accessToken: currentAccess, csrfToken: currentCsrf });
       }
+      toast.dismiss();
       toast.success(`Вы вошли как ${impersonatedUser?.email ?? selected.email}`);
       navigate('/dashboard', { replace: true });
     } catch {
