@@ -1636,7 +1636,7 @@ ${value(inputs, 'existingPost', 'Не передан')}
 - Если формулировка в transcript звучит не идеально, не переписывай quote. Нормализовать можно только title.
 - Не смешивай задачи клиента с его страхами и желаниями.
 - Не возвращай markdown, code fence или комментарии вокруг JSON.
-- transcriptFormatted должен быть читабельной версией transcript с абзацами и нейтральными подзаголовками, без изменения смысла.
+- Не переписывай transcript целиком. Полную транскрибацию форматирует backend; твоя задача — аналитические блоки.
 
 ${contextAppendix(context)}`,
     userPromptBuilder: ({ inputs }) => `Проанализируй transcript CustDev.
@@ -1649,24 +1649,23 @@ ${value(inputs, 'transcriptText', 'Transcript не передан')}
 
 Верни строго валидный JSON без markdown:
 {
-  "transcriptFormatted": "Читабельная версия transcript: абзацы, нейтральные подзаголовки, без изменения смысла",
   "customerTasks": [
     {
       "title": "Короткая задача клиента простым языком",
-      "quote": "Дословная формулировка клиента из transcript"
+      "quote": "Дословная короткая формулировка клиента из transcript"
     }
   ],
   "fearsProblemsObjections": [
     {
       "title": "Короткое название страха, проблемы или возражения",
       "type": "fear",
-      "quote": "Дословная формулировка клиента из transcript"
+      "quote": "Дословная короткая формулировка клиента из transcript"
     }
   ],
   "desiresGoalsResults": [
     {
       "title": "Короткое название желания, цели или результата",
-      "quote": "Дословная формулировка клиента из transcript"
+      "quote": "Дословная короткая формулировка клиента из transcript"
     }
   ],
   "summaryForContext": "Короткий вывод для дальнейшей упаковки, продуктов и контента"
@@ -1675,12 +1674,13 @@ ${value(inputs, 'transcriptText', 'Transcript не передан')}
 Требования:
 - type может быть только "fear", "problem" или "objection".
 - В каждом массиве верни столько пунктов, сколько реально найдено в transcript.
+- В quote не вставляй длинные фрагменты диалога: только конкретная фраза или короткий смысловой фрагмент клиента.
 - Если в transcript нет данных для блока, верни пустой массив.
 - Не добавляй поля вне этой структуры.`,
     validationRules: {
       minLength: 500,
-      maxLength: 50000,
-      requiredIncludes: ['"transcriptFormatted"', '"customerTasks"', '"fearsProblemsObjections"', '"desiresGoalsResults"', '"summaryForContext"'],
+      maxLength: 30000,
+      requiredIncludes: ['"customerTasks"', '"fearsProblemsObjections"', '"desiresGoalsResults"', '"summaryForContext"'],
       structuredOutput: 'json',
     },
   },

@@ -37,10 +37,10 @@ export const castDevApi = {
     apiClient.post<{ record: CastDevRecord }>('/castdev', data).then((r) => r.data.record),
 
   transcribe: (id: string) =>
-    apiClient.post<{ record: CastDevRecord }>(`/castdev/${id}/transcribe`).then((r) => r.data.record),
+    apiClient.post<{ record: CastDevRecord }>(`/castdev/${id}/transcribe`, undefined, { timeout: 300_000 }).then((r) => r.data.record),
 
   analyze: (id: string) =>
-    apiClient.post<CastDevAnalyzeResult>(`/castdev/${id}/analyze`).then((r) => r.data),
+    apiClient.post<CastDevAnalyzeResult>(`/castdev/${id}/analyze`, undefined, { timeout: 300_000 }).then((r) => r.data),
 
   update: (id: string, data: Partial<Pick<CastDevRecord, 'title' | 'status' | 'fileName' | 'mimeType' | 'durationSec' | 'transcriptText' | 'transcriptFormatted' | 'analysis' | 'errorMessage' | 'metadata'>>) =>
     apiClient.patch<{ record: CastDevRecord }>(`/castdev/${id}`, data).then((r) => r.data.record),
