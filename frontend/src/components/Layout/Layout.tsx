@@ -26,6 +26,7 @@ const strategyNav: NavItem[] = [
   { path: '/strategy/about',        label: 'О себе',               icon: '👤' },
   { path: '/strategy/positioning',  label: 'Позиционирование',      icon: '🧭' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
+  { path: '/strategy/castdev',      label: 'Cast Dev',             icon: '🎙️' },
   { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
 ];
 
@@ -60,6 +61,7 @@ const pageTitles: Record<string, string> = {
   '/ai-dialog':             'Диалог с ИИ',
   '/strategy/positioning':  'Позиционирование',
   '/strategy/audience':     'Целевая аудитория',
+  '/strategy/castdev':      'Cast Dev',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Инста',
   '/products/main':         'Основной продукт',
@@ -112,7 +114,7 @@ function getLocalLimitsSection(path: string): SectionUsageLimitsSection | null {
   if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/tg-channel' || path === '/content-plan') return 'content';
   if (path === '/articles') return 'longreads';
   if (path === '/video-scripts') return 'youtube_scripts';
-  if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';
+  if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/castdev' || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';
   if (path === '/products/main' || path === '/products/mini' || path === '/products/lead-magnet') return 'products';
   return null;
 }

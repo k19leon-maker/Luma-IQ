@@ -22,6 +22,7 @@ import b2cRouter from './routes/b2c.routes';
 import billingRouter from './routes/billing.routes';
 import onboardingRouter from './routes/onboarding.routes';
 import tasksRouter from './routes/tasks.routes';
+import castDevRouter from './routes/castdev.routes';
 import { env } from './config/env';
 import { errorHandler } from './middleware/error.middleware';
 import { healthService } from './services/health.service';
@@ -83,6 +84,7 @@ export function createApp() {
   app.use('/api/v1/billing', billingRouter);
   app.use('/api/v1/onboarding', onboardingRouter);
   app.use('/api/v1/tasks', tasksRouter);
+  app.use('/api/v1/castdev', castDevRouter);
   app.use('/api/v1/admin', adminRouter);
   app.use('/api/v1/artifacts', artifactRouter);
   app.use('/api/v1/b2c', b2cRouter);

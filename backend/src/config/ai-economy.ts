@@ -22,6 +22,7 @@ export type FeatureCode =
   | 'tg_channel_post_edit'
   | 'tg_channel_post_audio_adapt'
   | 'tg_channel_post_video_script'
+  | 'castdev_analysis'
   | 'content_plan'
   | 'jtbd';
 
@@ -215,6 +216,14 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 1,
     includedTokens: 5000,
     maxContextTokens: 12000,
+  },
+  castdev_analysis: {
+    featureCode: 'castdev_analysis',
+    featureGroup: 'strategy',
+    generationClass: 'MEDIUM',
+    creditPrice: 4,
+    includedTokens: 16000,
+    maxContextTokens: 36000,
   },
   content_plan: {
     featureCode: 'content_plan',

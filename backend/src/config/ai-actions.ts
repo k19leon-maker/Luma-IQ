@@ -22,6 +22,7 @@ export type AiActionType =
   | 'tg_channel_post_edit'
   | 'tg_channel_post_audio_adapt'
   | 'tg_channel_post_video_script'
+  | 'castdev_analysis'
   | 'strategy_rebuild';
 
 export const AI_ACTION_COSTS: Record<AiActionType, number> = {
@@ -46,6 +47,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   tg_channel_post_edit: 2,
   tg_channel_post_audio_adapt: 3,
   tg_channel_post_video_script: 5,
+  castdev_analysis: 40,
   strategy_rebuild: 100,
 };
 
@@ -71,6 +73,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_post_edit: 'Доработка поста ТГ-канала',
   tg_channel_post_audio_adapt: 'Адаптация поста под аудио',
   tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
+  castdev_analysis: 'Анализ Cast Dev',
   strategy_rebuild: 'Пересборка стратегии',
 };
 
@@ -97,6 +100,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   tg_channel_post_edit: 'Контент',
   tg_channel_post_audio_adapt: 'Контент',
   tg_channel_post_video_script: 'Контент',
+  castdev_analysis: 'Стратегия',
 };
 
 export function featureCodeToAiAction(featureCode: string): AiActionType {
@@ -125,6 +129,7 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'tg_channel_post_edit': return 'tg_channel_post_edit';
     case 'tg_channel_post_audio_adapt': return 'tg_channel_post_audio_adapt';
     case 'tg_channel_post_video_script': return 'tg_channel_post_video_script';
+    case 'castdev_analysis': return 'castdev_analysis';
     default:
       return 'ai_chat';
   }

@@ -50,6 +50,7 @@ model User {
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
   projectTasks        ProjectTask[]
+  castDevRecords      CastDevRecord[]
   promptVersions      PromptVersion[]
   promptExperiments   PromptExperiment[]
   consentLogs         ConsentLog[]
@@ -641,6 +642,7 @@ model Project {
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
   tasks               ProjectTask[]
+  castDevRecords      CastDevRecord[]
 
   @@index([userId, createdAt])
   @@map("projects")
@@ -766,6 +768,33 @@ model GeneratedText {
 
   @@index([projectId, type, createdAt])
   @@map("generated_texts")
+}
+
+model CastDevRecord {
+  id           String   @id @default(uuid())
+  userId       String
+  projectId    String
+  title        String
+  sourceUrl    String
+  sourceType   String   @default("google_drive")
+  fileName     String?
+  mimeType     String?
+  durationSec  Int?
+  status       String   @default("pending")
+  transcriptText String?
+  transcriptFormatted String?
+  analysis     Json?
+  metadata     Json?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, createdAt])
+  @@index([projectId, status])
+  @@map("cast_dev_records")
 }
 
 model ContentPlanItem {

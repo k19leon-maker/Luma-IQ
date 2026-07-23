@@ -1,4 +1,4 @@
-import { GeneratedTextType } from '@prisma/client';
+import { GeneratedTextType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ProjectContext, buildProjectContext } from '../utils/buildProjectContext';
 import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from '../utils/demo-products';
@@ -160,43 +160,47 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
   const common = new Set(['project', 'expert_profile', 'workflow_inputs']);
   if (common.has(blockKey)) return true;
 
+  if (group === 'castdev') {
+    return false;
+  }
+
   if (workflow.startsWith('positioning.')) {
-    return ['strategy_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+    return ['strategy_summary', 'audience_summary', 'products_summary', 'castdev_summary'].includes(blockKey);
   }
 
   if (group === 'posts') {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'threads') {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (workflow.startsWith('tg-channel.')) {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'reels') {
-    return ['positioning_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'articles') {
-    return ['positioning_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'chatbot' || group === 'video') {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'product' || group === 'leadmagnet') {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary'].includes(blockKey);
   }
 
   if (group === 'strategy') {
-    return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary'].includes(blockKey);
   }
 
-  return ['positioning_summary', 'utp_summary', 'audience_summary', 'products_summary', 'content_history'].includes(blockKey);
+  return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
 }
 
 function summarizeProject(project: {
@@ -322,6 +326,39 @@ function summarizeContentHistory(items: unknown[], workflow: string): string {
   });
 }
 
+function summarizeCastDevRecords(records: unknown[]): string {
+  const completed = records
+    .map(asRecord)
+    .filter((record) => field(record, ['status']) === 'completed' && Object.keys(asRecord(record.analysis)).length > 0);
+
+  return shortList(completed, 4, (item, index) => {
+    const record = asRecord(item);
+    const analysis = asRecord(record.analysis);
+    const tasks = Array.isArray(analysis.customerTasks) ? analysis.customerTasks : [];
+    const fears = Array.isArray(analysis.fearsProblemsObjections) ? analysis.fearsProblemsObjections : [];
+    const desires = Array.isArray(analysis.desiresGoalsResults) ? analysis.desiresGoalsResults : [];
+    const renderItems = (values: unknown[], maxItems: number) => values
+      .slice(0, maxItems)
+      .map((value) => {
+        const data = asRecord(value);
+        const title = field(data, ['title']);
+        const quote = field(data, ['quote']);
+        if (!title && !quote) return '';
+        return quote ? `${title || 'Пункт'} — "${quote}"` : title;
+      })
+      .filter(Boolean)
+      .join('; ');
+
+    return lines([
+      [`Cast Dev ${index + 1}`, field(record, ['title'])],
+      ['Краткий вывод', field(analysis, ['summaryForContext'])],
+      ['Ключевые задачи клиента', renderItems(tasks, 5)],
+      ['Страхи / проблемы / возражения', renderItems(fears, 5)],
+      ['Желания / цели / результат', renderItems(desires, 5)],
+    ], 1800);
+  });
+}
+
 function summarizeWorkflowInputs(inputs: Record<string, unknown> | undefined, workflow: string): string {
   const source = asRecord(inputs ?? {});
   if (!Object.keys(source).length) return EMPTY;
@@ -378,6 +415,14 @@ export const projectContextService = {
           orderBy: { updatedAt: 'desc' },
           take: 2,
         },
+        castDevRecords: {
+          where: {
+            status: 'completed',
+            analysis: { not: Prisma.JsonNull },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 4,
+        },
       },
     });
 
@@ -392,6 +437,7 @@ export const projectContextService = {
     const strategySummary = summarizeStrategy(strategyData, project.strategySummary);
     const audienceSummary = summarizeAudience(project.audienceAvatars, project.jtbdSessions);
     const productsSummary = summarizeProducts(project.products);
+    const castDevSummary = summarizeCastDevRecords(project.castDevRecords);
     const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
     const contentHistorySummary = summarizeContentHistory(realGeneratedTexts, input.workflow);
     const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);
@@ -443,6 +489,12 @@ export const projectContextService = {
         title: 'ЦА / JTBD / боли',
         priority: 'high',
         content: audienceSummary,
+      },
+      {
+        key: 'castdev_summary',
+        title: 'Cast Dev / реальные интервью клиентов',
+        priority: workflowGroupName === 'product' || workflowGroupName === 'leadmagnet' || workflowGroupName === 'tg-channel' ? 'high' : 'medium',
+        content: castDevSummary,
       },
       {
         key: 'products_summary',

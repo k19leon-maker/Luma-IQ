@@ -385,6 +385,10 @@ export const aiWorkflowService = {
             validation = aiValidationService.validate(response.content, config.validationRules);
           }
 
+          if (input.workflow === 'castdev' && input.step === 'analysis' && !validation.ok) {
+            throw new Error(`Cast Dev analysis validation failed: ${validation.errors.join('; ')}`);
+          }
+
           return {
             result: { response, validation, retryCount },
             usage,
