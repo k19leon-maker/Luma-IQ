@@ -39,6 +39,11 @@ export interface CastDevTranscriptionResult {
   fileName: string;
   mimeType: string;
   durationSec: number | null;
+  chunksCount: number;
+}
+
+export interface CastDevTranscriptionOptions {
+  onPrepared?: (details: { durationSec: number | null; chunksCount: number }) => Promise<void>;
 }
 
 interface DownloadResult {
@@ -314,7 +319,11 @@ async function prepareAudio(filePath: string): Promise<{ uploadPaths: string[]; 
   return { uploadPaths: files, cleanupPaths, durationSec };
 }
 
-export async function transcribeCastDevRecord(sourceUrl: string, recordId: string): Promise<CastDevTranscriptionResult> {
+export async function transcribeCastDevRecord(
+  sourceUrl: string,
+  recordId: string,
+  options: CastDevTranscriptionOptions = {},
+): Promise<CastDevTranscriptionResult> {
   if (!env.OPENAI_API_KEY) {
     throw new CastDevTranscriptionError('Транскрибация временно недоступна', 'OPENAI_NOT_CONFIGURED', 503);
   }
@@ -324,6 +333,10 @@ export async function transcribeCastDevRecord(sourceUrl: string, recordId: strin
   try {
     const prepared = await prepareAudio(downloaded.filePath);
     cleanupPaths.push(...prepared.cleanupPaths);
+    await options.onPrepared?.({
+      durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
+      chunksCount: prepared.uploadPaths.length,
+    });
     const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
     const transcripts: string[] = [];
 
@@ -362,6 +375,7 @@ export async function transcribeCastDevRecord(sourceUrl: string, recordId: strin
       fileName: downloaded.fileName,
       mimeType: downloaded.mimeType,
       durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
+      chunksCount: prepared.uploadPaths.length,
     };
   } finally {
     await Promise.all([...new Set(cleanupPaths)].map((file) => fs.promises.unlink(file).catch(() => undefined)));

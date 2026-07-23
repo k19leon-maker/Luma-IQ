@@ -22,6 +22,7 @@ export type AiActionType =
   | 'tg_channel_post_edit'
   | 'tg_channel_post_audio_adapt'
   | 'tg_channel_post_video_script'
+  | 'castdev_transcription'
   | 'castdev_analysis'
   | 'strategy_rebuild';
 
@@ -47,6 +48,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   tg_channel_post_edit: 2,
   tg_channel_post_audio_adapt: 3,
   tg_channel_post_video_script: 5,
+  castdev_transcription: 20,
   castdev_analysis: 40,
   strategy_rebuild: 100,
 };
@@ -73,7 +75,8 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_post_edit: 'Доработка поста ТГ-канала',
   tg_channel_post_audio_adapt: 'Адаптация поста под аудио',
   tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
-  castdev_analysis: 'Анализ CustDev',
+  castdev_transcription: 'Транскрибация CustDev',
+  castdev_analysis: 'AI-разбор CustDev',
   strategy_rebuild: 'Пересборка стратегии',
 };
 
@@ -100,6 +103,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   tg_channel_post_edit: 'Контент',
   tg_channel_post_audio_adapt: 'Контент',
   tg_channel_post_video_script: 'Контент',
+  castdev_transcription: 'Стратегия',
   castdev_analysis: 'Стратегия',
 };
 
@@ -129,6 +133,7 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'tg_channel_post_edit': return 'tg_channel_post_edit';
     case 'tg_channel_post_audio_adapt': return 'tg_channel_post_audio_adapt';
     case 'tg_channel_post_video_script': return 'tg_channel_post_video_script';
+    case 'castdev_transcription': return 'castdev_transcription';
     case 'castdev_analysis': return 'castdev_analysis';
     default:
       return 'ai_chat';
@@ -145,9 +150,46 @@ function metadataField(metadata: unknown, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
+function metadataNumber(metadata: unknown, key: string): number | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function getCastDevTranscriptionCost(durationSec: number | null | undefined): number {
+  if (!durationSec || durationSec <= 0) return 20;
+  const minutes = Math.ceil(durationSec / 60);
+  if (minutes <= 10) return 10;
+  if (minutes <= 30) return 20;
+  if (minutes <= 60) return 35;
+  if (minutes <= 90) return 50;
+  return 70;
+}
+
+export function getCastDevAnalysisCost(transcriptChars: number): number {
+  if (transcriptChars <= 10_000) return 20;
+  if (transcriptChars <= 30_000) return 40;
+  if (transcriptChars <= 60_000) return 70;
+  if (transcriptChars <= 100_000) return 100;
+  return 140;
+}
+
 export function aiPointsForGeneration(featureCode: string, metadata?: unknown): number {
   const workflow = metadataField(metadata, 'workflow');
   const step = metadataField(metadata, 'step');
+  const castDevAiPoints = metadataNumber(metadata, 'castdevAiPoints');
+
+  if ((featureCode === 'castdev_transcription' || featureCode === 'castdev_analysis') && castDevAiPoints !== null) {
+    return Math.max(0, Math.round(castDevAiPoints));
+  }
+
+  if (featureCode === 'castdev_transcription') {
+    return getCastDevTranscriptionCost(metadataNumber(metadata, 'durationSec'));
+  }
+
+  if (featureCode === 'castdev_analysis') {
+    return getCastDevAnalysisCost(metadataNumber(metadata, 'transcriptChars') ?? 0);
+  }
 
   if (step === 'edit') {
     if (featureCode === 'product_main' || featureCode === 'product_mini' || featureCode === 'lead_magnet') {

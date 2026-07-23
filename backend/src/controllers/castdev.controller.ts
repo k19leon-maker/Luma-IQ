@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
+import { getCastDevAnalysisCost } from '../config/ai-actions';
+import { AccessPolicyError } from '../services/access-policy.service';
+import { castDevBillingService } from '../services/castdev-billing.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { CastDevTranscriptionError, transcribeCastDevRecord } from '../services/castdev-transcription.service';
 import { aiWorkflowService } from '../services/ai-workflow.service';
@@ -216,7 +219,26 @@ export const castDevController = {
         data: { status: 'transcribing', errorMessage: null },
       });
 
-      const result = await transcribeCastDevRecord(existing.sourceUrl, existing.id);
+      const transcribeStartedAt = new Date();
+      const result = await transcribeCastDevRecord(existing.sourceUrl, existing.id, {
+        onPrepared: ({ durationSec }) => castDevBillingService.assertCanTranscribe({
+          userId: req.userId!,
+          projectId: existing.projectId,
+          recordId: existing.id,
+          durationSec,
+        }),
+      });
+      const charge = await castDevBillingService.recordTranscriptionSuccess({
+        userId: req.userId!,
+        projectId: existing.projectId,
+        recordId: existing.id,
+        durationSec: result.durationSec,
+        transcriptChars: result.transcriptText.length,
+        chunksCount: result.chunksCount,
+        fileName: result.fileName,
+        mimeType: result.mimeType,
+        startedAt: transcribeStartedAt,
+      });
       const record = await prisma.castDevRecord.update({
         where: { id: existing.id },
         data: {
@@ -233,17 +255,25 @@ export const castDevController = {
               : {}),
             transcribedAt: new Date().toISOString(),
             transcriptionModel: process.env['OPENAI_TRANSCRIPTION_MODEL'] ?? 'gpt-4o-mini-transcribe',
+            transcriptionChunksCount: result.chunksCount,
+            transcriptionGenerationId: charge.generationId,
+            transcriptionAiPointsCharged: charge.aiPointsCharged,
+            transcriptionAiBalanceRemaining: charge.aiBalanceRemaining,
           } as Prisma.InputJsonValue,
         },
       });
 
-      res.json({ record });
+      res.json({
+        record,
+        aiPointsCharged: charge.aiPointsCharged,
+        aiBalanceRemaining: charge.aiBalanceRemaining,
+      });
     } catch (err) {
       console.error('[CastDev] transcribe:', err);
-      const message = err instanceof CastDevTranscriptionError
+      const message = err instanceof CastDevTranscriptionError || err instanceof AccessPolicyError
         ? err.message
         : 'Не удалось распознать речь в записи. Проверьте качество звука или попробуйте другой файл.';
-      const status = err instanceof CastDevTranscriptionError ? err.status : 500;
+      const status = err instanceof CastDevTranscriptionError || err instanceof AccessPolicyError ? err.status : 500;
       const id = req.params.id as string;
       await prisma.castDevRecord.updateMany({
         where: { id, userId: req.userId! },
@@ -266,6 +296,7 @@ export const castDevController = {
         res.status(400).json({ error: 'Сначала транскрибируйте запись' });
         return;
       }
+      const analysisCost = getCastDevAnalysisCost(existing.transcriptText.length);
 
       await prisma.castDevRecord.update({
         where: { id: existing.id },
@@ -281,6 +312,8 @@ export const castDevController = {
           title: existing.title,
           sourceUrl: existing.sourceUrl,
           transcriptText: existing.transcriptText,
+          transcriptChars: existing.transcriptText.length,
+          castdevAiPoints: analysisCost,
         },
         idempotencyKey: analysisIdempotencyKey(existing.id, existing.transcriptText),
       });
@@ -315,6 +348,8 @@ export const castDevController = {
             analysisGenerationId: workflowResult.generationId,
             aiPointsCharged: workflowResult.aiPointsCharged ?? 0,
             aiBalanceRemaining: workflowResult.aiBalanceRemaining ?? null,
+            analysisTranscriptChars: existing.transcriptText.length,
+            analysisEstimatedAiPoints: analysisCost,
           } as Prisma.InputJsonValue,
         },
       });

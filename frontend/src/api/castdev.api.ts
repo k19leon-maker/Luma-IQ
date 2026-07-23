@@ -29,6 +29,12 @@ export interface CastDevAnalyzeResult {
   replayed: boolean;
 }
 
+export interface CastDevTranscribeResult {
+  record: CastDevRecord;
+  aiPointsCharged: number;
+  aiBalanceRemaining: number | null;
+}
+
 export const castDevApi = {
   list: (projectId: string) =>
     apiClient.get<{ records: CastDevRecord[] }>('/castdev', { params: { projectId } }).then((r) => r.data.records),
@@ -37,7 +43,7 @@ export const castDevApi = {
     apiClient.post<{ record: CastDevRecord }>('/castdev', data).then((r) => r.data.record),
 
   transcribe: (id: string) =>
-    apiClient.post<{ record: CastDevRecord }>(`/castdev/${id}/transcribe`, undefined, { timeout: 300_000 }).then((r) => r.data.record),
+    apiClient.post<CastDevTranscribeResult>(`/castdev/${id}/transcribe`, undefined, { timeout: 300_000 }).then((r) => r.data),
 
   analyze: (id: string) =>
     apiClient.post<CastDevAnalyzeResult>(`/castdev/${id}/analyze`, undefined, { timeout: 300_000 }).then((r) => r.data),

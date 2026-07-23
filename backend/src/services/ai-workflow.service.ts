@@ -1,5 +1,6 @@
 import { AIGenerationStatus, AIProvider as DbAIProvider, Prisma } from '@prisma/client';
 import crypto from 'crypto';
+import { getCastDevAnalysisCost } from '../config/ai-actions';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 import { prisma } from '../lib/prisma';
 import { promptRegistry } from '../prompts/registry';
@@ -97,6 +98,41 @@ function makeIdempotencyKey(input: RunWorkflowInput): string {
 function isStaleRunningGeneration(generation: { startedAt: Date | null; createdAt: Date }): boolean {
   const referenceTime = generation.startedAt ?? generation.createdAt;
   return Date.now() - referenceTime.getTime() > RUNNING_GENERATION_STALE_AFTER_MS;
+}
+
+function buildGenerationMetadata(input: RunWorkflowInput, context: Awaited<ReturnType<typeof projectContextService.build>>, params: {
+  effectivePrompt: Awaited<ReturnType<typeof promptCmsService.resolve>>;
+  stageType: string;
+}): Prisma.InputJsonValue {
+  const metadata: Record<string, unknown> = {
+    workflow: input.workflow,
+    step: input.step,
+    promptId: promptRegistry.get(input.workflow, input.step).id,
+    cmsVersionId: params.effectivePrompt.cmsVersionId,
+    cmsVersionLabel: params.effectivePrompt.cmsVersionLabel,
+    promptExperimentId: params.effectivePrompt.experimentId,
+    promptExperimentName: params.effectivePrompt.experimentName,
+    promptExperimentVariantId: params.effectivePrompt.variantId,
+    promptExperimentVariantName: params.effectivePrompt.variantName,
+    contextBlocks: context.blocks.map((block) => block.key),
+    contextApproxTokens: context.approxTokens,
+    stageType: params.stageType,
+  };
+
+  if (input.workflow === 'castdev' && input.step === 'analysis') {
+    const transcriptText = typeof input.inputs.transcriptText === 'string' ? input.inputs.transcriptText : '';
+    const transcriptChars = typeof input.inputs.transcriptChars === 'number'
+      ? input.inputs.transcriptChars
+      : transcriptText.length;
+    metadata.source = 'custdev';
+    metadata.operation = 'analysis';
+    metadata.transcriptChars = transcriptChars;
+    metadata.castdevAiPoints = typeof input.inputs.castdevAiPoints === 'number'
+      ? input.inputs.castdevAiPoints
+      : getCastDevAnalysisCost(transcriptChars);
+  }
+
+  return metadata as Prisma.InputJsonValue;
 }
 
 function getTextField(content: string, label: string): string {
@@ -319,6 +355,7 @@ export const aiWorkflowService = {
       : input.openaiModel ?? effectivePrompt.model;
     const systemPrompt = effectivePrompt.systemPrompt;
     const userPrompt = effectivePrompt.userPrompt;
+    const generationMetadata = buildGenerationMetadata(input, context, { effectivePrompt, stageType });
     let generationId: string | null = null;
 
     try {
@@ -333,20 +370,7 @@ export const aiWorkflowService = {
         idempotencyKey,
         promptVersion: config.version,
         contextVersion: context.contextVersion,
-        metadata: {
-          workflow: input.workflow,
-          step: input.step,
-          promptId: config.id,
-          cmsVersionId: effectivePrompt.cmsVersionId,
-          cmsVersionLabel: effectivePrompt.cmsVersionLabel,
-          promptExperimentId: effectivePrompt.experimentId,
-          promptExperimentName: effectivePrompt.experimentName,
-          promptExperimentVariantId: effectivePrompt.variantId,
-          promptExperimentVariantName: effectivePrompt.variantName,
-          contextBlocks: context.blocks.map((block) => block.key),
-          contextApproxTokens: context.approxTokens,
-          stageType,
-        },
+        metadata: generationMetadata,
         execute: async () => {
           let response = await chat({
             provider,

@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { castDevApi, type CastDevRecord, type CastDevStatus } from '../../api/castdev.api';
-import { AI_ACTION_COSTS } from '../../config/ai-balance';
+import { getCastDevAnalysisCost, getCastDevTranscriptionCost } from '../../config/ai-balance';
 import { useProjectsStore } from '../../store/projects.store';
 import s from './CastDev.module.css';
-
-const CASTDEV_ANALYSIS_COST = AI_ACTION_COSTS.castdev_analysis;
 
 const STATUS_LABELS: Record<CastDevStatus, string> = {
   pending: 'Ожидает транскрибации',
@@ -32,6 +30,16 @@ function formatDate(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatDuration(durationSec: number | null): string {
+  if (!durationSec || durationSec <= 0) return '';
+  const minutes = Math.max(1, Math.ceil(durationSec / 60));
+  return `${minutes.toLocaleString('ru-RU')} мин.`;
+}
+
+function formatChars(value: number): string {
+  return value.toLocaleString('ru-RU');
 }
 
 function isGoogleDriveLikeUrl(value: string): boolean {
@@ -191,11 +199,15 @@ export default function CastDev() {
     setTranscribingId(record.id);
     setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'transcribing', errorMessage: null } : item));
     try {
-      const updated = await castDevApi.transcribe(record.id);
+      const result = await castDevApi.transcribe(record.id);
+      const updated = result.record;
       setRecords((prev) => prev.map((item) => item.id === updated.id ? updated : item));
       setSelectedId(updated.id);
       setTranscriptExpanded(false);
-      toast.success('Транскрибация готова');
+      const balanceText = typeof result.aiBalanceRemaining === 'number'
+        ? ` Осталось ${result.aiBalanceRemaining.toLocaleString('ru-RU')} AI-баллов.`
+        : '';
+      toast.success(`Транскрибация готова. Списано ${result.aiPointsCharged} AI-баллов.${balanceText}`);
     } catch (err) {
       const message = (err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Не удалось транскрибировать запись';
       setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'failed', errorMessage: message } : item));
@@ -362,6 +374,7 @@ export default function CastDev() {
                         ? 'Транскрибировать заново'
                         : 'Транскрибировать запись'}
                   </button>
+                  <span className={s.costHint}>{transcribeCostHint(selected)}</span>
                   {selected.transcriptText && (
                     <button
                       className={s.secondaryBtn}
@@ -376,7 +389,7 @@ export default function CastDev() {
                     </button>
                   )}
                   {selected.transcriptText && (
-                    <span className={s.costHint}>AI-разбор спишет {CASTDEV_ANALYSIS_COST} AI-баллов после успешного результата.</span>
+                    <span className={s.costHint}>{analysisCostHint(selected)}</span>
                   )}
                 </div>
               </section>
@@ -453,6 +466,20 @@ export default function CastDev() {
       </main>
     </div>
   );
+}
+
+function transcribeCostHint(record: CastDevRecord): string {
+  if (record.durationSec) {
+    const cost = getCastDevTranscriptionCost(record.durationSec);
+    return `Длительность: ${formatDuration(record.durationSec)}. Транскрибация спишет ${cost} AI-баллов после успеха.`;
+  }
+  return 'Транскрибация спишет 10-70 AI-баллов после успеха. Стоимость зависит от длительности записи.';
+}
+
+function analysisCostHint(record: CastDevRecord): string {
+  const transcriptChars = record.transcriptText?.length ?? 0;
+  const cost = getCastDevAnalysisCost(transcriptChars);
+  return `AI-разбор спишет ${cost} AI-баллов после успеха. Длина transcript: ${formatChars(transcriptChars)} симв.`;
 }
 
 function AnalysisBlock(props: {
