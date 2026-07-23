@@ -4,13 +4,11 @@ import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { getCastDevAnalysisCost } from '../config/ai-actions';
-import { AccessPolicyError } from '../services/access-policy.service';
-import { castDevBillingService } from '../services/castdev-billing.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { CastDevTranscriptionError, transcribeCastDevRecord } from '../services/castdev-transcription.service';
+import { castDevTranscriptionQueueService } from '../services/castdev-transcription-queue.service';
 import { aiWorkflowService } from '../services/ai-workflow.service';
 
-const CAST_DEV_STATUSES = ['pending', 'transcribing', 'ready_for_analysis', 'analyzing', 'completed', 'failed'] as const;
+const CAST_DEV_STATUSES = ['pending', 'queued', 'transcribing', 'ready_for_analysis', 'analyzing', 'completed', 'failed'] as const;
 
 const createSchema = z.object({
   projectId: z.string().uuid(),
@@ -206,80 +204,15 @@ export const castDevController = {
 
   async transcribe(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const existing = await prisma.castDevRecord.findFirst({
-        where: { id: req.params.id as string, userId: req.userId! },
-      });
-      if (!existing) {
-        res.status(404).json({ error: 'Запись не найдена' });
-        return;
-      }
-
-      await prisma.castDevRecord.update({
-        where: { id: existing.id },
-        data: { status: 'transcribing', errorMessage: null },
-      });
-
-      const transcribeStartedAt = new Date();
-      const result = await transcribeCastDevRecord(existing.sourceUrl, existing.id, {
-        onPrepared: ({ durationSec }) => castDevBillingService.assertCanTranscribe({
-          userId: req.userId!,
-          projectId: existing.projectId,
-          recordId: existing.id,
-          durationSec,
-        }),
-      });
-      const charge = await castDevBillingService.recordTranscriptionSuccess({
+      const record = await castDevTranscriptionQueueService.enqueue({
         userId: req.userId!,
-        projectId: existing.projectId,
-        recordId: existing.id,
-        durationSec: result.durationSec,
-        transcriptChars: result.transcriptText.length,
-        chunksCount: result.chunksCount,
-        fileName: result.fileName,
-        mimeType: result.mimeType,
-        startedAt: transcribeStartedAt,
+        recordId: req.params.id as string,
       });
-      const record = await prisma.castDevRecord.update({
-        where: { id: existing.id },
-        data: {
-          status: 'ready_for_analysis',
-          fileName: result.fileName,
-          mimeType: result.mimeType,
-          durationSec: result.durationSec,
-          transcriptText: result.transcriptText,
-          transcriptFormatted: result.transcriptText,
-          errorMessage: null,
-          metadata: {
-            ...(existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
-              ? existing.metadata as Record<string, unknown>
-              : {}),
-            transcribedAt: new Date().toISOString(),
-            transcriptionModel: process.env['OPENAI_TRANSCRIPTION_MODEL'] ?? 'gpt-4o-mini-transcribe',
-            transcriptionChunksCount: result.chunksCount,
-            transcriptionGenerationId: charge.generationId,
-            transcriptionAiPointsCharged: charge.aiPointsCharged,
-            transcriptionAiBalanceRemaining: charge.aiBalanceRemaining,
-          } as Prisma.InputJsonValue,
-        },
-      });
-
-      res.json({
-        record,
-        aiPointsCharged: charge.aiPointsCharged,
-        aiBalanceRemaining: charge.aiBalanceRemaining,
-      });
+      res.json({ record, queued: true });
     } catch (err) {
       console.error('[CastDev] transcribe:', err);
-      const message = err instanceof CastDevTranscriptionError || err instanceof AccessPolicyError
-        ? err.message
-        : 'Не удалось распознать речь в записи. Проверьте качество звука или попробуйте другой файл.';
-      const status = err instanceof CastDevTranscriptionError || err instanceof AccessPolicyError ? err.status : 500;
-      const id = req.params.id as string;
-      await prisma.castDevRecord.updateMany({
-        where: { id, userId: req.userId! },
-        data: { status: 'failed', errorMessage: message },
-      }).catch(() => undefined);
-      res.status(status).json({ error: message });
+      const message = err instanceof Error ? err.message : 'Не удалось поставить запись в очередь транскрибации';
+      res.status((err as { status?: number }).status ?? 500).json({ error: message });
     }
   },
 

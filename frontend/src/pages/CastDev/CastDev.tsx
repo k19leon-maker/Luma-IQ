@@ -7,6 +7,7 @@ import s from './CastDev.module.css';
 
 const STATUS_LABELS: Record<CastDevStatus, string> = {
   pending: 'Ожидает транскрибации',
+  queued: 'В очереди',
   transcribing: 'Транскрибируется',
   ready_for_analysis: 'Готово к AI-разбору',
   analyzing: 'AI-разбор',
@@ -17,7 +18,7 @@ const STATUS_LABELS: Record<CastDevStatus, string> = {
 function statusClass(status: CastDevStatus): string {
   if (status === 'failed') return s.statusFailed;
   if (status === 'completed') return s.statusDone;
-  if (status === 'transcribing' || status === 'analyzing') return s.statusProgress;
+  if (status === 'queued' || status === 'transcribing' || status === 'analyzing') return s.statusProgress;
   if (status === 'ready_for_analysis') return s.statusReady;
   return s.statusPending;
 }
@@ -147,6 +148,30 @@ export default function CastDev() {
     };
   }, [activeProjectId]);
 
+  useEffect(() => {
+    if (!activeProjectId) return undefined;
+    const hasProcessingRecords = records.some((record) => (
+      record.status === 'queued'
+      || record.status === 'transcribing'
+      || record.status === 'analyzing'
+    ));
+    if (!hasProcessingRecords) return undefined;
+
+    const timer = window.setInterval(() => {
+      castDevApi.list(activeProjectId)
+        .then((items) => {
+          setRecords(items);
+          setSelectedId((current) => {
+            if (current && items.some((item) => item.id === current)) return current;
+            return items[0]?.id ?? null;
+          });
+        })
+        .catch(() => undefined);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [activeProjectId, records]);
+
   async function handleCreate() {
     if (!activeProjectId || creating) return;
     const cleanTitle = title.trim();
@@ -197,17 +222,14 @@ export default function CastDev() {
   async function handleTranscribe(record: CastDevRecord) {
     if (transcribingId) return;
     setTranscribingId(record.id);
-    setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'transcribing', errorMessage: null } : item));
+    setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'queued', errorMessage: null } : item));
     try {
       const result = await castDevApi.transcribe(record.id);
       const updated = result.record;
       setRecords((prev) => prev.map((item) => item.id === updated.id ? updated : item));
       setSelectedId(updated.id);
       setTranscriptExpanded(false);
-      const balanceText = typeof result.aiBalanceRemaining === 'number'
-        ? ` Осталось ${result.aiBalanceRemaining.toLocaleString('ru-RU')} AI-баллов.`
-        : '';
-      toast.success(`Транскрибация готова. Списано ${result.aiPointsCharged} AI-баллов.${balanceText}`);
+      toast.success('Запись поставлена в очередь транскрибации');
     } catch (err) {
       const message = (err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Не удалось транскрибировать запись';
       setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'failed', errorMessage: message } : item));
@@ -366,9 +388,11 @@ export default function CastDev() {
                   <button
                     className={s.primaryBtn}
                     onClick={() => handleTranscribe(selected)}
-                    disabled={transcribingId === selected.id || selected.status === 'transcribing' || selected.status === 'analyzing'}
+                    disabled={transcribingId === selected.id || selected.status === 'queued' || selected.status === 'transcribing' || selected.status === 'analyzing'}
                   >
-                    {transcribingId === selected.id || selected.status === 'transcribing'
+                    {transcribingId === selected.id || selected.status === 'queued'
+                      ? 'В очереди...'
+                      : selected.status === 'transcribing'
                       ? 'Транскрибирую...'
                       : selected.transcriptText
                         ? 'Транскрибировать заново'

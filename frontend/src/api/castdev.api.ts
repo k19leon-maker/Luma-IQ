@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export type CastDevStatus = 'pending' | 'transcribing' | 'ready_for_analysis' | 'analyzing' | 'completed' | 'failed';
+export type CastDevStatus = 'pending' | 'queued' | 'transcribing' | 'ready_for_analysis' | 'analyzing' | 'completed' | 'failed';
 
 export interface CastDevRecord {
   id: string;
@@ -31,8 +31,9 @@ export interface CastDevAnalyzeResult {
 
 export interface CastDevTranscribeResult {
   record: CastDevRecord;
-  aiPointsCharged: number;
-  aiBalanceRemaining: number | null;
+  queued: boolean;
+  aiPointsCharged?: number;
+  aiBalanceRemaining?: number | null;
 }
 
 export const castDevApi = {
