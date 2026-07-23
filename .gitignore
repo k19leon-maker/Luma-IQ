@@ -10,6 +10,7 @@ build/
 
 # Environment variables
 .env
+backend/secrets/
 .env.local
 .env.production
 .env.development

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { articles, categories, problems } from '../../data/public/content';
 import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
+import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { absoluteUrl, breadcrumbSchema, useSeo } from '../../utils/seo';
 import { ArticleContent } from './ArticleContent';
 import Breadcrumbs from './Breadcrumbs';
@@ -68,6 +69,14 @@ export function ArticlePage() {
     image: article?.coverImage,
     schema,
   });
+
+  useEffect(() => {
+    if (!article) return;
+    trackOncePerSession(`article:${article.slug}`, 'b2c_article_view', {
+      slug: article.slug,
+      category: article.category,
+    });
+  }, [article]);
 
   if (!article) {
     return (
@@ -138,7 +147,17 @@ export function ArticlePage() {
               <span>Следующий шаг</span>
               <h2>{article.cta.title}</h2>
               <p>{article.cta.description}</p>
-              <Link className={s.primaryBtn} to={diagnosticCta.path}>{diagnosticCta.label}</Link>
+              <Link
+                className={s.primaryBtn}
+                onClick={() => trackEvent('b2c_diagnostic_cta_click', {
+                  source: 'article',
+                  slug: article.slug,
+                  returning: diagnosticCta.completed,
+                })}
+                to={diagnosticCta.path}
+              >
+                {diagnosticCta.label}
+              </Link>
             </section>
           )}
         </article>
@@ -149,12 +168,30 @@ export function ArticlePage() {
           <div className={s.relatedHeading}><span>Продолжить разбираться</span><h2>Читайте также</h2></div>
           <div className={s.relatedGrid}>
             {relatedProblems.map((problem) => (
-              <Link key={problem.slug} to={`/problems/${problem.slug}`}>
+              <Link
+                key={problem.slug}
+                onClick={() => trackEvent('b2c_related_content_click', {
+                  source_type: 'article',
+                  source_slug: article.slug,
+                  target_type: 'problem',
+                  target_slug: problem.slug,
+                })}
+                to={`/problems/${problem.slug}`}
+              >
                 <span>Ситуация</span><h3>{problem.name}</h3><p>{problem.description}</p>
               </Link>
             ))}
             {relatedArticles.map((item) => (
-              <Link key={item.slug} to={`/articles/${item.slug}`}>
+              <Link
+                key={item.slug}
+                onClick={() => trackEvent('b2c_related_content_click', {
+                  source_type: 'article',
+                  source_slug: article.slug,
+                  target_type: 'article',
+                  target_slug: item.slug,
+                })}
+                to={`/articles/${item.slug}`}
+              >
                 <span>Статья</span><h3>{item.title}</h3><p>{item.excerpt}</p>
               </Link>
             ))}

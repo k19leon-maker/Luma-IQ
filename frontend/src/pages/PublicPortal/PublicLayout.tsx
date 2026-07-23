@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import SiteFooter from '../../components/SiteFooter/SiteFooter';
 import { publicNav } from '../../data/public/content';
 import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
+import { trackEvent } from '../../utils/analytics';
 import s from './PublicPortal.module.css';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +25,16 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             ))}
           </nav>
           <div className={s.headerActions}>
-            <Link className={s.startLink} to={diagnosticCta.path}>{diagnosticCta.headerLabel}</Link>
+            <Link
+              className={s.startLink}
+              onClick={() => trackEvent('b2c_diagnostic_cta_click', {
+                source: 'public_header',
+                returning: diagnosticCta.completed,
+              })}
+              to={diagnosticCta.path}
+            >
+              {diagnosticCta.headerLabel}
+            </Link>
           </div>
         </div>
       </header>

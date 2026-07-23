@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { articles, problems } from '../../data/public/content';
 import { useB2CDiagnosticState } from '../../hooks/useB2CDiagnosticState';
+import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { breadcrumbSchema, useSeo } from '../../utils/seo';
 import Breadcrumbs from './Breadcrumbs';
 import s from './PublicPortal.module.css';
@@ -26,6 +27,11 @@ export function ProblemPage() {
     schema,
   });
 
+  useEffect(() => {
+    if (!problem) return;
+    trackOncePerSession(`problem:${problem.slug}`, 'b2c_problem_view', { slug: problem.slug });
+  }, [problem]);
+
   if (!problem) {
     return (
       <main className={s.section}>
@@ -46,7 +52,17 @@ export function ProblemPage() {
         <span className={s.problemEyebrow}>Семейная ситуация</span>
         <h1>{problem.name}</h1>
         <p>{problem.lead ?? problem.description}</p>
-        <Link className={s.primaryBtn} to={diagnosticCta.path}>{diagnosticCta.label}</Link>
+        <Link
+          className={s.primaryBtn}
+          onClick={() => trackEvent('b2c_diagnostic_cta_click', {
+            source: 'problem_hero',
+            slug: problem.slug,
+            returning: diagnosticCta.completed,
+          })}
+          to={diagnosticCta.path}
+        >
+          {diagnosticCta.label}
+        </Link>
       </header>
 
       {isRichProblem ? (
@@ -71,7 +87,16 @@ export function ProblemPage() {
           <div className={s.relatedHeading}><span>Материалы по ситуации</span><h2>С чего начать</h2></div>
           <div className={s.relatedGrid}>
             {relatedArticles.map((article) => (
-              <Link key={article.slug} to={`/articles/${article.slug}`}>
+              <Link
+                key={article.slug}
+                onClick={() => trackEvent('b2c_related_content_click', {
+                  source_type: 'problem',
+                  source_slug: problem.slug,
+                  target_type: 'article',
+                  target_slug: article.slug,
+                })}
+                to={`/articles/${article.slug}`}
+              >
                 <span>{article.readingTime ?? 'Статья'}</span><h3>{article.title}</h3><p>{article.excerpt}</p>
               </Link>
             ))}
@@ -81,7 +106,22 @@ export function ProblemPage() {
 
       {problem.cta && (
         <section className={s.problemCta}>
-          <div><span>Персональный маршрут</span><h2>{problem.cta.title}</h2><p>{problem.cta.description}</p><Link className={s.primaryBtn} to={diagnosticCta.path}>{diagnosticCta.label}</Link></div>
+          <div>
+            <span>Персональный маршрут</span>
+            <h2>{problem.cta.title}</h2>
+            <p>{problem.cta.description}</p>
+            <Link
+              className={s.primaryBtn}
+              onClick={() => trackEvent('b2c_diagnostic_cta_click', {
+                source: 'problem_footer',
+                slug: problem.slug,
+                returning: diagnosticCta.completed,
+              })}
+              to={diagnosticCta.path}
+            >
+              {diagnosticCta.label}
+            </Link>
+          </div>
         </section>
       )}
     </main>

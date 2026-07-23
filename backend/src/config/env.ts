@@ -19,6 +19,13 @@ function getBool(key: string, defaultValue: boolean): boolean {
   return value === 'true' || value === '1';
 }
 
+function getNumber(key: string, defaultValue: number): number {
+  const value = process.env[key];
+  if (value === undefined || value.trim() === '') return defaultValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
 const isDev = (process.env['NODE_ENV'] ?? 'development') === 'development';
 
 // In production, these must be explicitly set — no silent defaults.
@@ -62,6 +69,17 @@ export const env = {
   ANTHROPIC_MODEL: get('ANTHROPIC_MODEL', 'claude-opus-4-6'),
   GEMINI_API_KEY: get('GEMINI_API_KEY', ''),
   GROK_API_KEY: get('GROK_API_KEY', ''),
+
+  // B2C SEO research: Yandex Wordstat -> Google Sheets
+  YANDEX_SEARCH_API_KEY: get('YANDEX_SEARCH_API_KEY', ''),
+  YANDEX_CLOUD_FOLDER_ID: get('YANDEX_CLOUD_FOLDER_ID', ''),
+  SEO_SPREADSHEET_ID: get('SEO_SPREADSHEET_ID', '1YOltPlAxNurdYDzMKrVV2zpTfxEvUa4_DEA6viWa8J8'),
+  GOOGLE_SHEETS_SERVICE_ACCOUNT_FILE: get('GOOGLE_SHEETS_SERVICE_ACCOUNT_FILE', ''),
+  GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON_BASE64: get('GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON_BASE64', ''),
+  WORDSTAT_MAX_SEEDS_PER_RUN: Math.max(1, Math.floor(getNumber('WORDSTAT_MAX_SEEDS_PER_RUN', 5))),
+  WORDSTAT_MAX_COST_RUB_PER_RUN: Math.max(0, getNumber('WORDSTAT_MAX_COST_RUB_PER_RUN', 10)),
+  WORDSTAT_TOP_PHRASES: Math.min(2000, Math.max(1, Math.floor(getNumber('WORDSTAT_TOP_PHRASES', 100)))),
+  WORDSTAT_INCLUDE_REGIONS: getBool('WORDSTAT_INCLUDE_REGIONS', false),
 
   // Email (SMTP)
   SMTP_HOST: get('SMTP_HOST', ''),

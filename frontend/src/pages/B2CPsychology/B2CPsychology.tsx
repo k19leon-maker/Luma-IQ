@@ -22,6 +22,7 @@ import {
   type LegalConsentState,
 } from '../../data/legal';
 import { B2C_CHAT_PATH, hasCompletedB2CDiagnostic } from '../../hooks/useB2CDiagnosticState';
+import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { useSeo } from '../../utils/seo';
 import s from './B2CPsychology.module.css';
 
@@ -107,6 +108,10 @@ export function B2CPsychologyAssessment() {
   });
 
   useEffect(() => {
+    trackOncePerSession('diagnostic:start', 'b2c_diagnostic_start');
+  }, []);
+
+  useEffect(() => {
     if (hasCompletedB2CDiagnostic()) {
       navigate(B2C_CHAT_PATH, { replace: true });
     }
@@ -185,6 +190,9 @@ export function B2CPsychologyAssessment() {
       createdAt: new Date().toISOString(),
     }));
 
+    trackEvent('b2c_diagnostic_complete', {
+      answered_questions: Object.keys(answers).length,
+    });
     navigate('/diagnostics/ai-psychologist/chat');
   };
 
@@ -355,6 +363,13 @@ export function B2CPsychologyChat() {
   }, [profile]);
 
   useEffect(() => {
+    if (!profile) return;
+    trackOncePerSession('chat:open', 'b2c_chat_open', {
+      existing_messages: messages.length,
+    });
+  }, [messages.length, profile]);
+
+  useEffect(() => {
     if (messages.length) window.localStorage.setItem(psychologyStorageKeys.messages, JSON.stringify(messages));
   }, [messages]);
 
@@ -386,6 +401,7 @@ export function B2CPsychologyChat() {
     const clientMessage: PsychologyChatMessage = { id: createId(), role: 'client', text: trimmed };
     const updatedProfile = updatePsychologyProfileFromMessage(profile, trimmed);
     const nextMessages = [...messages, clientMessage];
+    trackEvent('b2c_chat_message_sent', { message_number: messagesUsed + 1 });
     setMessages(nextMessages);
     setProfile(updatedProfile);
     setInput('');

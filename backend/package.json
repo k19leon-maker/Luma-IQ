@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:e2e:staging": "vitest run tests/e2e/staging-real.e2e.test.ts",
     "test:watch": "vitest",
+    "seo:wordstat:sync": "node dist/scripts/wordstat-sync.js",
     "db:seed:ai-pricing": "node scripts/seed-ai-pricing.js",
     "lint": "eslint src --ext ts"
   },
