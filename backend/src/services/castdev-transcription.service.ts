@@ -21,7 +21,7 @@ const CONTENT_TYPE_EXTENSIONS: Record<string, string> = {
   'video/quicktime': '.mov',
   'video/webm': '.webm',
 };
-const CHUNK_SECONDS = 1200;
+const CHUNK_SECONDS = 300;
 const MAX_DIRECT_UPLOAD_BYTES = 24 * 1024 * 1024;
 
 export class CastDevTranscriptionError extends Error {
@@ -288,7 +288,7 @@ async function prepareAudio(filePath: string): Promise<{ uploadPaths: string[]; 
   }
 
   const stat = await fs.promises.stat(audioPath);
-  if (stat.size <= MAX_DIRECT_UPLOAD_BYTES) {
+  if (stat.size <= MAX_DIRECT_UPLOAD_BYTES && (!durationSec || durationSec <= CHUNK_SECONDS)) {
     return { uploadPaths: [audioPath], cleanupPaths, durationSec };
   }
 
@@ -328,16 +328,29 @@ export async function transcribeCastDevRecord(sourceUrl: string, recordId: strin
     const transcripts: string[] = [];
 
     for (let index = 0; index < prepared.uploadPaths.length; index += 1) {
-      const result = await client.audio.transcriptions.create({
-        model: env.OPENAI_TRANSCRIPTION_MODEL,
-        file: fs.createReadStream(prepared.uploadPaths[index]),
-        language: env.OPENAI_TRANSCRIPTION_LANGUAGE,
-      });
-      const text = String(result.text ?? '').trim();
-      if (!text) {
-        throw new CastDevTranscriptionError(`OpenAI вернул пустой транскрипт для части ${index + 1}`, 'EMPTY_TRANSCRIPT', 422);
+      try {
+        const result = await client.audio.transcriptions.create({
+          model: env.OPENAI_TRANSCRIPTION_MODEL,
+          file: fs.createReadStream(prepared.uploadPaths[index]),
+          language: env.OPENAI_TRANSCRIPTION_LANGUAGE,
+        });
+        const text = String(result.text ?? '').trim();
+        if (!text) {
+          throw new CastDevTranscriptionError(`OpenAI вернул пустой транскрипт для части ${index + 1}`, 'EMPTY_TRANSCRIPT', 422);
+        }
+        transcripts.push(text);
+      } catch (err) {
+        const maybeOpenAiError = err as { code?: string; error?: { code?: string; message?: string }; message?: string };
+        const code = maybeOpenAiError.code ?? maybeOpenAiError.error?.code;
+        if (code === 'input_too_large') {
+          throw new CastDevTranscriptionError(
+            'Запись слишком длинная для распознавания одним запросом. Сервис уже делит новые записи на части; попробуйте запустить транскрибацию ещё раз.',
+            'TRANSCRIPTION_INPUT_TOO_LARGE',
+            413,
+          );
+        }
+        throw err;
       }
-      transcripts.push(text);
     }
 
     const transcriptText = transcripts.join('\n\n').trim();
