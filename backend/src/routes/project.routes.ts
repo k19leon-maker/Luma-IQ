@@ -8,6 +8,7 @@ router.get('/',                       requireAuth, projectController.list);
 router.post('/',                      requireAuth, projectController.create);
 router.get('/:id',                    requireAuth, projectController.get);
 router.patch('/:id',                  requireAuth, projectController.update);
+router.patch('/:id/archive',          requireAuth, projectController.setArchived);
 router.delete('/:id',                 requireAuth, projectController.delete);
 router.post('/:id/complete-strategy', requireAuth, projectController.completeStrategy);
 router.get('/:id/strategy',           requireAuth, projectController.getStrategyData);

@@ -19,12 +19,14 @@ export const PAGES: Array<{ id: Page; label: string }> = [
 ];
 
 export const COMMERCIAL_PLAN_OPTIONS: Array<{ value: AdminCommercialPlan; label: string }> = [
-  { value: 'START', label: 'Start' },
-  { value: 'PRO', label: 'Pro' },
-  { value: 'EXPERT', label: 'Expert' },
-  { value: 'SUPPORT', label: 'Support' },
-  { value: 'MARKETING_PARTNER', label: 'Marketing Partner' },
-  { value: 'IMPLEMENTATION', label: 'Implementation' },
+  { value: 'START', label: 'Старт' },
+  { value: 'SYSTEM_FUNNEL', label: 'Системная воронка' },
+  { value: 'EVERGREEN_FUNNEL', label: 'Вечная автоворонка' },
+  { value: 'PRO', label: 'Pro (legacy)' },
+  { value: 'EXPERT', label: 'Expert (legacy)' },
+  { value: 'SUPPORT', label: 'Support (legacy)' },
+  { value: 'MARKETING_PARTNER', label: 'Marketing Partner (legacy)' },
+  { value: 'IMPLEMENTATION', label: 'Implementation (legacy)' },
 ];
 
 export const SUBSCRIPTION_PLAN_OPTIONS: Array<{ value: AdminSubscriptionPlan; label: string }> = [

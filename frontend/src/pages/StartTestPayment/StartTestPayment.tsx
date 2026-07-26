@@ -7,7 +7,7 @@ import s from './StartTestPayment.module.css';
 
 function setNoIndex() {
   const previousTitle = document.title;
-  document.title = 'Тестовая оплата Start 20 ₽ — Luma IQ';
+  document.title = 'Тестовая оплата тарифа Старт 20 ₽ — Luma IQ';
 
   let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
   const previousContent = meta?.content ?? null;
@@ -62,9 +62,9 @@ export default function StartTestPayment() {
     <main className={s.page}>
       <section className={s.panel} aria-labelledby="test-payment-title">
         <p className={s.eyebrow}>Закрытая страница оплаты</p>
-        <h1 id="test-payment-title" className={s.title}>Тариф Start за 20 ₽</h1>
+        <h1 id="test-payment-title" className={s.title}>Тариф «Старт» за 20 ₽</h1>
         <p className={s.text}>
-          Боевой платеж YooKassa для проверки списания, webhook и активации подписки Start.
+          Боевой платеж YooKassa для проверки списания, webhook и активации тарифа «Старт».
         </p>
 
         <div className={s.priceRow}>
@@ -74,7 +74,7 @@ export default function StartTestPayment() {
 
         <ul className={s.list}>
           <li><span className={s.check}>✓</span><span>Оплата проходит через реальную YooKassa</span></li>
-          <li><span className={s.check}>✓</span><span>После успешного платежа включается тариф Start на 1 месяц</span></li>
+          <li><span className={s.check}>✓</span><span>После успешного платежа включается тариф «Старт» на 30 дней</span></li>
           <li><span className={s.check}>✓</span><span>Страница закрыта от поисковой индексации</span></li>
         </ul>
 

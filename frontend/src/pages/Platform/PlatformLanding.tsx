@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { billingApi, BillingScenario } from '../../api/billing.api';
+import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { useSeo } from '../../utils/seo';
 import styles from './PlatformLanding.module.css';
 
@@ -13,6 +14,11 @@ type PlatformPlan = {
   period: string;
   description: string;
   features: string[];
+  aiPoints: number;
+  projectsLimit: number;
+  exampleUsage: string[];
+  usageDisclaimer: string;
+  purchasable: boolean;
   badge?: string;
   buttonText: string;
 };
@@ -24,150 +30,6 @@ type LeadForm = {
   plan: string;
   comment: string;
 };
-
-const platformPlans: PlatformPlan[] = [
-  {
-    id: 'start',
-    scenario: 'self',
-    name: 'Start',
-    price: 12000,
-    period: 'в месяц',
-    description: 'Для эксперта, который хочет собрать первую упаковку и начать регулярно делать контент.',
-    features: [
-      '1 проект / 1 направление',
-      'AI-разработка целевой аудитории и JTBD-сегмента',
-      'Позиционирование',
-      'Продуктовая линейка: бесплатный продукт, недорогой продукт, основной продукт',
-      'Оффер для основного продукта',
-      'Контент-план на 7 дней',
-      'До 50 контент-единиц в месяц',
-      'Посты для Telegram / VK',
-      'Сценарии Reels / Shorts',
-      'AI-чат по проекту',
-      'База инструкций',
-    ],
-    buttonText: 'Выбрать Start',
-  },
-  {
-    id: 'pro',
-    scenario: 'self',
-    name: 'Pro',
-    price: 12000,
-    period: 'в месяц',
-    description: 'Для эксперта, который хочет системно вести контент и развивать несколько продуктов.',
-    features: [
-      'До 3 проектов / направлений',
-      'Расширенная AI-упаковка целевой аудитории',
-      'Позиционирование под каждый сегмент',
-      'Продуктовая линейка под каждый проект',
-      'Офферы для продуктов',
-      'Контент-план на 30 дней',
-      'До 150 контент-единиц в месяц',
-      'Посты, Reels, Shorts, Threads',
-      'Сценарии YouTube-видео',
-      'Прогревы на 5–7 дней',
-      'AI-чат по каждому проекту',
-      'Экспорт материалов',
-    ],
-    badge: 'Популярный',
-    buttonText: 'Выбрать Pro',
-  },
-  {
-    id: 'expert',
-    scenario: 'self',
-    name: 'Expert',
-    price: 39000,
-    period: 'в месяц',
-    description: 'Для эксперта, у которого несколько направлений, продуктов или помощник в команде.',
-    features: [
-      'До 7 проектов / направлений',
-      'Глубокая упаковка каждого сегмента',
-      'Несколько продуктовых линеек',
-      'Офферы, лид-магниты, мини-продукты, основные продукты',
-      'Контент-план на 30 дней по каждому проекту',
-      'До 350 контент-единиц в месяц',
-      'Посты, Reels, Shorts, Threads, YouTube',
-      'Лонгриды и статьи',
-      'Прогревы и мини-запуски',
-      'Задачи по маркетингу внутри проекта',
-      'Доступ для ассистента / сотрудника',
-    ],
-    buttonText: 'Выбрать Expert',
-  },
-  {
-    id: 'support',
-    scenario: 'support',
-    name: 'Support',
-    price: 39000,
-    period: 'в месяц',
-    description: 'Для эксперта, который хочет сам работать в сервисе, но получать обратную связь маркетолога.',
-    features: [
-      'Всё из тарифа Pro',
-      'До 3 проектов / направлений',
-      'Проверка упаковки маркетологом',
-      'Проверка продуктовой линейки',
-      'Проверка офферов',
-      'Обратная связь по контенту',
-      'Помощь с контент-планом',
-      '1 индивидуальный созвон в месяц',
-      'Поддержка в чате',
-      'Рекомендации по Telegram / VK',
-      'План задач на месяц',
-    ],
-    buttonText: 'Выбрать Support',
-  },
-  {
-    id: 'marketing_partner',
-    scenario: 'support',
-    name: 'Marketing Partner',
-    price: 59000,
-    period: 'в месяц',
-    description: 'Для эксперта, которому нужен маркетолог рядом для регулярного внедрения.',
-    features: [
-      'Всё из тарифа Expert',
-      'До 5 проектов / направлений',
-      'Совместная разработка стратегии',
-      'Совместная сборка продуктовой линейки',
-      'Совместная разработка офферов',
-      'Контент-план на месяц',
-      'Помощь в создании постов и сценариев',
-      'Редактура контента маркетологом',
-      '2–4 созвона в месяц',
-      'Еженедельный план задач',
-      'ТЗ на лендинг',
-      'ТЗ на чатбот',
-      'Рекомендации по оформлению соцсетей',
-      'Поддержка в чате',
-    ],
-    badge: 'Оптимальный выбор',
-    buttonText: 'Выбрать Marketing Partner',
-  },
-  {
-    id: 'implementation',
-    scenario: 'support',
-    name: 'Implementation',
-    price: 89000,
-    period: 'в месяц',
-    description: 'Для эксперта, который хочет, чтобы маркетолог активно помогал внедрять систему продвижения.',
-    features: [
-      'Всё из тарифа Marketing Partner',
-      'До 7 проектов / направлений',
-      'Глубокая упаковка экспертности',
-      'Разработка воронки',
-      'Разработка лид-магнита / мини-продукта / практикума',
-      'Контент-план на месяц',
-      'Помощь в производстве контента',
-      'Подготовка структуры лендинга',
-      'Подготовка текстов для лендинга',
-      'Помощь со сборкой чатбота во внешнем сервисе',
-      'Помощь с упаковкой Telegram / VK',
-      'Контроль внедрения по задачам',
-      'Еженедельные созвоны',
-      'Приоритетная поддержка',
-    ],
-    buttonText: 'Выбрать Implementation',
-  },
-];
 
 const audienceCards = [
   'Психологи и специалисты помогающих практик',
@@ -248,12 +110,9 @@ const deliverables = [
 ];
 
 const planGuide = [
-  ['Хочу попробовать платформу и собрать первую упаковку', 'Start'],
-  ['Хочу регулярно вести контент и развивать несколько продуктов', 'Pro'],
-  ['У меня несколько направлений или помощник в команде', 'Expert'],
-  ['Хочу сам работать, но получать обратную связь маркетолога', 'Support'],
-  ['Хочу маркетолога рядом для регулярного внедрения', 'Marketing Partner'],
-  ['Хочу активную помощь во внедрении системы продвижения', 'Implementation'],
+  ['Хочу собрать систему для одного направления', 'Старт'],
+  ['Хочу развивать несколько сегментов и продуктов', 'Системная воронка'],
+  ['Хочу построить несколько постоянных воронок', 'Вечная автоворонка'],
 ];
 
 const comparisonRows = [
@@ -270,7 +129,6 @@ const aiNotes = [
   'Платформа не гарантирует заявки, продажи или рост дохода.',
   'Результат зависит от вашей экспертности, ниши, качества внедрения и регулярности действий.',
   'Сервис помогает создать систему, но не заменяет профессиональную ответственность эксперта.',
-  'Для тарифов с сопровождением маркетолог помогает улучшать материалы и внедрение, но тоже не гарантирует конкретный коммерческий результат.',
 ];
 
 const faq = [
@@ -282,8 +140,8 @@ const faq = [
   ['На что он расходуется?', 'Простое сообщение в диалоге списывает меньше баллов, а большие сборки стратегии, продукта или контент-плана списывают больше.'],
   ['Можно ли перейти на другой тариф?', 'Да, тариф можно изменить. Переход на более высокий тариф может быть доступен сразу после доплаты, а переход на более низкий — со следующего расчётного периода.'],
   ['Что будет, если я исчерпаю лимиты?', 'Вы сможете дождаться обновления лимитов в следующем периоде или перейти на более высокий тариф.'],
-  ['Можно ли работать с маркетологом?', 'Да. Для этого есть тарифы с сопровождением: Support, Marketing Partner и Implementation.'],
-  ['Входит ли сборка лендинга и чатбота?', 'В базовых тарифах платформа помогает подготовить структуру, тексты и ТЗ. В тарифах с сопровождением маркетолог может помогать с внедрением. Внешние сервисы для лендингов, чатботов, CRM и рекламы оплачиваются отдельно, если иное не согласовано индивидуально.'],
+  ['Различается ли качество AI между тарифами?', 'Нет. Во всех тарифах доступны одни и те же инструменты и качество AI. Отличаются только AI-баланс и количество активных проектов.'],
+  ['Входит ли сборка лендинга и чатбота?', 'Платформа помогает подготовить структуру, тексты и сценарии. Внешние сервисы для лендингов, чатботов, CRM и рекламы оплачиваются отдельно.'],
   ['Можно ли отменить подписку?', 'Да, условия отмены подписки и возвратов регулируются офертой и выбранным способом оплаты.'],
   ['Гарантируете ли вы заявки и продажи?', 'Нет. Luma IQ помогает собрать систему продвижения, но не гарантирует конкретное количество заявок, продаж, подписчиков или дохода. Результат зависит от ниши, предложения, внедрения, регулярности действий и других факторов.'],
   ['Кому принадлежат созданные материалы?', 'Материалы, созданные внутри сервиса на основе ваших данных, можно использовать в вашей профессиональной и коммерческой деятельности. Перед публикацией вы самостоятельно проверяете корректность, этичность и правомерность материалов.'],
@@ -298,14 +156,13 @@ function scrollToSection(id: string) {
 }
 
 export default function PlatformLanding() {
-  const [scenario, setScenario] = useState<BillingScenario>('self');
-  const [plans, setPlans] = useState(platformPlans);
+  const [plans, setPlans] = useState<PlatformPlan[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [leadForm, setLeadForm] = useState<LeadForm>({
     name: '',
     email: '',
     contact: '',
-    plan: 'Start',
+    plan: 'Старт',
     comment: '',
   });
 
@@ -319,23 +176,49 @@ export default function PlatformLanding() {
   useEffect(() => {
     billingApi.listPlans()
       .then((backendPlans) => {
-        setPlans((current) => current.map((plan) => {
-          const backendPlan = backendPlans.find((item) => item.id === plan.id);
-          return backendPlan ? { ...plan, price: backendPlan.priceMonthlyRub } : plan;
-        }));
+        setPlans(backendPlans.map((plan) => ({
+          id: plan.id,
+          scenario: plan.scenario,
+          name: plan.name,
+          price: plan.priceMonthlyRub,
+          period: 'на 30 дней',
+          description: plan.shortDescription,
+          features: [
+            `${new Intl.NumberFormat('ru-RU').format(plan.aiBalanceTotal ?? 0)} AI-баллов`,
+            plan.projectsTotal === 1 ? '1 активный проект' : `До ${plan.projectsTotal} активных проектов`,
+            'Полный доступ к инструментам Luma IQ',
+          ],
+          aiPoints: plan.aiBalanceTotal ?? 0,
+          projectsLimit: plan.projectsTotal ?? 0,
+          exampleUsage: plan.exampleUsage,
+          usageDisclaimer: plan.usageDisclaimer,
+          purchasable: plan.purchasable,
+          badge: plan.badge ?? undefined,
+          buttonText: 'Выбрать тариф',
+        })));
       })
-      .catch(() => {
-        setPlans(platformPlans);
-      });
+      .catch(() => setPlans([]));
   }, []);
 
-  const visiblePlans = useMemo(
-    () => plans.filter((plan) => plan.scenario === scenario),
-    [plans, scenario],
-  );
+  const visiblePlans = useMemo(() => plans.filter((plan) => plan.scenario === 'self'), [plans]);
 
-  const openLeadModal = (planName: string) => {
-    setLeadForm((current) => ({ ...current, plan: planName }));
+  useEffect(() => {
+    if (visiblePlans.length > 0) {
+      trackOncePerSession('platform_pricing_view', 'pricing_viewed', { plans_count: visiblePlans.length, source: 'platform' });
+    }
+  }, [visiblePlans.length]);
+
+  const openLeadModal = (plan: PlatformPlan) => {
+    if (!plan.purchasable) return;
+    trackEvent('plan_selected', {
+      plan_code: plan.id,
+      plan_name: plan.name,
+      price_rub: plan.price,
+      ai_points: plan.aiPoints,
+      active_projects_limit: plan.projectsLimit,
+      source: 'platform',
+    });
+    setLeadForm((current) => ({ ...current, plan: plan.name }));
     setModalOpen(true);
   };
 
@@ -343,7 +226,7 @@ export default function PlatformLanding() {
     event.preventDefault();
     setModalOpen(false);
     toast.success('Заявка отправлена. Мы свяжемся с вами в ближайшее время.');
-    setLeadForm({ name: '', email: '', contact: '', plan: 'Start', comment: '' });
+    setLeadForm({ name: '', email: '', contact: '', plan: 'Старт', comment: '' });
   };
 
   return (
@@ -399,7 +282,7 @@ export default function PlatformLanding() {
                   </div>
                   <div className={styles.previewBadges} aria-label="Статус проекта">
                     <span>AI-баланс 148</span>
-                    <span>Pro</span>
+                    <span>Системная воронка</span>
                     <span>AI ready</span>
                   </div>
                 </div>
@@ -495,7 +378,7 @@ export default function PlatformLanding() {
           </div>
         </PlatformSection>
 
-        <PlatformSection eyebrow="Форматы" title="Выберите формат: самостоятельно или с сопровождением маркетолога">
+        <PlatformSection eyebrow="Формат" title="Одинаковые инструменты на всех тарифах">
           <div className={styles.formatGrid}>
             <article className={styles.formatCard}>
               <h3>Самостоятельно</h3>
@@ -507,16 +390,6 @@ export default function PlatformLanding() {
                 <li>вам важно регулярно создавать контент.</li>
               </ul>
             </article>
-            <article className={styles.formatCard}>
-              <h3>С сопровождением</h3>
-              <p>Для экспертов, которым нужен маркетолог рядом: чтобы проверять упаковку, помогать с контентом, продуктами, лендингом, чатботом и задачами.</p>
-              <ul>
-                <li>вы не хотите разбираться в маркетинге в одиночку;</li>
-                <li>вам нужна обратная связь;</li>
-                <li>вам важно быстрее внедрять;</li>
-                <li>вы хотите, чтобы специалист помогал собирать систему.</li>
-              </ul>
-            </article>
           </div>
         </PlatformSection>
 
@@ -525,32 +398,28 @@ export default function PlatformLanding() {
             <div className={styles.sectionHead}>
               <p className={styles.eyebrow}>Тарифы</p>
               <h2>Выберите тариф Luma IQ</h2>
-              <p>Начните самостоятельно или подключите сопровождение маркетолога, чтобы быстрее собрать и внедрить систему продвижения.</p>
-            </div>
-            <div className={styles.tabs} role="tablist" aria-label="Формат работы">
-              <button className={scenario === 'self' ? styles.tabActive : ''} type="button" onClick={() => setScenario('self')}>Самостоятельно</button>
-              <button className={scenario === 'support' ? styles.tabActive : ''} type="button" onClick={() => setScenario('support')}>С сопровождением</button>
+              <p>Во всех тарифах доступны одни и те же инструменты. Тарифы различаются AI-балансом и количеством активных проектов.</p>
             </div>
             <div className={styles.pricingGrid}>
               {visiblePlans.map((plan) => (
                 <article className={`${styles.planCard} ${plan.badge ? styles.planHighlighted : ''}`} key={plan.id}>
                   {plan.badge && <span className={styles.badge}>{plan.badge}</span>}
                   <h3>{plan.name}</h3>
-                  <div className={styles.price}>{formatPrice(plan.price)} ₽ <span>/ {plan.period}</span></div>
+                  <div className={styles.price}>{formatPrice(plan.price)} ₽ <span>{plan.period}</span></div>
                   <p>{plan.description}</p>
                   <ul>
                     {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
                   </ul>
-                  <button className={styles.primaryButton} type="button" onClick={() => openLeadModal(plan.name)}>{plan.buttonText}</button>
+                  <details>
+                    <summary>Ориентировочно хватит на</summary>
+                    <ul>{plan.exampleUsage.map((item) => <li key={item}>{item}</li>)}</ul>
+                    <p>{plan.usageDisclaimer}</p>
+                  </details>
+                  <button className={styles.primaryButton} type="button" disabled={!plan.purchasable} onClick={() => openLeadModal(plan)}>
+                    {plan.purchasable ? plan.buttonText : 'Временно недоступен'}
+                  </button>
                 </article>
               ))}
-            </div>
-            <div className={styles.customBox}>
-              <div>
-                <h3>Нужен индивидуальный формат?</h3>
-                <p>Если вам нужно полностью делегировать упаковку, контент, лендинг, чатбот и внедрение воронки, оставьте заявку, и мы подберём формат сопровождения под вашу задачу.</p>
-              </div>
-              <button className={styles.secondaryButton} type="button" onClick={() => openLeadModal('Индивидуальный формат')}>Обсудить индивидуальный формат</button>
             </div>
           </div>
         </section>
@@ -605,10 +474,9 @@ export default function PlatformLanding() {
         <section className={`${styles.section} ${styles.finalCta}`}>
           <div className={styles.container}>
             <h2>Соберите маркетинговую систему эксперта в Luma IQ</h2>
-            <p>Выберите самостоятельный тариф или формат с сопровождением маркетолога и начните собирать стратегию, продукты и контент в одном личном кабинете.</p>
+            <p>Выберите подходящий объём AI-баланса и количество активных проектов, чтобы собирать стратегию, продукты и контент в одном личном кабинете.</p>
             <div className={styles.heroActions}>
               <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>Выбрать тариф</button>
-              <button className={styles.secondaryButton} type="button" onClick={() => openLeadModal('Сопровождение маркетолога')}>Обсудить сопровождение</button>
             </div>
           </div>
         </section>
@@ -653,7 +521,7 @@ export default function PlatformLanding() {
               <label>
                 Выбранный тариф
                 <select value={leadForm.plan} onChange={(event) => setLeadForm({ ...leadForm, plan: event.target.value })}>
-                  {[...platformPlans.map((plan) => plan.name), 'Индивидуальный формат', 'Сопровождение маркетолога'].map((item) => (
+                  {plans.map((plan) => plan.name).map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
                 </select>

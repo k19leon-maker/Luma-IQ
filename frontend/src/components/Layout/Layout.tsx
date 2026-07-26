@@ -193,6 +193,7 @@ export default function Layout({ children }: LayoutProps) {
   const addProject         = useProjectsStore((s) => s.addProject);
   const removeProject      = useProjectsStore((s) => s.removeProject);
   const renameProject      = useProjectsStore((s) => s.renameProject);
+  const setProjectArchived = useProjectsStore((s) => s.setProjectArchived);
   const setActiveProjectId = useProjectsStore((s) => s.setActiveProjectId);
   const projectsLoading    = useProjectsStore((s) => s.loading);
   const activeProjectRestoreRef = useRef({ userId: '', preferredProjectId: '', applied: false });
@@ -391,7 +392,7 @@ export default function Layout({ children }: LayoutProps) {
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'П';
-  const userPlanLabel = billing?.plan.name ?? (user as { tariff?: string })?.tariff ?? 'Start';
+  const userPlanLabel = billing?.plan.name ?? (user as { tariff?: string })?.tariff ?? 'Бесплатный';
 
   const goToAccountSection = (path: string) => {
     setAccountMenuOpen(false);
@@ -436,7 +437,7 @@ export default function Layout({ children }: LayoutProps) {
                     onClick={() => { setActiveProjectId(p.id); navigate(appPath('/dashboard')); }}
                   >
                     <span className={s.projectDot} style={{ background: p.color }} />
-                    <span className={s.projectName}>{p.name}</span>
+                    <span className={s.projectName}>{p.name}{p.status === 'ARCHIVED' ? ' · архив' : ''}</span>
                   </button>
                 )}
                 {renamingId !== p.id && (
@@ -446,6 +447,16 @@ export default function Layout({ children }: LayoutProps) {
                       title="Переименовать"
                       onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.name); }}
                     >✎</button>
+                    <button
+                      className={s.projectActionBtn}
+                      title={p.status === 'ARCHIVED' ? 'Вернуть в работу' : 'Архивировать'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void setProjectArchived(p.id, p.status !== 'ARCHIVED')
+                          .then(() => toast.success(p.status === 'ARCHIVED' ? 'Проект снова активен' : 'Проект перемещён в архив'))
+                          .catch(() => toast.error('Не удалось изменить статус проекта. Проверьте лимит тарифа.'));
+                      }}
+                    >{p.status === 'ARCHIVED' ? '↥' : '⌁'}</button>
                     <button
                       className={s.projectActionBtn}
                       title="Удалить"

@@ -16,16 +16,22 @@ describe('accessPolicyService', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('allows project owner', async () => {
-    mockedPrisma.project.findUnique.mockResolvedValue({ userId: 'user-1' } as never);
+    mockedPrisma.project.findUnique.mockResolvedValue({ userId: 'user-1', status: 'DRAFT' } as never);
 
     await expect(accessPolicyService.assertProjectOwner('user-1', 'project-1')).resolves.toBeUndefined();
   });
 
   it('blocks another user project', async () => {
-    mockedPrisma.project.findUnique.mockResolvedValue({ userId: 'other-user' } as never);
+    mockedPrisma.project.findUnique.mockResolvedValue({ userId: 'other-user', status: 'DRAFT' } as never);
 
     await expect(accessPolicyService.assertProjectOwner('user-1', 'project-1'))
       .rejects.toBeInstanceOf(AccessPolicyError);
+  });
+
+  it('keeps archived projects viewable but blocks new AI actions', async () => {
+    mockedPrisma.project.findUnique.mockResolvedValue({ userId: 'user-1', status: 'ARCHIVED' } as never);
+    await expect(accessPolicyService.assertProjectOwner('user-1', 'project-1'))
+      .rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 409 });
   });
 
   it('does not block user features by legacy heavy/content/youtube/longread limits', async () => {

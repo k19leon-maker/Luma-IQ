@@ -18,13 +18,17 @@ async function ensureAiPointAccrual(period: {
   userId: string;
   planCode: string;
   periodEnd: Date;
+  creditsGranted: number;
 }): Promise<void> {
   if (!(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) return;
   const planCode = period.planCode as SubscriptionPlan;
+  const amount = period.creditsGranted > 0
+    ? period.creditsGranted
+    : PLAN_LIMITS[planCode].monthlyCredits;
   await aiPointLedgerService.ensurePlanAccrual({
     userId: period.userId,
     billingPeriodId: period.id,
-    amount: PLAN_LIMITS[planCode].monthlyCredits,
+    amount,
     planCode,
     expiresAt: period.periodEnd,
   });
@@ -39,8 +43,18 @@ export const billingPeriodService = {
   },
 
   async getOrCreateCurrent(userId: string, subscription?: Subscription | null, now = new Date()) {
-    const { periodStart, periodEnd } = billingPeriodService.getPeriodBounds(now);
-    const planCode = (subscription?.plan ?? 'START') as SubscriptionPlan;
+    const subscriptionPeriodEnd = subscription?.status === 'ACTIVE'
+      && subscription.expiresAt
+      && subscription.expiresAt > now
+      ? subscription.expiresAt
+      : null;
+    const { periodStart, periodEnd } = subscriptionPeriodEnd
+      ? {
+        periodStart: new Date(subscriptionPeriodEnd.getTime() - (30 * 24 * 60 * 60 * 1000)),
+        periodEnd: subscriptionPeriodEnd,
+      }
+      : billingPeriodService.getPeriodBounds(now);
+    const planCode = (subscription?.plan ?? 'FREE') as SubscriptionPlan;
 
     const existing = await prisma.billingPeriod.findFirst({
       where: {

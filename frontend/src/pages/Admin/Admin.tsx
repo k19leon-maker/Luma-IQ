@@ -5,6 +5,7 @@ import {
   adminApi,
   AdminAiEconomicsV2,
   AdminDashboard,
+  AdminPlanCatalogItem,
   AdminPromptExperiment,
   AdminPromptRegistryItem,
   AdminPromptVersion,
@@ -51,6 +52,9 @@ export default function Admin() {
   const [page, setPage] = useState<Page>('dashboard');
   const [previousPage, setPreviousPage] = useState<Page>('users');
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [adminPlans, setAdminPlans] = useState<AdminPlanCatalogItem[]>([]);
+  const [editingPlan, setEditingPlan] = useState<AdminPlanCatalogItem | null>(null);
+  const [planSaveLoading, setPlanSaveLoading] = useState(false);
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [workflows, setWorkflows] = useState<AdminWorkflowRun[]>([]);
@@ -74,7 +78,7 @@ export default function Admin() {
   const [grantEmail, setGrantEmail] = useState('');
   const [grantName, setGrantName] = useState('');
   const [grantPassword, setGrantPassword] = useState('');
-  const [grantPlan, setGrantPlan] = useState<AdminCommercialPlan>('PRO');
+  const [grantPlan, setGrantPlan] = useState<AdminCommercialPlan>('SYSTEM_FUNNEL');
   const [grantMonths, setGrantMonths] = useState(1);
   const [paymentSource, setPaymentSource] = useState<'TRIBUTE' | 'MANUAL' | 'PROMO'>('TRIBUTE');
   const [paymentAmount, setPaymentAmount] = useState(0);
@@ -182,6 +186,41 @@ export default function Admin() {
       setDashboard(data);
     } catch {
       showAdminLoadError('Не удалось загрузить бизнес-метрики', loadId);
+    }
+  }
+
+  async function loadPlans() {
+    const loadId = beginAdminLoad();
+    if (loadId === null) return;
+    try {
+      const data = await adminApi.plans();
+      if (isActiveAdminLoad(loadId)) setAdminPlans(data);
+    } catch {
+      showAdminLoadError('Не удалось загрузить каталог тарифов', loadId);
+    }
+  }
+
+  async function handleSavePlan() {
+    if (!editingPlan || editingPlan.legacy) return;
+    setPlanSaveLoading(true);
+    try {
+      await adminApi.updatePlan(
+        editingPlan.code as 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL',
+        {
+          isPublic: editingPlan.public,
+          isPurchasable: editingPlan.purchasable,
+          displayOrder: editingPlan.displayOrder,
+          shortDescription: editingPlan.shortDescription,
+          extendedDescription: editingPlan.extendedDescription,
+        },
+      );
+      await loadPlans();
+      setEditingPlan(null);
+      toast.success('Настройки тарифа сохранены');
+    } catch {
+      toast.error('Не удалось сохранить настройки тарифа');
+    } finally {
+      setPlanSaveLoading(false);
     }
   }
 
@@ -370,6 +409,7 @@ export default function Admin() {
     void loadDashboard();
     void loadUsers();
     void loadPrompts();
+    void loadPlans();
   }, [currentUser, isAdmin, navigate]);
 
   useEffect(() => {
@@ -383,7 +423,7 @@ export default function Admin() {
 
   async function refreshAll() {
     if (!isAdmin) return;
-    await Promise.all([loadDashboard(), loadUsers(), loadPrompts()]);
+    await Promise.all([loadDashboard(), loadUsers(), loadPrompts(), loadPlans()]);
     if (selected) {
       const detail = await adminApi.getUser(selected.id).catch(() => null);
       if (detail) setSelected(detail);
@@ -755,7 +795,7 @@ export default function Admin() {
             <input className={s.select} type="date" value={economicsTo} onChange={(e) => setEconomicsTo(e.target.value)} title="Конец периода" />
             <select className={s.select} value={economicsPlan} onChange={(e) => setEconomicsPlan(e.target.value)}>
               <option value="">Все тарифы</option>
-              {['START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'].map((value) => <option key={value}>{value}</option>)}
+              {['START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'].map((value) => <option key={value}>{value}</option>)}
             </select>
             <select className={s.select} value={economicsAction} onChange={(e) => setEconomicsAction(e.target.value)}>
               <option value="">Все действия</option>
@@ -1210,6 +1250,69 @@ export default function Admin() {
 
   function renderSettings() {
     return (
+      <div className={s.detailStack}>
+      <section className={s.panel}>
+        <div className={s.panelTitle}>Каталог тарифов</div>
+        <div className={s.tableWrap}>
+          <table className={s.table}>
+            <thead><tr><th>Код</th><th>Название</th><th>Цена / период</th><th>AI-баллы</th><th>Проекты</th><th>Пользователи</th><th>Статус</th><th>Изменён</th><th></th></tr></thead>
+            <tbody>
+              {adminPlans.map((planItem) => (
+                <tr key={planItem.code}>
+                  <td><strong>{planItem.code}</strong></td>
+                  <td>{planItem.name}</td>
+                  <td>{fmtMoney(planItem.priceRub)} / {planItem.periodDays} дней</td>
+                  <td>{fmtTokens(planItem.aiPoints)}</td>
+                  <td>{planItem.activeProjectsLimit}</td>
+                  <td>{planItem.activeUsers} активных / {planItem.users} всего</td>
+                  <td>
+                    <span className={planItem.public ? statusClass('ACTIVE') : s.badge}>
+                      {planItem.legacy ? 'legacy' : planItem.purchasable ? 'публичный' : 'внутренний'}
+                    </span>
+                  </td>
+                  <td>{planItem.updatedAt ? fmtDate(planItem.updatedAt) : 'Конфигурация'}</td>
+                  <td>
+                    {!planItem.legacy && planItem.code !== 'FREE' && (
+                      <button className={s.secondaryButton} onClick={() => setEditingPlan({ ...planItem })}>Изменить</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {editingPlan && (
+          <div className={s.detailStack}>
+            <div className={s.panelTitle}>{editingPlan.name} · {editingPlan.code}</div>
+            <div className={s.formGrid}>
+              <Field label="Публичное отображение" hint="Тариф появится на публичной странице, если также разрешены покупки.">
+                <select className={s.select} value={editingPlan.public ? 'yes' : 'no'} onChange={(event) => setEditingPlan({ ...editingPlan, public: event.target.value === 'yes' })}>
+                  <option value="yes">Показывать</option><option value="no">Скрыть</option>
+                </select>
+              </Field>
+              <Field label="Новые покупки" hint="Можно временно остановить checkout без удаления тарифа.">
+                <select className={s.select} value={editingPlan.purchasable ? 'yes' : 'no'} onChange={(event) => setEditingPlan({ ...editingPlan, purchasable: event.target.value === 'yes' })}>
+                  <option value="yes">Разрешены</option><option value="no">Запрещены</option>
+                </select>
+              </Field>
+              <Field label="Порядок" hint="Чем меньше число, тем левее карточка.">
+                <input className={s.input} type="number" min={1} max={100} value={editingPlan.displayOrder} onChange={(event) => setEditingPlan({ ...editingPlan, displayOrder: Number(event.target.value) })} />
+              </Field>
+              <Field label="Короткое описание" hint="Текст в верхней части карточки тарифа.">
+                <textarea className={s.textarea} rows={2} value={editingPlan.shortDescription} onChange={(event) => setEditingPlan({ ...editingPlan, shortDescription: event.target.value })} />
+              </Field>
+              <Field label="Расширенное описание" hint="Подробный текст в раскрывающемся блоке.">
+                <textarea className={s.textarea} rows={4} value={editingPlan.extendedDescription} onChange={(event) => setEditingPlan({ ...editingPlan, extendedDescription: event.target.value })} />
+              </Field>
+            </div>
+            <div className={s.actions}>
+              <button className={s.button} onClick={() => void handleSavePlan()} disabled={planSaveLoading}>Сохранить тариф</button>
+              <button className={s.secondaryButton} onClick={() => setEditingPlan(null)} disabled={planSaveLoading}>Отмена</button>
+            </div>
+          </div>
+        )}
+        <div className={s.emptyState}>Стабильные коды, цены, AI-баллы и лимиты проектов защищены от случайного редактирования. Изменения карточек фиксируются в audit log.</div>
+      </section>
       <section className={s.panel}>
         <div className={s.panelTitle}>Управление доступом</div>
         <div className={s.formGrid}>
@@ -1250,6 +1353,7 @@ export default function Admin() {
         </div>
         <div className={s.actions}><button className={s.button} onClick={() => void handleGrant()} disabled={grantLoading || !grantEmail}>{grantLoading ? 'Сохраняю...' : 'Создать / продлить доступ'}</button></div>
       </section>
+      </div>
     );
   }
 

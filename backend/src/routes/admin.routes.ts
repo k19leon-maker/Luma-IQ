@@ -20,6 +20,8 @@ router.use(requireAuth, requireAdmin);
 router.use(adminLimiter);
 
 router.get('/dashboard', adminController.dashboard);
+router.get('/plans', adminController.listPlans);
+router.patch('/plans/:code', adminController.updatePlanCatalog);
 router.get('/ai-config', aiConfigurationController.snapshot);
 router.get('/ai-economics-v2', aiEconomicsV2Controller.report);
 router.post('/ai-economics-v2/apply-price', aiEconomicsV2Controller.applyPrice);

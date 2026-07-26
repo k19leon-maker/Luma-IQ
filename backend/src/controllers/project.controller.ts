@@ -30,6 +30,10 @@ const updateSchema = z.object({
   description: z.string().max(2000).optional(),
 });
 
+const archiveSchema = z.object({
+  archived: z.boolean(),
+});
+
 const completeStrategySchema = z.object({
   summary: z.string().max(10000).optional(),
   strategyData: z.record(z.unknown()).optional(),
@@ -235,6 +239,33 @@ export const projectController = {
     } catch (err) {
       console.error('[Projects] update:', err);
       res.status(500).json({ error: 'Ошибка при обновлении проекта' });
+    }
+  },
+
+  async setArchived(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = archiveSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    try {
+      const project = await projectService.setArchived(req.userId!, req.params.id as string, parsed.data.archived);
+      if (!project) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      void eventService.track(parsed.data.archived ? 'project_archived' : 'project_restored', {
+        userId: req.userId!,
+        metadata: { projectId: project.id },
+      }).catch(() => {});
+      res.json({ project });
+    } catch (err) {
+      if (err instanceof AccessPolicyError) {
+        sendAccessPolicyError(res, err);
+        return;
+      }
+      console.error('[Projects] setArchived:', err);
+      res.status(500).json({ error: 'Ошибка при изменении статуса проекта' });
     }
   },
 

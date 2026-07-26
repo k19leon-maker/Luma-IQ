@@ -36,6 +36,9 @@ export const projectsApi = {
       .post<{ project: Project }>(`/projects/${id}/complete-strategy`, data)
       .then((r) => r.data.project),
 
+  setArchived: (id: string, archived: boolean) =>
+    apiClient.patch<{ project: Project }>(`/projects/${id}/archive`, { archived }).then((r) => r.data.project),
+
   getStrategy: (id: string) =>
     apiClient
       .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`)
@@ -58,7 +61,7 @@ export const projectsApi = {
 };
 
 export const paymentApi = {
-  createPayment: (plan: 'start' | 'pro' | 'expert' | 'support' | 'marketing_partner' | 'implementation') =>
+  createPayment: (plan: 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL') =>
     apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create', { plan }).then((r) => r.data),
 
   createStartTestPayment: () =>

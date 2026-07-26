@@ -292,6 +292,8 @@ function toPlanLimitConfig(limits: PricingPlanLimits): PlanLimitConfig {
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimitConfig> = {
   FREE: toPlanLimitConfig(getPlanBySubscriptionPlan('FREE').limits),
   START: toPlanLimitConfig(getPlanBySubscriptionPlan('START').limits),
+  SYSTEM_FUNNEL: toPlanLimitConfig(getPlanBySubscriptionPlan('SYSTEM_FUNNEL').limits),
+  EVERGREEN_FUNNEL: toPlanLimitConfig(getPlanBySubscriptionPlan('EVERGREEN_FUNNEL').limits),
   PRO: toPlanLimitConfig(getPlanBySubscriptionPlan('PRO').limits),
   EXPERT: toPlanLimitConfig(getPlanBySubscriptionPlan('EXPERT').limits),
   SUPPORT: toPlanLimitConfig(getPlanBySubscriptionPlan('SUPPORT').limits),

@@ -41,10 +41,13 @@ export const projectService = {
 
   async create(userId: string, data: { name: string; niche?: string; description?: string }) {
     const access = await accessPolicyService.getUserAccess(userId);
-    if (access.user.role !== 'ADMIN' && access.user._count.projects >= access.limits.projectLimit) {
+    const activeProjects = await prisma.project.count({
+      where: { userId, status: { not: 'ARCHIVED' } },
+    });
+    if (access.user.role !== 'ADMIN' && activeProjects >= access.limits.projectLimit) {
       throw new AccessPolicyError('Превышен лимит проектов на тарифе', 402, 'LIMIT_EXCEEDED', {
         limitType: 'projectsLimit',
-        current: access.user._count.projects,
+        current: activeProjects,
         limit: access.limits.projectLimit,
         planId: access.plan,
       });
@@ -76,6 +79,33 @@ export const projectService = {
     const project = await projectService.getOwned(userId, projectId);
     if (!project) return null;
     return prisma.project.update({ where: { id: projectId }, data });
+  },
+
+  async setArchived(userId: string, projectId: string, archived: boolean) {
+    const project = await projectService.getOwned(userId, projectId);
+    if (!project) return null;
+    if (!archived && project.status === 'ARCHIVED') {
+      const access = await accessPolicyService.getUserAccess(userId);
+      const activeProjects = await prisma.project.count({
+        where: { userId, status: { not: 'ARCHIVED' } },
+      });
+      if (access.user.role !== 'ADMIN' && activeProjects >= access.limits.projectLimit) {
+        throw new AccessPolicyError('Сначала архивируйте другой проект или измените тариф', 402, 'LIMIT_EXCEEDED', {
+          limitType: 'projectsLimit',
+          current: activeProjects,
+          limit: access.limits.projectLimit,
+          planId: access.plan,
+        });
+      }
+    }
+    return prisma.project.update({
+      where: { id: projectId },
+      data: {
+        status: archived
+          ? 'ARCHIVED'
+          : (project.strategyCompletedAt ? 'STRATEGY_COMPLETED' : 'DRAFT'),
+      },
+    });
   },
 
   async delete(userId: string, projectId: string) {

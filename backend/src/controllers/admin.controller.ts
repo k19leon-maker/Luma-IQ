@@ -9,11 +9,20 @@ import { creditLedgerService } from '../services/credit-ledger.service';
 import { promptRegistry } from '../prompts/registry';
 import { promptCmsService } from '../services/prompt-cms.service';
 import { isDemoProductText } from '../utils/demo-products';
-import { getPlanBySubscriptionPlan, isValidPlanId, toSubscriptionPlan, type PlanId } from '../config/pricing-plans';
+import {
+  getPlanBySubscriptionPlan,
+  isValidPlanId,
+  resolvePlanId,
+  toSubscriptionPlan,
+  type PlanId,
+  type PublicPaidPlanId,
+} from '../config/pricing-plans';
 import { AI_ACTION_LABELS, AI_ACTION_SECTIONS, aiPointsForGeneration, featureCodeToAiAction } from '../config/ai-actions';
+import { planCatalogService } from '../services/plan-catalog.service';
 
-const subscriptionPlanValues = ['FREE', 'START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
-const commercialPlanValues = ['START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'] as const;
+const subscriptionPlanValues = ['FREE', 'START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
+const commercialPlanValues = ['START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'] as const;
+const publicPaidPlanValues = ['START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL'] as const;
 
 const listSchema = z.object({
   q: z.string().optional(),
@@ -82,7 +91,7 @@ const grantProSchema = z.object({
   email:    z.string().email(),
   name:     z.string().min(1).max(100).optional(),
   password: z.string().min(8).optional(),
-  plan:     z.enum(commercialPlanValues).default('PRO'),
+  plan:     z.enum(commercialPlanValues).default('SYSTEM_FUNNEL'),
   months:   z.number().int().min(1).max(24).default(1),
   paymentSource: z.enum(['TRIBUTE', 'MANUAL', 'PROMO']).default('MANUAL'),
   amount: z.number().min(0).max(1_000_000).optional().default(0),
@@ -119,6 +128,14 @@ const addCreditsSchema = z.object({
 const updatePlanSchema = z.object({
   planId: z.string().refine(isValidPlanId, 'Неизвестный тариф'),
 });
+
+const updatePlanCatalogSchema = z.object({
+  isPublic: z.boolean().optional(),
+  isPurchasable: z.boolean().optional(),
+  displayOrder: z.number().int().min(1).max(100).optional(),
+  shortDescription: z.string().trim().min(10).max(300).optional(),
+  extendedDescription: z.string().trim().min(20).max(2000).optional(),
+}).refine((value) => Object.keys(value).length > 0, 'Нет изменений');
 
 const archiveUserSchema = z.object({
   archived: z.boolean(),
@@ -202,6 +219,69 @@ function parseMetadata(value: unknown): Record<string, unknown> {
 }
 
 export const adminController = {
+  async listPlans(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const [counts, catalog] = await Promise.all([
+        prisma.subscription.groupBy({
+          by: ['plan', 'status'],
+          _count: { _all: true },
+        }),
+        planCatalogService.listAll(),
+      ]);
+      const plans = catalog
+        .map((plan) => ({
+          code: plan.id,
+          name: plan.name,
+          priceRub: plan.priceMonthlyRub,
+          periodDays: plan.periodDays,
+          aiPoints: plan.limits.monthlyCredits,
+          activeProjectsLimit: plan.limits.projectsLimit,
+          public: plan.public,
+          legacy: plan.legacy,
+          purchasable: plan.purchasable,
+          displayOrder: plan.displayOrder,
+          shortDescription: plan.shortDescription,
+          extendedDescription: plan.extendedDescription,
+          createdAt: plan.createdAt,
+          updatedAt: plan.updatedAt,
+          users: counts
+            .filter((item) => item.plan === plan.id)
+            .reduce((sum, item) => sum + item._count._all, 0),
+          activeUsers: counts
+            .filter((item) => item.plan === plan.id && item.status === 'ACTIVE')
+            .reduce((sum, item) => sum + item._count._all, 0),
+        }));
+      res.json({ plans });
+    } catch (err) {
+      console.error('[Admin] listPlans:', err);
+      res.status(500).json({ error: 'Ошибка загрузки тарифов' });
+    }
+  },
+
+  async updatePlanCatalog(req: AuthRequest, res: Response): Promise<void> {
+    const code = z.enum(publicPaidPlanValues).safeParse(req.params.code);
+    const parsed = updatePlanCatalogSchema.safeParse(req.body);
+    if (!code.success) {
+      res.status(400).json({ error: 'Редактирование legacy-тарифа запрещено' });
+      return;
+    }
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    try {
+      const plan = await planCatalogService.update({
+        code: code.data as PublicPaidPlanId,
+        actorUserId: req.userId!,
+        ...parsed.data,
+      });
+      res.json({ plan });
+    } catch (err) {
+      console.error('[Admin] updatePlanCatalog:', err);
+      res.status(500).json({ error: 'Ошибка обновления тарифа' });
+    }
+  },
+
   async dashboard(_req: AuthRequest, res: Response): Promise<void> {
     try {
       const now = new Date();
@@ -253,7 +333,7 @@ export const adminController = {
           where: {
             user: nonArchivedUser,
             status: 'ACTIVE',
-            plan: { in: ['PRO', 'ANNUAL'] },
+            plan: { not: 'FREE' },
             OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
           },
         }),
@@ -1081,12 +1161,16 @@ export const adminController = {
       }
 
       const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + months);
+      expiresAt.setUTCDate(expiresAt.getUTCDate() + (30 * months));
 
       const subscription = await prisma.subscription.upsert({
         where: { userId: user.id },
         create: { userId: user.id, plan, status: 'ACTIVE', expiresAt },
         update: { plan, status: 'ACTIVE', expiresAt },
+      });
+      await prisma.billingPeriod.updateMany({
+        where: { userId: user.id, status: 'OPEN' },
+        data: { status: 'CLOSED' },
       });
 
       let payment = null;
@@ -1134,7 +1218,7 @@ export const adminController = {
       });
     } catch (err) {
       console.error('[Admin] grantPro:', err);
-      res.status(500).json({ error: 'Ошибка выдачи PRO' });
+      res.status(500).json({ error: 'Ошибка выдачи тарифа' });
     }
   },
 
@@ -1316,6 +1400,12 @@ export const adminController = {
           ...(data.limitOverrides !== undefined ? { limitOverrides: data.limitOverrides ? data.limitOverrides as Prisma.InputJsonValue : Prisma.JsonNull } : {}),
         },
       });
+      if (data.plan !== undefined) {
+        await prisma.billingPeriod.updateMany({
+          where: { userId: target.id, status: 'OPEN' },
+          data: { status: 'CLOSED' },
+        });
+      }
 
       if ((data.paymentAmount ?? 0) > 0) {
         await prisma.payment.create({
@@ -1361,7 +1451,8 @@ export const adminController = {
       const target = await prisma.user.findUnique({ where: { id: req.params.id as string }, include: { subscription: true } });
       if (!target) { res.status(404).json({ error: 'Пользователь не найден' }); return; }
 
-      const plan = toSubscriptionPlan(parsed.data.planId as PlanId);
+      const canonicalPlanId = resolvePlanId(parsed.data.planId) as PlanId;
+      const plan = toSubscriptionPlan(canonicalPlanId);
       const subscription = await prisma.subscription.upsert({
         where: { userId: target.id },
         create: {
@@ -1374,6 +1465,10 @@ export const adminController = {
           status: 'ACTIVE',
         },
       });
+      await prisma.billingPeriod.updateMany({
+        where: { userId: target.id, status: 'OPEN' },
+        data: { status: 'CLOSED' },
+      });
 
       await prisma.userEvent.create({
         data: {
@@ -1381,7 +1476,7 @@ export const adminController = {
           actorId: req.userId!,
           type: 'admin_plan_updated',
           metadata: {
-            planId: parsed.data.planId,
+            planId: canonicalPlanId,
             plan,
           },
         },

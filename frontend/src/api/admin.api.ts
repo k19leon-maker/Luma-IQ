@@ -1,8 +1,27 @@
 import { apiClient } from './client';
 import type { AuthResponse } from './auth.api';
 
-export type AdminCommercialPlan = 'START' | 'PRO' | 'EXPERT' | 'SUPPORT' | 'MARKETING_PARTNER' | 'IMPLEMENTATION';
+export type AdminCommercialPlan = 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL' | 'PRO' | 'EXPERT' | 'SUPPORT' | 'MARKETING_PARTNER' | 'IMPLEMENTATION';
 export type AdminSubscriptionPlan = 'FREE' | AdminCommercialPlan | 'ANNUAL';
+
+export interface AdminPlanCatalogItem {
+  code: AdminSubscriptionPlan;
+  name: string;
+  priceRub: number;
+  periodDays: number;
+  aiPoints: number;
+  activeProjectsLimit: number;
+  public: boolean;
+  legacy: boolean;
+  purchasable: boolean;
+  displayOrder: number;
+  shortDescription: string;
+  extendedDescription: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  users: number;
+  activeUsers: number;
+}
 
 export interface AdminSubscription {
   plan: string;
@@ -431,6 +450,18 @@ export interface AdminTariffSimulation {
 }
 
 export const adminApi = {
+  plans: () =>
+    apiClient.get<{ plans: AdminPlanCatalogItem[] }>('/admin/plans').then((r) => r.data.plans),
+
+  updatePlan: (code: 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL', data: {
+    isPublic: boolean;
+    isPurchasable: boolean;
+    displayOrder: number;
+    shortDescription: string;
+    extendedDescription: string;
+  }) =>
+    apiClient.patch<{ plan: AdminPlanCatalogItem }>(`/admin/plans/${code}`, data).then((r) => r.data.plan),
+
   dashboard: () =>
     apiClient
       .get<AdminDashboard>('/admin/dashboard')

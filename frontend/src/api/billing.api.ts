@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export type BillingScenario = 'self' | 'support';
+export type BillingScenario = 'free' | 'self' | 'legacy';
 
 export type BillingPlan = {
   id: string;
@@ -11,7 +11,15 @@ export type BillingPlan = {
   projectsTotal?: number;
   subscriptionStatus?: string;
   currency: 'RUB';
-  billingPeriod: 'month';
+  billingPeriod: '30_days';
+  periodDays: number;
+  shortDescription: string;
+  extendedDescription: string;
+  badge: string | null;
+  includedFeatures: string[];
+  exampleUsage: string[];
+  usageDisclaimer: string;
+  purchasable: boolean;
 };
 
 export type BillingMe = {

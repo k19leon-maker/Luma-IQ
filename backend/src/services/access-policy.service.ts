@@ -83,10 +83,17 @@ export const accessPolicyService = {
     if (!projectId) return;
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { userId: true },
+      select: { userId: true, status: true },
     });
     if (!project) throw new AccessPolicyError('Проект не найден', 404, 'PROJECT_NOT_FOUND');
     if (project.userId !== userId) throw new AccessPolicyError('Доступ к проекту запрещен', 403, 'PROJECT_FORBIDDEN');
+    if (project.status === 'ARCHIVED') {
+      throw new AccessPolicyError(
+        'Архивный проект доступен для просмотра. Возобновите его, чтобы запускать AI-действия.',
+        409,
+        'PROJECT_ARCHIVED',
+      );
+    }
   },
 
   async getUserAccess(userId: string) {
@@ -96,13 +103,13 @@ export const accessPolicyService = {
         id: true,
         role: true,
         subscription: true,
-        _count: { select: { projects: true } },
+        _count: { select: { projects: { where: { status: { not: 'ARCHIVED' } } } } },
       },
     });
     if (!user) throw new AccessPolicyError('Пользователь не найден', 404, 'USER_NOT_FOUND');
 
     const subscription = user.subscription;
-    const plan = isActiveSubscription(subscription) ? subscription!.plan : 'START';
+    const plan = isActiveSubscription(subscription) ? subscription!.plan : 'FREE';
     const limits = mergeLimitOverrides(PLAN_LIMITS[plan as SubscriptionPlan], subscription);
     const billingPeriod = await billingPeriodService.getOrCreateCurrent(userId, subscription);
     const creditBalance = await creditLedgerService.getBalance(userId);
@@ -146,10 +153,13 @@ export const accessPolicyService = {
     }
 
     const pricing = await featurePricingService.resolve(input.featureCode);
+    const periodAiBalanceTotal = access.billingPeriod.creditsGranted > 0
+      ? access.billingPeriod.creditsGranted
+      : access.limits.monthlyCredits;
     await aiBalanceService.assertEnough({
       userId: input.userId,
       billingPeriodId: access.billingPeriod.id,
-      total: access.limits.monthlyCredits,
+      total: periodAiBalanceTotal,
       featureCode: input.featureCode,
       metadata: input.metadata,
       planId: access.plan,

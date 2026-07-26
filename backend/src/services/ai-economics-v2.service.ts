@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { AI_ACTION_LABELS, AI_ACTION_SECTIONS, type AiActionType } from '../config/ai-actions';
 import { AI_ACTION_DEFINITIONS, type AIActionKey } from '../config/ai-action-registry';
 import { env } from '../config/env';
-import { getPlanById, isValidPlanId, normalizePlanId, type PlanId } from '../config/pricing-plans';
+import { getPlanById, normalizePlanId, resolvePlanId, type PlanId } from '../config/pricing-plans';
 import { prisma } from '../lib/prisma';
 import { openAiCostsProvider } from '../providers/openai-costs.provider';
 import { aiActionRegistryService } from './ai-action-registry.service';
@@ -557,7 +557,8 @@ export const aiEconomicsV2Service = {
   },
 
   validatePlanId(value: string): PlanId {
-    if (!isValidPlanId(value)) throw new Error(`UNKNOWN_PLAN: ${value}`);
-    return value;
+    const planId = resolvePlanId(value);
+    if (!planId) throw new Error(`UNKNOWN_PLAN: ${value}`);
+    return planId;
   },
 };

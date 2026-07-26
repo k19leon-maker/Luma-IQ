@@ -75,6 +75,7 @@ export interface LocalProject {
   id:    string;
   name:  string;
   color: string;
+  status: Project['status'];
 }
 
 export interface ProjectsState {
@@ -91,6 +92,7 @@ export interface ProjectsState {
   addProject:      (name: string) => Promise<LocalProject>;
   removeProject:   (id: string)   => Promise<void>;
   renameProject:   (id: string, name: string) => Promise<void>;
+  setProjectArchived: (id: string, archived: boolean) => Promise<void>;
   setActiveProjectId: (id: string) => void;
   setCurrentProject:  (project: Project | null) => void;
   clearCurrentProject: () => void;
@@ -115,6 +117,7 @@ export const useProjectsStore = create<ProjectsState>()(
             id:    p.id,
             name:  p.name,
             color: colorForIndex(i),
+            status: p.status,
           }));
           set((s) => ({
             projects,
@@ -140,7 +143,7 @@ export const useProjectsStore = create<ProjectsState>()(
           if (!existing) throw error;
           project = existing;
         }
-        const local: LocalProject = { id: project.id, name: project.name, color };
+        const local: LocalProject = { id: project.id, name: project.name, color, status: project.status };
         set((s) => ({
           projects: s.projects.some((item) => item.id === local.id) ? s.projects : [...s.projects, local],
           activeProjectId: local.id,
@@ -165,6 +168,19 @@ export const useProjectsStore = create<ProjectsState>()(
         set((s) => ({
           projects: s.projects.map((p) => (p.id === id ? { ...p, name } : p)),
         }));
+      },
+
+      setProjectArchived: async (id: string, archived: boolean) => {
+        const project = await projectsApi.setArchived(id, archived);
+        set((s) => {
+          const projects = s.projects.map((item) => (
+            item.id === id ? { ...item, status: project.status } : item
+          ));
+          const activeProjectId = archived && s.activeProjectId === id
+            ? (projects.find((item) => item.status !== 'ARCHIVED')?.id ?? id)
+            : s.activeProjectId;
+          return { projects, activeProjectId };
+        });
       },
 
       setActiveProjectId: (id) => set({ activeProjectId: id }),

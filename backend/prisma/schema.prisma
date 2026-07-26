@@ -385,6 +385,21 @@ model AIConfigurationAuditLog {
   @@map("ai_configuration_audit_logs")
 }
 
+model PlanCatalogOverride {
+  id                  String   @id @default(uuid())
+  code                String   @unique
+  isPublic            Boolean?
+  isPurchasable       Boolean?
+  displayOrder        Int?
+  shortDescription    String?
+  extendedDescription String?
+  updatedById         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("plan_catalog_overrides")
+}
+
 model FeaturePricing {
   id              String             @id @default(uuid())
   featureCode     String
@@ -1111,6 +1126,8 @@ enum Role {
 enum SubscriptionPlan {
   FREE
   START
+  SYSTEM_FUNNEL
+  EVERGREEN_FUNNEL
   PRO
   EXPERT
   SUPPORT

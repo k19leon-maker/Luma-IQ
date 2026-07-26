@@ -9,6 +9,7 @@ vi.mock('../../src/services/project.service', () => ({
     create: vi.fn(),
     getOwned: vi.fn(),
     update: vi.fn(),
+    setArchived: vi.fn(),
     delete: vi.fn(),
     ensureDevUser: vi.fn(),
   },

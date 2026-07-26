@@ -21,7 +21,7 @@ const DEV_USER: AuthUser = {
   name: 'Иван Петров',
   avatarUrl: null,
   role: 'USER',
-  tariff: 'Pro',
+  tariff: 'Бесплатный',
   onboardingStatus: 'completed',
   onboardingStep: 5,
   onboardingVersion: 'b2b_v1',
