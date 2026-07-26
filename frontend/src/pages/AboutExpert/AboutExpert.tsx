@@ -8,6 +8,7 @@ import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { buildExpertProfileMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import s from './AboutExpert.module.css';
 
 export interface ExpertProfileData {
@@ -544,6 +545,9 @@ export default function AboutExpert() {
                   {saving ? 'Сохраняю...' : 'Сохранить'}
                 </button>
                 <button className={s.button} onClick={() => void improveWithAi()} disabled={saving || enhancing || !canSave}>
+                  {!enhancing && (
+                    <AiWorkflowCost workflow="strategy.about.summary" projectId={activeProjectId} />
+                  )}
                   {enhancing ? 'Улучшаю...' : 'Улучшить с помощью ИИ'}
                 </button>
               </div>

@@ -12,6 +12,8 @@ import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDoc
 import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import AiPipelineProgress from '../../components/AiPipelineProgress/AiPipelineProgress';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 
 type StepStatus = 'idle' | 'running' | 'done';
@@ -671,46 +673,48 @@ ${currentProduct}
 
   async function handleCreate() {
     if (loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setLoading(true);
     let next: MiniProductState = {
       ...EMPTY_PRODUCT,
       generated: true,
       chatMessages: [],
-      stepStatuses: { ...EMPTY_STATUSES },
+      stepStatuses: PRODUCT_STEPS.reduce<Record<string, StepStatus>>((acc, step) => {
+        acc[step.id] = 'running';
+        return acc;
+      }, {}),
     };
     persistState(next, { syncMaterial: false });
 
     try {
-      for (const step of PRODUCT_STEPS) {
-        next = { ...next, stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' } };
-        persistState(next, { syncMaterial: false });
-
-        const resp = await requestProductStep(step.id, next);
-        const content = resp.content;
-        next = withWorkflowMeta(next, resp);
-        if (step.id === 'bestName') {
-          next.name = extractMarkdownSection(content, /^##\s+рекомендуемый/i)
-            ? stripMarkdown(extractMarkdownSection(content, /^##\s+рекомендуемый/i)).split('\n')[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт'
-            : 'Мини-продукт';
-        }
-        if (step.id === 'mainOffer') next.offer = content;
-        if (step.id === 'shortDescription') next.productDescription = content;
-        if (step.id === 'lesson1') next.lesson1 = content;
-        if (step.id === 'lesson2') next.lesson2 = content;
-        if (step.id === 'lesson3') next.lesson3 = content;
-        if (step.id === 'bonuses') next.bonuses = content;
-        if (step.id === 'mainResult') next.transformation = content;
-        next = withMessage({
-          ...next,
-          price: 'Входной платный продукт',
-          format: '7 дней / 3 занятия / практика',
-          duration: '1 неделя',
-          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'done' },
-        }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
-        persistState(next, { syncMaterial: false });
-      }
+      const workflow = 'product.mini.build';
+      const inputs = {};
+      const resp = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      const markdown = cleanCodeFence(resp.content);
+      const recommendedName = extractMarkdownSection(markdown, /^##\s+(?:рекомендуемое\s+)?название/i);
+      next = withWorkflowMeta({
+        ...next,
+        name: stripMarkdown(recommendedName).split('\n')[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Мини-продукт',
+        price: 'Входной платный продукт',
+        format: '7 дней / 3 занятия / практика',
+        duration: '1 неделя',
+        description: markdown,
+        currentMarkdown: markdown,
+        chatMessages: splitProductMarkdownToMessages(markdown),
+        stepStatuses: PRODUCT_STEPS.reduce<Record<string, StepStatus>>((acc, step) => {
+          acc[step.id] = 'done';
+          return acc;
+        }, {}),
+      }, resp);
       persistState(next, { versionTitle: 'Полная AI-сборка мини-продукта', versionSource: 'ai' });
-      toast.success('Мини-продукт создан. Списано 80 AI-баллов.');
+      toast.success(`Мини-продукт создан. Списано ${resp.aiPointsCharged ?? 80} AI-баллов.`);
     } catch (err) {
       console.error('[ProductMini create] AI error:', err);
       const message = getRequestErrorMessage(err);
@@ -869,7 +873,9 @@ ${currentProduct}
           >
             {loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>}
             {loading ? 'ИИ работает...' : state.generated ? 'Пересобрать продукт' : 'Создать продукт'}
+            {!loading && <AiWorkflowCost workflow="product.mini.build" projectId={activeProjectId} />}
           </button>
+          {loading && <AiPipelineProgress label="Собираем структуру, содержание и проверяем мини-продукт." />}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 16px' }}>
@@ -1090,6 +1096,11 @@ ${currentProduct}
           padding: '10px 28px 8px',
         }}>
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
+            {state.generated && (
+              <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
+                Доработка текущей версии<AiWorkflowCost workflow="product.mini.edit" projectId={activeProjectId} />
+              </div>
+            )}
             <MessageInput
               value={chatInput}
               onChange={setChatInput}

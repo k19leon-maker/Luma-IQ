@@ -23,7 +23,6 @@ export default function Settings() {
   const [profile, setProfile]                 = useState<UserProfile | null>(null);
   const [name, setName]                       = useState('');
   const [avatarColor, setAvatarColor]         = useState('#7c6cfc');
-  const [aiModel, setAiModel]                 = useState('chatgpt');
   const [specialization, setSpecialization]   = useState('');
   const [profileSaving, setProfileSaving]     = useState(false);
   const [profileMsg, setProfileMsg]           = useState('');
@@ -41,7 +40,6 @@ export default function Settings() {
       setProfile(u);
       setName(u.name ?? '');
       setAvatarColor(u.avatarColor ?? '#7c6cfc');
-      setAiModel(u.defaultAiModel ?? 'chatgpt');
       setSpecialization(u.specialization ?? '');
     }).catch(() => {
       if (authUser) {
@@ -54,7 +52,7 @@ export default function Settings() {
     setProfileSaving(true);
     setProfileMsg('');
     try {
-      const updated = await usersApi.updateMe({ name, avatarColor, defaultAiModel: aiModel, specialization });
+      const updated = await usersApi.updateMe({ name, avatarColor, specialization });
       setProfile(updated);
       setProfileMsg('Сохранено');
       setTimeout(() => setProfileMsg(''), 3000);
@@ -158,30 +156,6 @@ export default function Settings() {
               {profileSaving ? 'Сохраняем...' : 'Сохранить изменения'}
             </button>
             {profileMsg && <span className={s.msg}>{profileMsg}</span>}
-          </div>
-        </div>
-
-        {/* ── ИИ по умолчанию ─────────────────────────── */}
-        <div className={s.section}>
-          <h3 className={s.sectionTitle}>ИИ по умолчанию</h3>
-          <div className={s.aiChips}>
-            <button
-              className={`${s.aiChip} ${aiModel === 'chatgpt' ? s.aiChipActive : ''}`}
-              onClick={() => setAiModel('chatgpt')}
-            >
-              🤖 ChatGPT
-            </button>
-            <button
-              className={`${s.aiChip} ${aiModel === 'claude' ? s.aiChipActive : ''}`}
-              onClick={() => setAiModel('claude')}
-            >
-              🧠 Claude
-            </button>
-          </div>
-          <div className={s.saveLine}>
-            <button className={s.saveBtn} onClick={() => void handleSaveProfile()} disabled={profileSaving}>
-              Сохранить
-            </button>
           </div>
         </div>
 

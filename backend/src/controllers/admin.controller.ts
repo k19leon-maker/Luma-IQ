@@ -1173,6 +1173,15 @@ export const adminController = {
       const version = await prisma.promptVersion.create({
         data: promptCmsService.promptVersionData({ prompt, userId: req.userId!, data: parsed.data }),
       });
+      await prisma.aIConfigurationAuditLog.create({
+        data: {
+          actorUserId: req.userId!,
+          configType: 'prompt_version',
+          configKey: `${parsed.data.workflow}.${parsed.data.step}`,
+          operation: 'CREATE_VERSION',
+          after: version as unknown as Prisma.InputJsonValue,
+        },
+      });
       res.status(201).json({ version });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка создания версии промпта';
@@ -1204,6 +1213,15 @@ export const adminController = {
           },
         },
         include: { variants: { include: { promptVersion: true } } },
+      });
+      await prisma.aIConfigurationAuditLog.create({
+        data: {
+          actorUserId: req.userId!,
+          configType: 'prompt_experiment',
+          configKey: experiment.id,
+          operation: 'CREATE',
+          after: experiment as unknown as Prisma.InputJsonValue,
+        },
       });
       res.status(201).json({ experiment });
     } catch (err) {

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import LegalInfoBlock from '../../components/LegalInfoBlock/LegalInfoBlock';
 import { useBillingMe } from '../../components/UsageLimits/UsageLimits';
-import { AI_ACTION_COSTS } from '../../config/ai-balance';
 import { appPath } from '../../utils/appRoutes';
 import { formatLimitNumber } from '../../utils/planLimits';
 import s from './Limits.module.css';
@@ -10,40 +9,31 @@ const capacityGroups = [
   {
     title: 'Стратегия',
     items: [
-      { label: 'Раздел «О себе»', cost: AI_ACTION_COSTS.strategy_about },
-      { label: 'Позиционирование', cost: AI_ACTION_COSTS.positioning },
-      { label: 'Целевая аудитория', cost: AI_ACTION_COSTS.audience },
-      { label: 'УТП', cost: AI_ACTION_COSTS.utp },
-      { label: 'Оформление соцсетей', cost: AI_ACTION_COSTS.social },
-      { label: 'Полная пересборка стратегии', cost: AI_ACTION_COSTS.strategy_rebuild },
+      'strategy_about', 'positioning', 'audience', 'utp', 'social', 'strategy_rebuild',
     ],
   },
   {
     title: 'Продукты',
     items: [
-      { label: 'Основной продукт', cost: AI_ACTION_COSTS.product_main },
-      { label: 'Мини-продукт', cost: AI_ACTION_COSTS.product_mini },
-      { label: 'Лид-магнит', cost: AI_ACTION_COSTS.lead_magnet },
+      'product_main', 'product_main_edit',
+      'product_mini', 'product_mini_edit',
+      'lead_magnet', 'lead_magnet_edit',
     ],
   },
   {
     title: 'Контент',
     items: [
-      { label: 'Посты', cost: AI_ACTION_COSTS.content_post },
-      { label: 'Рилсы', cost: AI_ACTION_COSTS.content_reel },
-      { label: 'Цепочки постов', cost: AI_ACTION_COSTS.content_thread },
-      { label: 'Статьи / лонгриды', cost: AI_ACTION_COSTS.content_article },
-      { label: 'YouTube-сценарии', cost: AI_ACTION_COSTS.youtube_script },
-      { label: 'Контент-планы', cost: AI_ACTION_COSTS.content_plan },
-      { label: 'План ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_plan },
-      { label: 'Пост для ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_post },
-      { label: 'Доработка поста ТГ-канала', cost: AI_ACTION_COSTS.tg_channel_post_edit },
+      'content_post', 'content_post_edit', 'content_post_regenerate',
+      'content_reel', 'content_reel_edit', 'content_reel_regenerate',
+      'content_thread', 'content_thread_edit', 'content_thread_regenerate',
+      'content_article', 'content_longread', 'youtube_script', 'content_plan',
+      'tg_channel_plan', 'tg_channel_post', 'tg_channel_post_edit',
     ],
   },
   {
     title: 'Диалог',
     items: [
-      { label: 'Сообщения в диалоге с ИИ', cost: AI_ACTION_COSTS.ai_chat },
+      'ai_chat_quick', 'ai_chat_deep', 'ai_chat_strategy',
     ],
   },
 ];
@@ -123,6 +113,7 @@ export default function Limits() {
   const aiIsEmpty = limits.aiBalanceRemaining <= 0;
   const aiIsLow = !aiIsEmpty && limits.aiBalanceTotal > 0 && limits.aiBalanceRemaining / limits.aiBalanceTotal < 0.15;
   const projectsEmpty = limits.projectsRemaining <= 0;
+  const priceByAction = new Map(billing.actionPrices.map((item) => [item.actionKey, item]));
 
   return (
     <div className={s.root}>
@@ -198,21 +189,23 @@ export default function Limits() {
             <article className={s.capacityGroup} key={group.title}>
               <h4>{group.title}</h4>
               <div className={s.capacityList}>
-                {group.items.map((item) => {
-                  const remainingCount = getCapacityCount(limits.aiBalanceRemaining, item.cost);
-                  const totalCount = getCapacityCount(limits.aiBalanceTotal, item.cost);
+                {group.items.map((actionKey) => {
+                  const item = priceByAction.get(actionKey);
+                  if (!item) return null;
+                  const remainingCount = getCapacityCount(limits.aiBalanceRemaining, item.aiPoints);
+                  const totalCount = getCapacityCount(limits.aiBalanceTotal, item.aiPoints);
                   const capacityPercent = totalCount > 0
                     ? Math.min(100, Math.max(0, (remainingCount / totalCount) * 100))
                     : 0;
 
                   return (
-                    <div className={s.capacityItem} key={item.label}>
+                    <div className={s.capacityItem} key={actionKey}>
                       <div className={s.capacityTopline}>
-                        <span>{item.label}</span>
+                        <span>{item.actionLabel}</span>
                         <strong>{formatLimitNumber(remainingCount)} осталось</strong>
                       </div>
                       <div className={s.capacityMeta}>
-                        <span>{formatLimitNumber(item.cost)} AI-баллов за 1 действие</span>
+                        <span>{formatLimitNumber(item.aiPoints)} AI-баллов за 1 действие</span>
                         <span>до {formatLimitNumber(totalCount)} на тарифе</span>
                       </div>
                       <div className={s.capacityTrack} aria-hidden="true">

@@ -279,8 +279,86 @@
   line-height: 1.5;
 }
 
+.batchPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px 24px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #e6dfcf;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.batchPanel h3,
+.batchPanel p {
+  margin: 0;
+}
+
+.batchPanel h3 {
+  font-size: 16px;
+}
+
+.batchPanel p {
+  margin-top: 5px;
+  color: #6f6f6f;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.batchControls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.modeControl {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #d9d2c3;
+  border-radius: 8px;
+  background: #f5f2eb;
+}
+
+.modeControl button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #666158;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.modeControl .modeActive {
+  background: #fff;
+  color: #25231f;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.batchStatus {
+  grid-column: 1 / -1;
+  color: #6d5b2b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .tableWrap {
   overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  .batchPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .batchControls {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .planTable {

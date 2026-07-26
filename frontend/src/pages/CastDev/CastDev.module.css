@@ -203,10 +203,59 @@
 
 .formCard,
 .infoCard,
-.block {
+.block,
+.synthesisPanel {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
+}
+
+.synthesisPanel {
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.synthesisChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.synthesisChoice,
+.diarizeControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.synthesisChoice {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-base);
+}
+
+.synthesisChoice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.synthesisResult {
+  margin-top: 14px;
+  padding: 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-muted);
+}
+
+.synthesisResult p {
+  margin: 7px 0;
+  color: var(--text-primary);
+  line-height: 1.55;
 }
 
 .formCard {

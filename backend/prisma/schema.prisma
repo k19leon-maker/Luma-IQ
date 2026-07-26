@@ -47,6 +47,8 @@ model User {
   featureUsageDaily   FeatureUsageDaily[]
   aiWorkflowRuns      AIWorkflowRun[]
   aiArtifacts         AIArtifact[]
+  aiContextSummaries  AIContextSummary[]
+  aiBatchJobs         AIBatchJob[]
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
   projectTasks        ProjectTask[]
@@ -250,10 +252,20 @@ model CreditLedgerEntry {
   userId          String
   projectId       String?
   billingPeriodId String?
+  generationId    String?
   type            CreditLedgerType
   source          CreditLedgerSource
+  unit            CreditLedgerUnit   @default(LEGACY_CREDIT)
   amount          Int
+  quantity        Int                @default(0)
+  balanceBefore   Int                @default(0)
   balanceAfter    Int
+  reservedAfter   Int                @default(0)
+  availableAfter  Int                @default(0)
+  actionKey       String?
+  idempotencyKey  String?
+  settledAt       DateTime?
+  expiresAt       DateTime?
   reason          String?
   metadata        Json?
   createdAt       DateTime           @default(now())
@@ -261,12 +273,18 @@ model CreditLedgerEntry {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
   billingPeriod BillingPeriod? @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
+  generation    AIGeneration?  @relation(fields: [generationId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+  @@index([userId, billingPeriodId, unit, createdAt])
   @@index([projectId, createdAt])
   @@index([billingPeriodId])
+  @@index([generationId])
   @@index([type])
   @@index([source])
+  @@index([expiresAt])
+  @@unique([unit, generationId, type])
+  @@unique([userId, unit, idempotencyKey, type])
   @@map("credit_ledger")
 }
 
@@ -277,6 +295,8 @@ model AIModelPricing {
   inputPricePer1M       Decimal    @db.Decimal(18, 8)
   outputPricePer1M      Decimal    @db.Decimal(18, 8)
   cachedInputPricePer1M Decimal?   @db.Decimal(18, 8)
+  audioInputPricePer1M  Decimal?   @db.Decimal(18, 8)
+  audioOutputPricePer1M Decimal?   @db.Decimal(18, 8)
   currency              String     @default("USD")
   validFrom             DateTime
   validTo               DateTime?
@@ -286,6 +306,83 @@ model AIModelPricing {
   @@index([provider, model, validFrom])
   @@index([validTo])
   @@map("ai_model_pricing")
+}
+
+model AIModelProfileVersion {
+  id            String     @id @default(uuid())
+  alias         String
+  provider      AIProvider
+  actualModelId String
+  isActive      Boolean    @default(true)
+  validFrom     DateTime
+  validTo       DateTime?
+  metadata      Json?
+  createdAt     DateTime   @default(now())
+
+  @@index([alias, isActive, validFrom])
+  @@index([provider, actualModelId])
+  @@map("ai_model_profile_versions")
+}
+
+model AIActionDefinitionVersion {
+  id              String   @id @default(uuid())
+  actionKey       String
+  pipeline        Json
+  contextBudget   Int
+  outputLimit     Int
+  retryPolicy     Json
+  fallbackPolicy  Json
+  batchEligible   Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  validFrom       DateTime
+  validTo         DateTime?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([actionKey, isActive, validFrom])
+  @@map("ai_action_definition_versions")
+}
+
+model AIActionPricingVersion {
+  id        String   @id @default(uuid())
+  actionKey String
+  aiPoints  Int
+  isActive  Boolean  @default(true)
+  validFrom DateTime
+  validTo   DateTime?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([actionKey, isActive, validFrom])
+  @@map("ai_action_pricing_versions")
+}
+
+model AIFeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ai_feature_flags")
+}
+
+model AIConfigurationAuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  configType  String
+  configKey   String
+  operation   String
+  before      Json?
+  after       Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([configType, configKey, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("ai_configuration_audit_logs")
 }
 
 model FeaturePricing {
@@ -328,6 +425,9 @@ model AIGeneration {
   inputTokens       Int                @default(0)
   outputTokens      Int                @default(0)
   cachedInputTokens Int                @default(0)
+  reasoningTokens   Int                @default(0)
+  audioInputTokens  Int                @default(0)
+  audioOutputTokens Int                @default(0)
   totalTokens       Int                @default(0)
   estimatedCostUsd  Decimal            @default(0) @db.Decimal(18, 8)
   actualCostUsd     Decimal            @default(0) @db.Decimal(18, 8)
@@ -335,6 +435,9 @@ model AIGeneration {
   creditsReserved   Int                @default(0)
   creditsCharged    Int                @default(0)
   creditsRefunded   Int                @default(0)
+  aiPointsReserved  Int                @default(0)
+  aiPointsCaptured  Int                @default(0)
+  aiPointsRefunded  Int                @default(0)
   latencyMs         Int?
   retryCount        Int                @default(0)
   errorCode         String?
@@ -353,6 +456,8 @@ model AIGeneration {
   workflowRun   AIWorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
   workflowStep  AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   usageEvents   AIUsageEvent[]
+  providerCalls AIProviderCall[]
+  ledgerEntries CreditLedgerEntry[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -392,6 +497,126 @@ model AIUsageEvent {
   @@index([eventType, createdAt])
   @@index([featureCode, createdAt])
   @@map("ai_usage_events")
+}
+
+model AIProviderCall {
+  id                String    @id @default(uuid())
+  generationId      String?
+  workflowRunId     String?
+  workflowStepId    String?
+  userId            String?
+  projectId         String?
+  correlationId     String?
+  responseId        String?
+  provider          AIProvider
+  modelAlias        String?
+  actualModelId     String
+  modelSnapshot     Json?
+  promptVersion     String?
+  actionKey         String
+  pipeline          String?
+  stage             String
+  status            String    @default("RUNNING")
+  inputTokens       Int       @default(0)
+  cachedInputTokens Int       @default(0)
+  outputTokens      Int       @default(0)
+  reasoningTokens   Int       @default(0)
+  audioInputTokens  Int       @default(0)
+  audioOutputTokens Int       @default(0)
+  latencyMs         Int?
+  retryIndex        Int       @default(0)
+  isBatch           Boolean   @default(false)
+  costUsd           Decimal   @default(0) @db.Decimal(18, 8)
+  pricingSnapshot   Json?
+  errorCode         String?
+  errorMessage      String?
+  metadata          Json?
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  generation AIGeneration? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([generationId, createdAt])
+  @@index([workflowRunId, workflowStepId])
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([correlationId, createdAt])
+  @@index([actionKey, stage, createdAt])
+  @@index([provider, actualModelId, createdAt])
+  @@index([status, createdAt])
+  @@index([responseId])
+  @@map("ai_provider_calls")
+}
+
+model AIBatchJob {
+  id                String   @id @default(uuid())
+  userId            String
+  projectId         String
+  actionKey         String
+  featureCode       String
+  workflow          String
+  step              String
+  status            String   @default("queued")
+  idempotencyKey    String   @unique
+  provider          AIProvider @default(OPENAI)
+  providerBatchId   String?  @unique
+  inputFileId       String?
+  outputFileId      String?
+  errorFileId       String?
+  totalItems        Int
+  completedItems    Int      @default(0)
+  failedItems       Int      @default(0)
+  metadata          Json?
+  errorMessage      String?
+  submittedAt       DateTime?
+  inProgressAt      DateTime?
+  finalizingAt      DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  expiredAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items   AIBatchItem[]
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([status, updatedAt])
+  @@index([actionKey, createdAt])
+  @@map("ai_batch_jobs")
+}
+
+model AIBatchItem {
+  id                  String   @id @default(uuid())
+  batchJobId          String
+  customId            String
+  position            Int
+  status              String   @default("queued")
+  input               Json
+  output              Json?
+  error               Json?
+  generationId        String?  @unique
+  artifactId          String?
+  aiPoints            Int
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  cachedInputTokens   Int      @default(0)
+  reasoningTokens     Int      @default(0)
+  costUsd             Decimal  @default(0) @db.Decimal(18, 8)
+  completedAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  batchJob AIBatchJob @relation(fields: [batchJobId], references: [id], onDelete: Cascade)
+
+  @@unique([batchJobId, customId])
+  @@index([batchJobId, position])
+  @@index([status, updatedAt])
+  @@index([generationId])
+  @@map("ai_batch_items")
 }
 
 model AIWorkflowRun {
@@ -502,6 +727,33 @@ model ProjectStructuredOutput {
   @@index([projectId, domain, kind])
   @@index([artifactId])
   @@map("project_structured_outputs")
+}
+
+model AIContextSummary {
+  id             String   @id @default(uuid())
+  userId         String
+  projectId      String
+  scope          String
+  version        Int      @default(1)
+  contextVersion String
+  sourceHash     String
+  cacheKey       String
+  content        String
+  data           Json
+  approxTokens   Int      @default(0)
+  sourceTokens   Int      @default(0)
+  compressed     Boolean  @default(false)
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, scope, sourceHash])
+  @@index([projectId, scope, version])
+  @@index([cacheKey])
+  @@map("ai_context_summaries")
 }
 
 model ProjectFile {
@@ -672,6 +924,8 @@ model Project {
   featureUsageDaily   FeatureUsageDaily[]
   aiWorkflowRuns      AIWorkflowRun[]
   aiArtifacts         AIArtifact[]
+  aiContextSummaries  AIContextSummary[]
+  aiBatchJobs         AIBatchJob[]
   structuredOutputs   ProjectStructuredOutput[]
   projectFiles        ProjectFile[]
   tasks               ProjectTask[]
@@ -925,6 +1179,18 @@ enum CreditLedgerType {
   REFUND
   ADJUST
   EXPIRE
+  CREDIT
+  CAPTURE
+  RELEASE
+  ADMIN_ADJUSTMENT
+  PLAN_ACCRUAL
+  PURCHASE
+  EXPIRATION
+}
+
+enum CreditLedgerUnit {
+  LEGACY_CREDIT
+  AI_POINT
 }
 
 enum CreditLedgerSource {

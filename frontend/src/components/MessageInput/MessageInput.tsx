@@ -1,12 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import {
-  CLAUDE_MODELS,
-  OPENAI_MODELS,
-  ClaudeModelId,
-  OpenAIModelId,
-  useModelStore,
-} from '../../store/model.store';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import styles from './MessageInput.module.css';
 
@@ -83,38 +76,9 @@ interface ModelBarProps {
 }
 
 export function ModelBar({ section }: ModelBarProps) {
-  const { getSettings, setClaudeModel, setOpenAIModel, setProvider } = useModelStore();
-  const settings = getSettings(section);
-  const models      = settings.provider === 'claude' ? CLAUDE_MODELS : OPENAI_MODELS;
-  const currentId   = settings.provider === 'claude' ? settings.claudeModel : settings.openaiModel;
-
   return (
-    <div className={styles.modelBar}>
-      <button
-        className={styles.providerBtn}
-        onClick={() => setProvider(section, settings.provider === 'claude' ? 'chatgpt' : 'claude')}
-        title="Сменить провайдера"
-      >
-        <span style={{ color: settings.provider === 'claude' ? '#FF6B35' : '#10a37f' }}>●</span>
-        {settings.provider === 'claude' ? 'Claude' : 'OpenAI'}
-      </button>
-      <select
-        className={styles.modelSelect}
-        value={currentId}
-        onChange={(e) => {
-          if (settings.provider === 'claude') {
-            setClaudeModel(section, e.target.value as ClaudeModelId);
-          } else {
-            setOpenAIModel(section, e.target.value as OpenAIModelId);
-          }
-        }}
-      >
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label} — {m.badge}
-          </option>
-        ))}
-      </select>
+    <div className={styles.modelBar} data-section={section}>
+      <span className={styles.modelSelect}>AI-модель выбирается автоматически</span>
     </div>
   );
 }
@@ -130,6 +94,7 @@ export interface MessageInputProps {
   section:      string;
   multiline?:   boolean;
   disabled?:    boolean;
+  hideModelControls?: boolean;
 }
 
 export function MessageInput({
@@ -141,6 +106,7 @@ export function MessageInput({
   section,
   multiline = false,
   disabled = false,
+  hideModelControls = false,
 }: MessageInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -171,11 +137,6 @@ export function MessageInput({
       if (!isLoading && value.trim()) onSend();
     }
   }
-
-  const { getSettings, setClaudeModel, setOpenAIModel, setProvider } = useModelStore();
-  const settings    = getSettings(section);
-  const models      = settings.provider === 'claude' ? CLAUDE_MODELS : OPENAI_MODELS;
-  const currentId   = settings.provider === 'claude' ? settings.claudeModel : settings.openaiModel;
 
   return (
     <div className={styles.inputWrapper}>
@@ -225,33 +186,9 @@ export function MessageInput({
           </button>
         </div>
 
-        <div className={styles.providerGroup}>
-          <button
-            className={styles.providerBtn}
-            onClick={() => setProvider(section, settings.provider === 'claude' ? 'chatgpt' : 'claude')}
-            title="Сменить провайдера"
-          >
-            <span style={{ color: settings.provider === 'claude' ? '#FF6B35' : '#10a37f' }}>●</span>
-            {settings.provider === 'claude' ? 'Claude' : 'OpenAI'}
-          </button>
-          <select
-            className={styles.modelSelect}
-            value={currentId}
-            onChange={(e) => {
-              if (settings.provider === 'claude') {
-                setClaudeModel(section, e.target.value as ClaudeModelId);
-              } else {
-                setOpenAIModel(section, e.target.value as OpenAIModelId);
-              }
-            }}
-          >
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} — {m.badge}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!hideModelControls && <div className={styles.providerGroup} data-section={section}>
+          <span className={styles.modelSelect}>AI выбирает модель автоматически</span>
+        </div>}
         <button
           className={styles.sendBtn}
           onClick={onSend}

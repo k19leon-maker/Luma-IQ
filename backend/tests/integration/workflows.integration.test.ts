@@ -5,8 +5,13 @@ import { env } from '../../src/config/env';
 
 vi.mock('../../src/services/ai-workflow.service', () => ({
   aiWorkflowService: {
-    run: vi.fn(),
     cancel: vi.fn(),
+  },
+}));
+
+vi.mock('../../src/services/ai-runtime.service', () => ({
+  aiRuntimeService: {
+    runWorkflow: vi.fn(),
   },
 }));
 
@@ -18,15 +23,15 @@ vi.mock('../../src/prompts/registry', () => ({
 }));
 
 import { createApp } from '../../src/app';
-import { aiWorkflowService } from '../../src/services/ai-workflow.service';
+import { aiRuntimeService } from '../../src/services/ai-runtime.service';
 
-const mockedWorkflow = vi.mocked(aiWorkflowService, true);
+const mockedRuntime = vi.mocked(aiRuntimeService, true);
 
 describe('workflow integration', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('starts workflow through workflow API', async () => {
-    mockedWorkflow.run.mockResolvedValue({
+    mockedRuntime.runWorkflow.mockResolvedValue({
       workflowRunId: 'run-1',
       workflowStepId: 'step-1',
       artifactId: 'artifact-1',
@@ -46,7 +51,7 @@ describe('workflow integration', () => {
       .expect(200);
 
     expect(res.body.artifactId).toBe('artifact-1');
-    expect(mockedWorkflow.run).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockedRuntime.runWorkflow).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       workflow: 'posts.topic',
       step: 'generate',

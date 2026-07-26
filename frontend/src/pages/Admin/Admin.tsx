@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { adminApi, AdminDashboard, AdminPromptExperiment, AdminPromptRegistryItem, AdminPromptVersion, AdminUserDetail, AdminUserListItem, AdminWorkflowRun, type AdminCommercialPlan, type AdminSubscriptionPlan } from '../../api/admin.api';
+import {
+  adminApi,
+  AdminAiEconomicsV2,
+  AdminDashboard,
+  AdminPromptExperiment,
+  AdminPromptRegistryItem,
+  AdminPromptVersion,
+  AdminTariffSimulation,
+  AdminUserDetail,
+  AdminUserListItem,
+  AdminWorkflowRun,
+  type AdminAiEconomicsAction,
+  type AdminCommercialPlan,
+  type AdminSubscriptionPlan,
+} from '../../api/admin.api';
 import { setAdminAccessTokenBackup } from '../../api/token-session';
 import { useAuthStore } from '../../store/auth.store';
 import {
@@ -96,6 +110,34 @@ export default function Admin() {
   const [promptNotes, setPromptNotes] = useState('');
   const [experimentName, setExperimentName] = useState('');
   const [experimentVersionId, setExperimentVersionId] = useState('');
+  const [economics, setEconomics] = useState<AdminAiEconomicsV2 | null>(null);
+  const [economicsLoading, setEconomicsLoading] = useState(false);
+  const [economicsPlan, setEconomicsPlan] = useState('');
+  const [economicsAction, setEconomicsAction] = useState('');
+  const [economicsSection, setEconomicsSection] = useState('');
+  const [economicsModel, setEconomicsModel] = useState('');
+  const [economicsBatch, setEconomicsBatch] = useState('');
+  const [economicsStatus, setEconomicsStatus] = useState('');
+  const [economicsFrom, setEconomicsFrom] = useState(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [economicsTo, setEconomicsTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [economicsUserId, setEconomicsUserId] = useState('');
+  const [economicsProjectId, setEconomicsProjectId] = useState('');
+  const [economicsPromptVersion, setEconomicsPromptVersion] = useState('');
+  const [economicsPricingVersion, setEconomicsPricingVersion] = useState('');
+  const [simulationPlan, setSimulationPlan] = useState('start');
+  const [simulationAction, setSimulationAction] = useState('ai_chat');
+  const [simulationCount, setSimulationCount] = useState(100);
+  const [simulationMix, setSimulationMix] = useState<Record<string, number>>({});
+  const [simulation, setSimulation] = useState<AdminTariffSimulation | null>(null);
+  const [reconciliation, setReconciliation] = useState<{
+    enabled: boolean;
+    reason?: string;
+    localCostUsd?: number;
+    openAiCostUsd?: number;
+    deltaUsd?: number;
+    deltaPercent?: number;
+    alert?: boolean;
+  } | null>(null);
 
   const sortedUsers = useMemo(() => {
     return [...users].sort((a, b) => {
@@ -203,6 +245,91 @@ export default function Admin() {
     }
   }
 
+  async function loadEconomics(overrides?: Partial<{
+    plan: string;
+    actionKey: string;
+    section: string;
+    modelAlias: string;
+    batch: string;
+    status: string;
+  }>) {
+    const loadId = beginAdminLoad();
+    if (loadId === null) return;
+    setEconomicsLoading(true);
+    try {
+      const planFilter = overrides?.plan ?? economicsPlan;
+      const actionFilter = overrides?.actionKey ?? economicsAction;
+      const sectionFilter = overrides?.section ?? economicsSection;
+      const modelFilter = overrides?.modelAlias ?? economicsModel;
+      const batchFilter = overrides?.batch ?? economicsBatch;
+      const statusFilter = overrides?.status ?? economicsStatus;
+      const data = await adminApi.aiEconomicsV2({
+        from: economicsFrom ? new Date(`${economicsFrom}T00:00:00`).toISOString() : undefined,
+        to: economicsTo ? new Date(`${economicsTo}T23:59:59.999`).toISOString() : undefined,
+        plan: planFilter || undefined,
+        actionKey: actionFilter || undefined,
+        section: sectionFilter || undefined,
+        modelAlias: modelFilter || undefined,
+        batch: batchFilter ? batchFilter === 'true' : undefined,
+        status: statusFilter || undefined,
+        userId: economicsUserId || undefined,
+        projectId: economicsProjectId || undefined,
+        promptVersion: economicsPromptVersion || undefined,
+        actionPricingVersionId: economicsPricingVersion || undefined,
+      });
+      if (!isActiveAdminLoad(loadId)) return;
+      setEconomics(data);
+    } catch {
+      showAdminLoadError('Не удалось загрузить AI-экономику V2', loadId);
+    } finally {
+      if (isActiveAdminLoad(loadId)) setEconomicsLoading(false);
+    }
+  }
+
+  async function applyRecommendedPrice(action: AdminAiEconomicsAction) {
+    const points = action.recommendation.recommendedAiPoints;
+    const confirmation = `APPLY ${action.actionKey} ${points}`;
+    const entered = window.prompt(`Для применения новой версии цены введите:\n${confirmation}`);
+    if (entered !== confirmation) return;
+    try {
+      await adminApi.applyAiEconomicsPrice({
+        actionKey: action.actionKey,
+        aiPoints: points,
+        sampleSize: action.recommendation.sampleSize,
+        p90CostUsd: action.p90CostUsd,
+        confirmation: entered,
+      });
+      toast.success(`Новая цена ${points} AI-баллов активирована`);
+      await loadEconomics();
+    } catch {
+      toast.error('Не удалось применить новую цену');
+    }
+  }
+
+  async function runTariffSimulation() {
+    const actionMix = Object.keys(simulationMix).length
+      ? simulationMix
+      : { [simulationAction]: simulationCount };
+    try {
+      setSimulation(await adminApi.simulateAiTariff({ planId: simulationPlan, actionMix }));
+    } catch {
+      toast.error('Не удалось рассчитать тариф');
+    }
+  }
+
+  async function reconcileCosts() {
+    const to = new Date();
+    const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+    try {
+      setReconciliation(await adminApi.reconcileAiCosts({
+        from: from.toISOString(),
+        to: to.toISOString(),
+      }));
+    } catch {
+      toast.error('Не удалось сверить расходы OpenAI');
+    }
+  }
+
   async function openUser(user: AdminUserListItem) {
     setPreviousPage(page === 'user-detail' ? 'users' : page);
     setPage('user-detail');
@@ -249,7 +376,10 @@ export default function Admin() {
     if (page === 'workflows' && workflows.length === 0 && !workflowLoading) {
       void loadWorkflows();
     }
-  }, [page, workflows.length, workflowLoading]);
+    if (page === 'ai' && !economics && !economicsLoading) {
+      void loadEconomics();
+    }
+  }, [page, workflows.length, workflowLoading, economics, economicsLoading]);
 
   async function refreshAll() {
     if (!isAdmin) return;
@@ -614,25 +744,167 @@ export default function Admin() {
   }
 
   function renderAIAnalytics() {
+    const totals = economics?.totals;
+    const actionOptions = economics?.actions ?? [];
     return (
-      <section className={s.panel}>
-        <div className={s.panelTitle}>Самые дорогие workflow</div>
-        <table className={s.table}>
-          <thead><tr><th>Workflow / функция</th><th>Запросы</th><th>Токены</th><th>Общий расход</th><th>Средний расход</th><th>Среднее время</th></tr></thead>
-          <tbody>
-            {(dashboard?.ai.byWorkflow ?? []).map((item) => (
-              <tr key={item.workflow}>
-                <td><strong>{item.workflow}</strong></td>
-                <td>{item.requests}</td>
-                <td>{fmtTokens(item.tokens)}</td>
-                <td>{fmtMoney(item.costUsd, 'USD')}</td>
-                <td>{fmtMoney(item.requests ? item.costUsd / item.requests : 0, 'USD')}</td>
-                <td>{item.avgLatencyMs ? `${Math.round(item.avgLatencyMs / 1000)}s` : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <div className={s.detailStack}>
+        <section className={s.panel}>
+          <div className={s.panelTitle}>AI-экономика V2</div>
+          <div className={s.filters}>
+            <input className={s.select} type="date" value={economicsFrom} onChange={(e) => setEconomicsFrom(e.target.value)} title="Начало периода" />
+            <input className={s.select} type="date" value={economicsTo} onChange={(e) => setEconomicsTo(e.target.value)} title="Конец периода" />
+            <select className={s.select} value={economicsPlan} onChange={(e) => setEconomicsPlan(e.target.value)}>
+              <option value="">Все тарифы</option>
+              {['START', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'].map((value) => <option key={value}>{value}</option>)}
+            </select>
+            <select className={s.select} value={economicsAction} onChange={(e) => setEconomicsAction(e.target.value)}>
+              <option value="">Все действия</option>
+              {actionOptions.map((item) => <option key={item.actionKey} value={item.actionKey}>{item.actionLabel}</option>)}
+            </select>
+            <select className={s.select} value={economicsSection} onChange={(e) => setEconomicsSection(e.target.value)}>
+              <option value="">Все разделы</option>
+              {['Диалог с ИИ', 'Стратегия', 'Конструктор продуктов', 'Контент', 'Другое'].map((value) => <option key={value}>{value}</option>)}
+            </select>
+            <select className={s.select} value={economicsModel} onChange={(e) => setEconomicsModel(e.target.value)}>
+              <option value="">Все модели</option>
+              {['SOL', 'TERRA', 'LUNA'].map((value) => <option key={value}>{value}</option>)}
+            </select>
+            <select className={s.select} value={economicsBatch} onChange={(e) => setEconomicsBatch(e.target.value)}>
+              <option value="">Batch и realtime</option>
+              <option value="true">Только Batch</option>
+              <option value="false">Только realtime</option>
+            </select>
+            <select className={s.select} value={economicsStatus} onChange={(e) => setEconomicsStatus(e.target.value)}>
+              <option value="">Все статусы</option>
+              <option value="SUCCEEDED">SUCCEEDED</option>
+              <option value="FAILED">FAILED</option>
+              <option value="TIMEOUT">TIMEOUT</option>
+            </select>
+            <input className={s.select} value={economicsUserId} onChange={(e) => setEconomicsUserId(e.target.value)} placeholder="User ID" />
+            <input className={s.select} value={economicsProjectId} onChange={(e) => setEconomicsProjectId(e.target.value)} placeholder="Project ID" />
+            <input className={s.select} value={economicsPromptVersion} onChange={(e) => setEconomicsPromptVersion(e.target.value)} placeholder="Prompt version" />
+            <input className={s.select} value={economicsPricingVersion} onChange={(e) => setEconomicsPricingVersion(e.target.value)} placeholder="Action price version ID" />
+            <button className={s.button} onClick={() => void loadEconomics()} disabled={economicsLoading}>
+              {economicsLoading ? 'Загружаю...' : 'Применить'}
+            </button>
+          </div>
+          <div className={s.metricsGridSmall}>
+            <MetricCard label="Pipeline runs" value={totals?.pipelineRuns ?? 0} hint={`${totals?.failed ?? 0} ошибок`} />
+            <MetricCard label="Фактический расход" value={fmtMoney(totals?.costUsd ?? 0, 'USD')} hint={`${totals?.aiPoints ?? 0} AI-баллов`} />
+            <MetricCard label="P90 запуска" value={fmtMoney(totals?.p90CostUsd ?? 0, 'USD')} hint={`P95 ${fmtMoney(totals?.p95CostUsd ?? 0, 'USD')}`} />
+            <MetricCard label="Стоимость балла" value={fmtMoney(totals?.costPerPointUsd ?? 0, 'USD')} hint={`P90 ${fmtMoney(totals?.p90CostPerPointUsd ?? 0, 'USD')}`} />
+            <MetricCard label="Cache hit" value={`${Math.round((totals?.cacheHitRate ?? 0) * 100)}%`} hint={`экономия ${fmtMoney(totals?.cacheSavingsUsd ?? 0, 'USD')}`} />
+            <MetricCard label="Batch" value={fmtMoney(totals?.batchSavingsUsd ?? 0, 'USD')} hint={`${totals?.retries ?? 0} повторов`} />
+          </div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Стоимость по AI-действиям</div>
+          <div className={s.tableWrap}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th>Действие</th><th>Запуски</th><th>P50 / P90 / P95</th><th>Баллы</th>
+                  <th>Токены в среднем</th><th>Кэш / ошибки</th><th>Модели</th><th>Рекомендация</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionOptions.map((item) => (
+                  <tr key={item.actionKey}>
+                    <td><strong>{item.actionLabel}</strong><br /><small>{item.sectionLabel} · {item.actionKey}</small></td>
+                    <td>{item.runs}<br /><small>{item.succeeded} успешно</small></td>
+                    <td>{fmtMoney(item.p50CostUsd, 'USD')} / {fmtMoney(item.p90CostUsd, 'USD')} / {fmtMoney(item.p95CostUsd, 'USD')}</td>
+                    <td>{item.currentAiPoints}<br /><small>{fmtMoney(item.avgCostPerPointUsd, 'USD')} / балл</small></td>
+                    <td>
+                      in {fmtTokens(item.avgTokens.input)} · cache {fmtTokens(item.avgTokens.cached)}<br />
+                      <small>out {fmtTokens(item.avgTokens.output)} · reason {fmtTokens(item.avgTokens.reasoning)} · audio {fmtTokens(item.avgTokens.audioInput + item.avgTokens.audioOutput)}</small>
+                    </td>
+                    <td>{Math.round(item.cacheHitRate * 100)}% / {Math.round(item.errorRate * 100)}%<br /><small>{item.retries} retry · {item.refunds} refund</small></td>
+                    <td>{item.modelShares.map((model) => `${model.alias} ${Math.round(model.share * 100)}%`).join(' · ') || '—'}</td>
+                    <td>
+                      <strong>{item.recommendation.recommendedAiPoints} баллов</strong><br />
+                      <small>{item.recommendation.sampleSize} результатов</small><br />
+                      <button
+                        className={s.secondaryButton}
+                        disabled={!item.recommendation.reliable || item.recommendation.recommendedAiPoints === item.currentAiPoints}
+                        onClick={() => void applyRecommendedPrice(item)}
+                        title={item.recommendation.reason ?? item.recommendation.formula}
+                      >
+                        Применить
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!economicsLoading && actionOptions.length === 0 && <div className={s.emptyState}>За выбранный период данных пока нет.</div>}
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Предупреждения</div>
+          {(economics?.alerts ?? []).map((alert, index) => (
+            <div className={s.listItem} key={`${alert.type}-${index}`}>
+              <strong>{alert.type}</strong>
+              <span>{alert.email ? `${alert.email} · ` : ''}{alert.message}</span>
+            </div>
+          ))}
+          {(economics?.alerts.length ?? 0) === 0 && <div className={s.emptyState}>Отклонений от плановой экономики не найдено.</div>}
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Симулятор тарифа</div>
+          <div className={s.filters}>
+            <select className={s.select} value={simulationPlan} onChange={(e) => setSimulationPlan(e.target.value)}>
+              {['start', 'pro', 'expert', 'support', 'marketing_partner', 'implementation'].map((value) => <option key={value}>{value}</option>)}
+            </select>
+            <select className={s.select} value={simulationAction} onChange={(e) => setSimulationAction(e.target.value)}>
+              {(economics?.actions ?? []).map((item) => <option key={item.actionKey} value={item.actionKey}>{item.actionLabel}</option>)}
+              {(economics?.actions.length ?? 0) === 0 && <option value="ai_chat">Диалог с ИИ</option>}
+            </select>
+            <input className={s.select} type="number" min="0" value={simulationCount} onChange={(e) => setSimulationCount(Number(e.target.value))} />
+            <button
+              className={s.secondaryButton}
+              onClick={() => setSimulationMix((current) => ({ ...current, [simulationAction]: simulationCount }))}
+            >
+              Добавить в сценарий
+            </button>
+            <button className={s.button} onClick={() => void runTariffSimulation()}>Рассчитать</button>
+          </div>
+          {Object.entries(simulationMix).length > 0 && (
+            <div className={s.emptyState}>
+              {Object.entries(simulationMix).map(([key, count]) => `${key}: ${count}`).join(' · ')}
+              {' · '}<button className={s.secondaryButton} onClick={() => setSimulationMix({})}>Очистить</button>
+            </div>
+          )}
+          {simulation && (
+            <>
+              <div className={s.metricsGridSmall}>
+                <MetricCard label={simulation.plan.name} value={`${simulation.package.aiPoints} AI-баллов`} hint={`${simulation.package.remainingPoints} останется`} />
+                <MetricCard label="Оценка AI-расхода" value={`${simulation.package.estimatedAiCostRub} ₽`} hint={`бюджет ${simulation.package.budgetRub} ₽`} />
+              </div>
+              <table className={s.table}>
+                <thead><tr><th>Использование</th><th>AI-баллы</th><th>Расход</th><th>В бюджете</th></tr></thead>
+                <tbody>{simulation.forecasts.map((item) => (
+                  <tr key={item.utilization}><td>{item.utilization}%</td><td>{item.aiPoints}</td><td>{item.estimatedAiCostRub} ₽</td><td>{item.withinBudget ? 'Да' : 'Нет'}</td></tr>
+                ))}</tbody>
+              </table>
+            </>
+          )}
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelTitle}>Сверка расходов OpenAI</div>
+          <button className={s.secondaryButton} onClick={() => void reconcileCosts()}>Сверить последние 30 дней</button>
+          {reconciliation && (
+            <div className={s.emptyState}>
+              {!reconciliation.enabled
+                ? `Сверка отключена: ${reconciliation.reason}`
+                : `Локально ${fmtMoney(reconciliation.localCostUsd ?? 0, 'USD')} · OpenAI ${fmtMoney(reconciliation.openAiCostUsd ?? 0, 'USD')} · отклонение ${reconciliation.deltaPercent ?? 0}%${reconciliation.alert ? ' · требует проверки' : ''}`}
+            </div>
+          )}
+        </section>
+      </div>
     );
   }
 

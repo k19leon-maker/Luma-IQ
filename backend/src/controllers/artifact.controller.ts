@@ -16,9 +16,7 @@ const listSchema = z.object({
 const regenerateSchema = z.object({
   inputs: z.record(z.unknown()).optional(),
   provider: z.enum(['chatgpt', 'claude']).optional(),
-  openaiModel: z.string().optional(),
-  claudeModel: z.string().optional(),
-});
+}).strip();
 
 function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -46,9 +44,12 @@ export const artifactController = {
       const items = await prisma.aIArtifact.findMany({
         where: {
           userId: req.userId!,
+          AND: [
+            { type: { not: 'pipeline_stage' } },
+            ...(type ? [{ type }] : []),
+          ],
           ...(projectId ? { projectId } : {}),
           ...(workflow ? { workflow } : {}),
-          ...(type ? { type } : {}),
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -167,8 +168,6 @@ export const artifactController = {
         step: source.step,
         inputs: sourceInputs,
         provider: parsed.data.provider,
-        openaiModel: parsed.data.openaiModel,
-        claudeModel: parsed.data.claudeModel,
         idempotencyKey: `regenerate:${source.id}:${Date.now()}`,
       });
 

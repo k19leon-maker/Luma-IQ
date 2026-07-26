@@ -333,6 +333,103 @@ export interface AdminWorkflowRun {
   generations: AdminWorkflowGeneration[];
 }
 
+export interface AdminAiEconomicsAction {
+  actionKey: string;
+  actionLabel: string;
+  sectionLabel: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  currentAiPoints: number;
+  totalCostUsd: number;
+  p50CostUsd: number;
+  p90CostUsd: number;
+  p95CostUsd: number;
+  avgCostPerPointUsd: number;
+  p90CostPerPointUsd: number;
+  avgTokens: {
+    input: number;
+    cached: number;
+    output: number;
+    reasoning: number;
+    audioInput: number;
+    audioOutput: number;
+  };
+  retries: number;
+  releases: number;
+  refunds: number;
+  errorRate: number;
+  cacheHitRate: number;
+  cacheSavingsUsd: number;
+  batchSavingsUsd: number;
+  modelShares: Array<{ alias: string; calls: number; share: number }>;
+  recommendation: {
+    formula: string;
+    safetyFactor: number;
+    rawAiPoints: number;
+    recommendedAiPoints: number;
+    sampleSize: number;
+    reliable: boolean;
+    reason: string | null;
+  };
+}
+
+export interface AdminAiEconomicsV2 {
+  period: { from: string; to: string };
+  totals: {
+    pipelineRuns: number;
+    succeeded: number;
+    failed: number;
+    costUsd: number;
+    aiPoints: number;
+    p50CostUsd: number;
+    p90CostUsd: number;
+    p95CostUsd: number;
+    costPerPointUsd: number;
+    p90CostPerPointUsd: number;
+    cacheHitRate: number;
+    cacheSavingsUsd: number;
+    batchSavingsUsd: number;
+    retries: number;
+    releases: number;
+    refunds: number;
+  };
+  modelShares: Array<{ alias: string; calls: number; share: number }>;
+  actions: AdminAiEconomicsAction[];
+  alerts: Array<{
+    type: string;
+    severity: string;
+    actionKey?: string;
+    userId?: string;
+    email?: string;
+    message: string;
+  }>;
+}
+
+export interface AdminTariffSimulation {
+  plan: {
+    id: string;
+    name: string;
+    priceMonthlyRub: number;
+    limits: { monthlyCredits: number; aiCostBudgetRub: number };
+  };
+  lines: Array<{ actionKey: string; count: number; aiPointsEach: number; aiPointsTotal: number }>;
+  package: {
+    aiPoints: number;
+    fitsBalance: boolean;
+    remainingPoints: number;
+    estimatedAiCostRub: number;
+    budgetRub: number;
+  };
+  forecasts: Array<{
+    utilization: number;
+    aiPoints: number;
+    estimatedAiCostRub: number;
+    budgetRub: number;
+    withinBudget: boolean;
+  }>;
+}
+
 export const adminApi = {
   dashboard: () =>
     apiClient
@@ -348,6 +445,45 @@ export const adminApi = {
     apiClient
       .get<{ workflows: AdminWorkflowRun[]; total: number; limit: number; offset: number }>('/admin/workflows', { params })
       .then((r) => r.data),
+
+  aiEconomicsV2: (params?: {
+    from?: string;
+    to?: string;
+    plan?: string;
+    actionKey?: string;
+    section?: string;
+    modelAlias?: string;
+    userId?: string;
+    projectId?: string;
+    batch?: boolean;
+    status?: string;
+    promptVersion?: string;
+    actionPricingVersionId?: string;
+  }) =>
+    apiClient.get<AdminAiEconomicsV2>('/admin/ai-economics-v2', { params }).then((r) => r.data),
+
+  applyAiEconomicsPrice: (data: {
+    actionKey: string;
+    aiPoints: number;
+    sampleSize: number;
+    p90CostUsd: number;
+    confirmation: string;
+  }) =>
+    apiClient.post('/admin/ai-economics-v2/apply-price', data).then((r) => r.data),
+
+  simulateAiTariff: (data: { planId: string; actionMix: Record<string, number> }) =>
+    apiClient.post<AdminTariffSimulation>('/admin/ai-economics-v2/simulate', data).then((r) => r.data),
+
+  reconcileAiCosts: (params: { from: string; to: string }) =>
+    apiClient.get<{
+      enabled: boolean;
+      reason?: string;
+      localCostUsd?: number;
+      openAiCostUsd?: number;
+      deltaUsd?: number;
+      deltaPercent?: number;
+      alert?: boolean;
+    }>('/admin/ai-economics-v2/reconcile', { params }).then((r) => r.data),
 
   getUser: (id: string) =>
     apiClient

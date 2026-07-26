@@ -8,6 +8,7 @@ import { aiApi } from '../../api/ai';
 import { buildUtpMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 
 
 export default function UTP() {
@@ -198,9 +199,11 @@ export default function UTP() {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button style={btnGold} onClick={() => void handleGenerate()} disabled={loading}>
           {loading ? 'Генерирую...' : 'Сгенерировать УТП'}
+          {!loading && <AiWorkflowCost workflow="strategy.utp.generate" projectId={activeProjectId} />}
         </button>
         <button style={btnOutlined} onClick={() => void handleImprove()} disabled={loading || !utpText}>
           Улучшить с AI
+          {!loading && <AiWorkflowCost workflow="strategy.utp.generate" projectId={activeProjectId} />}
         </button>
         <button style={btnOutlined} onClick={handleCopy} disabled={!utpText}>
           {copied ? '✅ Скопировано' : 'Скопировать'}

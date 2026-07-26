@@ -55,6 +55,9 @@ apiClient.interceptors.response.use(
     if (error.response?.data?.error === 'LIMIT_EXCEEDED' && error.response.data.message) {
       error.response.data.error = error.response.data.message;
     }
+    if (typeof error.response?.data?.userMessage === 'string') {
+      error.response.data.error = error.response.data.userMessage;
+    }
 
     if (!error.response || error.response.status !== 401 || original?._retry || isAuthRequest) {
       return Promise.reject(error);

@@ -24,14 +24,8 @@ type PricingPlan = {
 
 type RuntimePlan = PricingPlan & {
   aiBalanceTotal?: number;
-  aiCostBudgetRub?: number;
   projectsTotal?: number;
 };
-
-const scenarioTabs: Array<{ id: BillingScenario; label: string }> = [
-  { id: 'self', label: 'Самостоятельно' },
-  { id: 'support', label: 'С сопровождением' },
-];
 
 const pricingPlans: PricingPlan[] = [
   {
@@ -209,7 +203,6 @@ function enrichPlan(plan: PricingPlan, billingPlan?: BillingPlan): RuntimePlan {
     name: billingPlan.name,
     price: billingPlan.priceMonthlyRub,
     aiBalanceTotal: billingPlan.aiBalanceTotal,
-    aiCostBudgetRub: billingPlan.aiCostBudgetRub,
     projectsTotal: billingPlan.projectsTotal,
   };
 }
@@ -224,7 +217,6 @@ function getCheckoutErrorMessage(error: unknown) {
 export default function Pricing() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const [scenario, setScenario] = useState<BillingScenario>('self');
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
   const [checkoutPlanId, setCheckoutPlanId] = useState<PaidPlanId | null>(null);
@@ -259,8 +251,8 @@ export default function Pricing() {
   const visiblePlans = useMemo(
     () => pricingPlans
       .map((plan) => enrichPlan(plan, billingPlans.find((item) => item.id === plan.id)))
-      .filter((plan) => plan.scenario === scenario),
-    [billingPlans, scenario],
+      .filter((plan) => plan.scenario === 'self'),
+    [billingPlans],
   );
 
   async function handleSelectPlan(plan: PricingPlan) {
@@ -295,23 +287,8 @@ export default function Pricing() {
     <div className={s.page}>
       <header className={s.header}>
         <h1>Тарифы Luma IQ</h1>
-        <p>Выберите формат работы: самостоятельно или с сопровождением маркетолога</p>
+        <p>Выберите тариф для самостоятельной работы с AI-стратегией, продуктами и контентом</p>
       </header>
-
-      <div className={s.tabs} role="tablist" aria-label="Формат работы">
-        {scenarioTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={scenario === tab.id}
-            className={`${s.tab}${scenario === tab.id ? ' ' + s.tabActive : ''}`}
-            onClick={() => setScenario(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
 
       <section className={s.grid} aria-live="polite">
         {visiblePlans.map((plan) => {
@@ -343,12 +320,6 @@ export default function Pricing() {
                   <li>
                     <span className={s.check}>✓</span>
                     <span>{formatNumber(plan.projectsTotal)} {plan.projectsTotal === 1 ? 'проект' : 'проектов'} на тарифе</span>
-                  </li>
-                )}
-                {typeof plan.aiCostBudgetRub === 'number' && (
-                  <li>
-                    <span className={s.check}>✓</span>
-                    <span>AI-бюджет тарифа: до {formatPrice(plan.aiCostBudgetRub)} расходов сервиса</span>
                   </li>
                 )}
                 {plan.features.map((feature) => (

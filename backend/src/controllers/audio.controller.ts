@@ -2,6 +2,7 @@ import { Response } from 'express';
 import * as fs from 'fs';
 import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { openAIProvider } from '../providers/openai.provider';
 
 const ALLOWED_AUDIO_MIME_TYPES = new Set([
   'audio/webm',
@@ -47,16 +48,31 @@ export const audioController = {
         return;
       }
 
-      const { default: OpenAI } = await import('openai');
-      const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-
-      const result = await client.audio.transcriptions.create({
+      const result = await openAIProvider.transcribe({
+        apiKey: env.OPENAI_API_KEY,
         model: env.OPENAI_TRANSCRIPTION_MODEL,
         file: fs.createReadStream(file.path),
         language: env.OPENAI_TRANSCRIPTION_LANGUAGE,
+        telemetry: {
+          userId: req.userId ?? null,
+          actionKey: 'audio_transcription',
+          pipeline: 'voice-input',
+          stage: 'transcription',
+          promptVersion: 'not-applicable',
+          modelAlias: 'TRANSCRIBE_MINI',
+          modelSnapshot: {
+            actualModelId: env.OPENAI_TRANSCRIPTION_MODEL,
+            source: 'legacy-env',
+          },
+          retryIndex: 0,
+          metadata: {
+            mimeType: file.mimetype,
+            sizeBytes: file.size,
+          },
+        },
       });
 
-      const text = String(result.text ?? '').trim();
+      const text = result.result.text.trim();
       if (!text) {
         res.status(422).json({ error: 'Не удалось распознать голосовое сообщение' });
         return;

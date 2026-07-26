@@ -49,6 +49,7 @@ vi.mock('../../src/services/ai-cost.service', () => ({
 }));
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn((operations) => Promise.all(operations)),
   subscription: { findUnique: vi.fn(() => Promise.resolve(null)) },
   billingPeriod: { update: vi.fn(() => Promise.resolve()) },
   project: { findFirst: vi.fn(() => Promise.resolve({ id: 'project-1' })) },

@@ -8,6 +8,7 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { aiApi } from '../../api/ai';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
@@ -866,7 +867,9 @@ export default function Articles() {
           disabled={facture.trim().length < 30}
           onClick={() => void handleGenerateArticle()}
         >
-          Написать статью →
+          Написать статью
+          <AiWorkflowCost workflow="articles.article.write" projectId={activeProjectId} />
+          {' →'}
         </button>
       </div>
     </div>

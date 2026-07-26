@@ -99,13 +99,25 @@ export const jtbdController = {
           provider: dbProvider,
           model: resolvedModel,
           metadata: { section: 'jtbd', stepId, sessionId: sessionId ?? null },
-          execute: async () => {
+          execute: async ({ generationId }) => {
             const result = await chat({
               provider,
               messages: [{ role: 'user', content: prompt }],
               section: 'audience',
               maxTokens: 2048,
               temperature: 0.7,
+              telemetry: {
+                generationId,
+                userId: req.userId!,
+                projectId: projectId ?? null,
+                actionKey: 'jtbd',
+                pipeline: 'legacy.jtbd',
+                stage: String(stepId),
+                promptVersion: 'legacy-jtbd-runtime',
+                modelAlias: 'LEGACY',
+                modelSnapshot: { actualModelId: resolvedModel, source: 'legacy' },
+                retryIndex: 0,
+              },
             });
             return {
               result,

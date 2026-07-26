@@ -326,12 +326,12 @@ function summarizeContentHistory(items: unknown[], workflow: string): string {
   });
 }
 
-function summarizeCastDevRecords(records: unknown[]): string {
+function summarizeCastDevRecords(records: unknown[], synthesis?: unknown): string {
   const completed = records
     .map(asRecord)
     .filter((record) => field(record, ['status']) === 'completed' && Object.keys(asRecord(record.analysis)).length > 0);
 
-  return shortList(completed, 4, (item, index) => {
+  const interviews = shortList(completed, 4, (item, index) => {
     const record = asRecord(item);
     const analysis = asRecord(record.analysis);
     const tasks = Array.isArray(analysis.customerTasks) ? analysis.customerTasks : [];
@@ -357,6 +357,13 @@ function summarizeCastDevRecords(records: unknown[]): string {
       ['Желания / цели / результат', renderItems(desires, 5)],
     ], 1800);
   });
+  const synthesisData = asRecord(synthesis);
+  const synthesisSummary = lines([
+    ['Сводный вывод по интервью', field(synthesisData, ['executiveSummary'])],
+    ['Стратегические выводы', compact(synthesisData.strategicImplications, 1600)],
+    ['Ограничения выборки', compact(synthesisData.limitations, 800)],
+  ], 2800);
+  return [synthesisSummary, interviews].filter((value) => value && value !== EMPTY).join('\n\n');
 }
 
 function summarizeWorkflowInputs(inputs: Record<string, unknown> | undefined, workflow: string): string {
@@ -422,6 +429,24 @@ export const projectContextService = {
           },
           orderBy: { updatedAt: 'desc' },
           take: 4,
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            analysis: true,
+            updatedAt: true,
+          },
+        },
+        aiArtifacts: {
+          where: {
+            workflow: 'castdev.synthesis',
+            type: 'castdev_synthesis',
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            structured: true,
+          },
         },
       },
     });
@@ -437,7 +462,10 @@ export const projectContextService = {
     const strategySummary = summarizeStrategy(strategyData, project.strategySummary);
     const audienceSummary = summarizeAudience(project.audienceAvatars, project.jtbdSessions);
     const productsSummary = summarizeProducts(project.products);
-    const castDevSummary = summarizeCastDevRecords(project.castDevRecords);
+    const castDevSummary = summarizeCastDevRecords(
+      project.castDevRecords,
+      project.aiArtifacts?.[0]?.structured,
+    );
     const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
     const contentHistorySummary = summarizeContentHistory(realGeneratedTexts, input.workflow);
     const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);

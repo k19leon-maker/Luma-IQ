@@ -7,7 +7,6 @@ export type BillingPlan = {
   scenario: BillingScenario;
   name: string;
   priceMonthlyRub: number;
-  aiCostBudgetRub?: number;
   aiBalanceTotal?: number;
   projectsTotal?: number;
   subscriptionStatus?: string;
@@ -23,12 +22,17 @@ export type BillingMe = {
     aiBalanceTotal: number;
     aiBalanceUsed: number;
     aiBalanceRemaining: number;
-    aiCostBudgetRub?: number | null;
     projectsTotal: number;
     projectsUsed: number;
     projectsRemaining: number;
     limitsResetAt: string | null;
   };
+  actionPrices: Array<{
+    actionKey: string;
+    actionLabel: string;
+    sectionLabel: string;
+    aiPoints: number;
+  }>;
   usageHistory: Array<{
     id: string;
     projectId?: string | null;

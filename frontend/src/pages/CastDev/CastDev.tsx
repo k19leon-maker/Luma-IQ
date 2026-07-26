@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { castDevApi, type CastDevRecord, type CastDevStatus } from '../../api/castdev.api';
+import {
+  castDevApi,
+  type CastDevRecord,
+  type CastDevStatus,
+  type CastDevSynthesis,
+} from '../../api/castdev.api';
 import { getCastDevAnalysisCost, getCastDevTranscriptionCost } from '../../config/ai-balance';
 import { useProjectsStore } from '../../store/projects.store';
 import s from './CastDev.module.css';
@@ -110,6 +115,10 @@ export default function CastDev() {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [diarize, setDiarize] = useState(false);
+  const [selectedForSynthesis, setSelectedForSynthesis] = useState<string[]>([]);
+  const [syntheses, setSyntheses] = useState<CastDevSynthesis[]>([]);
+  const [synthesizing, setSynthesizing] = useState(false);
 
   const selected = useMemo(
     () => records.find((record) => record.id === selectedId) ?? null,
@@ -146,6 +155,17 @@ export default function CastDev() {
     return () => {
       cancelled = true;
     };
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setSyntheses([]);
+      setSelectedForSynthesis([]);
+      return;
+    }
+    castDevApi.listSyntheses(activeProjectId)
+      .then(setSyntheses)
+      .catch(() => undefined);
   }, [activeProjectId]);
 
   useEffect(() => {
@@ -224,7 +244,7 @@ export default function CastDev() {
     setTranscribingId(record.id);
     setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'queued', errorMessage: null } : item));
     try {
-      const result = await castDevApi.transcribe(record.id);
+      const result = await castDevApi.transcribe(record.id, diarize ? 'diarize' : 'mini');
       const updated = result.record;
       setRecords((prev) => prev.map((item) => item.id === updated.id ? updated : item));
       setSelectedId(updated.id);
@@ -236,6 +256,38 @@ export default function CastDev() {
       toast.error(message);
     } finally {
       setTranscribingId(null);
+    }
+  }
+
+  function toggleSynthesisRecord(recordId: string) {
+    setSelectedForSynthesis((current) => (
+      current.includes(recordId)
+        ? current.filter((id) => id !== recordId)
+        : current.length < 20 ? [...current, recordId] : current
+    ));
+  }
+
+  async function handleSynthesize() {
+    if (!activeProjectId || synthesizing || ![5, 10, 20].includes(selectedForSynthesis.length)) return;
+    setSynthesizing(true);
+    try {
+      const result = await castDevApi.synthesize(activeProjectId, selectedForSynthesis);
+      setSyntheses((current) => [
+        result.synthesis,
+        ...current.filter((item) => item.id !== result.synthesis.id),
+      ]);
+      const balance = typeof result.aiBalanceRemaining === 'number'
+        ? ` Осталось ${result.aiBalanceRemaining.toLocaleString('ru-RU')} AI-баллов.`
+        : '';
+      toast.success(result.replayed
+        ? 'Этот синтез уже был сохранён, повторного списания нет.'
+        : `Списано ${result.aiPointsCharged} AI-баллов.${balance}`);
+    } catch (err) {
+      const message = (err as { response?: { data?: { error?: string } } }).response?.data?.error
+        || 'Не удалось выполнить синтез интервью';
+      toast.error(message);
+    } finally {
+      setSynthesizing(false);
     }
   }
 
@@ -327,6 +379,47 @@ export default function CastDev() {
             </div>
           </header>
 
+          <section className={s.synthesisPanel}>
+            <div className={s.blockHeader}>
+              <div>
+                <div className={s.eyebrow}>Общее исследование</div>
+                <h2 className={s.blockTitle}>Синтез интервью</h2>
+                <p className={s.infoText}>
+                  Выберите ровно 5, 10 или 20 интервью с готовым AI-разбором. В синтез передаются только краткие отчёты и выбранные цитаты, без полных транскриптов.
+                </p>
+              </div>
+              <button
+                className={s.primaryBtn}
+                disabled={synthesizing || ![5, 10, 20].includes(selectedForSynthesis.length)}
+                onClick={handleSynthesize}
+              >
+                {synthesizing ? 'Синтезирую...' : `Синтезировать (${selectedForSynthesis.length})`}
+              </button>
+            </div>
+            <div className={s.synthesisChoices}>
+              {records.filter((record) => record.status === 'completed' && record.analysis).map((record) => (
+                <label className={s.synthesisChoice} key={record.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedForSynthesis.includes(record.id)}
+                    onChange={() => toggleSynthesisRecord(record.id)}
+                  />
+                  <span>{record.title}</span>
+                </label>
+              ))}
+              {records.filter((record) => record.status === 'completed' && record.analysis).length < 5 && (
+                <span className={s.hint}>Для первого синтеза нужно минимум 5 завершённых интервью.</span>
+              )}
+            </div>
+            {syntheses[0] && (
+              <div className={s.synthesisResult}>
+                <div className={s.label}>{syntheses[0].title || 'Последний синтез'}</div>
+                <p>{analysisText(syntheses[0].structured?.executiveSummary) || 'Синтез сохранён.'}</p>
+                <span className={s.hint}>{formatDate(syntheses[0].createdAt)}</span>
+              </div>
+            )}
+          </section>
+
           {(showForm || !selected) && (
             <section className={s.formCard}>
               <div>
@@ -385,6 +478,14 @@ export default function CastDev() {
                   </a>
                 </div>
                 <div className={s.actions}>
+                  <label className={s.diarizeControl}>
+                    <input
+                      type="checkbox"
+                      checked={diarize}
+                      onChange={(event) => setDiarize(event.target.checked)}
+                    />
+                    <span>Разделить спикеров</span>
+                  </label>
                   <button
                     className={s.primaryBtn}
                     onClick={() => handleTranscribe(selected)}

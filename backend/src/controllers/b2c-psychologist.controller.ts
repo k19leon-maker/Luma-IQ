@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env';
+import { openAIProvider } from '../providers/openai.provider';
 import { b2cPsychologistSystemPrompt } from '../prompts/b2c-psychologist.prompt';
 import { prisma } from '../lib/prisma';
 import { ensureB2CSession, replaceB2CMessages } from '../services/b2c-session.service';
@@ -168,34 +169,48 @@ export const b2cPsychologistController = {
     const model = env.OPENAI_B2C_PSYCHOLOGY_MODEL;
     const shouldOfferSignup = usedByRequest >= ANONYMOUS_MESSAGE_LIMIT;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    let data: unknown;
+    try {
+      const metered = await openAIProvider.responses({
+        apiKey,
         model,
-        input: [
-          {
-            role: 'system',
-            content: `${b2cPsychologistSystemPrompt}\n\nПрофиль пользователя из квиза:\n${profileContext(profile)}\n\nСообщений пользователя в этом анонимном диалоге: ${usedByRequest}/${ANONYMOUS_MESSAGE_LIMIT}.\n${shouldOfferSignup ? 'В этом ответе предложи сохранить историю в кабинете «Семейно».' : ''}`,
+        request: {
+          model,
+          input: [
+            {
+              role: 'system',
+              content: `${b2cPsychologistSystemPrompt}\n\nПрофиль пользователя из квиза:\n${profileContext(profile)}\n\nСообщений пользователя в этом анонимном диалоге: ${usedByRequest}/${ANONYMOUS_MESSAGE_LIMIT}.\n${shouldOfferSignup ? 'В этом ответе предложи сохранить историю в кабинете «Семейно».' : ''}`,
+            },
+            ...recentMessages(messages),
+            {
+              role: 'user',
+              content: message,
+            },
+          ],
+          max_output_tokens: 1400,
+        },
+        telemetry: {
+          correlationId: `b2c:${dialogueKey}`,
+          actionKey: 'b2c_psychologist_chat',
+          pipeline: 'b2c.psychologist',
+          stage: 'chat',
+          promptVersion: 'b2c-psychologist-v1',
+          modelAlias: 'B2C_ISOLATED',
+          modelSnapshot: { actualModelId: model, apiKeyScope: 'b2c-psychology' },
+          retryIndex: 0,
+          metadata: {
+            apiKeyScope: 'b2c-psychology',
+            anonymous: true,
+            messagesUsed: usedByRequest,
           },
-          ...recentMessages(messages),
-          {
-            role: 'user',
-            content: message,
-          },
-        ],
-        max_output_tokens: 1400,
-      }),
-    });
-
-    const data = await response.json() as { error?: { message?: string } };
-    if (!response.ok) {
-      res.status(response.status).json({
+        },
+      });
+      data = metered.result;
+    } catch (error) {
+      const providerError = error as { status?: number; message?: string };
+      res.status(providerError.status ?? 502).json({
         error: 'OpenAI request failed',
-        details: data?.error?.message ?? 'Unknown error',
+        details: providerError.message ?? 'Unknown error',
       });
       return;
     }

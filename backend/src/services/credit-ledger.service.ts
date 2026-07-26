@@ -5,7 +5,7 @@ type Tx = Prisma.TransactionClient;
 
 async function currentBalance(userId: string, tx: Tx = prisma): Promise<number> {
   const last = await tx.creditLedgerEntry.findFirst({
-    where: { userId },
+    where: { userId, unit: 'LEGACY_CREDIT' },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { balanceAfter: true },
   });
@@ -46,8 +46,12 @@ export const creditLedgerService = {
           billingPeriodId: input.billingPeriodId ?? null,
           type: input.type,
           source: input.source,
+          unit: 'LEGACY_CREDIT',
           amount: input.amount,
+          quantity: Math.abs(input.amount),
+          balanceBefore: balance,
           balanceAfter,
+          availableAfter: balanceAfter,
           reason: input.reason ?? null,
           metadata: input.metadata ?? undefined,
         },

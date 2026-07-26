@@ -3,9 +3,11 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import { URL, URLSearchParams } from 'url';
-import OpenAI from 'openai';
 import ffmpegStatic from 'ffmpeg-static';
 import { env } from '../config/env';
+import { openAIProvider } from '../providers/openai.provider';
+import { modelRegistryService } from './model-registry.service';
+import type { TokenUsage } from './ai-cost.service';
 
 const SUPPORTED_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.mp4', '.mov', '.webm', '.ogg']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm']);
@@ -40,10 +42,22 @@ export interface CastDevTranscriptionResult {
   mimeType: string;
   durationSec: number | null;
   chunksCount: number;
+  modelAlias: 'TRANSCRIBE_MINI' | 'TRANSCRIBE_DIARIZE';
+  modelId: string;
+  usage: TokenUsage;
+  actualCostUsd: number;
 }
 
 export interface CastDevTranscriptionOptions {
-  onPrepared?: (details: { durationSec: number | null; chunksCount: number }) => Promise<void>;
+  onPrepared?: (details: {
+    durationSec: number | null;
+    chunksCount: number;
+    modelAlias: 'TRANSCRIBE_MINI' | 'TRANSCRIBE_DIARIZE';
+    modelId: string;
+  }) => Promise<void>;
+  userId?: string;
+  projectId?: string;
+  mode?: 'mini' | 'diarize';
 }
 
 interface DownloadResult {
@@ -327,6 +341,11 @@ export async function transcribeCastDevRecord(
   if (!env.OPENAI_API_KEY) {
     throw new CastDevTranscriptionError('Транскрибация временно недоступна', 'OPENAI_NOT_CONFIGURED', 503);
   }
+  const modelAlias = options.mode === 'diarize' ? 'TRANSCRIBE_DIARIZE' : 'TRANSCRIBE_MINI';
+  const modelProfile = await modelRegistryService.resolve(modelAlias);
+  if (modelProfile.provider !== 'OPENAI') {
+    throw new CastDevTranscriptionError('Профиль транскрибации настроен на неподдерживаемого провайдера', 'BAD_TRANSCRIPTION_PROVIDER', 503);
+  }
 
   const downloaded = await downloadGoogleDriveFile(sourceUrl, recordId);
   const cleanupPaths = [downloaded.filePath];
@@ -336,18 +355,50 @@ export async function transcribeCastDevRecord(
     await options.onPrepared?.({
       durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
       chunksCount: prepared.uploadPaths.length,
+      modelAlias,
+      modelId: modelProfile.actualModelId,
     });
-    const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
     const transcripts: string[] = [];
+    const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+    let actualCostUsd = 0;
 
     for (let index = 0; index < prepared.uploadPaths.length; index += 1) {
       try {
-        const result = await client.audio.transcriptions.create({
-          model: env.OPENAI_TRANSCRIPTION_MODEL,
+        const result = await openAIProvider.transcribe({
+          apiKey: env.OPENAI_API_KEY,
+          model: modelProfile.actualModelId,
           file: fs.createReadStream(prepared.uploadPaths[index]),
           language: env.OPENAI_TRANSCRIPTION_LANGUAGE,
+          diarize: modelAlias === 'TRANSCRIBE_DIARIZE',
+          telemetry: {
+            userId: options.userId ?? null,
+            projectId: options.projectId ?? null,
+            correlationId: `castdev:${recordId}`,
+            actionKey: 'castdev_transcription',
+            pipeline: 'castdev.transcription',
+            stage: `chunk.${index + 1}`,
+            promptVersion: 'not-applicable',
+            modelAlias,
+            modelSnapshot: {
+              actualModelId: modelProfile.actualModelId,
+              source: modelProfile.source,
+              versionId: modelProfile.versionId,
+            },
+            retryIndex: 0,
+            metadata: {
+              recordId,
+              chunkIndex: index,
+              chunksCount: prepared.uploadPaths.length,
+              durationSec: prepared.durationSec,
+            },
+          },
         });
-        const text = String(result.text ?? '').trim();
+        usage.inputTokens += result.usage.inputTokens;
+        usage.outputTokens += result.usage.outputTokens;
+        usage.audioInputTokens = (usage.audioInputTokens ?? 0) + (result.usage.audioInputTokens ?? 0);
+        usage.audioOutputTokens = (usage.audioOutputTokens ?? 0) + (result.usage.audioOutputTokens ?? 0);
+        actualCostUsd += Number(result.actualCostUsd);
+        const text = result.result.text.trim();
         if (!text) {
           throw new CastDevTranscriptionError(`OpenAI вернул пустой транскрипт для части ${index + 1}`, 'EMPTY_TRANSCRIPT', 422);
         }
@@ -376,6 +427,10 @@ export async function transcribeCastDevRecord(
       mimeType: downloaded.mimeType,
       durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
       chunksCount: prepared.uploadPaths.length,
+      modelAlias,
+      modelId: modelProfile.actualModelId,
+      usage,
+      actualCostUsd,
     };
   } finally {
     await Promise.all([...new Set(cleanupPaths)].map((file) => fs.promises.unlink(file).catch(() => undefined)));

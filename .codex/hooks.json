@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"Если в этом ответе были выполнены задачи (написан код, добавлены фичи, изменена архитектура, применены миграции) — обнови memory/project_status.md, отразив что сделано. Это обязательно.\"}}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

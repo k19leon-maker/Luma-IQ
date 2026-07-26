@@ -173,7 +173,8 @@ async function extractTextFromBuffer(buffer: Buffer, originalName: string, mimeT
   }
 
   if (ext === '.doc') {
-    const WordExtractor = require('word-extractor') as WordExtractorConstructor;
+    const wordExtractorModule = await import('word-extractor');
+    const WordExtractor = wordExtractorModule.default as unknown as WordExtractorConstructor;
     const doc = await new WordExtractor().extract(buffer);
     return doc.getBody();
   }

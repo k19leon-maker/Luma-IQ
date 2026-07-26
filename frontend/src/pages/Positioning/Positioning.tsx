@@ -9,6 +9,7 @@ import { useMaterialsStore } from '../../store/materials.store';
 import type { AiResultVersion } from '../../store/generated.store';
 import { buildPositioningMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import {
   EditableVariantPreview,
   EmptyState,
@@ -467,11 +468,12 @@ export default function Positioning() {
             <div className={s.kicker}>Стратегия</div>
             <h1 className={s.title}>Позиционирование</h1>
             <p className={s.subtitle}>
-              Сначала выберите подходящую модель, затем сгенерируйте варианты и зафиксируйте финальную формулировку на основе раздела «О себе».
+              Сгенерируйте варианты и зафиксируйте финальную формулировку на основе раздела «О себе». Подходящую AI-модель сервис выберет автоматически.
             </p>
           </div>
           <button className={s.primaryButton} onClick={() => void runVariants()} disabled={running || loading || !activeProjectId}>
             {running ? 'ИИ работает...' : variants ? 'Пересобрать варианты' : 'Сгенерировать варианты'}
+            {!running && <AiWorkflowCost workflow="positioning.variants.generate" projectId={activeProjectId} />}
           </button>
         </div>
 
@@ -639,6 +641,7 @@ export default function Positioning() {
                 <div className={s.actionRow}>
                   <button className={s.secondaryButton} onClick={() => void runFinalAssembly()} disabled={running || !selectedVariant.trim()}>
                     {running ? 'ИИ работает...' : 'Сформулировать итог с ИИ'}
+                    {!running && <AiWorkflowCost workflow="positioning.final.generate" projectId={activeProjectId} />}
                   </button>
                   <button className={s.secondaryButton} onClick={() => void save(false)} disabled={saving || !canFinalize}>Сохранить</button>
                   <button className={s.primaryButton} onClick={() => void save(true)} disabled={saving || !canFinalize}>

@@ -7,18 +7,18 @@ import { buildProjectContext } from '../utils/buildProjectContext';
 import { buildPromptForSection } from '../prompts/dynamic.prompts';
 import { buildAiDialogSystemPrompt } from '../utils/buildAiDialogContext';
 import { aiGenerationService } from '../services/ai-generation.service';
-import { aiWorkflowService } from '../services/ai-workflow.service';
+import { aiRuntimeService } from '../services/ai-runtime.service';
+import { dialogSummaryService } from '../services/dialog-summary.service';
 import { AccessPolicyError } from '../services/access-policy.service';
 import { eventService } from '../services/event.service';
 import { prisma } from '../lib/prisma';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 import { FeatureCode } from '../config/ai-economy';
+import { env } from '../config/env';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(24000),
   model: z.enum(['chatgpt', 'claude']),
-  openaiModel: z.string().optional(),
-  claudeModel: z.string().optional(),
   section: z.string().optional(),
   conversationHistory: z
     .array(
@@ -36,13 +36,11 @@ const chatSchema = z.object({
   fileContext: z.string().optional(),
   maxTokens: z.number().int().min(256).max(8000).optional(),
   idempotencyKey: z.string().max(200).optional(),
-});
+}).strip();
 
 const aboutSummarySchema = z.object({
   projectId: z.string().uuid(),
   model: z.enum(['chatgpt', 'claude']).optional().default('chatgpt'),
-  openaiModel: z.string().optional(),
-  claudeModel: z.string().optional(),
   profile: z.object({
     whoYouAre: z.string().max(6000).optional(),
     targetAudience: z.string().max(6000).optional(),
@@ -57,7 +55,7 @@ const aboutSummarySchema = z.object({
     uploadedFileText: z.string().max(12000).optional(),
   }).passthrough(),
   idempotencyKey: z.string().max(200).optional(),
-});
+}).strip();
 
 const SECTION_FEATURES: Record<string, FeatureCode> = {
   'ai-dialog': 'ai_chat',
@@ -111,7 +109,7 @@ export const aiController = {
       return;
     }
 
-    const { projectId, profile, model, openaiModel, claudeModel, idempotencyKey } = parsed.data;
+    const { projectId, profile, model, idempotencyKey } = parsed.data;
     const hasSource = Object.values(profile).some((value) => typeof value === 'string' && value.trim());
 
     if (!hasSource) {
@@ -120,14 +118,12 @@ export const aiController = {
     }
 
     try {
-      const workflow = await aiWorkflowService.run({
+      const workflow = await aiRuntimeService.runWorkflow({
         userId: req.userId!,
         projectId,
         workflow: 'strategy.about',
         step: 'summary',
         provider: model,
-        openaiModel,
-        claudeModel,
         idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
         inputs: { profile, source: 'legacy-about-summary' },
       });
@@ -161,7 +157,7 @@ export const aiController = {
           userId: req.userId!,
           provider: model,
           section: 'about-ai-summary',
-          model: model === 'claude' ? claudeModel ?? null : openaiModel ?? null,
+          model: model === 'claude' ? env.ANTHROPIC_MODEL : env.OPENAI_MODEL,
           status: 'FAILED',
           error: err instanceof Error ? err.message : 'unknown',
         },
@@ -192,8 +188,6 @@ export const aiController = {
     const {
       message,
       model,
-      openaiModel,
-      claudeModel,
       section,
       conversationHistory,
       unpackingProfile,
@@ -207,8 +201,8 @@ export const aiController = {
     const provider = model === 'chatgpt' ? 'openai' : 'anthropic';
     const dbProvider = toDbProvider(provider);
     const resolvedModel = provider === 'anthropic'
-      ? claudeModel ?? 'claude-haiku-4-5-20251001'
-      : resolveOpenAIModel(section, openaiModel);
+      ? env.ANTHROPIC_MODEL
+      : resolveOpenAIModel(section);
     const featureCode = resolveFeatureCode(section);
 
     const messages = [
@@ -218,24 +212,45 @@ export const aiController = {
 
     if (projectId) {
       try {
-        const workflow = await aiWorkflowService.run({
+        const useOrchestrator = await aiRuntimeService.shouldUseV2('ai_chat_quick', req.userId!);
+        const rollingSummary = useOrchestrator
+          ? await dialogSummaryService.get({
+            userId: req.userId!,
+            projectId,
+            conversationKey: section ?? 'ai-dialog',
+          })
+          : null;
+        const workflow = await aiRuntimeService.runWorkflow({
           userId: req.userId!,
           projectId,
           workflow: 'ai.dialog',
           step: 'message',
           provider: model,
-          openaiModel,
-          claudeModel,
           idempotencyKey: idempotencyKey ?? (req.header('idempotency-key') || req.header('x-idempotency-key') || undefined),
           inputs: {
             message,
-            history: conversationHistory,
+            history: useOrchestrator ? conversationHistory.slice(-4) : conversationHistory,
+            rollingSummary: rollingSummary?.content ?? '',
             section: section ?? 'ai-dialog',
             fileContext: fileContext ?? '',
             projectName: projectName ?? '',
             source: 'legacy-ai-chat',
           },
         });
+        if (useOrchestrator) {
+          await dialogSummaryService.append({
+            userId: req.userId!,
+            projectId,
+            conversationKey: section ?? 'ai-dialog',
+            messages: [
+              ...conversationHistory,
+              { role: 'user', content: message },
+              { role: 'assistant', content: workflow.content },
+            ],
+          }).catch((error) => {
+            console.error('[AI dialog] rolling summary update failed:', error);
+          });
+        }
         res.json({
           content: workflow.content,
           mock: workflow.mock,
@@ -315,16 +330,26 @@ export const aiController = {
           requestModel: model,
           hasProjectId: Boolean(projectId),
         },
-        execute: async () => {
+        execute: async ({ generationId }) => {
           const result = await chat({
             provider,
             messages,
             section,
-            openaiModel,
-            claudeModel,
             systemPrompt,
             maxTokens: maxTokens ?? (section === 'product-main' ? 6000 : 2048),
             temperature: 0.7,
+            telemetry: {
+              generationId,
+              userId: req.userId!,
+              projectId: projectId ?? null,
+              actionKey: featureCode,
+              pipeline: 'legacy.ai.chat',
+              stage: section ?? 'chat',
+              promptVersion: 'legacy-runtime',
+              modelAlias: 'LEGACY',
+              modelSnapshot: { actualModelId: resolvedModel, source: 'legacy' },
+              retryIndex: 0,
+            },
           });
           return {
             result,

@@ -7,10 +7,12 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "smoke:production": "node scripts/production-smoke.cjs",
     "test:e2e:staging": "vitest run tests/e2e/staging-real.e2e.test.ts",
     "test:watch": "vitest",
     "seo:wordstat:sync": "node dist/scripts/wordstat-sync.js",
     "db:seed:ai-pricing": "node scripts/seed-ai-pricing.js",
+    "db:seed:ai-v2": "node dist/scripts/seed-ai-v2-config.js",
     "lint": "eslint src --ext ts"
   },
   "dependencies": {

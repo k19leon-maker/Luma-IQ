@@ -2,6 +2,8 @@ import { Subscription, SubscriptionPlan } from '@prisma/client';
 import { PLAN_LIMITS } from '../config/ai-economy';
 import { prisma } from '../lib/prisma';
 import { creditLedgerService } from './credit-ledger.service';
+import { aiFeatureFlagsService } from './ai-feature-flags.service';
+import { aiPointLedgerService } from './ai-point-ledger.service';
 
 function startOfUtcMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -9,6 +11,23 @@ function startOfUtcMonth(date: Date): Date {
 
 function startOfNextUtcMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+}
+
+async function ensureAiPointAccrual(period: {
+  id: string;
+  userId: string;
+  planCode: string;
+  periodEnd: Date;
+}): Promise<void> {
+  if (!(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) return;
+  const planCode = period.planCode as SubscriptionPlan;
+  await aiPointLedgerService.ensurePlanAccrual({
+    userId: period.userId,
+    billingPeriodId: period.id,
+    amount: PLAN_LIMITS[planCode].monthlyCredits,
+    planCode,
+    expiresAt: period.periodEnd,
+  });
 }
 
 export const billingPeriodService = {
@@ -45,15 +64,18 @@ export const billingPeriodService = {
             reason: `Monthly credits ${existing.planCode}`,
             source: 'PLAN',
           });
-          return prisma.billingPeriod.update({
+          const updated = await prisma.billingPeriod.update({
             where: { id: existing.id },
             data: {
               creditsGranted: amount,
               creditsRemainingSnapshot: amount,
             },
           });
+          await ensureAiPointAccrual(updated);
+          return updated;
         }
       }
+      await ensureAiPointAccrual(existing);
       return existing;
     }
 
@@ -68,7 +90,10 @@ export const billingPeriodService = {
     });
 
     const amount = PLAN_LIMITS[planCode].monthlyCredits;
-    if (amount <= 0) return created;
+    if (amount <= 0) {
+      await ensureAiPointAccrual(created);
+      return created;
+    }
 
     await creditLedgerService.grant({
       userId,
@@ -78,16 +103,30 @@ export const billingPeriodService = {
       source: 'PLAN',
     });
 
-    return prisma.billingPeriod.update({
+    const updated = await prisma.billingPeriod.update({
       where: { id: created.id },
       data: {
         creditsGranted: amount,
         creditsRemainingSnapshot: amount,
       },
     });
+    await ensureAiPointAccrual(updated);
+    return updated;
   },
 
   async closeExpired(now = new Date()): Promise<number> {
+    if (await aiFeatureFlagsService.isEnabled('AI_POINTS_V2')) {
+      const periods = await prisma.billingPeriod.findMany({
+        where: { status: 'OPEN', periodEnd: { lte: now } },
+        select: { id: true, userId: true },
+      });
+      for (const period of periods) {
+        await aiPointLedgerService.expirePeriod({
+          userId: period.userId,
+          billingPeriodId: period.id,
+        });
+      }
+    }
     const result = await prisma.billingPeriod.updateMany({
       where: { status: 'OPEN', periodEnd: { lte: now } },
       data: { status: 'CLOSED' },

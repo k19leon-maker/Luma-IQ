@@ -12,6 +12,8 @@ import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDoc
 import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import AiPipelineProgress from '../../components/AiPipelineProgress/AiPipelineProgress';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import s from './LeadMagnet.module.css';
 
@@ -218,6 +220,12 @@ function buildLeadMagnetBrief(state: LeadMagnetState): string {
 }
 
 function extractName(markdown: string, fallback: string): string {
+  const explicitName = markdown.match(/^##\s+(?:Рекомендуемое\s+)?Название\s*$\s*\n+([^\n]+)/im)?.[1];
+  if (explicitName) {
+    return stripMarkdown(explicitName)
+      .replace(/^\d+[\.\)]\s*/, '')
+      .split('—')[0]?.trim().slice(0, 90) || fallback;
+  }
   const cleaned = stripMarkdown(markdown);
   const heading = cleaned
     .split('\n')
@@ -868,6 +876,10 @@ ${currentMarkdown || 'Пока пусто.'}`;
 
   async function handleCreate() {
     if (!selectedFormat || loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setLoading(true);
     let next: LeadMagnetState = {
       ...state,
@@ -875,41 +887,39 @@ ${currentMarkdown || 'Пока пусто.'}`;
       generationStatus: 'generating',
       description: '',
       chatMessages: [],
-      stepStatuses: emptyStatuses(selectedFormat),
+      stepStatuses: STEPS_BY_FORMAT[selectedFormat].reduce<Record<string, StepStatus>>((acc, step) => {
+        acc[step.id] = 'running';
+        return acc;
+      }, {}),
     };
     persistState(next, { syncMaterial: false });
 
     try {
-      for (const step of STEPS_BY_FORMAT[selectedFormat]) {
-        next = {
-          ...next,
-          stepStatuses: { ...(next.stepStatuses ?? {}), [step.id]: 'running' },
-        };
-        persistState(next, { syncMaterial: false });
-
-        const resp = await requestLeadMagnetStep(step.id, next, {
-          stepLabel: step.label,
-          stepTask: `Сгенерируй блок "${step.label}" для формата "${FORMAT_LABELS[selectedFormat]}". Работай только над этим шагом, сохрани логику воронки и связь с текущим черновиком.`,
-        });
-        const content = resp.content;
-        next = withWorkflowMeta(next, resp);
-        next = withMessage({
-          ...next,
-          stepStatuses: { ...(next.stepStatuses ?? {}), [step.id]: 'done' },
-        }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
-        next = {
-          ...next,
-          name: next.name || extractName(content, FORMAT_LABELS[selectedFormat]),
-          description: [
-            `# Лид-магнит`,
-            `## Формат\n${FORMAT_LABELS[selectedFormat]}`,
-            ...(next.chatMessages ?? []).filter((message) => message.role === 'assistant').map((message) => message.content),
-          ].join('\n\n'),
-        };
-        persistState(next, { syncMaterial: false });
-      }
-      persistState({ ...next, generationStatus: 'ready' }, { versionTitle: `Полная AI-сборка: ${FORMAT_LABELS[selectedFormat]}`, versionSource: 'ai' });
-      toast.success('Лид-магнит создан. Списано 70 AI-баллов.');
+      const workflow = 'leadmagnet.build';
+      const inputs = {
+        format: FORMAT_LABELS[selectedFormat],
+        steps: STEPS_BY_FORMAT[selectedFormat].map((step) => step.label).join('\n'),
+      };
+      const resp = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      const markdown = cleanCodeFence(resp.content);
+      next = withWorkflowMeta({
+        ...next,
+        name: extractName(markdown, FORMAT_LABELS[selectedFormat]),
+        description: markdown,
+        currentMarkdown: markdown,
+        chatMessages: splitLeadMagnetMarkdownToMessages(markdown),
+        generationStatus: 'ready',
+        stepStatuses: STEPS_BY_FORMAT[selectedFormat].reduce<Record<string, StepStatus>>((acc, step) => {
+          acc[step.id] = 'done';
+          return acc;
+        }, {}),
+      }, resp);
+      persistState(next, { versionTitle: `Полная AI-сборка: ${FORMAT_LABELS[selectedFormat]}`, versionSource: 'ai' });
+      toast.success(`Лид-магнит создан. Списано ${resp.aiPointsCharged ?? 70} AI-баллов.`);
     } catch (err) {
       console.error('[LeadMagnet create] AI error:', err);
       const message = getRequestErrorMessage(err);
@@ -1153,7 +1163,9 @@ ${currentMarkdown || 'Пока пусто.'}`;
           >
             {loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>}
             {loading ? 'ИИ работает...' : state.generated ? 'Пересобрать лид-магнит' : 'Создать лид-магнит'}
+            {!loading && <AiWorkflowCost workflow="leadmagnet.build" projectId={activeProjectId} />}
           </button>
+          {loading && <AiPipelineProgress label="Собираем структуру, текст и проверяем лид-магнит." />}
           <button
             style={{ ...btnOutlined, width: '100%', marginTop: 8, padding: '9px 0', fontSize: 12 }}
             onClick={resetCurrentFormat}
@@ -1388,6 +1400,11 @@ ${currentMarkdown || 'Пока пусто.'}`;
           padding: '10px 28px 8px',
         }}>
           <div style={{ maxWidth: 920, margin: '0 auto' }}>
+            {state.generated && (
+              <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
+                Доработка текущей версии<AiWorkflowCost workflow="leadmagnet.edit" projectId={activeProjectId} />
+              </div>
+            )}
             <MessageInput
               value={chatInput}
               onChange={setChatInput}

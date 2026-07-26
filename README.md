@@ -19,6 +19,14 @@ Luma IQ состоит из двух контуров:
 - Latest production deploy verified: `dpl_BveXUQKV7XbNt14HhHFrhLrWSMQe`
 - Latest deployed commit: `fe5f6e4`
 
+## AI Infrastructure V2
+
+Новая AI-инфраструктура включает versioned action/model registry, backend routing, атомарный AI-баланс, provider accounting, pipeline orchestration, batch jobs и AI economics.
+
+Production rollout управляется feature flags, action/user allowlist, детерминированным процентом `AI_ORCHESTRATION_V2_ROLLOUT_PERCENT` и аварийным переключателем `AI_LEGACY_RUNTIME_ENABLED`.
+
+Runbook: [`docs/ai-audit-v2/STAGE_12_PRODUCTION_ROLLOUT_RUNBOOK.md`](./docs/ai-audit-v2/STAGE_12_PRODUCTION_ROLLOUT_RUNBOOK.md).
+
 ## Stack
 
 - Frontend: React 18, TypeScript, Vite, CSS Modules, Zustand

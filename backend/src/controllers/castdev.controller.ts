@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma';
 import { getCastDevAnalysisCost } from '../config/ai-actions';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { castDevTranscriptionQueueService } from '../services/castdev-transcription-queue.service';
-import { aiWorkflowService } from '../services/ai-workflow.service';
+import { aiRuntimeService } from '../services/ai-runtime.service';
 
 const CAST_DEV_STATUSES = ['pending', 'queued', 'transcribing', 'ready_for_analysis', 'analyzing', 'completed', 'failed'] as const;
 
@@ -27,6 +27,18 @@ const updateSchema = z.object({
   analysis: z.record(z.unknown()).nullable().optional(),
   errorMessage: z.string().max(2000).nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
+});
+
+const transcribeSchema = z.object({
+  mode: z.enum(['mini', 'diarize']).default('mini'),
+});
+
+const synthesisSchema = z.object({
+  projectId: z.string().uuid(),
+  recordIds: z.array(z.string().uuid()).refine(
+    (ids) => [5, 10, 20].includes(new Set(ids).size),
+    'Для синтеза выберите ровно 5, 10 или 20 интервью',
+  ),
 });
 
 async function assertProjectOwner(userId: string, projectId: string): Promise<boolean> {
@@ -76,6 +88,45 @@ function extractJsonObject(content: string): Record<string, unknown> {
 function analysisIdempotencyKey(recordId: string, transcriptText: string): string {
   const hash = crypto.createHash('sha256').update(transcriptText).digest('hex');
   return `castdev.analysis:${recordId}:${hash}:v1`;
+}
+
+function synthesisIdempotencyKey(records: Array<{ id: string; updatedAt: Date }>): string {
+  const source = records
+    .map((record) => `${record.id}:${record.updatedAt.toISOString()}`)
+    .sort()
+    .join('|');
+  return `castdev.synthesis:${crypto.createHash('sha256').update(source).digest('hex')}:v1`;
+}
+
+function compactAnalysis(record: {
+  id: string;
+  title: string;
+  analysis: Prisma.JsonValue | null;
+}): Record<string, unknown> {
+  const analysis = record.analysis && typeof record.analysis === 'object' && !Array.isArray(record.analysis)
+    ? record.analysis as Record<string, unknown>
+    : {};
+  const compactItems = (value: unknown) => Array.isArray(value)
+    ? value.slice(0, 30).map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const source = item as Record<string, unknown>;
+      return {
+        title: typeof source.title === 'string' ? source.title : '',
+        type: typeof source.type === 'string' ? source.type : undefined,
+        quote: typeof source.quote === 'string' ? source.quote.slice(0, 500) : '',
+      };
+    }).filter(Boolean)
+    : [];
+  return {
+    recordId: record.id,
+    title: record.title,
+    summary: typeof analysis.summaryForContext === 'string'
+      ? analysis.summaryForContext.slice(0, 2000)
+      : '',
+    customerTasks: compactItems(analysis.customerTasks),
+    fearsProblemsObjections: compactItems(analysis.fearsProblemsObjections),
+    desiresGoalsResults: compactItems(analysis.desiresGoalsResults),
+  };
 }
 
 export const castDevController = {
@@ -203,10 +254,16 @@ export const castDevController = {
   },
 
   async transcribe(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = transcribeSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
     try {
       const record = await castDevTranscriptionQueueService.enqueue({
         userId: req.userId!,
         recordId: req.params.id as string,
+        mode: parsed.data.mode,
       });
       res.json({ record, queued: true });
     } catch (err) {
@@ -236,7 +293,7 @@ export const castDevController = {
         data: { status: 'analyzing', errorMessage: null },
       });
 
-      const workflowResult = await aiWorkflowService.run({
+      const workflowResult = await aiRuntimeService.runWorkflow({
         userId: req.userId!,
         projectId: existing.projectId,
         workflow: 'castdev',
@@ -301,6 +358,108 @@ export const castDevController = {
         where: { id, userId: req.userId! },
         data: { status: 'ready_for_analysis', errorMessage: message },
       }).catch(() => undefined);
+      res.status((err as { status?: number }).status ?? 500).json({ error: message });
+    }
+  },
+
+  async listSyntheses(req: AuthRequest, res: Response): Promise<void> {
+    const projectId = String(req.query.projectId ?? '');
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId обязателен' });
+      return;
+    }
+    if (!(await assertProjectOwner(req.userId!, projectId))) {
+      res.status(403).json({ error: 'Нет доступа' });
+      return;
+    }
+    const artifacts = await prisma.aIArtifact.findMany({
+      where: {
+        userId: req.userId!,
+        projectId,
+        workflow: 'castdev.synthesis',
+        type: 'castdev_synthesis',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        structured: true,
+        metadata: true,
+        workflowRunId: true,
+        generationId: true,
+        createdAt: true,
+      },
+    });
+    res.json({ syntheses: artifacts });
+  },
+
+  async synthesize(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = synthesisSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { projectId } = parsed.data;
+    const recordIds = [...new Set(parsed.data.recordIds)];
+    if (!(await assertProjectOwner(req.userId!, projectId))) {
+      res.status(403).json({ error: 'Нет доступа' });
+      return;
+    }
+
+    try {
+      const records = await prisma.castDevRecord.findMany({
+        where: {
+          id: { in: recordIds },
+          userId: req.userId!,
+          projectId,
+          status: 'completed',
+        },
+        select: {
+          id: true,
+          title: true,
+          analysis: true,
+          updatedAt: true,
+        },
+      });
+      if (records.length !== recordIds.length) {
+        res.status(400).json({
+          error: 'Для синтеза доступны только ваши завершённые интервью с готовым AI-разбором',
+        });
+        return;
+      }
+      const reports = records.map(compactAnalysis);
+      const result = await aiRuntimeService.runWorkflow({
+        userId: req.userId!,
+        projectId,
+        workflow: 'castdev.synthesis',
+        step: 'generate',
+        inputs: {
+          recordIds,
+          recordsCount: records.length,
+          reports: JSON.stringify(reports),
+        },
+        idempotencyKey: synthesisIdempotencyKey(records),
+      });
+      const synthesis = extractJsonObject(result.content);
+      res.json({
+        synthesis: {
+          id: result.artifactId,
+          title: `Синтез ${records.length} интервью`,
+          content: result.content,
+          structured: synthesis,
+          workflowRunId: result.workflowRunId,
+          generationId: result.generationId,
+          createdAt: new Date().toISOString(),
+        },
+        aiPointsCharged: result.aiPointsCharged ?? 0,
+        aiBalanceRemaining: result.aiBalanceRemaining ?? null,
+        replayed: Boolean((result as { replayed?: boolean }).replayed),
+      });
+    } catch (err) {
+      console.error('[CastDev] synthesize:', err);
+      const message = err instanceof Error ? err.message : 'Не удалось выполнить синтез CustDev';
       res.status((err as { status?: number }).status ?? 500).json({ error: message });
     }
   },

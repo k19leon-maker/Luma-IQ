@@ -7,15 +7,25 @@ import { CastDevTranscriptionError, transcribeCastDevRecord } from './castdev-tr
 type QueueItem = {
   userId: string;
   recordId: string;
+  mode: 'mini' | 'diarize';
 };
 
 const STALE_TRANSCRIBING_MS = 30 * 60 * 1000;
+const MAX_PARALLEL_TRANSCRIPTIONS = 2;
 const queue: QueueItem[] = [];
 const queuedKeys = new Set<string>();
-let active = false;
+const activeKeys = new Set<string>();
+const activeUsers = new Set<string>();
 
 function queueKey(item: QueueItem): string {
   return `${item.userId}:${item.recordId}`;
+}
+
+export function selectNextCastDevQueueIndex(
+  items: ReadonlyArray<Pick<QueueItem, 'userId'>>,
+  busyUsers: ReadonlySet<string>,
+): number {
+  return items.findIndex((candidate) => !busyUsers.has(candidate.userId));
 }
 
 function recordMetadata(value: unknown): Record<string, unknown> {
@@ -53,14 +63,24 @@ async function processItem(item: QueueItem): Promise<void> {
     },
   });
 
+  let reservedGenerationId: string | null = null;
   try {
     const result = await transcribeCastDevRecord(existing.sourceUrl, existing.id, {
-      onPrepared: ({ durationSec }) => castDevBillingService.assertCanTranscribe({
-        userId: item.userId,
-        projectId: existing.projectId,
-        recordId: existing.id,
-        durationSec,
-      }),
+      userId: item.userId,
+      projectId: existing.projectId,
+      mode: item.mode,
+      onPrepared: async ({ durationSec, modelAlias, modelId }) => {
+        const reservation = await castDevBillingService.beginTranscription({
+          userId: item.userId,
+          projectId: existing.projectId,
+          recordId: existing.id,
+          durationSec,
+          startedAt,
+          modelAlias,
+          modelId,
+        });
+        reservedGenerationId = reservation?.generationId ?? null;
+      },
     });
     const charge = await castDevBillingService.recordTranscriptionSuccess({
       userId: item.userId,
@@ -72,7 +92,14 @@ async function processItem(item: QueueItem): Promise<void> {
       fileName: result.fileName,
       mimeType: result.mimeType,
       startedAt,
+      reservedGenerationId,
+      modelAlias: result.modelAlias,
+      modelId: result.modelId,
     });
+    const currentMetadata = recordMetadata(existing.metadata);
+    const queuedAt = typeof currentMetadata.transcriptionQueuedAt === 'string'
+      ? currentMetadata.transcriptionQueuedAt
+      : startedAt.toISOString();
 
     await prisma.castDevRecord.update({
       where: { id: existing.id },
@@ -85,12 +112,22 @@ async function processItem(item: QueueItem): Promise<void> {
         transcriptFormatted: result.transcriptText,
         errorMessage: null,
         metadata: {
-          ...recordMetadata(existing.metadata),
-          transcriptionQueuedAt: recordMetadata(existing.metadata).transcriptionQueuedAt ?? startedAt.toISOString(),
+          ...currentMetadata,
+          transcriptionQueuedAt: queuedAt,
           transcriptionStartedAt: startedAt.toISOString(),
           transcribedAt: new Date().toISOString(),
-          transcriptionModel: process.env['OPENAI_TRANSCRIPTION_MODEL'] ?? 'gpt-4o-mini-transcribe',
+          transcriptionModelAlias: result.modelAlias,
+          transcriptionModel: result.modelId,
           transcriptionChunksCount: result.chunksCount,
+          transcriptionAudioUsage: {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            cachedInputTokens: result.usage.cachedInputTokens ?? 0,
+            reasoningTokens: result.usage.reasoningTokens ?? 0,
+            audioInputTokens: result.usage.audioInputTokens ?? 0,
+            audioOutputTokens: result.usage.audioOutputTokens ?? 0,
+          },
+          transcriptionActualCostUsd: result.actualCostUsd,
           transcriptionGenerationId: charge.generationId,
           transcriptionAiPointsCharged: charge.aiPointsCharged,
           transcriptionAiBalanceRemaining: charge.aiBalanceRemaining,
@@ -99,6 +136,14 @@ async function processItem(item: QueueItem): Promise<void> {
     });
   } catch (err) {
     console.error('[CastDevQueue] transcribe failed:', err);
+    if (reservedGenerationId) {
+      await castDevBillingService.recordTranscriptionFailure({
+        userId: item.userId,
+        projectId: existing.projectId,
+        generationId: reservedGenerationId,
+        error: err,
+      }).catch((billingError) => console.error('[CastDevQueue] release failed:', billingError));
+    }
     const { message } = publicErrorMessage(err);
     await prisma.castDevRecord.updateMany({
       where: { id: existing.id, userId: item.userId },
@@ -117,7 +162,6 @@ async function processItem(item: QueueItem): Promise<void> {
 function scheduleProcessing(): void {
   setImmediate(() => {
     processQueue().catch((err) => {
-      active = false;
       console.error('[CastDevQueue] process error:', err);
       scheduleProcessing();
     });
@@ -125,17 +169,23 @@ function scheduleProcessing(): void {
 }
 
 async function processQueue(): Promise<void> {
-  if (active) return;
-  const item = queue.shift();
+  if (activeKeys.size >= MAX_PARALLEL_TRANSCRIPTIONS) return;
+  const index = selectNextCastDevQueueIndex(queue, activeUsers);
+  if (index < 0) return;
+  const [item] = queue.splice(index, 1);
   if (!item) return;
-  active = true;
-  queuedKeys.delete(queueKey(item));
-  try {
-    await processItem(item);
-  } finally {
-    active = false;
-    if (queue.length > 0) scheduleProcessing();
-  }
+  const key = queueKey(item);
+  queuedKeys.delete(key);
+  activeKeys.add(key);
+  activeUsers.add(item.userId);
+  processItem(item)
+    .catch((err) => console.error('[CastDevQueue] item failed:', err))
+    .finally(() => {
+      activeKeys.delete(key);
+      activeUsers.delete(item.userId);
+      if (queue.length > 0) scheduleProcessing();
+    });
+  if (activeKeys.size < MAX_PARALLEL_TRANSCRIPTIONS && queue.length > 0) scheduleProcessing();
 }
 
 export const castDevTranscriptionQueueService = {
@@ -171,11 +221,40 @@ export const castDevTranscriptionQueueService = {
         metadata: {
           ...recordMetadata(existing.metadata),
           transcriptionQueuedAt: new Date().toISOString(),
+          transcriptionMode: input.mode,
         } as Prisma.InputJsonValue,
       },
     });
 
     scheduleProcessing();
     return record;
+  },
+
+  async recoverPending(): Promise<number> {
+    const records = await prisma.castDevRecord.findMany({
+      where: { status: { in: ['queued', 'transcribing'] } },
+      select: { id: true, userId: true, metadata: true },
+      orderBy: { updatedAt: 'asc' },
+      take: 200,
+    });
+    for (const record of records) {
+      const metadata = recordMetadata(record.metadata);
+      const item: QueueItem = {
+        userId: record.userId,
+        recordId: record.id,
+        mode: metadata.transcriptionMode === 'diarize' ? 'diarize' : 'mini',
+      };
+      const key = queueKey(item);
+      if (!queuedKeys.has(key) && !activeKeys.has(key)) {
+        queue.push(item);
+        queuedKeys.add(key);
+      }
+      await prisma.castDevRecord.updateMany({
+        where: { id: record.id, userId: record.userId },
+        data: { status: 'queued' },
+      });
+    }
+    if (queue.length > 0) scheduleProcessing();
+    return records.length;
   },
 };

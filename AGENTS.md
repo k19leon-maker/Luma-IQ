@@ -1,18 +1,26 @@
 # Luma IQ — актуальный контекст проекта
 
-Обновлено: 2026-07-10
+Обновлено: 2026-07-26
 
 ## Что это
 
 Luma IQ сейчас состоит из двух контуров.
 
-1. B2C публичный контур: пространство для родителей, которые хотят сохранить отношения в семье. Включает лендинг, SEO-страницы, короткий квиз, B2C-кабинет и диалог с ИИ-психологом.
+1. B2C публичный контур: самостоятельный бренд «Семейно» — пространство для всей семьи. Включает SEO-медиа, программы, тесты, психологов, консультации, короткий квиз, B2C-кабинет и диалог с ИИ-психологом. Временно работает на техническом домене Luma IQ, но публично не связан с брендом Luma IQ.
 2. B2B AI SaaS: продукт для экспертов, маркетологов и продюсеров. Включает проекты, стратегию, ЦА, УТП, продуктовую линейку, лидмагниты, контент, воронки, AI workflows, админку, пользователей и подписки.
 
 Главный принцип: B2C-контур добавлен поверх существующего B2B-сервиса. Не ломать и не переписывать B2B SaaS.
 
 Главная B2B-идея: Luma IQ должен ощущаться не как GPT wrapper, а как context-aware AI marketing operating system.
-Главная B2C-идея: Luma IQ должен ощущаться как спокойное премиальное семейное пространство, ближе к семейному центру/частной клинике/образовательному продукту, а не как инфобизнес или каталог психологов.
+Главная B2C-идея: «Семейно — пространство для семьи». Главная смысловая формула: «Семья — это навык. Мы учимся ему всю жизнь». Бренд должен ощущаться как взрослое, спокойное, профессиональное семейное пространство и редакционный digital-бренд, а не как инфобизнес, клиника, детская академия или каталог психологов.
+
+Приоритетный B2C-контекст:
+
+- Google Doc: `https://docs.google.com/document/d/1JZhsFw5d_fGJz5rEr-6GvVevUKrmtKawo8JpF0hm3VI/edit`
+- локальная выжимка: `docs/b2c/SEMEYNO_MASTER_CONTEXT.md`
+- если старые B2C-формулировки расходятся с этим мастер-контекстом, применять мастер-контекст «Семейно»;
+- не менять утверждённые название, дескриптор, главную идею и направление логотипа без прямого запроса владельца;
+- открытые вопросы не заполнять выдуманными решениями.
 
 ## Production
 
@@ -78,10 +86,12 @@ Routes:
 
 Current public positioning:
 
-- Do not position the homepage as a generic psychological portal.
-- Do not make the public homepage about catalog structure, articles, webinars or services.
-- Position Luma IQ as a space for parents who want to preserve family relationships.
+- Public brand is `Семейно`, not Luma IQ.
+- Do not position the homepage as a generic psychological portal, clinic, online school or children-only product.
+- Position `Семейно` as a space for the whole family: couples, parents, children and teenagers.
 - Psychology is the instrument, not the communication object.
+- Do not promise an ideal or necessarily preserved family.
+- Keep the tone adult, calm, clear, professional, humane and non-judgmental.
 
 Important files:
 

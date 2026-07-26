@@ -2,11 +2,18 @@ import { Prisma } from '@prisma/client';
 import {
   AI_ACTION_LABELS,
   AI_ACTION_SECTIONS,
+  CASTDEV_ANALYSIS_PRICING_POLICY,
+  CASTDEV_TRANSCRIPTION_PRICING_POLICY,
   aiPointsForGeneration,
   aiPointsForFeature,
   featureCodeToAiAction,
+  pointsFromTierPolicy,
 } from '../config/ai-actions';
 import { prisma } from '../lib/prisma';
+import { actionKeyForFeature } from '../config/ai-action-registry';
+import { aiActionRegistryService } from './ai-action-registry.service';
+import { aiFeatureFlagsService } from './ai-feature-flags.service';
+import { aiPointLedgerService } from './ai-point-ledger.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -14,27 +21,89 @@ function remaining(limit: number, used: number): number {
   return Math.max(0, limit - used);
 }
 
+function metadataNumber(metadata: unknown, key: string): number | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+async function pointsForGeneration(input: {
+  featureCode: string;
+  actionKey?: string;
+  metadata?: unknown;
+  createdAt?: Date;
+}): Promise<number> {
+  if (!(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) {
+    return aiPointsForGeneration(input.featureCode, input.metadata);
+  }
+  if (input.featureCode === 'castdev_transcription' || input.featureCode === 'castdev_analysis') {
+    const actionKey = input.featureCode as 'castdev_transcription' | 'castdev_analysis';
+    const pricing = await aiActionRegistryService.resolve(actionKey, input.createdAt ?? new Date());
+    const pricingMetadata = pricing.pricingMetadata
+      && typeof pricing.pricingMetadata === 'object'
+      && !Array.isArray(pricing.pricingMetadata)
+      ? pricing.pricingMetadata as Record<string, unknown>
+      : {};
+    const policyValue = pricingMetadata.pricingPolicy;
+    const fallbackPolicy = actionKey === 'castdev_transcription'
+      ? CASTDEV_TRANSCRIPTION_PRICING_POLICY
+      : CASTDEV_ANALYSIS_PRICING_POLICY;
+    const policy = policyValue
+      && typeof policyValue === 'object'
+      && !Array.isArray(policyValue)
+      && (policyValue as Record<string, unknown>).mode === 'tiered'
+      && Array.isArray((policyValue as Record<string, unknown>).tiers)
+      ? policyValue as typeof fallbackPolicy
+      : fallbackPolicy;
+    const metricValue = actionKey === 'castdev_transcription'
+      ? metadataNumber(input.metadata, 'durationSec')
+      : metadataNumber(input.metadata, 'transcriptChars');
+    return pointsFromTierPolicy(metricValue, policy);
+  }
+  const actionKey = input.actionKey && input.actionKey in AI_ACTION_LABELS
+    ? input.actionKey
+    : actionKeyForFeature(input.featureCode);
+  return (await aiActionRegistryService.resolve(
+    actionKey as Parameters<typeof aiActionRegistryService.resolve>[0],
+    input.createdAt ?? new Date(),
+  )).aiPoints;
+}
+
 export const aiBalanceService = {
   aiPointsForFeature,
   aiPointsForGeneration,
+  resolvePointsForGeneration: pointsForGeneration,
 
   async getUsedInPeriod(input: {
     userId: string;
     billingPeriodId: string;
   }, tx: Tx = prisma): Promise<number> {
+    if (await aiFeatureFlagsService.isEnabled('AI_POINTS_V2')) {
+      const totals = await tx.creditLedgerEntry.groupBy({
+        by: ['type'],
+        where: {
+          userId: input.userId,
+          billingPeriodId: input.billingPeriodId,
+          unit: 'AI_POINT',
+          type: { in: ['CAPTURE', 'REFUND'] },
+        },
+        _sum: { quantity: true },
+      });
+      const captured = totals.find((item) => item.type === 'CAPTURE')?._sum.quantity ?? 0;
+      const refunded = totals.find((item) => item.type === 'REFUND')?._sum.quantity ?? 0;
+      return Math.max(0, captured - refunded);
+    }
     const generations = await tx.aIGeneration.findMany({
       where: {
         userId: input.userId,
         billingPeriodId: input.billingPeriodId,
         status: 'SUCCEEDED',
       },
-      select: { featureCode: true, metadata: true },
+      select: { featureCode: true, metadata: true, createdAt: true },
     });
 
-    return generations.reduce(
-      (sum, generation) => sum + aiPointsForGeneration(generation.featureCode, generation.metadata),
-      0,
-    );
+    const points = await Promise.all(generations.map((generation) => pointsForGeneration(generation)));
+    return points.reduce((sum, value) => sum + value, 0);
   },
 
   async assertEnough(input: {
@@ -45,11 +114,32 @@ export const aiBalanceService = {
     metadata?: unknown;
     planId: string;
   }): Promise<void> {
+    if (await aiFeatureFlagsService.isEnabled('AI_POINTS_V2')) {
+      const current = await aiPointLedgerService.getState(input.userId, input.billingPeriodId);
+      const required = await pointsForGeneration({
+        featureCode: input.featureCode,
+        metadata: input.metadata,
+      });
+      if (current.available < required) {
+        throw Object.assign(new Error('AI-баланс закончился'), {
+          status: 402,
+          code: 'AI_BALANCE_EXHAUSTED',
+          limitType: 'aiBalance',
+          current: current.available,
+          limit: input.total,
+          planId: input.planId,
+        });
+      }
+      return;
+    }
     const used = await aiBalanceService.getUsedInPeriod({
       userId: input.userId,
       billingPeriodId: input.billingPeriodId,
     });
-    const required = aiPointsForGeneration(input.featureCode, input.metadata);
+    const required = await pointsForGeneration({
+      featureCode: input.featureCode,
+      metadata: input.metadata,
+    });
     if (used + required > input.total) {
       throw Object.assign(new Error('AI-баланс закончился'), {
         status: 402,
@@ -69,7 +159,36 @@ export const aiBalanceService = {
     featureCode: string;
     metadata?: unknown;
   }) {
-    const aiPointsCharged = aiPointsForGeneration(input.featureCode, input.metadata);
+    if (await aiFeatureFlagsService.isEnabled('AI_POINTS_V2')) {
+      const [capture, current, aiBalanceUsed] = await Promise.all([
+        prisma.creditLedgerEntry.findFirst({
+          where: {
+            userId: input.userId,
+            billingPeriodId: input.billingPeriodId,
+            unit: 'AI_POINT',
+            type: 'CAPTURE',
+            generation: {
+              featureCode: input.featureCode,
+            },
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
+        aiPointLedgerService.getState(input.userId, input.billingPeriodId),
+        aiBalanceService.getUsedInPeriod({
+          userId: input.userId,
+          billingPeriodId: input.billingPeriodId,
+        }),
+      ]);
+      return {
+        aiPointsCharged: capture?.quantity ?? 0,
+        aiBalanceUsed,
+        aiBalanceRemaining: current.available,
+      };
+    }
+    const aiPointsCharged = await pointsForGeneration({
+      featureCode: input.featureCode,
+      metadata: input.metadata,
+    });
     const aiBalanceUsed = await aiBalanceService.getUsedInPeriod({
       userId: input.userId,
       billingPeriodId: input.billingPeriodId,
@@ -87,6 +206,53 @@ export const aiBalanceService = {
     billingPeriodId: string;
     limit?: number;
   }) {
+    if (await aiFeatureFlagsService.isEnabled('AI_POINTS_V2')) {
+      const entries = await prisma.creditLedgerEntry.findMany({
+        where: {
+          userId: input.userId,
+          billingPeriodId: input.billingPeriodId,
+          unit: 'AI_POINT',
+          type: { in: ['CAPTURE', 'REFUND'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 400,
+        select: {
+          id: true,
+          generationId: true,
+          projectId: true,
+          type: true,
+          quantity: true,
+          actionKey: true,
+          createdAt: true,
+          generation: {
+            select: {
+              featureCode: true,
+            },
+          },
+        },
+      });
+      const refunds = new Map<string, number>();
+      for (const entry of entries) {
+        if (entry.type === 'REFUND' && entry.generationId) {
+          refunds.set(entry.generationId, (refunds.get(entry.generationId) ?? 0) + entry.quantity);
+        }
+      }
+      return entries
+        .filter((entry) => entry.type === 'CAPTURE')
+        .slice(0, input.limit ?? 30)
+        .map((entry) => {
+          const featureCode = entry.generation?.featureCode ?? entry.actionKey ?? 'ai_chat';
+          const actionType = featureCodeToAiAction(featureCode);
+          return {
+            id: entry.id,
+            projectId: entry.projectId,
+            actionLabel: AI_ACTION_LABELS[actionType],
+            sectionLabel: AI_ACTION_SECTIONS[actionType],
+            aiPointsCharged: Math.max(0, entry.quantity - (refunds.get(entry.generationId ?? '') ?? 0)),
+            createdAt: entry.createdAt,
+          };
+        });
+    }
     const generations = await prisma.aIGeneration.findMany({
       where: {
         userId: input.userId,
@@ -104,7 +270,8 @@ export const aiBalanceService = {
       },
     });
 
-    const items = generations.map((generation) => {
+    const points = await Promise.all(generations.map((generation) => pointsForGeneration(generation)));
+    const items = generations.map((generation, index) => {
       const actionType = featureCodeToAiAction(generation.featureCode);
       return {
         id: generation.id,
@@ -113,7 +280,7 @@ export const aiBalanceService = {
         metadata: generation.metadata,
         actionLabel: AI_ACTION_LABELS[actionType],
         sectionLabel: AI_ACTION_SECTIONS[actionType],
-        aiPointsCharged: aiPointsForGeneration(generation.featureCode, generation.metadata),
+        aiPointsCharged: points[index] ?? 0,
         createdAt: generation.createdAt,
       };
     });
@@ -156,7 +323,6 @@ export const aiBalanceService = {
     planStatus: string;
     aiBalanceTotal: number;
     aiBalanceUsed: number;
-    aiCostBudgetRub?: number;
     projectsTotal: number;
     projectsUsed: number;
     limitsResetAt: Date | string | null;
@@ -167,7 +333,6 @@ export const aiBalanceService = {
       aiBalanceTotal: input.aiBalanceTotal,
       aiBalanceUsed: input.aiBalanceUsed,
       aiBalanceRemaining: remaining(input.aiBalanceTotal, input.aiBalanceUsed),
-      aiCostBudgetRub: input.aiCostBudgetRub ?? null,
       projectsTotal: input.projectsTotal,
       projectsUsed: input.projectsUsed,
       projectsRemaining: remaining(input.projectsTotal, input.projectsUsed),

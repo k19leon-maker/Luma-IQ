@@ -8,6 +8,7 @@ import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import s from './Threads.module.css';
 
 type ThreadsPostFormat = 'single_post' | 'mini_thread' | 'deep_thread';
@@ -442,7 +443,9 @@ export default function Threads() {
         </div>
         <div className={s.heroActions}>
           <button className={s.primaryBtn} onClick={() => void handleGenerate()} disabled={generating}>
-            {generating ? 'Генерирую...' : result ? 'Сгенерировать заново' : 'Сгенерировать Threads-план'}
+            {generating
+              ? 'Генерирую...'
+              : <>{result ? 'Сгенерировать заново' : 'Сгенерировать Threads-план'}<AiWorkflowCost workflow="threads.plan.generate" projectId={activeProjectId} /></>}
           </button>
           <span className={s.saveStatus}>{savedId ? 'Сохранено автоматически' : 'После генерации сохранится автоматически'}</span>
           {result?.generatedAt && <span className={s.generatedAt}>Последняя версия: {formatDate(result.generatedAt)}</span>}
@@ -559,7 +562,9 @@ export default function Threads() {
                   <div className={s.postActions}>
                     <button onClick={() => void handleCopy(postText(post))}>Скопировать</button>
                     <button onClick={() => void handleRegeneratePost(post)} disabled={regeneratingDay === post.dayNumber}>
-                      {regeneratingDay === post.dayNumber ? 'Перегенерирую...' : 'Перегенерировать'}
+                      {regeneratingDay === post.dayNumber
+                        ? 'Перегенерирую...'
+                        : <>Перегенерировать<AiWorkflowCost workflow="threads.post.regenerate" projectId={activeProjectId} /></>}
                     </button>
                   </div>
                 </article>

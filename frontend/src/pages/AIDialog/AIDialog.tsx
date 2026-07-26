@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { aiApi, ConversationMessage } from '../../api/ai';
+import { aiApi, AiActionQuote, ConversationMessage } from '../../api/ai';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import { useContentApi } from '../../hooks/useContentApi';
-import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { isMigrated, markMigrated, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
@@ -15,6 +14,8 @@ interface DialogMessage {
   content: string;
   time: string;
 }
+
+type DialogMode = 'auto' | 'quick' | 'deep' | 'strategy';
 
 function nowTime(): string {
   const d = new Date();
@@ -35,7 +36,6 @@ const suggestions = [
 export default function AIDialog() {
   const activeProjectId = useProjectsStore((st) => st.activeProjectId);
   const projectName = useProjectsStore((st) => st.projects.find((p) => p.id === st.activeProjectId)?.name ?? 'Проект');
-  const getSettings = useModelStore((st) => st.getSettings);
   const { dbItems, loaded: dbLoaded, saveItem: saveDialog, updateItem: updateDialog } = useContentApi({ projectId: activeProjectId, type: 'OTHER' });
 
   const welcome = useMemo<DialogMessage>(() => ({
@@ -47,6 +47,8 @@ export default function AIDialog() {
   const [messages, setMessages] = useState<DialogMessage[]>([welcome]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [dialogMode, setDialogMode] = useState<DialogMode>('auto');
+  const [quote, setQuote] = useState<AiActionQuote | null>(null);
   const [dialogRecordId, setDialogRecordId] = useState<string | null>(null);
   const dialogRecordIdRef = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -120,6 +122,29 @@ export default function AIDialog() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
+  useEffect(() => {
+    const text = input.trim();
+    if (!activeProjectId || !text) {
+      setQuote(null);
+      return;
+    }
+    let current = true;
+    const timer = window.setTimeout(() => {
+      void aiApi.quoteWorkflow('ai.dialog.message', {
+        projectId: activeProjectId,
+        inputs: { message: text, dialogMode },
+      }).then((nextQuote) => {
+        if (current) setQuote(nextQuote);
+      }).catch(() => {
+        if (current) setQuote(null);
+      });
+    }, 350);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
+  }, [activeProjectId, dialogMode, input]);
+
   async function send(textOverride?: string) {
     const text = (textOverride ?? input).trim();
     if (!text || sending) return;
@@ -140,21 +165,25 @@ export default function AIDialog() {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
       }));
-      const settings = getSettings('ai-dialog');
       const workflow = 'ai.dialog.message';
       const inputs = {
         message: text,
         history,
         projectName,
+        dialogMode,
       };
+      const confirmedQuote = await aiApi.quoteWorkflow(workflow, {
+        projectId: activeProjectId,
+        inputs,
+      });
       const response = await aiApi.startWorkflow('ai.dialog.message', {
         projectId: activeProjectId,
-        provider: settings.provider,
-        openaiModel: settings.openaiModel,
-        claudeModel: settings.claudeModel,
         inputs,
         idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
+      if (response.aiPointsCharged !== undefined) {
+        toast.success(`Списано ${response.aiPointsCharged} AI-баллов. Стоимость до запуска: ${confirmedQuote.aiPoints}.`);
+      }
       setMessages((prev) => {
         const withAnswer = [...prev, { role: 'assistant' as const, content: response.content, time: nowTime() }];
         void persistMessages(withAnswer);
@@ -230,12 +259,35 @@ export default function AIDialog() {
 
       <div className={s.inputPanel}>
         <div className={s.inputInner}>
+          <div className={s.modeRow}>
+            <div className={s.modeControl} aria-label="Режим AI-диалога">
+              {([
+                ['auto', 'Авто'],
+                ['quick', 'Быстро'],
+                ['deep', 'Глубоко'],
+                ['strategy', 'Стратегия'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`${s.modeButton}${dialogMode === value ? ` ${s.modeButtonActive}` : ''}`}
+                  onClick={() => setDialogMode(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className={s.quote}>
+              {quote ? `${quote.actionLabel}: ${quote.aiPoints} AI-баллов` : 'Стоимость появится после ввода запроса'}
+            </span>
+          </div>
           <MessageInput
             value={input}
             onChange={setInput}
             onSend={() => void send()}
             isLoading={sending}
             section="ai-dialog"
+            hideModelControls
             placeholder="Спросите про стратегию, запуск, контент, продукт или следующий шаг..."
           />
         </div>

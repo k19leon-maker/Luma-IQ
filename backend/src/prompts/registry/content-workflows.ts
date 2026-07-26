@@ -574,6 +574,40 @@ ${contextAppendix(context)}
     validationRules: { minLength: 1200, requiredPatterns: ['КРЮЧОК|Хук', 'ПРИЗЫВ|CTA'], structuredOutput: 'script' },
   },
   {
+    id: 'product.main.build.v2',
+    version: 'v2',
+    feature: 'product_main',
+    workflow: 'product.main',
+    step: 'build',
+    model: 'server-routed',
+    temperature: 0.62,
+    maxTokens: 12000,
+    artifactType: 'product_main',
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ context }) => `Собери полный основной продукт как единый актуальный документ.
+
+Верни только готовый markdown:
+# Основной продукт
+## Варианты названия
+## Рекомендуемое название
+## Оффер
+## Описание продукта
+## Модули программы
+Для каждого модуля укажи задачу клиента, содержание, практику и результат.
+## Продуктовое обещание
+
+Не выдумывай факты, кейсы и результаты. Название и оффер должны опираться на контекст проекта.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 1800,
+      maxLength: 50000,
+      minHeadings: 6,
+      requiredIncludes: ['# Основной продукт', '## Оффер', '## Модули программы', '## Продуктовое обещание'],
+      structuredOutput: 'article',
+    },
+  },
+  {
     id: 'product.main.generate.v1',
     version: 'v1',
     feature: 'product_main',
@@ -633,6 +667,48 @@ ${step.task}
 ${contextAppendix(context)}`,
     validationRules: { minLength: step.minLength, structuredOutput: 'text' },
   })),
+  {
+    id: 'product.mini.build.v2',
+    version: 'v2',
+    feature: 'product_mini',
+    workflow: 'product.mini',
+    step: 'build',
+    model: 'server-routed',
+    temperature: 0.62,
+    maxTokens: 10000,
+    artifactType: 'product_mini',
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ context }) => `Собери полный мини-продукт на 7 дней и 3 практических занятия как единый актуальный документ.
+
+Верни только готовый markdown:
+# Мини-продукт
+## Варианты названия
+## Рекомендуемое название
+## Главный оффер
+## Краткое описание
+## Занятие 1
+## Занятие 2
+## Занятие 3
+## Расписание на 7 дней
+## Главный результат
+## Для кого / не для кого
+## Бонусы
+## Возражения и ответы
+## Продающий блок
+## Три Telegram-поста
+## Мост к следующему продукту
+
+Каждое занятие должно иметь практику и конкретный артефакт на выходе. Не обещай полного решения большой проблемы за 7 дней.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 2800,
+      maxLength: 60000,
+      minHeadings: 12,
+      requiredIncludes: ['# Мини-продукт', '## Занятие 1', '## Занятие 2', '## Занятие 3', '## Главный результат'],
+      structuredOutput: 'article',
+    },
+  },
   {
     id: 'product.mini.generate.v1',
     version: 'v1',
@@ -694,6 +770,40 @@ ${step.task}
 ${contextAppendix(context)}`,
     validationRules: { minLength: step.minLength, structuredOutput: 'text' },
   })),
+  {
+    id: 'leadmagnet.build.v2',
+    version: 'v2',
+    feature: 'lead_magnet',
+    workflow: 'leadmagnet',
+    step: 'build',
+    model: 'server-routed',
+    temperature: 0.64,
+    maxTokens: 12000,
+    artifactType: 'lead_magnet',
+    systemPrompt: (context) => buildLeadMagnetPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Собери полный лид-магнит как единый актуальный документ.
+
+Формат: ${value(inputs, 'format', 'Лид-магнит')}
+Обязательные разделы:
+${value(inputs, 'steps', 'Определи структуру по выбранному формату')}
+
+Верни только готовый markdown:
+# Лид-магнит
+## Название
+## Формат
+Далее верни все обязательные разделы в заданном порядке.
+
+Материал должен давать самостоятельную ценность и вести к следующему логичному шагу. Не выдумывай факты, кейсы и регалии.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 2200,
+      maxLength: 70000,
+      minHeadings: 5,
+      requiredIncludes: ['# Лид-магнит', '## Название', '## Формат'],
+      structuredOutput: 'article',
+    },
+  },
   {
     id: 'leadmagnet.generate.v1',
     version: 'v1',
@@ -1081,7 +1191,12 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Ответь только по задаче пользователя. Без служебных комментариев.`,
-    validationRules: { minLength: 250, structuredOutput: 'text' },
+    validationRules: {
+      minLength: 250,
+      maxLength: 30000,
+      forbiddenIncludes: ['Не могу выполнить', 'Я не могу провести анализ'],
+      structuredOutput: 'text',
+    },
   },
   {
     id: 'strategy.utp.generate.v1',
@@ -1111,7 +1226,12 @@ ${value(inputs, 'inputText', 'не указаны')}
 ${contextAppendix(context)}
 
 Ответь только готовым текстом без пояснений.`,
-    validationRules: { minLength: 80, structuredOutput: 'text' },
+    validationRules: {
+      minLength: 80,
+      maxLength: 1600,
+      forbiddenIncludes: ['Не могу выполнить', 'как искусственный интеллект'],
+      structuredOutput: 'text',
+    },
   },
   {
     id: 'strategy.social.generate.v1',
@@ -1139,7 +1259,130 @@ ${contextAppendix(context)}
 ${contextAppendix(context)}
 
 Ответь только готовым текстом без пояснений.`,
-    validationRules: { minLength: 150, structuredOutput: 'text' },
+    validationRules: {
+      minLength: 120,
+      maxLength: 1600,
+      forbiddenIncludes: ['Не могу выполнить', 'как искусственный интеллект'],
+      structuredOutput: 'text',
+    },
+  },
+  {
+    id: 'strategy.offer.generate.v2',
+    version: 'v2',
+    feature: 'utp',
+    workflow: 'strategy.offer',
+    step: 'generate',
+    model: 'server-routed',
+    temperature: 0.55,
+    maxTokens: 3000,
+    artifactType: 'system_offer',
+    systemPrompt: (context) => buildUTPPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Собери системный оффер проекта.
+
+Текущий оффер:
+${value(inputs, 'currentOffer', 'Пока нет.')}
+
+Дополнительная задача пользователя:
+${value(inputs, 'request', 'Сформулировать сильный системный оффер на основе стратегии проекта.')}
+
+Финальный ответ верни строго в формате:
+## Оффер
+## Для кого
+## Проблема
+## Результат
+## Механизм
+## Доказательства
+## Ограничения обещания
+## Следующий шаг
+
+Не выдумывай кейсы, цифры, сроки и гарантии. Отличай системный оффер от короткого рекламного слогана.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 700,
+      maxLength: 12000,
+      minHeadings: 7,
+      requiredIncludes: ['## Оффер', '## Для кого', '## Результат', '## Механизм', '## Ограничения обещания'],
+      structuredOutput: 'article',
+    },
+  },
+  {
+    id: 'strategy.rebuild.generate.v2',
+    version: 'v2',
+    feature: 'positioning',
+    workflow: 'strategy.rebuild',
+    step: 'generate',
+    model: 'server-routed',
+    temperature: 0.5,
+    maxTokens: 16000,
+    artifactType: 'strategy_rebuild',
+    systemPrompt: () => buildPositioningLabPrompt(),
+    userPromptBuilder: ({ inputs, context }) => `Пересобери стратегию проекта как единый непротиворечивый документ.
+
+Причина пересборки:
+${value(inputs, 'reason', 'Актуализировать стратегию на основе всех сохранённых данных проекта.')}
+
+Верни только готовый markdown:
+# Стратегия проекта
+## Эксперт и исходная точка
+## Целевая аудитория
+## Позиционирование
+## УТП
+## Системный оффер
+## Продуктовая логика
+## Каналы упаковки
+## Контентные приоритеты
+## Риски и ограничения
+## Следующие действия
+
+Не выдумывай отсутствующие факты. Если раздел нельзя подтвердить, явно обозначь гипотезу.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 3000,
+      maxLength: 70000,
+      minHeadings: 9,
+      requiredIncludes: ['# Стратегия проекта', '## Целевая аудитория', '## Позиционирование', '## УТП', '## Риски и ограничения'],
+      structuredOutput: 'article',
+    },
+  },
+  {
+    id: 'product.strategy.audit.v2',
+    version: 'v2',
+    feature: 'product_main',
+    workflow: 'product.strategy',
+    step: 'audit',
+    model: 'server-routed',
+    temperature: 0.45,
+    maxTokens: 10000,
+    artifactType: 'product_strategy_audit',
+    systemPrompt: (context) => buildMainProductPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Проведи аудит продуктовой стратегии проекта.
+
+Фокус аудита:
+${value(inputs, 'focus', 'Основной продукт, мини-продукт, лид-магнит, переходы между ними и соответствие целевой аудитории.')}
+
+Верни только готовый markdown:
+# Аудит продуктовой стратегии
+## Текущая продуктовая система
+## Соответствие целевой аудитории
+## Логика продуктовой лестницы
+## Разрывы и противоречия
+## Риски каннибализации
+## Приоритетные изменения
+## Рекомендуемая продуктовая карта
+## Что не нужно менять
+
+Опирайся только на реальные продукты и стратегию проекта. Не создавай новые продукты без объяснённой необходимости.
+
+${contextAppendix(context)}`,
+    validationRules: {
+      minLength: 1800,
+      maxLength: 50000,
+      minHeadings: 7,
+      requiredIncludes: ['# Аудит продуктовой стратегии', '## Разрывы и противоречия', '## Приоритетные изменения', '## Рекомендуемая продуктовая карта'],
+      structuredOutput: 'article',
+    },
   },
   {
     id: 'strategy.positioning.generate.v1',
@@ -1681,6 +1924,88 @@ ${value(inputs, 'transcriptText', 'Transcript не передан')}
       minLength: 500,
       maxLength: 30000,
       requiredIncludes: ['"customerTasks"', '"fearsProblemsObjections"', '"desiresGoalsResults"', '"summaryForContext"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'castdev.synthesis.v1',
+    version: 'v1',
+    feature: 'castdev_synthesis',
+    workflow: 'castdev.synthesis',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.2,
+    maxTokens: 10000,
+    artifactType: 'castdev_synthesis',
+    systemPrompt: () => `Ты — исследователь CustDev и стратег Luma IQ.
+
+Работай только со структурированными аналитическими отчётами выбранных интервью.
+Не запрашивай и не используй полные транскрипты.
+Не выдумывай частотность: считай только явно переданные интервью.
+Сохраняй короткие дословные цитаты как доказательства, но не раскрывай персональные данные.
+Верни строго валидный JSON без markdown.`,
+    userPromptBuilder: ({ inputs }) => `Синтезируй выбранные интервью CustDev в единый стратегический отчёт.
+
+Количество интервью: ${value(inputs, 'recordsCount', 'Не указано')}
+
+Структурированные отчёты:
+${value(inputs, 'reports', 'Отчёты не переданы')}
+
+Верни строго валидный JSON:
+{
+  "executiveSummary": "Главный вывод по выбранным интервью",
+  "segments": [
+    {
+      "name": "Сегмент",
+      "evidenceCount": 0,
+      "description": "Краткое описание"
+    }
+  ],
+  "topJobs": [
+    {
+      "title": "Задача клиента",
+      "evidenceCount": 0,
+      "quotes": ["Короткая дословная цитата"]
+    }
+  ],
+  "topFearsProblemsObjections": [
+    {
+      "title": "Страх, проблема или возражение",
+      "evidenceCount": 0,
+      "quotes": ["Короткая дословная цитата"]
+    }
+  ],
+  "topDesiredResults": [
+    {
+      "title": "Желаемый результат",
+      "evidenceCount": 0,
+      "quotes": ["Короткая дословная цитата"]
+    }
+  ],
+  "strategicImplications": [
+    {
+      "decision": "Стратегический вывод",
+      "rationale": "На каких данных основан",
+      "risk": "Ограничение или риск"
+    }
+  ],
+  "contentAngles": ["Тема контента на языке клиента"],
+  "productHypotheses": ["Гипотеза продукта или оффера"],
+  "limitations": ["Ограничение выборки"]
+}
+
+Не добавляй поля вне этой структуры.`,
+    validationRules: {
+      minLength: 700,
+      maxLength: 40000,
+      requiredIncludes: [
+        '"executiveSummary"',
+        '"topJobs"',
+        '"topFearsProblemsObjections"',
+        '"topDesiredResults"',
+        '"strategicImplications"',
+        '"limitations"',
+      ],
       structuredOutput: 'json',
     },
   },

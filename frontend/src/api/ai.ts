@@ -50,27 +50,136 @@ export interface WorkflowResponse {
   structured?:     Record<string, unknown> | null;
   validation:     { ok: boolean; errors: string[] };
   mock:           boolean;
-  model:          string;
-  provider:       string;
   aiPointsCharged?: number;
   aiBalanceRemaining?: number;
+}
+
+export interface AiActionQuote {
+  actionKey: string;
+  actionLabel: string;
+  sectionLabel: string;
+  aiPoints: number;
+  aiBalanceRemaining: number;
+  aiBalanceAfter: number;
+  affordable: boolean;
+}
+
+export type AiGenerationMode = 'now' | 'background';
+
+export type AiBatchItemRequest = {
+  customId?: string;
+  title?: string;
+  inputs: Record<string, unknown>;
+};
+
+export type AiBatchItem = {
+  id: string;
+  customId: string;
+  position: number;
+  status: string;
+  output: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+  aiPoints: number;
+  artifactId: string | null;
+};
+
+export type AiBatchJob = {
+  id: string;
+  status: 'queued' | 'submitted' | 'in_progress' | 'finalizing' | 'completed' | 'partially_failed' | 'failed' | 'cancelled' | 'expired';
+  actionKey: string;
+  workflow: string;
+  step: string;
+  totalItems: number;
+  completedItems: number;
+  failedItems: number;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  items?: AiBatchItem[];
+};
+
+export interface AiBatchRequest {
+  projectId: string;
+  workflow: string;
+  step: string;
+  items: AiBatchItemRequest[];
+  idempotencyKey: string;
+}
+
+function serverRoutedRequest<T extends { openaiModel?: string; claudeModel?: string }>(
+  request: T,
+): Omit<T, 'openaiModel' | 'claudeModel'> {
+  const { openaiModel: _openaiModel, claudeModel: _claudeModel, ...serverRouted } = request;
+  return serverRouted;
+}
+
+function serverRoutedWorkflowRequest<T extends WorkflowRequest>(
+  request: T,
+): Omit<T, 'provider' | 'openaiModel' | 'claudeModel'> {
+  const {
+    provider: _provider,
+    openaiModel: _openaiModel,
+    claudeModel: _claudeModel,
+    ...serverRouted
+  } = request;
+  return serverRouted;
+}
+
+function notifyBalanceChanged<T>(response: T): T {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('lumaiq:ai-balance-changed'));
+  }
+  return response;
 }
 
 export const aiApi = {
   chat: (req: ChatRequest) =>
     apiClient
-      .post<ChatResponse>('/ai/chat', req, { timeout: 180_000 })
-      .then((r) => r.data),
+      .post<ChatResponse>('/ai/chat', serverRoutedRequest(req), { timeout: 180_000 })
+      .then((r) => notifyBalanceChanged(r.data)),
 
   startWorkflow: (workflow: string, req: WorkflowRequest) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/start`, req, { timeout: 180_000 })
-      .then((r) => r.data),
+      .post<WorkflowResponse>(`/ai/workflows/${workflow}/start`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
+      .then((r) => notifyBalanceChanged(r.data)),
 
   runWorkflowStep: (workflow: string, req: WorkflowRequest) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, req, { timeout: 180_000 })
+      .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
+      .then((r) => notifyBalanceChanged(r.data)),
+
+  quoteWorkflow: (workflow: string, req: WorkflowRequest) =>
+    apiClient
+      .post<AiActionQuote>(`/ai/workflows/${workflow}/quote`, serverRoutedWorkflowRequest(req))
       .then((r) => r.data),
+
+  createBatch: (req: AiBatchRequest) =>
+    apiClient
+      .post<{ job: AiBatchJob }>('/ai/batches', req, {
+        headers: { 'Idempotency-Key': req.idempotencyKey },
+      })
+      .then((r) => r.data.job),
+
+  listBatches: (projectId?: string) =>
+    apiClient
+      .get<{ jobs: AiBatchJob[] }>('/ai/batches', { params: projectId ? { projectId } : undefined })
+      .then((r) => r.data.jobs),
+
+  getBatch: (id: string) =>
+    apiClient
+      .get<{ job: AiBatchJob }>(`/ai/batches/${id}`)
+      .then((r) => r.data.job),
+
+  refreshBatch: (id: string) =>
+    apiClient
+      .post<{ job: AiBatchJob }>(`/ai/batches/${id}/refresh`)
+      .then((r) => r.data.job),
+
+  cancelBatch: (id: string) =>
+    apiClient
+      .post<{ job: AiBatchJob }>(`/ai/batches/${id}/cancel`)
+      .then((r) => r.data.job),
 
   extractFileText: (file: File) => {
     const form = new FormData();

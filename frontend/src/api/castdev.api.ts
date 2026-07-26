@@ -36,6 +36,24 @@ export interface CastDevTranscribeResult {
   aiBalanceRemaining?: number | null;
 }
 
+export interface CastDevSynthesis {
+  id: string;
+  title: string | null;
+  content: string;
+  structured: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  workflowRunId: string | null;
+  generationId: string | null;
+  createdAt: string;
+}
+
+export interface CastDevSynthesisResult {
+  synthesis: CastDevSynthesis;
+  aiPointsCharged: number;
+  aiBalanceRemaining: number | null;
+  replayed: boolean;
+}
+
 export const castDevApi = {
   list: (projectId: string) =>
     apiClient.get<{ records: CastDevRecord[] }>('/castdev', { params: { projectId } }).then((r) => r.data.records),
@@ -43,11 +61,17 @@ export const castDevApi = {
   create: (data: { projectId: string; title: string; sourceUrl: string }) =>
     apiClient.post<{ record: CastDevRecord }>('/castdev', data).then((r) => r.data.record),
 
-  transcribe: (id: string) =>
-    apiClient.post<CastDevTranscribeResult>(`/castdev/${id}/transcribe`, undefined, { timeout: 300_000 }).then((r) => r.data),
+  transcribe: (id: string, mode: 'mini' | 'diarize' = 'mini') =>
+    apiClient.post<CastDevTranscribeResult>(`/castdev/${id}/transcribe`, { mode }, { timeout: 300_000 }).then((r) => r.data),
 
   analyze: (id: string) =>
     apiClient.post<CastDevAnalyzeResult>(`/castdev/${id}/analyze`, undefined, { timeout: 300_000 }).then((r) => r.data),
+
+  listSyntheses: (projectId: string) =>
+    apiClient.get<{ syntheses: CastDevSynthesis[] }>('/castdev/syntheses', { params: { projectId } }).then((r) => r.data.syntheses),
+
+  synthesize: (projectId: string, recordIds: string[]) =>
+    apiClient.post<CastDevSynthesisResult>('/castdev/syntheses', { projectId, recordIds }, { timeout: 300_000 }).then((r) => r.data),
 
   update: (id: string, data: Partial<Pick<CastDevRecord, 'title' | 'status' | 'fileName' | 'mimeType' | 'durationSec' | 'transcriptText' | 'transcriptFormatted' | 'analysis' | 'errorMessage' | 'metadata'>>) =>
     apiClient.patch<{ record: CastDevRecord }>(`/castdev/${id}`, data).then((r) => r.data.record),

@@ -7,6 +7,7 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
 import type { ContentItem } from '../../api/content.api';
@@ -593,7 +594,9 @@ export default function ChatbotChains() {
             </button>
           )}
           <button className={s.primaryBtn} onClick={() => void handleGenerate()}>
-            Сгенерировать все 13 сообщений →
+            Сгенерировать все 13 сообщений
+            <AiWorkflowCost workflow="chatbot.chain.generate" projectId={activeProjectId} />
+            {' →'}
           </button>
         </div>
         <ModelBar section="chatbot-chains" />

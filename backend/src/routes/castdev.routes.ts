@@ -6,6 +6,8 @@ const router = Router();
 
 router.get('/', requireAuth, castDevController.list);
 router.post('/', requireAuth, castDevController.create);
+router.get('/syntheses', requireAuth, castDevController.listSyntheses);
+router.post('/syntheses', requireAuth, castDevController.synthesize);
 router.post('/:id/transcribe', requireAuth, castDevController.transcribe);
 router.post('/:id/analyze', requireAuth, castDevController.analyze);
 router.patch('/:id', requireAuth, castDevController.update);

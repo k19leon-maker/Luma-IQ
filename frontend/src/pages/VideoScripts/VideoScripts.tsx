@@ -8,6 +8,7 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { aiApi } from '../../api/ai';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
@@ -279,6 +280,7 @@ export default function VideoScripts() {
         segment: seg,
         facture,
         cta: ctaText,
+        intent: ctaType === 'leadmagnet' ? 'selling' : 'education',
       };
       const resp = await aiApi.startWorkflow('video.script.write', {
         projectId: activeProjectId,
@@ -655,7 +657,13 @@ export default function VideoScripts() {
           disabled={facture.trim().length < 50}
           onClick={() => void handleGenerateScript()}
         >
-          Написать сценарий →
+          Написать сценарий
+          <AiWorkflowCost
+            workflow="video.script.write"
+            projectId={activeProjectId}
+            inputs={{ intent: ctaType === 'leadmagnet' ? 'selling' : 'education' }}
+          />
+          {' →'}
         </button>
       </div>
     </div>

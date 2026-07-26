@@ -1,6 +1,8 @@
 import { AIGenerationStatus, AIProvider as DbAIProvider, Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { getCastDevAnalysisCost } from '../config/ai-actions';
+import { actionKeyForFeature } from '../config/ai-action-registry';
+import { env } from '../config/env';
 import { withGlobalAiBehaviorPrompt } from '../config/system-prompt';
 import { prisma } from '../lib/prisma';
 import { promptRegistry } from '../prompts/registry';
@@ -10,6 +12,9 @@ import { aiValidationService } from './ai-validation.service';
 import { projectContextService } from './project-context.service';
 import { promptCmsService } from './prompt-cms.service';
 import { structuredOutputService } from './structured-output.service';
+import { aiActionRegistryService } from './ai-action-registry.service';
+import { aiFeatureFlagsService } from './ai-feature-flags.service';
+import { modelRegistryService } from './model-registry.service';
 
 const RUNNING_GENERATION_STALE_AFTER_MS = 10 * 60 * 1000;
 
@@ -21,8 +26,6 @@ export interface RunWorkflowInput {
   inputs: Record<string, unknown>;
   workflowRunId?: string;
   provider?: 'chatgpt' | 'claude';
-  openaiModel?: string;
-  claudeModel?: string;
   idempotencyKey?: string;
 }
 
@@ -88,8 +91,6 @@ function makeIdempotencyKey(input: RunWorkflowInput): string {
     step: input.step,
     workflowRunId: input.workflowRunId ?? null,
     provider: input.provider ?? null,
-    openaiModel: input.openaiModel ?? null,
-    claudeModel: input.claudeModel ?? null,
     inputs: input.inputs,
   });
   return `workflow:${crypto.createHash('sha256').update(raw).digest('hex')}`;
@@ -130,6 +131,11 @@ function buildGenerationMetadata(input: RunWorkflowInput, context: Awaited<Retur
     metadata.castdevAiPoints = typeof input.inputs.castdevAiPoints === 'number'
       ? input.inputs.castdevAiPoints
       : getCastDevAnalysisCost(transcriptChars);
+  }
+
+  if (input.workflow === 'strategy.audience' && input.step === 'generate') {
+    metadata.audienceStepId = typeof input.inputs.stepId === 'number' ? input.inputs.stepId : null;
+    metadata.audienceMode = typeof input.inputs.mode === 'string' ? input.inputs.mode : null;
   }
 
   return metadata as Prisma.InputJsonValue;
@@ -337,8 +343,17 @@ export const aiWorkflowService = {
       inputs: input.inputs,
     });
 
-    const provider = toProvider(input.provider);
-    const dbProvider = toDbProvider(provider);
+    const routerV2 = await aiFeatureFlagsService.isEnabled('AI_ROUTER_V2');
+    const actionDefinition = routerV2
+      ? await aiActionRegistryService.resolve(actionKeyForFeature(config.feature))
+      : null;
+    const profile = actionDefinition
+      ? await modelRegistryService.resolve(actionDefinition.pipeline[0]?.modelAlias ?? 'LUNA')
+      : null;
+    const provider = profile
+      ? toProvider(profile.provider === 'ANTHROPIC' ? 'claude' : 'chatgpt')
+      : toProvider(input.provider);
+    const dbProvider = profile?.provider ?? toDbProvider(provider);
     const baseSystemPrompt = withGlobalAiBehaviorPrompt(config.systemPrompt(context));
     const baseUserPrompt = config.userPromptBuilder({ inputs: input.inputs, context });
     const effectivePrompt = await promptCmsService.resolve({
@@ -350,13 +365,22 @@ export const aiWorkflowService = {
       baseSystemPrompt,
       baseUserPrompt,
     });
-    const model = provider === 'anthropic'
-      ? input.claudeModel ?? effectivePrompt.model
-      : input.openaiModel ?? effectivePrompt.model;
+    const model = profile?.actualModelId
+      ?? (provider === 'anthropic' ? env.ANTHROPIC_MODEL : effectivePrompt.model);
     const systemPrompt = effectivePrompt.systemPrompt;
     const userPrompt = effectivePrompt.userPrompt;
-    const generationMetadata = buildGenerationMetadata(input, context, { effectivePrompt, stageType });
+    const generationMetadata = {
+      ...(buildGenerationMetadata(input, context, { effectivePrompt, stageType }) as Record<string, unknown>),
+      accountingVersion: routerV2 ? 'router-v2' : 'legacy',
+      actionKey: actionDefinition?.actionKey ?? actionKeyForFeature(config.feature),
+      actionDefinitionVersionId: actionDefinition?.definitionVersionId ?? null,
+      actionPricingVersionId: actionDefinition?.pricingVersionId ?? null,
+      modelAlias: profile?.alias ?? 'LEGACY',
+      actualModelId: model,
+      modelProfileVersionId: profile?.versionId ?? null,
+    } as Prisma.InputJsonValue;
     let generationId: string | null = null;
+    let deferredAiPointCapture = false;
 
     try {
       const executed = await aiGenerationService.run({
@@ -371,7 +395,24 @@ export const aiWorkflowService = {
         promptVersion: config.version,
         contextVersion: context.contextVersion,
         metadata: generationMetadata,
-        execute: async () => {
+        deferAiPointCapture: true,
+        execute: async ({ generationId: activeGenerationId }) => {
+          const providerTelemetry = {
+            generationId: activeGenerationId,
+            workflowRunId: workflowRun.id,
+            workflowStepId: workflowStep.id,
+            userId: input.userId,
+            projectId: input.projectId,
+            actionKey: actionDefinition?.actionKey ?? actionKeyForFeature(config.feature),
+            pipeline: input.workflow,
+            promptVersion: config.version,
+            modelAlias: profile?.alias ?? 'LEGACY',
+            modelSnapshot: {
+              profileVersionId: profile?.versionId ?? null,
+              source: profile?.source ?? 'legacy',
+              actualModelId: model,
+            },
+          } as const;
           let response = await chat({
             provider,
             messages: [{ role: 'user', content: userPrompt }],
@@ -381,6 +422,11 @@ export const aiWorkflowService = {
             claudeModel: provider === 'anthropic' ? model : undefined,
             maxTokens: effectivePrompt.maxTokens,
             temperature: effectivePrompt.temperature,
+            telemetry: {
+              ...providerTelemetry,
+              stage: input.step,
+              retryIndex: 0,
+            },
           });
 
           let validation = aiValidationService.validate(response.content, config.validationRules);
@@ -398,12 +444,20 @@ export const aiWorkflowService = {
               claudeModel: provider === 'anthropic' ? model : undefined,
               maxTokens: effectivePrompt.maxTokens,
               temperature: Math.max(0.2, effectivePrompt.temperature - 0.2),
+              telemetry: {
+                ...providerTelemetry,
+                stage: `${input.step}.validation_repair`,
+                retryIndex: 1,
+              },
             });
             response = repair;
             usage = {
               inputTokens: usage.inputTokens + repair.usage.inputTokens,
               outputTokens: usage.outputTokens + repair.usage.outputTokens,
               cachedInputTokens: (usage.cachedInputTokens ?? 0) + (repair.usage.cachedInputTokens ?? 0),
+              reasoningTokens: (usage.reasoningTokens ?? 0) + (repair.usage.reasoningTokens ?? 0),
+              audioInputTokens: (usage.audioInputTokens ?? 0) + (repair.usage.audioInputTokens ?? 0),
+              audioOutputTokens: (usage.audioOutputTokens ?? 0) + (repair.usage.audioOutputTokens ?? 0),
               totalTokens: usage.totalTokens + repair.usage.totalTokens,
             };
             validation = aiValidationService.validate(response.content, config.validationRules);
@@ -422,6 +476,7 @@ export const aiWorkflowService = {
         },
       });
       generationId = executed.generationId;
+      deferredAiPointCapture = executed.aiPointsPending;
       const { response, validation, retryCount } = executed.result;
 
       const structured = structuredOutputService.build({
@@ -532,6 +587,16 @@ export const aiWorkflowService = {
         },
       });
 
+      const finalizedCharge = deferredAiPointCapture
+        ? await aiGenerationService.finalizeDeferredAiPoints({
+          generationId,
+          userId: input.userId,
+        })
+        : {
+          aiPointsCharged: executed.aiPointsCharged,
+          aiBalanceRemaining: executed.aiBalanceRemaining,
+        };
+
       return {
         workflowRunId: workflowRun.id,
         workflowStepId: workflowStep.id,
@@ -543,10 +608,19 @@ export const aiWorkflowService = {
         mock: response.mock,
         model: response.model,
         provider: response.provider,
-        aiPointsCharged: executed.aiPointsCharged,
-        aiBalanceRemaining: executed.aiBalanceRemaining,
+        aiPointsCharged: finalizedCharge.aiPointsCharged,
+        aiBalanceRemaining: finalizedCharge.aiBalanceRemaining,
       };
     } catch (err) {
+      if (generationId && deferredAiPointCapture) {
+        await aiGenerationService.failDeferredAiPoints({
+          generationId,
+          userId: input.userId,
+          error: err,
+        }).catch((releaseError) => {
+          console.error('[AIWorkflow] deferred AI-point release failed:', releaseError);
+        });
+      }
       await prisma.aIWorkflowStep.update({
         where: { id: workflowStep.id },
         data: {
@@ -576,6 +650,14 @@ export const aiWorkflowService = {
     if (!workflowRun) throw new Error('Workflow run не найден');
     if (workflowRun.status !== 'RUNNING') return workflowRun;
 
+    const reservedGenerations = await prisma.aIGeneration.findMany({
+      where: {
+        workflowRunId: workflowRun.id,
+        status: 'RUNNING',
+        aiPointsReserved: { gt: 0 },
+      },
+      select: { id: true },
+    });
     const [updated] = await prisma.$transaction([
       prisma.aIWorkflowRun.update({
         where: { id: workflowRun.id },
@@ -586,6 +668,13 @@ export const aiWorkflowService = {
         data: { status: 'CANCELED', completedAt: new Date() },
       }),
     ]);
+    for (const generation of reservedGenerations) {
+      await aiGenerationService.failDeferredAiPoints({
+        generationId: generation.id,
+        userId: input.userId,
+        error: new Error('Workflow canceled by user'),
+      });
+    }
     return updated;
   },
 };

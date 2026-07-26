@@ -11,6 +11,8 @@ import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDoc
 import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import AiPipelineProgress from '../../components/AiPipelineProgress/AiPipelineProgress';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
 import type { AxiosError } from 'axios';
 
@@ -414,73 +416,45 @@ ${currentProduct}
 
   async function handleCreate() {
     if (loading) return;
+    if (!activeProjectId) {
+      toast.error('Сначала выберите проект');
+      return;
+    }
     setLoading(true);
     let next: ProductState = {
       ...EMPTY_PRODUCT,
       generated: true,
       chatMessages: [],
-      stepStatuses: { ...EMPTY_STATUSES },
+      stepStatuses: PRODUCT_STEPS.reduce<Record<string, StepStatus>>((acc, step) => {
+        acc[step.id] = 'running';
+        return acc;
+      }, {}),
     };
     persistState(next, { syncMaterial: false });
 
     try {
-      const firstSteps = PRODUCT_STEPS.slice(0, 3);
-      for (const step of firstSteps) {
-        next = {
-          ...next,
-          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'running' },
-        };
-        persistState(next, { syncMaterial: false });
-
-        const resp = await requestProductStep(step.id, next);
-        const content = resp.content;
-        next = withWorkflowMeta(next, resp);
-        if (step.id === 'names') {
-          const nameLines = stripMarkdown(content).split('\n').filter(Boolean).slice(0, 3);
-          next.nameOptions = nameLines;
-          next.name = nameLines[0]?.replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт';
-        }
-        if (step.id === 'offer') next.offer = content;
-        if (step.id === 'description') next.productDescription = content;
-        next = withMessage({
-          ...next,
-          stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), [step.id]: 'done' },
-        }, { role: 'assistant', content, stepId: step.id, stepTitle: step.label });
-        persistState(next, { syncMaterial: false });
-      }
-
-      const moduleStep = PRODUCT_STEPS.find((step) => step.id === 'modules')!;
-      next = {
+      const workflow = 'product.main.build';
+      const inputs = {};
+      const resp = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      const markdown = cleanCodeFence(resp.content);
+      const recommendedName = markdown.match(/##\s+(?:Рекомендуемое\s+)?название[^\n]*\n+([^\n]+)/i)?.[1];
+      next = withWorkflowMeta({
         ...next,
-        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'running' },
-      };
-      persistState(next, { syncMaterial: false });
-      const modulesResp = await requestProductStep(moduleStep.id, next);
-      const modulesContent = modulesResp.content;
-      next = withWorkflowMeta(next, modulesResp);
-      next = withMessage({
-        ...next,
-        modulesText: modulesContent,
-        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), modules: 'done' },
-      }, { role: 'assistant', content: modulesContent, stepId: moduleStep.id, stepTitle: moduleStep.label });
-      persistState(next, { syncMaterial: false });
-
-      const promiseStep = PRODUCT_STEPS.find((step) => step.id === 'promise')!;
-      next = {
-        ...next,
-        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'running' },
-      };
-      persistState(next, { syncMaterial: false });
-      const promiseResp = await requestProductStep(promiseStep.id, next);
-      const promiseContent = promiseResp.content;
-      next = withWorkflowMeta(next, promiseResp);
-      next = withMessage({
-        ...next,
-        transformation: promiseContent,
-        stepStatuses: { ...(next.stepStatuses ?? EMPTY_STATUSES), promise: 'done' },
-      }, { role: 'assistant', content: promiseContent, stepId: promiseStep.id, stepTitle: promiseStep.label });
+        name: stripMarkdown(recommendedName ?? '').replace(/^\d+\.\s*/, '').split('—')[0]?.trim() || 'Основной продукт',
+        description: markdown,
+        currentMarkdown: markdown,
+        chatMessages: splitProductMarkdownToMessages(markdown),
+        stepStatuses: PRODUCT_STEPS.reduce<Record<string, StepStatus>>((acc, step) => {
+          acc[step.id] = 'done';
+          return acc;
+        }, {}),
+      }, resp);
       persistState(next, { versionTitle: 'Полная AI-сборка основного продукта', versionSource: 'ai' });
-      toast.success('Основной продукт создан. Списано 60 AI-баллов.');
+      toast.success(`Основной продукт создан. Списано ${resp.aiPointsCharged ?? 60} AI-баллов.`);
     } catch (err) {
       console.error('[ProductMain create] AI error:', err);
       const message = getRequestErrorMessage(err);
@@ -644,7 +618,9 @@ ${currentProduct}
           >
             {loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>}
             {loading ? 'ИИ работает...' : state.generated ? 'Пересобрать продукт' : 'Создать продукт'}
+            {!loading && <AiWorkflowCost workflow="product.main.build" projectId={activeProjectId} />}
           </button>
+          {loading && <AiPipelineProgress label="Собираем структуру, содержание и проверяем основной продукт." />}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 16px' }}>
@@ -865,6 +841,11 @@ ${currentProduct}
           padding: '10px 28px 8px',
         }}>
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
+            {state.generated && (
+              <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
+                Доработка текущей версии<AiWorkflowCost workflow="product.main.edit" projectId={activeProjectId} />
+              </div>
+            )}
             <MessageInput
               value={chatInput}
               onChange={setChatInput}

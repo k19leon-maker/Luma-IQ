@@ -14,6 +14,7 @@ import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItem
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -319,6 +320,7 @@ export default function Posts() {
       const inputs = {
         platform: platform === 'telegram' ? 'Telegram' : 'Instagram',
         postType: typeLabels[postType],
+        intent: 'selling',
         goal: offer === 'lead' ? 'лид-магнит' : offer === 'mini' ? 'мини-продукт' : 'основной продукт',
         topic: selectedTheme,
         facture,
@@ -605,7 +607,7 @@ export default function Posts() {
             </button>
           )}
           <button className={s.primaryBtn} onClick={handleGenerateThemes}>
-            Сгенерировать темы →
+            Сгенерировать темы<AiWorkflowCost workflow="posts.topic.generate" projectId={activeProjectId} /> →
           </button>
         </div>
       </div>
@@ -696,7 +698,7 @@ export default function Posts() {
           disabled={facture.trim().length < 30}
           onClick={handleGeneratePost}
         >
-          Написать пост →
+          Написать пост<AiWorkflowCost workflow="posts.post.write" projectId={activeProjectId} inputs={{ intent: 'selling' }} /> →
         </button>
       </div>
     </div>

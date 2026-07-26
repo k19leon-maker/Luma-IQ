@@ -1,0 +1,29 @@
+.root {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  color: #6d7078;
+  font-size: 13px;
+}
+
+.track {
+  height: 4px;
+  overflow: hidden;
+  background: #eceae4;
+}
+
+.bar {
+  width: 38%;
+  height: 100%;
+  background: #dbad3f;
+  animation: progress 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes progress {
+  from { transform: translateX(-35%); }
+  to { transform: translateX(200%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar { animation: none; width: 55%; }
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import { MessageActions, MessageInput } from '../../components/MessageInput/MessageInput';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { useProgressStore } from '../../store/progress.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { useAudienceStore } from '../../store/audience.store';
@@ -826,7 +827,18 @@ export default function Strategy() {
                   <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 12 }}>⟳</span>
                   {primaryActionLabel}
                 </>
-              ) : primaryActionLabel}
+              ) : (
+                <>
+                  {primaryActionLabel}
+                  {!hasPartialProgress && (
+                    <AiWorkflowCost
+                      workflow="strategy.audience.generate"
+                      projectId={activeProjectId}
+                      inputs={{ stepId: 1 }}
+                    />
+                  )}
+                </>
+              )}
             </button>
           )}
 

@@ -22,6 +22,7 @@ export type AiActionType =
   | 'tg_channel_post_video_script'
   | 'castdev_transcription'
   | 'castdev_analysis'
+  | 'castdev_synthesis'
   | 'strategy_rebuild';
 
 export const AI_ACTION_COSTS: Record<AiActionType, number> = {
@@ -48,6 +49,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   tg_channel_post_video_script: 5,
   castdev_transcription: 20,
   castdev_analysis: 40,
+  castdev_synthesis: 100,
   strategy_rebuild: 100,
 };
 
@@ -75,6 +77,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
   castdev_transcription: 'Транскрибация CustDev',
   castdev_analysis: 'AI-разбор CustDev',
+  castdev_synthesis: 'Синтез интервью CustDev',
   strategy_rebuild: 'Пересборка стратегии',
 };
 
@@ -103,6 +106,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   tg_channel_post_video_script: 'Контент',
   castdev_transcription: 'Стратегия',
   castdev_analysis: 'Стратегия',
+  castdev_synthesis: 'Стратегия',
 };
 
 export function getCastDevTranscriptionCost(durationSec: number | null | undefined): number {

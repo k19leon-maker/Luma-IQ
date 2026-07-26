@@ -2,20 +2,38 @@ import type { FeatureCode } from './ai-economy';
 
 export type AiActionType =
   | 'ai_chat'
+  | 'ai_chat_quick'
+  | 'ai_chat_deep'
+  | 'ai_chat_strategy'
   | 'strategy_about'
   | 'positioning'
   | 'audience'
+  | 'audience_followup'
   | 'utp'
+  | 'offer'
   | 'social'
+  | 'product_strategy_audit'
   | 'product_main'
+  | 'product_main_edit'
   | 'product_mini'
+  | 'product_mini_edit'
   | 'lead_magnet'
+  | 'lead_magnet_edit'
   | 'content_post'
+  | 'content_post_edit'
+  | 'content_post_regenerate'
   | 'content_reel'
+  | 'content_reel_edit'
+  | 'content_reel_regenerate'
   | 'content_thread'
+  | 'content_thread_edit'
+  | 'content_thread_regenerate'
   | 'content_article'
   | 'content_longread'
   | 'youtube_script'
+  | 'youtube_script_selling'
+  | 'selling_post'
+  | 'chatbot_scenario'
   | 'content_plan'
   | 'tg_channel_plan'
   | 'tg_channel_post'
@@ -24,24 +42,43 @@ export type AiActionType =
   | 'tg_channel_post_video_script'
   | 'castdev_transcription'
   | 'castdev_analysis'
+  | 'castdev_synthesis'
   | 'strategy_rebuild';
 
 export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   ai_chat: 1,
+  ai_chat_quick: 5,
+  ai_chat_deep: 20,
+  ai_chat_strategy: 60,
   strategy_about: 10,
   positioning: 20,
   audience: 25,
+  audience_followup: 0,
   utp: 20,
+  offer: 30,
   social: 15,
+  product_strategy_audit: 60,
   product_main: 60,
+  product_main_edit: 10,
   product_mini: 80,
+  product_mini_edit: 10,
   lead_magnet: 70,
+  lead_magnet_edit: 10,
   content_post: 5,
+  content_post_edit: 2,
+  content_post_regenerate: 5,
   content_reel: 7,
+  content_reel_edit: 3,
+  content_reel_regenerate: 7,
   content_thread: 20,
+  content_thread_edit: 5,
+  content_thread_regenerate: 20,
   content_article: 30,
   content_longread: 30,
   youtube_script: 35,
+  youtube_script_selling: 50,
+  selling_post: 10,
+  chatbot_scenario: 30,
   content_plan: 40,
   tg_channel_plan: 40,
   tg_channel_post: 5,
@@ -50,25 +87,44 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   tg_channel_post_video_script: 5,
   castdev_transcription: 20,
   castdev_analysis: 40,
+  castdev_synthesis: 100,
   strategy_rebuild: 100,
 };
 
 export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   ai_chat: 'Сообщение в диалоге',
+  ai_chat_quick: 'Быстрый ответ в диалоге',
+  ai_chat_deep: 'Глубокий анализ в диалоге',
+  ai_chat_strategy: 'Стратегический разбор в диалоге',
   strategy_about: 'Раздел «О себе»',
   positioning: 'Позиционирование',
   audience: 'Целевая аудитория',
+  audience_followup: 'Продолжение анализа ЦА',
   utp: 'УТП',
+  offer: 'Системный оффер',
   social: 'Оформление соцсетей',
+  product_strategy_audit: 'Аудит продуктовой стратегии',
   product_main: 'Основной продукт',
+  product_main_edit: 'Доработка основного продукта',
   product_mini: 'Мини-продукт',
+  product_mini_edit: 'Доработка мини-продукта',
   lead_magnet: 'Сборка лид-магнита',
+  lead_magnet_edit: 'Доработка лид-магнита',
   content_post: 'Пост',
+  content_post_edit: 'Доработка поста',
+  content_post_regenerate: 'Пересборка поста',
   content_reel: 'Рилс',
+  content_reel_edit: 'Доработка рилса',
+  content_reel_regenerate: 'Пересборка рилса',
   content_thread: 'Цепочка постов',
+  content_thread_edit: 'Доработка цепочки постов',
+  content_thread_regenerate: 'Пересборка цепочки постов',
   content_article: 'Статья',
   content_longread: 'Лонгрид',
   youtube_script: 'YouTube-сценарий',
+  youtube_script_selling: 'Продающий видеосценарий',
+  selling_post: 'Продающий пост',
+  chatbot_scenario: 'Сценарий чат-бота',
   content_plan: 'Контент-план',
   tg_channel_plan: 'План ТГ-канала',
   tg_channel_post: 'Пост для ТГ-канала',
@@ -77,26 +133,45 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_post_video_script: 'Сценарий видео для ТГ-канала',
   castdev_transcription: 'Транскрибация CustDev',
   castdev_analysis: 'AI-разбор CustDev',
+  castdev_synthesis: 'Синтез интервью CustDev',
   strategy_rebuild: 'Пересборка стратегии',
 };
 
 export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   ai_chat: 'Диалог с ИИ',
+  ai_chat_quick: 'Диалог с ИИ',
+  ai_chat_deep: 'Диалог с ИИ',
+  ai_chat_strategy: 'Диалог с ИИ',
   strategy_about: 'Стратегия',
   positioning: 'Стратегия',
   audience: 'Стратегия',
+  audience_followup: 'Стратегия',
   utp: 'Стратегия',
+  offer: 'Стратегия',
   social: 'Стратегия',
+  product_strategy_audit: 'Конструктор продуктов',
   strategy_rebuild: 'Стратегия',
   product_main: 'Конструктор продуктов',
+  product_main_edit: 'Конструктор продуктов',
   product_mini: 'Конструктор продуктов',
+  product_mini_edit: 'Конструктор продуктов',
   lead_magnet: 'Конструктор продуктов',
+  lead_magnet_edit: 'Конструктор продуктов',
   content_post: 'Контент',
+  content_post_edit: 'Контент',
+  content_post_regenerate: 'Контент',
   content_reel: 'Контент',
+  content_reel_edit: 'Контент',
+  content_reel_regenerate: 'Контент',
   content_thread: 'Контент',
+  content_thread_edit: 'Контент',
+  content_thread_regenerate: 'Контент',
   content_article: 'Контент',
   content_longread: 'Контент',
   youtube_script: 'Контент',
+  youtube_script_selling: 'Контент',
+  selling_post: 'Контент',
+  chatbot_scenario: 'Упаковка',
   content_plan: 'Контент',
   tg_channel_plan: 'Контент',
   tg_channel_post: 'Контент',
@@ -105,6 +180,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   tg_channel_post_video_script: 'Контент',
   castdev_transcription: 'Стратегия',
   castdev_analysis: 'Стратегия',
+  castdev_synthesis: 'Стратегия',
 };
 
 export function featureCodeToAiAction(featureCode: string): AiActionType {
@@ -135,8 +211,9 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'tg_channel_post_video_script': return 'tg_channel_post_video_script';
     case 'castdev_transcription': return 'castdev_transcription';
     case 'castdev_analysis': return 'castdev_analysis';
+    case 'castdev_synthesis': return 'castdev_synthesis';
     default:
-      return 'ai_chat';
+      throw new Error(`UNKNOWN_AI_ACTION: ${featureCode}`);
   }
 }
 
@@ -157,21 +234,58 @@ function metadataNumber(metadata: unknown, key: string): number | null {
 }
 
 export function getCastDevTranscriptionCost(durationSec: number | null | undefined): number {
-  if (!durationSec || durationSec <= 0) return 20;
-  const minutes = Math.ceil(durationSec / 60);
-  if (minutes <= 10) return 10;
-  if (minutes <= 30) return 20;
-  if (minutes <= 60) return 35;
-  if (minutes <= 90) return 50;
-  return 70;
+  return pointsFromTierPolicy(
+    durationSec && durationSec > 0 ? durationSec : null,
+    CASTDEV_TRANSCRIPTION_PRICING_POLICY,
+  );
 }
 
 export function getCastDevAnalysisCost(transcriptChars: number): number {
-  if (transcriptChars <= 10_000) return 20;
-  if (transcriptChars <= 30_000) return 40;
-  if (transcriptChars <= 60_000) return 70;
-  if (transcriptChars <= 100_000) return 100;
-  return 140;
+  return pointsFromTierPolicy(transcriptChars, CASTDEV_ANALYSIS_PRICING_POLICY);
+}
+
+export type AiPointTierPolicy = {
+  mode: 'tiered';
+  metric: 'durationSec' | 'transcriptChars';
+  defaultPoints: number;
+  tiers: Array<{ max: number | null; points: number }>;
+};
+
+export const CASTDEV_TRANSCRIPTION_PRICING_POLICY: AiPointTierPolicy = {
+  mode: 'tiered',
+  metric: 'durationSec',
+  defaultPoints: 20,
+  tiers: [
+    { max: 10 * 60, points: 10 },
+    { max: 30 * 60, points: 20 },
+    { max: 60 * 60, points: 35 },
+    { max: 90 * 60, points: 50 },
+    { max: null, points: 70 },
+  ],
+};
+
+export const CASTDEV_ANALYSIS_PRICING_POLICY: AiPointTierPolicy = {
+  mode: 'tiered',
+  metric: 'transcriptChars',
+  defaultPoints: 20,
+  tiers: [
+    { max: 10_000, points: 20 },
+    { max: 30_000, points: 40 },
+    { max: 60_000, points: 70 },
+    { max: 100_000, points: 100 },
+    { max: null, points: 140 },
+  ],
+};
+
+export function pointsFromTierPolicy(
+  value: number | null | undefined,
+  policy: AiPointTierPolicy,
+): number {
+  if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) {
+    return policy.defaultPoints;
+  }
+  return policy.tiers.find((tier) => tier.max === null || value <= tier.max)?.points
+    ?? policy.defaultPoints;
 }
 
 export function aiPointsForGeneration(featureCode: string, metadata?: unknown): number {
@@ -191,6 +305,14 @@ export function aiPointsForGeneration(featureCode: string, metadata?: unknown): 
     return getCastDevAnalysisCost(metadataNumber(metadata, 'transcriptChars') ?? 0);
   }
 
+  if (featureCode === 'audience' && workflow === 'strategy.audience') {
+    const audienceStepId = metadataNumber(metadata, 'audienceStepId');
+    const audienceMode = metadataField(metadata, 'audienceMode');
+    return audienceStepId === 1 && audienceMode !== 'stepChat'
+      ? AI_ACTION_COSTS.audience
+      : AI_ACTION_COSTS.audience_followup;
+  }
+
   if (step === 'edit') {
     if (featureCode === 'product_main' || featureCode === 'product_mini' || featureCode === 'lead_magnet') {
       return 10;
@@ -198,15 +320,18 @@ export function aiPointsForGeneration(featureCode: string, metadata?: unknown): 
   }
 
   if (featureCode === 'product_main' && workflow === 'product.main') {
+    if (step === 'build') return AI_ACTION_COSTS.product_main;
     return 12;
   }
 
   if (featureCode === 'product_mini' && workflow === 'product.mini') {
+    if (step === 'build') return AI_ACTION_COSTS.product_mini;
     const fivePointSteps = new Set(['bonuses', 'objections', 'landingBlock', 'telegramPosts']);
     return fivePointSteps.has(step) ? 5 : 6;
   }
 
   if (featureCode === 'lead_magnet' && workflow === 'leadmagnet') {
+    if (step === 'build') return AI_ACTION_COSTS.lead_magnet;
     return step === 'finalCta' ? 10 : 5;
   }
 

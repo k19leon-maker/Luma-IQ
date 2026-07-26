@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { aiApi } from '../../api/ai';
+import { aiApi, AiBatchJob, AiGenerationMode } from '../../api/ai';
 import { ContentItem } from '../../api/content.api';
 import { projectsApi } from '../../api/projects.api';
 import { useContentApi } from '../../hooks/useContentApi';
@@ -10,6 +10,7 @@ import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import s from './TgChannel.module.css';
 
 type TgPostStatus = 'idea' | 'ready' | 'planned';
@@ -213,6 +214,8 @@ export default function TgChannel() {
   const [generatingFor, setGeneratingFor] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState('');
+  const [generationMode, setGenerationMode] = useState<AiGenerationMode>('now');
+  const [batchJob, setBatchJob] = useState<AiBatchJob | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -275,6 +278,53 @@ export default function TgChannel() {
   const selectedItem = result?.items.find((item) => item.id === selectedId) ?? result?.items[0] ?? null;
   const readyCount = result?.items.filter((item) => item.post).length ?? 0;
   const plannedCount = result?.items.filter((item) => item.plannedDate).length ?? 0;
+  const pendingItems = result?.items.filter((item) => !item.post) ?? [];
+
+  useEffect(() => {
+    if (!batchJob || ['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status)) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const updated = await aiApi.getBatch(batchJob.id);
+        setBatchJob(updated);
+      } catch {
+        // A transient polling error should not discard the durable server-side job.
+      }
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [batchJob]);
+
+  useEffect(() => {
+    if (!batchJob || !result || !['completed', 'partially_failed'].includes(batchJob.status)) return;
+    const completed = new Map(
+      (batchJob.items ?? [])
+        .filter((item) => item.status === 'completed' && typeof item.output?.content === 'string')
+        .map((item) => [item.customId, normalizePost(JSON.parse(stripJsonFence(String(item.output!.content))))]),
+    );
+    if (!completed.size) return;
+    const next: TgChannelResult = {
+      ...result,
+      items: result.items.map((item) => {
+        const post = completed.get(item.id);
+        return post ? { ...item, post, status: item.plannedDate ? 'planned' : 'ready' } : item;
+      }),
+    };
+    setResult(next);
+    void persistResult(next, {
+      kind: 'tg_channel',
+      contentType: 'tg_channel',
+      status: batchJob.status,
+      settings,
+      sourceSnapshot: next.sourceSnapshot,
+      batchJobId: batchJob.id,
+    });
+    toast.success(
+      batchJob.status === 'completed'
+        ? `Фоновая генерация завершена: готово ${batchJob.completedItems} постов.`
+        : `Готово ${batchJob.completedItems} постов, с ошибкой: ${batchJob.failedItems}.`,
+    );
+  // The terminal batch is applied once per job update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchJob?.id, batchJob?.status]);
 
   async function persistResult(nextResult: TgChannelResult, metadata: Record<string, unknown>, forceCreate = false) {
     const content = JSON.stringify(nextResult, null, 2);
@@ -444,6 +494,41 @@ export default function TgChannel() {
     }
   }
 
+  async function handleGeneratePostsInBackground() {
+    if (!activeProjectId || !result || pendingItems.length < 2) return;
+    setError('');
+    try {
+      const items = pendingItems.map((item) => ({
+        customId: item.id,
+        title: item.topic,
+        inputs: {
+          ...settings,
+          planItem: JSON.stringify(item, null, 2),
+          existingPost: '',
+          sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
+        },
+      }));
+      const idempotencyKey = makeAiIdempotencyKey({
+        projectId: activeProjectId,
+        workflow: 'tg-channel.post.batch',
+        inputs: { items },
+      });
+      const job = await aiApi.createBatch({
+        projectId: activeProjectId,
+        workflow: 'tg-channel',
+        step: 'post',
+        items,
+        idempotencyKey,
+      });
+      setBatchJob(job);
+      toast.success(`Пакет из ${items.length} постов поставлен в фоновую генерацию.`);
+    } catch (err) {
+      const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось запустить фоновую генерацию постов.';
+      setError(message);
+      toast.error(message);
+    }
+  }
+
   async function handleCopy(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success('Скопировано');
@@ -525,7 +610,7 @@ export default function TgChannel() {
               <textarea className={s.textarea} value={settings.channelFor} onChange={(e) => setSettings((current) => ({ ...current, channelFor: e.target.value }))} placeholder="Короткое описание аудитории и офера канала" />
               <div className={s.inlineActions}>
                 <button className={s.ghostButton} type="button" onClick={() => void handleFormulateChannelFor()} disabled={generatingFor}>
-                  {generatingFor ? 'Формулирую...' : `Сформулировать с ИИ · ${AI_ACTION_COSTS.tg_channel_post_edit} AI-балла`}
+                  {generatingFor ? 'Формулирую...' : <>Сформулировать с ИИ<AiWorkflowCost workflow="tg-channel.setup.channelFor" projectId={activeProjectId} /></>}
                 </button>
                 <span className={s.fieldHint}>AI использует «Целевую аудиторию», «Позиционирование» и «УТП».</span>
               </div>
@@ -538,7 +623,7 @@ export default function TgChannel() {
           </div>
           <div className={s.actions} style={{ marginTop: 16 }}>
             <button className={s.primaryButton} onClick={() => void handleGeneratePlan()} disabled={generatingPlan}>
-              {generatingPlan ? 'Собираю...' : `Собрать план ТГ-канала · ${AI_ACTION_COSTS.tg_channel_plan} AI-баллов`}
+              {generatingPlan ? 'Собираю...' : <>Собрать план ТГ-канала<AiWorkflowCost workflow="tg-channel.plan" projectId={activeProjectId} /></>}
             </button>
           </div>
         </div>
@@ -568,6 +653,54 @@ export default function TgChannel() {
             </div>
             <span className={s.statusBadge}>{savedId ? 'Сохранено автоматически' : 'Сохранится автоматически'}</span>
           </div>
+
+          {pendingItems.length > 0 && (
+            <div className={s.batchPanel}>
+              <div>
+                <h3>Создание постов</h3>
+                <p>
+                  {generationMode === 'now'
+                    ? 'Откройте нужную тему ниже и создайте один пост сразу.'
+                    : `Все еще не созданные посты (${pendingItems.length}) будут подготовлены в фоне.`}
+                </p>
+              </div>
+              <div className={s.batchControls}>
+                <div className={s.modeControl} aria-label="Режим генерации">
+                  <button
+                    type="button"
+                    className={generationMode === 'now' ? s.modeActive : ''}
+                    onClick={() => setGenerationMode('now')}
+                  >
+                    Сейчас
+                  </button>
+                  <button
+                    type="button"
+                    className={generationMode === 'background' ? s.modeActive : ''}
+                    onClick={() => setGenerationMode('background')}
+                  >
+                    Фоновая генерация
+                  </button>
+                </div>
+                {generationMode === 'background' && (
+                  <button
+                    className={s.primaryButton}
+                    type="button"
+                    disabled={pendingItems.length < 2 || Boolean(batchJob && !['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status))}
+                    onClick={() => void handleGeneratePostsInBackground()}
+                  >
+                    {batchJob && !['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status)
+                      ? `Выполняется: ${batchJob.completedItems} из ${batchJob.totalItems}`
+                      : `Создать ${pendingItems.length} постов фоном`}
+                  </button>
+                )}
+              </div>
+              {batchJob && (
+                <div className={s.batchStatus}>
+                  Статус: {batchJob.status}. Готово: {batchJob.completedItems}, с ошибкой: {batchJob.failedItems}.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={s.tableWrap}>
             <table className={s.planTable}>
@@ -624,7 +757,9 @@ export default function TgChannel() {
                         onClick={() => void runPostWorkflow(selectedItem, action.step, action.label)}
                         disabled={busyPostId === selectedItem.id}
                       >
-                        {busyPostId === selectedItem.id && busyAction === action.label ? 'Дорабатываю...' : `${action.label} · ${action.cost}`}
+                        {busyPostId === selectedItem.id && busyAction === action.label
+                          ? 'Дорабатываю...'
+                          : <>{action.label}<AiWorkflowCost workflow={`tg-channel.${action.step}`} projectId={activeProjectId} /></>}
                       </button>
                     ))}
                   </div>
@@ -632,7 +767,7 @@ export default function TgChannel() {
               ) : (
                 <div className={s.postActions}>
                   <button className={s.primaryButton} onClick={() => void runPostWorkflow(selectedItem, 'post')} disabled={busyPostId === selectedItem.id}>
-                    {busyPostId === selectedItem.id ? 'Пишу...' : `Написать пост · ${AI_ACTION_COSTS.tg_channel_post} AI-баллов`}
+                    {busyPostId === selectedItem.id ? 'Пишу...' : <>Написать пост<AiWorkflowCost workflow="tg-channel.post" projectId={activeProjectId} /></>}
                   </button>
                 </div>
               )}

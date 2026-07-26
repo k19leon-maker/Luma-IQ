@@ -14,6 +14,7 @@ import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItem
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -614,7 +615,7 @@ export default function Reels() {
         </div>
         <div className={s.btnRow}>
           {reels.length > 0 && <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>← Назад к рилсам</button>}
-          <button className={s.primaryBtn} onClick={() => handleGenerateHooks()}>Сгенерировать хуки →</button>
+          <button className={s.primaryBtn} onClick={() => handleGenerateHooks()}>Сгенерировать хуки<AiWorkflowCost workflow="reels.hooks.generate" projectId={activeProjectId} /> →</button>
         </div>
       </div>
     );
@@ -674,7 +675,7 @@ export default function Reels() {
       </div>
       <div className={s.btnRow}>
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
-        <button className={s.primaryBtn} disabled={facture.trim().length < 30 || !selectedHook} onClick={handleGenerateReel}>Написать сценарий →</button>
+        <button className={s.primaryBtn} disabled={facture.trim().length < 30 || !selectedHook} onClick={handleGenerateReel}>Написать сценарий<AiWorkflowCost workflow="reels.script.write" projectId={activeProjectId} /> →</button>
       </div>
     </div>
   );

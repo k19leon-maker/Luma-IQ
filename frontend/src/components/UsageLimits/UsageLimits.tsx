@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { billingApi, type BillingMe } from '../../api/billing.api';
 import {
-  AI_ACTION_COSTS,
-  AI_ACTION_LABELS,
   SECTION_PRIMARY_ACTION,
-  type AiActionType,
 } from '../../config/ai-balance';
 import { appPath } from '../../utils/appRoutes';
 import { formatLimitNumber } from '../../utils/planLimits';
@@ -33,14 +30,15 @@ function toneClass(tone: ReturnType<typeof getTone>): string {
   return '';
 }
 
-const costHints = [
-  'Диалог с ИИ — 1 балл',
-  'Пост или рилс — 5-7 баллов',
-  'Позиционирование — 20 AI-баллов',
-  'Основной продукт — 60 AI-баллов',
-  'Мини-продукт — 80 AI-баллов',
-  'Лид-магнит — 70 AI-баллов',
-];
+const hintActionKeys = [
+  'ai_chat_quick',
+  'content_post',
+  'content_reel',
+  'positioning',
+  'product_main',
+  'product_mini',
+  'lead_magnet',
+] as const;
 
 export function useBillingMe() {
   const [billing, setBilling] = useState<BillingMe | null>(null);
@@ -49,35 +47,33 @@ export function useBillingMe() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(false);
-    billingApi.getMe()
-      .then((next) => {
-        if (!cancelled) setBilling(next);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setBilling(null);
-          setError(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const refresh = () => {
+      setLoading(true);
+      setError(false);
+      billingApi.getMe()
+        .then((next) => {
+          if (!cancelled) setBilling(next);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setBilling(null);
+            setError(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    refresh();
+    window.addEventListener('lumaiq:ai-balance-changed', refresh);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('lumaiq:ai-balance-changed', refresh);
     };
   }, []);
 
   return { billing, loading, error };
-}
-
-function actionCostText(action: AiActionType): string {
-  const cost = AI_ACTION_COSTS[action];
-  const label = AI_ACTION_LABELS[action].toLowerCase();
-  if (action === 'ai_chat') return `Сообщение обычно списывает ${cost} AI-балл.`;
-  return `${label.charAt(0).toUpperCase()}${label.slice(1)} спишет ${cost} AI-баллов.`;
 }
 
 export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSection }) {
@@ -125,6 +121,8 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
 
   const tone = getTone(limits.aiBalanceRemaining, limits.aiBalanceTotal);
   const action = SECTION_PRIMARY_ACTION[section] ?? null;
+  const priceByAction = new Map(billing.actionPrices.map((item) => [item.actionKey, item]));
+  const primaryPrice = action ? priceByAction.get(action) : null;
   const usedPercent = limits.aiBalanceTotal > 0
     ? Math.min(100, Math.max(0, (limits.aiBalanceUsed / limits.aiBalanceTotal) * 100))
     : 0;
@@ -157,8 +155,10 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
             </button>
             <span className={s.infoBubble}>
               <span>Баллы списываются только после успешной генерации.</span>
-              {action && <span>{actionCostText(action)}</span>}
-              {costHints.map((hint) => <span key={hint}>{hint}</span>)}
+              {primaryPrice && <span>{primaryPrice.actionLabel} — {primaryPrice.aiPoints} AI-баллов.</span>}
+              {hintActionKeys.map((key) => priceByAction.get(key)).filter(Boolean).map((item) => (
+                <span key={item!.actionKey}>{item!.actionLabel} — {item!.aiPoints} AI-баллов</span>
+              ))}
               <Link to={appPath('/limits')}>Посмотреть все лимиты</Link>
             </span>
           </span>

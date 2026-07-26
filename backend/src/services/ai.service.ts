@@ -1,5 +1,8 @@
 import { env } from '../config/env';
 import { SYSTEM_PROMPT } from '../config/system-prompt';
+import { anthropicProvider } from '../providers/anthropic.provider';
+import { openAIProvider } from '../providers/openai.provider';
+import type { ProviderTelemetryContext } from '../providers/provider.types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -21,6 +24,7 @@ export interface AIRequest {
   claudeModel?: string;
   maxTokens?: number;
   temperature?: number;
+  telemetry?: ProviderTelemetryContext;
 }
 
 export interface AIResponse {
@@ -32,8 +36,13 @@ export interface AIResponse {
     inputTokens: number;
     outputTokens: number;
     cachedInputTokens?: number;
+    reasoningTokens?: number;
+    audioInputTokens?: number;
+    audioOutputTokens?: number;
     totalTokens: number;
   };
+  responseId?: string | null;
+  providerCallId?: string | null;
 }
 
 const ZERO_USAGE: AIResponse['usage'] = {
@@ -166,8 +175,6 @@ async function mockAnthropic(messages: Message[]): Promise<AIResponse> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function callOpenAI(req: AIRequest): Promise<AIResponse> {
-  const { default: OpenAI } = await import('openai');
-  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
   const model = resolveOpenAIModel(req.section, req.openaiModel);
 
   const systemContent = req.systemPrompt ?? SYSTEM_PROMPT;
@@ -178,32 +185,36 @@ async function callOpenAI(req: AIRequest): Promise<AIResponse> {
 
   console.log(`🤖 OpenAI model: ${model}${req.section ? ` (${req.section})` : ''}`);
 
-  const params: Record<string, unknown> = {
+  const metered = await openAIProvider.chatCompletion({
+    apiKey: env.OPENAI_API_KEY,
     model,
     messages,
-  };
-  if (model.startsWith('gpt-5')) {
-    params.max_completion_tokens = req.maxTokens ?? 1024;
-  } else {
-    params.max_tokens = req.maxTokens ?? 1024;
-    params.temperature = req.temperature ?? 0.7;
-  }
-
-  const completion = await client.chat.completions.create(params as never);
-  const usage = completion.usage;
-  const cachedTokens = usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    maxTokens: req.maxTokens ?? 1024,
+    temperature: req.temperature,
+    telemetry: req.telemetry ?? {
+      actionKey: 'unattributed_text',
+      stage: 'generation',
+      promptVersion: 'legacy-runtime',
+      modelAlias: 'LEGACY',
+      metadata: { section: req.section ?? null },
+    },
+  });
+  const usage = metered.usage;
 
   return {
-    content: completion.choices[0]?.message?.content ?? '',
+    content: metered.result.content,
     provider: 'openai',
     model,
     mock: false,
     usage: {
-      inputTokens: usage?.prompt_tokens ?? 0,
-      outputTokens: usage?.completion_tokens ?? 0,
-      cachedInputTokens: cachedTokens,
-      totalTokens: usage?.total_tokens ?? ((usage?.prompt_tokens ?? 0) + (usage?.completion_tokens ?? 0) + cachedTokens),
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: usage.cachedInputTokens ?? 0,
+      reasoningTokens: usage.reasoningTokens ?? 0,
+      totalTokens: usage.inputTokens + usage.outputTokens,
     },
+    responseId: metered.responseId,
+    providerCallId: metered.providerCallId,
   };
 }
 
@@ -340,9 +351,6 @@ export const SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 async function callAnthropic(req: AIRequest): Promise<AIResponse> {
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
   const systemPrompt =
     req.systemPrompt ??
     (req.section && SYSTEM_PROMPTS[req.section] ? SYSTEM_PROMPTS[req.section] : PSY_BOOST_SYSTEM_PROMPT);
@@ -355,33 +363,38 @@ async function callAnthropic(req: AIRequest): Promise<AIResponse> {
     const model = req.claudeModel ?? 'claude-haiku-4-5-20251001';
     if (req.claudeModel) console.log(`🤖 Используется модель: ${model}`);
 
-    const response = await client.messages.create({
+    const metered = await anthropicProvider.message({
+      apiKey: env.ANTHROPIC_API_KEY,
       model,
-      max_tokens: req.maxTokens ?? 1024,
-      system: systemPrompt,
-      messages: req.messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      maxTokens: req.maxTokens ?? 1024,
+      systemPrompt,
+      messages: req.messages,
+      telemetry: req.telemetry ?? {
+        actionKey: 'unattributed_text',
+        stage: 'generation',
+        promptVersion: 'legacy-runtime',
+        modelAlias: 'LEGACY',
+        metadata: { section: req.section ?? null },
+      },
     });
 
     console.log('✅ Claude API: реальный ответ получен');
-
-    const block = response.content[0];
-    const content = block.type === 'text' ? block.text : '';
-    const inputTokens = response.usage.input_tokens ?? 0;
-    const outputTokens = response.usage.output_tokens ?? 0;
+    const usage = metered.usage;
 
     return {
-      content,
+      content: metered.result.content,
       provider: 'anthropic',
       model,
       mock: false,
       usage: {
-        inputTokens,
-        outputTokens,
-        cachedInputTokens: 0,
-        totalTokens: inputTokens + outputTokens,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens ?? 0,
+        reasoningTokens: usage.reasoningTokens ?? 0,
+        totalTokens: usage.inputTokens + usage.outputTokens,
       },
+      responseId: metered.responseId,
+      providerCallId: metered.providerCallId,
     };
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };

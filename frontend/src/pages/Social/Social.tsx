@@ -9,6 +9,7 @@ import { aiApi } from '../../api/ai';
 import { buildSocialMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 
 interface PlatformState {
   generated: boolean;
@@ -188,6 +189,7 @@ export default function Social() {
                     disabled={state.loading}
                   >
                     {state.loading ? 'Генерирую...' : 'Оформить'}
+                    {!state.loading && <AiWorkflowCost workflow="strategy.social.generate" projectId={activeProjectId} />}
                   </button>
                 </div>
               )}
