@@ -80,6 +80,39 @@ model ConsentLog {
   @@map("consent_logs")
 }
 
+model B2CSession {
+  id                String   @id @default(uuid())
+  tokenHash         String   @unique
+  email             String?
+  phone             String?
+  profile           Json?
+  diagnosticAnswers Json?
+  clientData        Json?
+  expiresAt         DateTime
+  lastSeenAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  messages B2CChatMessage[]
+
+  @@index([expiresAt])
+  @@index([email, updatedAt])
+  @@map("b2c_sessions")
+}
+
+model B2CChatMessage {
+  id        String   @id @default(uuid())
+  sessionId String
+  role      String
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  session B2CSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("b2c_chat_messages")
+}
+
 model VerificationToken {
   id        String   @id @default(uuid())
   userId    String

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env';
 import { b2cPsychologistSystemPrompt } from '../prompts/b2c-psychologist.prompt';
+import { prisma } from '../lib/prisma';
+import { ensureB2CSession, replaceB2CMessages } from '../services/b2c-session.service';
 
 type PsychologyProfile = {
   name?: string | null;
@@ -149,7 +151,8 @@ export const b2cPsychologistController = {
     }
 
     const { message, messages, profile, messagesUsed } = parsed.data;
-    const dialogueKey = getClientIp(req);
+    const session = await ensureB2CSession(req, res);
+    const dialogueKey = session.id;
     const usedByRequest = messagesUsed ?? messages.filter((item) => item.role === 'client').length;
     const usedByServer = (dialogueBuckets.get(dialogueKey) ?? 0) + 1;
     dialogueBuckets.set(dialogueKey, Math.max(usedByServer, usedByRequest));
@@ -176,7 +179,7 @@ export const b2cPsychologistController = {
         input: [
           {
             role: 'system',
-            content: `${b2cPsychologistSystemPrompt}\n\nПрофиль пользователя из квиза:\n${profileContext(profile)}\n\nСообщений пользователя в этом анонимном диалоге: ${usedByRequest}/${ANONYMOUS_MESSAGE_LIMIT}.\n${shouldOfferSignup ? 'В этом ответе предложи создать B2C-кабинет Luma IQ для сохранения истории.' : ''}`,
+            content: `${b2cPsychologistSystemPrompt}\n\nПрофиль пользователя из квиза:\n${profileContext(profile)}\n\nСообщений пользователя в этом анонимном диалоге: ${usedByRequest}/${ANONYMOUS_MESSAGE_LIMIT}.\n${shouldOfferSignup ? 'В этом ответе предложи сохранить историю в кабинете «Семейно».' : ''}`,
           },
           ...recentMessages(messages),
           {
@@ -198,12 +201,26 @@ export const b2cPsychologistController = {
     }
 
     const text = extractOutputText(data);
-    res.json({
-      reply: text || 'Я рядом. Можете рассказать чуть подробнее, что сейчас ощущается самым сложным?',
-      updatedProfile: {
-        ...profile,
-        summary: `${profile.summary ?? ''}\nПоследнее сообщение: ${message.slice(0, 300)}`,
+    const reply = text || 'Я рядом. Можете рассказать чуть подробнее, что сейчас ощущается самым сложным?';
+    const updatedProfile = {
+      ...profile,
+      summary: `${profile.summary ?? ''}\nПоследнее сообщение: ${message.slice(0, 300)}`,
+    };
+    await prisma.b2CSession.update({
+      where: { id: session.id },
+      data: {
+        email: profile.email ?? undefined,
+        phone: profile.phone ?? undefined,
+        profile: updatedProfile,
       },
+    });
+    await replaceB2CMessages(session.id, [
+      ...messages,
+      { role: 'psychologist', text: reply },
+    ]);
+    res.json({
+      reply,
+      updatedProfile,
       shouldOfferSignup,
     });
   },
