@@ -57,14 +57,6 @@ function addDays(value: Date, days: number): Date {
 }
 
 export const paymentService = {
-  async createStartTestPayment(userId: string): Promise<{ confirmationUrl: string; paymentId: string }> {
-    return this.createPaymentWithDefinition(userId, 'START', {
-      amount: '20.00',
-      description: 'Luma IQ Старт — тестовый платеж 20 ₽',
-      periodDays: 30,
-    }, { testPayment: true, originalPriceMonthlyRub: PRICING_PLANS.START.priceMonthlyRub });
-  },
-
   async createPayment(userId: string, requestedPlan: string): Promise<{ confirmationUrl: string; paymentId: string }> {
     if (!isPurchasablePlanId(requestedPlan)) {
       throw Object.assign(new Error('Тариф недоступен для новой покупки'), { status: 400 });

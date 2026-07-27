@@ -38,7 +38,6 @@ import {
 const Login = lazy(() => import('./pages/Login/Login'));
 const Register = lazy(() => import('./pages/Register/Register'));
 const PlatformLanding = lazy(() => import('./pages/Platform/PlatformLanding'));
-const StartTestPayment = lazy(() => import('./pages/StartTestPayment/StartTestPayment'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback/AuthCallback'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail/VerifyEmail'));
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
@@ -194,7 +193,6 @@ export default function App() {
         <Route path="/client" element={publicPage(<B2CClientCabinet />)} />
         <Route path="/go/page/abc" element={page(<GoLongread />)} />
         <Route path="/platform" element={page(<PlatformLanding />)} />
-        <Route path="/pay/start-20" element={page(<StartTestPayment />)} />
         <Route path="/legal/privacy-policy" element={page(<B2BLegalPage />)} />
         <Route path="/legal/personal-data" element={page(<B2BLegalPage />)} />
         <Route path="/legal/offer" element={page(<B2BLegalPage />)} />

@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /pay/start-20
 
 Sitemap: https://lumaiq.ru/sitemap.xml

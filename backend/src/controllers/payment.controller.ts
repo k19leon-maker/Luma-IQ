@@ -24,16 +24,6 @@ export const paymentController = {
     }
   },
 
-  async createStartTestPayment(req: AuthRequest, res: Response): Promise<void> {
-    try {
-      const result = await paymentService.createStartTestPayment(req.userId!);
-      res.json(result);
-    } catch (err) {
-      const e = err as Error & { status?: number };
-      res.status(e.status ?? 500).json({ error: e.message });
-    }
-  },
-
   async getSubscription(req: AuthRequest, res: Response): Promise<void> {
     try {
       const subscription = await paymentService.getSubscription(req.userId!);

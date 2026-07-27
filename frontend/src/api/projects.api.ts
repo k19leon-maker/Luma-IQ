@@ -64,9 +64,6 @@ export const paymentApi = {
   createPayment: (plan: 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL') =>
     apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create', { plan }).then((r) => r.data),
 
-  createStartTestPayment: () =>
-    apiClient.post<{ confirmationUrl: string; paymentId: string }>('/payments/create-start-test-20').then((r) => r.data),
-
   getSubscription: () =>
     apiClient.get<{ subscription: { plan: string; status: string; expiresAt: string | null } }>('/payments/subscription').then((r) => r.data.subscription),
 };
