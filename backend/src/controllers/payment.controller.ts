@@ -8,6 +8,17 @@ const createSchema = z.object({
   plan: z.string().refine(isPurchasablePlanId, 'Тариф недоступен для покупки'),
 });
 
+function publicPaymentError(error: unknown): { status: number; message: string } {
+  const providerError = error as Error & { status?: number };
+  if (providerError.status && providerError.status >= 400 && providerError.status < 500) {
+    return { status: providerError.status, message: providerError.message };
+  }
+  return {
+    status: 502,
+    message: 'Не удалось перейти к оплате. Попробуйте ещё раз через несколько минут.',
+  };
+}
+
 export const paymentController = {
   async createPayment(req: AuthRequest, res: Response): Promise<void> {
     const parsed = createSchema.safeParse(req.body);
@@ -19,8 +30,8 @@ export const paymentController = {
       const result = await paymentService.createPayment(req.userId!, parsed.data.plan);
       res.json(result);
     } catch (err) {
-      const e = err as Error & { status?: number };
-      res.status(e.status ?? 500).json({ error: e.message });
+      const response = publicPaymentError(err);
+      res.status(response.status).json({ error: response.message });
     }
   },
 

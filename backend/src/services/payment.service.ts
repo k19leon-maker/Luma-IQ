@@ -44,8 +44,25 @@ async function ykRequest(method: string, path: string, body?: unknown) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`YooKassa error ${response.status}: ${err}`);
+    const raw = await response.text();
+    let providerError: { id?: string; code?: string; description?: string } = {};
+    try {
+      providerError = JSON.parse(raw) as typeof providerError;
+    } catch {
+      // Keep malformed provider responses out of user-facing errors.
+    }
+    console.error('[Payment] YooKassa request failed', {
+      method,
+      path,
+      status: response.status,
+      requestId: providerError.id,
+      code: providerError.code,
+      description: providerError.description,
+    });
+    throw Object.assign(new Error('Сервис оплаты временно недоступен'), {
+      status: 502,
+      code: 'PAYMENT_PROVIDER_ERROR',
+    });
   }
   return response.json();
 }
