@@ -45,8 +45,13 @@ export default function Login() {
       await login(email, password, consents);
       navigate(afterLoginPath, { replace: true });
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Ошибка входа. Попробуйте снова.');
+      const response = (err as { response?: { data?: { error?: string } } })?.response;
+      setError(
+        response?.data?.error
+        ?? (!response
+          ? 'Не удалось связаться с сервером. Проверьте интернет-соединение и повторите вход.'
+          : 'Ошибка входа. Попробуйте снова.'),
+      );
     } finally {
       setLoading(false);
     }
