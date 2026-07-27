@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 const updateProfileSchema = z.object({
-  name:           z.string().min(1).max(100).optional(),
+  name:           z.string().trim().min(1, 'Имя не может быть пустым').max(100).optional(),
   avatarColor:    z.string().max(20).optional(),
   defaultAiModel: z.string().max(50).optional(),
   specialization: z.string().max(200).optional(),

@@ -80,7 +80,7 @@ const pageTitles: Record<string, string> = {
   '/files/materials': 'Материалы',
   '/files/products':  'Продукты',
   '/history':         'История',
-  '/settings':        'Настройки',
+  '/settings':        'Мой профиль',
   '/limits':          'Лимиты',
   '/admin':           'Админка',
 };
@@ -331,6 +331,7 @@ export default function Layout({ children }: LayoutProps) {
   const projectMatch = appLocationPath.match(/^\/projects\/(.+)$/);
   const isAiWorkspace = aiWorkspacePaths.has(appLocationPath);
   const isAiDialog = appLocationPath === '/ai-dialog';
+  const isProfilePage = appLocationPath === '/settings';
   const isScrollableAiWorkspace = scrollableAiWorkspacePaths.has(appLocationPath);
   const localLimitsSection = getLocalLimitsSection(appLocationPath);
   const title = projectMatch
@@ -494,7 +495,7 @@ export default function Layout({ children }: LayoutProps) {
             <NavLink
               to={appPath('/ai-dialog')}
               className={({ isActive }) =>
-                `${s.navLink} ${s.aiDialogLink}${isActive ? ' ' + s.active : ''}`
+                `${s.navLink} ${isProfilePage ? s.standaloneLink : s.aiDialogLink}${isActive ? ' ' + s.active : ''}`
               }
             >
               <span className={s.navIcon}>AI</span>
@@ -619,15 +620,6 @@ export default function Layout({ children }: LayoutProps) {
               </NavLink>
             )}
             <NavLink
-              to={appPath('/settings')}
-              className={({ isActive }) =>
-                `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
-              }
-            >
-              <span className={s.navIcon}>⚙️</span>
-              <span className={s.navLinkLabel}>Настройки</span>
-            </NavLink>
-            <NavLink
               to={appPath('/history')}
               className={({ isActive }) =>
                 `${s.navLink} ${s.standaloneLink}${isActive ? ' ' + s.active : ''}`
@@ -657,7 +649,7 @@ export default function Layout({ children }: LayoutProps) {
             {accountMenuOpen && (
               <div className={s.accountMenu}>
                 <button className={s.accountMenuItem} onClick={() => goToAccountSection('/settings#profile')}>
-                  <span>Профиль</span>
+                  <span>Мой профиль</span>
                 </button>
                 <div className={s.accountMenuItemWrap}>
                   <button className={s.accountMenuItem} onClick={() => goToAccountSection('/limits')}>
@@ -670,13 +662,14 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             )}
             <button
-              className={`${s.userCard}${accountMenuOpen ? ' ' + s.userCardActive : ''}`}
+              className={`${s.userCard}${accountMenuOpen || isProfilePage ? ' ' + s.userCardActive : ''}`}
               onClick={() => {
                 cancelAccountMenuClose();
                 setAccountMenuOpen((open) => !open);
               }}
               aria-expanded={accountMenuOpen}
               aria-haspopup="menu"
+              aria-current={isProfilePage ? 'page' : undefined}
             >
               <div className={s.avatar}>{initials}</div>
               <div className={s.userMeta}>

@@ -1,261 +1,411 @@
-.root {}
+.root {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 32px;
+}
 
 .header {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0;
   color: var(--text-primary);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .sections {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 520px;
+  gap: 14px;
 }
 
 .section {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
   scroll-margin-top: 24px;
 }
 
 .sectionTitle {
-  font-size: 14px;
-  font-weight: 600;
+  margin: 0;
   color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
-/* ── Avatar ──────────────────────────── */
-.avatarRow {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.personalLayout {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
 }
 
 .avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  font-weight: 700;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
   color: #fff;
+  font-size: 19px;
+  font-weight: 800;
   flex-shrink: 0;
 }
 
-.colorPicker {
+.profileForm,
+.modalForm {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
+  min-width: 0;
 }
 
-.colorLabel {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.colors {
-  display: flex;
-  gap: 6px;
-}
-
-.colorDot {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform var(--transition);
-}
-
-.colorDot:hover {
-  transform: scale(1.15);
-}
-
-.colorDotActive {
-  border-color: var(--text-primary);
-  transform: scale(1.15);
-}
-
-/* ── Fields ──────────────────────────── */
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .label {
-  font-size: 12px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.input,
+.readOnlyField {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: 13px/1.45 var(--font);
 }
 
 .input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--text-primary);
-  font-family: var(--font);
   outline: none;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212, 168, 71, 0.12);
 }
 
 .input:disabled {
-  opacity: 0.5;
+  opacity: 0.62;
   cursor: not-allowed;
 }
 
-.input::placeholder {
-  color: var(--text-muted);
+.inputError {
+  border-color: var(--error, #d64545);
 }
 
-/* ── AI chips ─────────────────────────── */
-.aiChips {
-  display: flex;
-  gap: 8px;
-}
-
-.aiChip {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 500;
+.readOnlyField {
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition);
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+  cursor: default;
 }
 
-.aiChip:hover {
-  border-color: var(--accent);
-  color: var(--text-primary);
-}
-
-.aiChipActive {
-  background: rgba(212, 168, 71, 0.15);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* ── Save line ────────────────────────── */
-.saveLine {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.saveBtn {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 9px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition);
-}
-
-.saveBtn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.saveBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.msg {
-  font-size: 12px;
-  color: var(--accent);
-}
-
-/* ── Danger zone ─────────────────────── */
-.dangerRow {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.dangerOutlineBtn {
-  background: none;
-  border: 1px solid #e05c5c;
-  border-radius: var(--radius-md);
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #e05c5c;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.dangerOutlineBtn:hover {
-  background: rgba(224, 92, 92, 0.08);
-}
-
-.dangerBtn {
-  background: #e05c5c;
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
-  transition: background var(--transition);
-}
-
-.dangerBtn:hover {
-  background: #c74f4f;
-}
-
-.confirmRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.confirmText {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.cancelBtn {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 7px 14px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
+.fieldHint,
+.fieldError,
+.formError,
+.settingDescription,
+.modalDescription,
+.legalFooter p {
+  margin: 0;
 }
 
 .fieldHint {
-  font-size: 11px;
   color: var(--text-muted);
+  font-size: 11px;
+}
+
+.fieldError {
+  color: var(--error, #d64545);
+  font-size: 11.5px;
+}
+
+.formError {
+  padding: 9px 11px;
+  border: 1px solid rgba(214, 69, 69, 0.24);
+  border-radius: var(--radius-sm);
+  background: rgba(214, 69, 69, 0.07);
+  color: var(--error, #d64545);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.primaryButton,
+.secondaryButton,
+.deleteOutlineButton,
+.deleteButton {
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  padding: 9px 16px;
+  font: 600 13px/1.2 var(--font);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition), opacity var(--transition);
+  white-space: nowrap;
+}
+
+.primaryButton {
+  align-self: flex-start;
+  min-width: 166px;
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.primaryButton span {
+  display: inline-block;
+  min-width: 134px;
+  text-align: center;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.secondaryButton {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(212, 168, 71, 0.06);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.deleteOutlineButton:disabled,
+.deleteButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.settingRow,
+.deleteSection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.settingLabel,
+.deleteTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.passwordMask {
   margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.settingDescription {
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.accountDivider {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+.deleteSection {
+  align-items: flex-start;
+}
+
+.deleteOutlineButton {
+  border: 1px solid rgba(214, 69, 69, 0.55);
+  background: transparent;
+  color: var(--error, #d64545);
+}
+
+.deleteOutlineButton:hover {
+  background: rgba(214, 69, 69, 0.06);
+}
+
+.deleteButton {
+  min-width: 148px;
+  border: 1px solid #c83d3d;
+  background: #c83d3d;
+  color: #fff;
+}
+
+.deleteButton:hover:not(:disabled) {
+  border-color: #b33333;
+  background: #b33333;
 }
 
 .legalFooter {
-  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 18px 2px 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.legalLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-bottom: 3px;
+}
+
+.legalLinks a {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.legalLinks a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  box-sizing: border-box;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.modalTitle {
+  margin: 0 0 16px;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.modalDescription {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .root {
+    max-width: none;
+    padding-bottom: 20px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .section {
+    padding: 16px;
+  }
+
+  .personalLayout {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 13px;
+  }
+
+  .avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 15px;
+  }
+
+  .settingRow,
+  .deleteSection {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .settingRow .secondaryButton,
+  .deleteOutlineButton {
+    align-self: flex-start;
+  }
+
+  .modalOverlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .modal {
+    max-height: calc(100vh - 24px);
+    padding: 18px;
+    overflow-y: auto;
+  }
+
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+
+  .modalActions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .personalLayout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .primaryButton {
+    width: 100%;
+  }
+
+  .legalLinks {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

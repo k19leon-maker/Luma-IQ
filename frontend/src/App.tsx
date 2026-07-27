@@ -197,7 +197,7 @@ export default function App() {
         <Route path="/legal/personal-data" element={page(<B2BLegalPage />)} />
         <Route path="/legal/offer" element={page(<B2BLegalPage />)} />
         <Route path="/legal/ai-terms" element={page(<B2BLegalPage />)} />
-        <Route path="/legal/cookies" element={publicPage(<LegalPage />)} />
+        <Route path="/legal/cookies" element={page(<B2BLegalPage />)} />
         <Route path="/b2c/legal/privacy-policy" element={publicPage(<LegalPage />)} />
         <Route path="/b2c/legal/personal-data" element={publicPage(<LegalPage />)} />
         <Route path="/b2c/legal/offer" element={publicPage(<LegalPage />)} />

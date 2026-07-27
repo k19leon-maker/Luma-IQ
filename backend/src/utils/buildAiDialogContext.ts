@@ -67,6 +67,28 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
   if (!project) return null;
 
   const strategyData = sanitizeProjectStrategyData(project.strategyData);
+  const strategyRecord = (
+    strategyData
+    && typeof strategyData === 'object'
+    && !Array.isArray(strategyData)
+  )
+    ? strategyData as Record<string, unknown>
+    : {};
+  const about = (
+    strategyRecord.expertProfileData
+    ?? strategyRecord.aboutExpert
+    ?? strategyRecord.about
+    ?? strategyRecord.expertProfile
+    ?? {}
+  ) as Record<string, unknown>;
+  const projectSpecialization = [
+    about.profession,
+    about.role,
+    about.specialization,
+    about.whoYouAre,
+    project.niche,
+    project.user.specialization,
+  ].find((value) => typeof value === 'string' && value.trim()) as string | undefined;
   const realProducts = project.products.filter((product) => !isDemoProductText(product));
   const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
   const realPlanItems = project.contentPlanItems.filter((item) => !isDemoContentText(item));
@@ -104,7 +126,7 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
 - Проект: ${project.name}
 - Ниша: ${project.niche ?? 'не указана'}
 - Описание: ${project.description ?? 'не указано'}
-- Специализация пользователя: ${project.user.specialization ?? 'не указана'}
+- Специализация пользователя: ${projectSpecialization ?? 'не указана'}
 - Текущий этап: ${stage}
 - Статус проекта: ${project.status}
 
