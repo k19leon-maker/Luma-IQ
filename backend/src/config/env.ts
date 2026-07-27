@@ -77,6 +77,9 @@ export const env = {
   GEMINI_API_KEY: get('GEMINI_API_KEY', ''),
   GROK_API_KEY: get('GROK_API_KEY', ''),
 
+  // Telegram Bot Platform
+  TELEGRAM_WEBHOOK_SECRET: get('TELEGRAM_WEBHOOK_SECRET', ''),
+
   // B2C SEO research: Yandex Wordstat -> Google Sheets
   YANDEX_SEARCH_API_KEY: get('YANDEX_SEARCH_API_KEY', ''),
   YANDEX_CLOUD_FOLDER_ID: get('YANDEX_CLOUD_FOLDER_ID', ''),
