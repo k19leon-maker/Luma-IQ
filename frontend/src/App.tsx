@@ -5,35 +5,12 @@ import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/PrivateRoute/PrivateRoute';
 import AdminRoute from './components/AdminRoute/AdminRoute';
 import { useAuthStore } from './store/auth.store';
-import {
-  articles as publicArticles,
-  categories,
-  experts,
-  problems,
-  programs,
-  tests,
-  webinars,
-} from './data/public/content';
 import { appPath } from './utils/appRoutes';
 
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
-import PublicLayout from './pages/PublicPortal/PublicLayout';
-import HomePage from './pages/PublicPortal/HomePage';
-import ListPage from './pages/PublicPortal/ListPage';
-import DetailPage from './pages/PublicPortal/DetailPage';
-import { ArticlePage } from './pages/PublicPortal/ArticlePage';
-import { ProblemPage } from './pages/PublicPortal/ProblemPage';
-import NotFoundPage from './pages/PublicPortal/NotFoundPage';
-import LegalPage from './pages/PublicPortal/LegalPage';
-import ContactsPage from './pages/PublicPortal/ContactsPage';
 import CookieConsent from './components/CookieConsent/CookieConsent';
 import B2BLegalPage from './pages/B2BLegal/B2BLegalPage';
 import GoLongread from './pages/GoLongread/GoLongread';
-import {
-  B2CClientCabinet,
-  B2CPsychologyAssessment,
-  B2CPsychologyChat,
-} from './pages/B2CPsychology/B2CPsychology';
 
 const Login = lazy(() => import('./pages/Login/Login'));
 const Register = lazy(() => import('./pages/Register/Register'));
@@ -70,61 +47,6 @@ const Settings = lazy(() => import('./pages/Settings/Settings'));
 const Limits = lazy(() => import('./pages/Limits/Limits'));
 const Admin = lazy(() => import('./pages/Admin/Admin'));
 
-const articleItems = publicArticles.map((item) => ({
-  slug: item.slug,
-  title: item.title,
-  description: item.excerpt,
-  text: item.excerpt,
-  meta: `${item.author.name} · ${item.readingTime ?? new Date(item.publishedAt).toLocaleDateString('ru-RU')}`,
-  image: item.coverImage,
-  imageAlt: item.coverAlt,
-  tags: item.tags,
-}));
-
-const categoryItems = categories.map((item) => ({
-  slug: item.slug,
-  title: item.name,
-  description: item.description,
-  text: item.description,
-}));
-
-const problemItems = problems.map((item) => ({
-  slug: item.slug,
-  title: item.name,
-  description: item.description,
-  text: item.description,
-}));
-
-const expertItems = experts.map((item) => ({
-  slug: item.slug,
-  title: item.name,
-  description: item.bio,
-  text: item.bio,
-  meta: item.specialization,
-}));
-
-const programItems = programs.map((item) => ({
-  slug: item.slug,
-  title: item.name,
-  description: item.description,
-  text: item.description,
-  meta: item.duration,
-}));
-
-const webinarItems = webinars.map((item) => ({
-  slug: item.slug,
-  title: item.title,
-  description: item.description,
-  text: item.description,
-}));
-
-const testItems = tests.map((item) => ({
-  slug: item.slug,
-  title: item.title,
-  description: item.description,
-  text: item.description,
-}));
-
 // ── Layout wrapper ────────────────────────────────────────────────────────────
 
 function AppLayout({ children }: { children: React.ReactNode }) {
@@ -141,10 +63,6 @@ function PageLoader() {
 
 function page(element: React.ReactNode) {
   return <ErrorBoundary><Suspense fallback={<PageLoader />}>{element}</Suspense></ErrorBoundary>;
-}
-
-function publicPage(element: React.ReactNode) {
-  return page(<PublicLayout>{element}</PublicLayout>);
 }
 
 function ProtectedAppLayout() {
@@ -186,58 +104,15 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* ── Public B2C portal ───────────────────────────────── */}
-        <Route path="/" element={publicPage(<HomePage />)} />
-        <Route path="/diagnostics/ai-psychologist" element={publicPage(<B2CPsychologyAssessment />)} />
-        <Route path="/diagnostics/ai-psychologist/chat" element={publicPage(<B2CPsychologyChat />)} />
-        <Route path="/client" element={publicPage(<B2CClientCabinet />)} />
+        {/* ── Public B2B landing ──────────────────────────────── */}
+        <Route path="/" element={page(<PlatformLanding />)} />
+        <Route path="/platform" element={<Navigate to="/" replace />} />
         <Route path="/go/page/abc" element={page(<GoLongread />)} />
-        <Route path="/platform" element={page(<PlatformLanding />)} />
         <Route path="/legal/privacy-policy" element={page(<B2BLegalPage />)} />
         <Route path="/legal/personal-data" element={page(<B2BLegalPage />)} />
         <Route path="/legal/offer" element={page(<B2BLegalPage />)} />
         <Route path="/legal/ai-terms" element={page(<B2BLegalPage />)} />
         <Route path="/legal/cookies" element={page(<B2BLegalPage />)} />
-        <Route path="/b2c/legal/privacy-policy" element={publicPage(<LegalPage />)} />
-        <Route path="/b2c/legal/personal-data" element={publicPage(<LegalPage />)} />
-        <Route path="/b2c/legal/offer" element={publicPage(<LegalPage />)} />
-        <Route path="/b2c/legal/cookies" element={publicPage(<LegalPage />)} />
-        <Route path="/contacts" element={publicPage(<ContactsPage />)} />
-        <Route
-          path="/articles"
-          element={publicPage(<ListPage title="Статьи" description="Материалы о психологических трудностях, отношениях, тревоге, разводе и восстановлении ресурса." basePath="/articles" items={articleItems} />)}
-        />
-        <Route path="/articles/:slug" element={publicPage(<ArticlePage />)} />
-        <Route
-          path="/categories"
-          element={publicPage(<ListPage title="Категории" description="Тематические направления будущего информационного портала Luma IQ." basePath="/categories" items={categoryItems} />)}
-        />
-        <Route path="/categories/:slug" element={publicPage(<DetailPage items={categoryItems} sectionTitle="Категории" sectionPath="/categories" fallbackTitle="Категория не найдена" />)} />
-        <Route
-          path="/problems"
-          element={publicPage(<ListPage title="Проблемы" description="Отдельные SEO-страницы для жизненных и психологических ситуаций, с которыми пользователи приходят за помощью." basePath="/problems" items={problemItems} />)}
-        />
-        <Route path="/problems/:slug" element={publicPage(<ProblemPage />)} />
-        <Route
-          path="/experts"
-          element={publicPage(<ListPage title="Специалисты" description="Профили специалистов Luma IQ и направления помощи." basePath="/experts" items={expertItems} />)}
-        />
-        <Route path="/experts/:slug" element={publicPage(<DetailPage items={expertItems} sectionTitle="Специалисты" sectionPath="/experts" fallbackTitle="Специалист не найден" />)} />
-        <Route
-          path="/programs"
-          element={publicPage(<ListPage title="Программы" description="Психологические программы и будущие продуктовые направления Luma IQ." basePath="/programs" items={programItems} />)}
-        />
-        <Route path="/programs/:slug" element={publicPage(<DetailPage items={programItems} sectionTitle="Программы" sectionPath="/programs" fallbackTitle="Программа не найдена" />)} />
-        <Route
-          path="/webinars"
-          element={publicPage(<ListPage title="Вебинары" description="Открытые и платные вебинары по отношениям, тревоге, разводу, самооценке и другим темам." basePath="/webinars" items={webinarItems} />)}
-        />
-        <Route path="/webinars/:slug" element={publicPage(<DetailPage items={webinarItems} sectionTitle="Вебинары" sectionPath="/webinars" fallbackTitle="Вебинар не найден" />)} />
-        <Route
-          path="/tests"
-          element={publicPage(<ListPage title="Диагностики" description="Архитектура будущих диагностик Luma IQ. Сейчас тесты представлены как страницы-заготовки без AI-логики." basePath="/tests" items={testItems} />)}
-        />
-        <Route path="/tests/:slug" element={publicPage(<DetailPage items={testItems} sectionTitle="Диагностики" sectionPath="/tests" fallbackTitle="Диагностика не найдена" />)} />
 
         {/* ── Auth ─────────────────────────────────────────────── */}
         <Route path="/auth"                   element={page(<Login />)} />
@@ -332,7 +207,7 @@ export default function App() {
         <Route path="/product-free" element={<Navigate to={appPath('/products/lead-magnet')} replace />} />
         <Route path="/lead-magnet" element={<Navigate to={appPath('/products/lead-magnet')} replace />} />
 
-        <Route path="*" element={publicPage(<NotFoundPage />)} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       <CookieConsent />

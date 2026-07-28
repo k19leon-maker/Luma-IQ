@@ -109,7 +109,7 @@ export function LandingHeader({ primaryCtaLabel }: { primaryCtaLabel: string }) 
 
   return (
     <header className={styles.header}>
-      <Link className={styles.logo} to="/platform" aria-label="Luma IQ">
+      <Link className={styles.logo} to="/" aria-label="Luma IQ">
         <LandingLogo />
       </Link>
       <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} id="landing-navigation" aria-label="Навигация по лендингу">
@@ -551,7 +551,7 @@ export function LandingFooter() {
   return (
     <footer className={styles.footer}>
       <div className={styles.container}>
-        <Link className={styles.logo} to="/platform" aria-label="Luma IQ">
+        <Link className={styles.logo} to="/" aria-label="Luma IQ">
           <LandingLogo variant="onDark" />
         </Link>
         <nav aria-label="Юридические ссылки">

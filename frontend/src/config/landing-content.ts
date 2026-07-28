@@ -29,7 +29,7 @@ export const landingContent = {
   seo: {
     title: 'Luma IQ Platform — AI-платформа для упаковки, продуктов и контента экспертов',
     description: 'Luma IQ помогает экспертам собрать маркетинговую упаковку, продуктовую линейку, офферы, контент-план и материалы для продвижения с помощью AI.',
-    canonical: '/platform',
+    canonical: '/',
   },
   navigation: [
     { label: 'Возможности', href: '#capabilities' },
