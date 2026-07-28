@@ -16,6 +16,7 @@ import usersRouter from './routes/users.routes';
 import strategyExportRouter from './routes/strategy-export.routes';
 import filesRouter from './routes/files.routes';
 import paymentRouter from './routes/payment.routes';
+import checkoutRouter from './routes/checkout.routes';
 import adminRouter from './routes/admin.routes';
 import artifactRouter from './routes/artifact.routes';
 import b2cRouter from './routes/b2c.routes';
@@ -83,6 +84,7 @@ export function createApp() {
   app.use('/api/v1/strategy', strategyExportRouter);
   app.use('/api/v1/files', filesRouter);
   app.use('/api/v1/payments', paymentRouter);
+  app.use('/api/v1/checkout', checkoutRouter);
   app.use('/api/v1/billing', billingRouter);
   app.use('/api/v1/onboarding', onboardingRouter);
   app.use('/api/v1/tasks', tasksRouter);

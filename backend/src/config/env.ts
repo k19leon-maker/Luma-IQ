@@ -103,6 +103,8 @@ export const env = {
   YOOKASSA_SECRET_KEY: get('YOOKASSA_SECRET_KEY', ''),
   YOOKASSA_RETURN_URL: get('YOOKASSA_RETURN_URL', 'http://localhost:5174/settings?tab=subscription'),
   YOOKASSA_ENABLED:    getBool('YOOKASSA_ENABLED', false),
+  CHECKOUT_RETURN_URL: get('CHECKOUT_RETURN_URL', 'http://localhost:5174/payment/return'),
+  CHECKOUT_INTENT_TTL_HOURS: Math.min(72, Math.max(1, getNumber('CHECKOUT_INTENT_TTL_HOURS', 24))),
 
   // Pilot/admin controls
   REGISTRATION_ENABLED: getBool('REGISTRATION_ENABLED', isDev),

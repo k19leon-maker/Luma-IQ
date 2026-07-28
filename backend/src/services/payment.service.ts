@@ -12,8 +12,7 @@ import {
 } from '../config/pricing-plans';
 import { billingPeriodService } from './billing-period.service';
 import { planCatalogService } from './plan-catalog.service';
-
-const YOOKASSA_API = 'https://api.yookassa.ru/v3';
+import { yookassaService } from './yookassa.service';
 
 function paymentDefinition(planId: PublicPaidPlanId) {
   const plan = PRICING_PLANS[planId];
@@ -31,41 +30,6 @@ export const PLANS = {
 } as const;
 
 type PlanPaymentDefinition = { amount: string; description: string; periodDays: number };
-
-async function ykRequest(method: string, path: string, body?: unknown) {
-  const credentials = Buffer.from(`${env.YOOKASSA_SHOP_ID}:${env.YOOKASSA_SECRET_KEY}`).toString('base64');
-  const response = await fetch(`${YOOKASSA_API}${path}`, {
-    method,
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      'Content-Type': 'application/json',
-      'Idempotence-Key': uuidv4(),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!response.ok) {
-    const raw = await response.text();
-    let providerError: { id?: string; code?: string; description?: string } = {};
-    try {
-      providerError = JSON.parse(raw) as typeof providerError;
-    } catch {
-      // Keep malformed provider responses out of user-facing errors.
-    }
-    console.error('[Payment] YooKassa request failed', {
-      method,
-      path,
-      status: response.status,
-      requestId: providerError.id,
-      code: providerError.code,
-      description: providerError.description,
-    });
-    throw Object.assign(new Error('Сервис оплаты временно недоступен'), {
-      status: 502,
-      code: 'PAYMENT_PROVIDER_ERROR',
-    });
-  }
-  return response.json();
-}
 
 function addDays(value: Date, days: number): Date {
   const result = new Date(value);
@@ -112,20 +76,14 @@ export const paymentService = {
     planDef: PlanPaymentDefinition,
     metadata: Record<string, unknown>,
   ): Promise<{ confirmationUrl: string; paymentId: string }> {
-    if (!env.YOOKASSA_ENABLED) {
-      throw Object.assign(new Error('Онлайн-оплата временно отключена. Для пилотного доступа напишите администратору.'), { status: 503 });
-    }
-    if (!env.YOOKASSA_SHOP_ID || !env.YOOKASSA_SECRET_KEY) {
-      throw Object.assign(new Error('Оплата временно недоступна'), { status: 503 });
-    }
-
-    const ykPayment = await ykRequest('POST', '/payments', {
-      amount: { value: planDef.amount, currency: 'RUB' },
-      confirmation: { type: 'redirect', return_url: env.YOOKASSA_RETURN_URL },
-      capture: true,
+    const ykPayment = await yookassaService.createPayment({
+      amount: planDef.amount,
+      currency: 'RUB',
       description: planDef.description,
-      metadata: { userId, plan, ...metadata },
-    }) as { id: string; confirmation: { confirmation_url: string } };
+      returnUrl: env.YOOKASSA_RETURN_URL,
+      metadata: { userId, plan, ...metadata } as Record<string, string | number>,
+      idempotencyKey: uuidv4(),
+    });
 
     const subscription = await prisma.subscription.upsert({
       where: { userId },

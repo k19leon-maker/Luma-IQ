@@ -31,7 +31,8 @@
 .actions button,
 .actions a {
   display: inline-flex;
-  min-height: 42px;
+  min-width: 0;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
@@ -50,17 +51,48 @@
   color: #14213d;
 }
 
+.actions button:focus-visible,
+.actions a:focus-visible {
+  outline: 3px solid rgba(200, 160, 75, 0.6);
+  outline-offset: 2px;
+}
+
 @media (max-width: 620px) {
   .banner {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
     grid-template-columns: 1fr;
+    width: auto;
+    padding: 14px;
   }
 
   .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
   .actions button,
   .actions a {
-    flex: 1;
+    width: 100%;
+    padding: 8px 10px;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .actions a {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 380px) {
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .actions a {
+    grid-column: auto;
   }
 }

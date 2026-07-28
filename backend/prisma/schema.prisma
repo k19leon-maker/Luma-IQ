@@ -7,55 +7,56 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  passwordHash   String?
-  name           String?
-  avatarUrl      String?
-  googleId       String?  @unique
-  role           Role     @default(USER)
-  isVerified     Boolean  @default(false)
-  avatarColor    String?  @default("#7c6cfc")
-  defaultAiModel String?  @default("chatgpt")
-  specialization String?
-  onboardingStatus      String   @default("not_started")
-  onboardingStep        Int      @default(0)
-  onboardingVersion     String   @default("b2b_v1")
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String?
+  name                  String?
+  avatarUrl             String?
+  googleId              String?   @unique
+  role                  Role      @default(USER)
+  isVerified            Boolean   @default(false)
+  avatarColor           String?   @default("#7c6cfc")
+  defaultAiModel        String?   @default("chatgpt")
+  specialization        String?
+  onboardingStatus      String    @default("not_started")
+  onboardingStep        Int       @default(0)
+  onboardingVersion     String    @default("b2b_v1")
   onboardingCompletedAt DateTime?
   onboardingData        Json?
   recommendedRoute      String?
   createdProjectId      String?
-  archivedAt     DateTime?
-  archivedById   String?
-  archiveReason  String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  archivedAt            DateTime?
+  archivedById          String?
+  archiveReason         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  refreshTokens       RefreshToken[]
-  sessions            Session[]
-  projects            Project[]
-  verificationTokens  VerificationToken[]
-  subscription        Subscription?
-  payments            Payment[]
-  aiUsage             AIUsage[]
-  events              UserEvent[]
-  aiRequestLogs       AIRequestLog[]
-  billingPeriods      BillingPeriod[]
-  creditLedgerEntries CreditLedgerEntry[]
-  aiGenerations       AIGeneration[]
-  aiUsageEvents       AIUsageEvent[]
-  featureUsageDaily   FeatureUsageDaily[]
-  aiWorkflowRuns      AIWorkflowRun[]
-  aiArtifacts         AIArtifact[]
-  aiContextSummaries  AIContextSummary[]
-  aiBatchJobs         AIBatchJob[]
-  structuredOutputs   ProjectStructuredOutput[]
-  projectFiles        ProjectFile[]
-  projectTasks        ProjectTask[]
-  castDevRecords      CastDevRecord[]
-  promptVersions      PromptVersion[]
-  promptExperiments   PromptExperiment[]
-  consentLogs         ConsentLog[]
+  refreshTokens            RefreshToken[]
+  sessions                 Session[]
+  projects                 Project[]
+  verificationTokens       VerificationToken[]
+  subscription             Subscription?
+  payments                 Payment[]
+  aiUsage                  AIUsage[]
+  events                   UserEvent[]
+  aiRequestLogs            AIRequestLog[]
+  billingPeriods           BillingPeriod[]
+  creditLedgerEntries      CreditLedgerEntry[]
+  aiGenerations            AIGeneration[]
+  aiUsageEvents            AIUsageEvent[]
+  featureUsageDaily        FeatureUsageDaily[]
+  aiWorkflowRuns           AIWorkflowRun[]
+  aiArtifacts              AIArtifact[]
+  aiContextSummaries       AIContextSummary[]
+  aiBatchJobs              AIBatchJob[]
+  structuredOutputs        ProjectStructuredOutput[]
+  projectFiles             ProjectFile[]
+  projectTasks             ProjectTask[]
+  castDevRecords           CastDevRecord[]
+  promptVersions           PromptVersion[]
+  promptExperiments        PromptExperiment[]
+  consentLogs              ConsentLog[]
+  activatedCheckoutIntents CheckoutIntent[]
 
   @@index([archivedAt])
   @@map("users")
@@ -128,19 +129,19 @@ model VerificationToken {
 }
 
 model Subscription {
-  id         String             @id @default(uuid())
-  userId     String             @unique
-  plan       SubscriptionPlan   @default(FREE)
-  status     SubscriptionStatus @default(ACTIVE)
-  expiresAt  DateTime?
-  yookassaId String?
-  paymentSource String?
-  lastPaymentAt DateTime?
-  adminNote  String?
-  ltvRub     Decimal?           @db.Decimal(12, 2)
+  id             String             @id @default(uuid())
+  userId         String             @unique
+  plan           SubscriptionPlan   @default(FREE)
+  status         SubscriptionStatus @default(ACTIVE)
+  expiresAt      DateTime?
+  yookassaId     String?
+  paymentSource  String?
+  lastPaymentAt  DateTime?
+  adminNote      String?
+  ltvRub         Decimal?           @db.Decimal(12, 2)
   limitOverrides Json?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments       Payment[]
@@ -150,24 +151,89 @@ model Subscription {
 }
 
 model Payment {
-  id             String        @id @default(uuid())
-  userId         String
-  subscriptionId String?
-  yookassaId     String?       @unique
-  source         PaymentSource @default(YOOKASSA)
-  externalId     String?
-  adminNote      String?
-  amount         Decimal       @db.Decimal(10, 2)
-  currency       String        @default("RUB")
-  status         PaymentStatus @default(PENDING)
-  metadata       Json?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               String        @id @default(uuid())
+  userId           String
+  subscriptionId   String?
+  yookassaId       String?       @unique
+  source           PaymentSource @default(YOOKASSA)
+  externalId       String?
+  adminNote        String?
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("RUB")
+  status           PaymentStatus @default(PENDING)
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  checkoutIntentId String?       @unique
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id])
+  checkoutIntent CheckoutIntent? @relation(fields: [checkoutIntentId], references: [id], onDelete: SetNull)
 
   @@map("payments")
+}
+
+model CheckoutIntent {
+  id                   String               @id @default(uuid())
+  orderId              String               @unique
+  sessionTokenHash     String               @unique
+  csrfTokenHash        String
+  idempotencyKey       String               @unique
+  status               CheckoutIntentStatus @default(PENDING)
+  email                String
+  emailHash            String
+  name                 String?
+  planCode             String
+  amount               Decimal              @db.Decimal(10, 2)
+  currency             String               @default("RUB")
+  pricingSnapshot      Json
+  consentSnapshot      Json
+  legalDocumentVersion String
+  consentAcceptedAt    DateTime
+  attribution          Json?
+  anonymousSessionId   String?
+  landingPath          String?
+  referrer             String?
+  activatedUserId      String?
+  paidAt               DateTime?
+  accountActivatedAt   DateTime?
+  failureCode          String?
+  failureMessage       String?
+  expiresAt            DateTime
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  activatedUser   User?                    @relation(fields: [activatedUserId], references: [id], onDelete: SetNull)
+  paymentAttempts CheckoutPaymentAttempt[]
+  payment         Payment?
+
+  @@index([emailHash, createdAt])
+  @@index([status, expiresAt])
+  @@index([activatedUserId])
+  @@map("checkout_intents")
+}
+
+model CheckoutPaymentAttempt {
+  id                     String                       @id @default(uuid())
+  checkoutIntentId       String
+  status                 CheckoutPaymentAttemptStatus @default(CREATED)
+  provider               String                       @default("YOOKASSA")
+  providerPaymentId      String?                      @unique
+  providerIdempotencyKey String                       @unique
+  amount                 Decimal                      @db.Decimal(10, 2)
+  currency               String                       @default("RUB")
+  confirmationUrl        String?
+  errorCode              String?
+  providerStatus         String?
+  metadata               Json?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+
+  checkoutIntent CheckoutIntent @relation(fields: [checkoutIntentId], references: [id], onDelete: Cascade)
+
+  @@index([checkoutIntentId, createdAt])
+  @@index([status, updatedAt])
+  @@map("checkout_payment_attempts")
 }
 
 model UserEvent {
@@ -275,6 +341,8 @@ model CreditLedgerEntry {
   billingPeriod BillingPeriod? @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
   generation    AIGeneration?  @relation(fields: [generationId], references: [id], onDelete: SetNull)
 
+  @@unique([unit, generationId, type])
+  @@unique([userId, unit, idempotencyKey, type])
   @@index([userId, createdAt])
   @@index([userId, billingPeriodId, unit, createdAt])
   @@index([projectId, createdAt])
@@ -283,8 +351,6 @@ model CreditLedgerEntry {
   @@index([type])
   @@index([source])
   @@index([expiresAt])
-  @@unique([unit, generationId, type])
-  @@unique([userId, unit, idempotencyKey, type])
   @@map("credit_ledger")
 }
 
@@ -325,33 +391,33 @@ model AIModelProfileVersion {
 }
 
 model AIActionDefinitionVersion {
-  id              String   @id @default(uuid())
-  actionKey       String
-  pipeline        Json
-  contextBudget   Int
-  outputLimit     Int
-  retryPolicy     Json
-  fallbackPolicy  Json
-  batchEligible   Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  validFrom       DateTime
-  validTo         DateTime?
-  metadata        Json?
-  createdAt       DateTime @default(now())
+  id             String    @id @default(uuid())
+  actionKey      String
+  pipeline       Json
+  contextBudget  Int
+  outputLimit    Int
+  retryPolicy    Json
+  fallbackPolicy Json
+  batchEligible  Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  validFrom      DateTime
+  validTo        DateTime?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
 
   @@index([actionKey, isActive, validFrom])
   @@map("ai_action_definition_versions")
 }
 
 model AIActionPricingVersion {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   actionKey String
   aiPoints  Int
-  isActive  Boolean  @default(true)
+  isActive  Boolean   @default(true)
   validFrom DateTime
   validTo   DateTime?
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([actionKey, isActive, validFrom])
   @@map("ai_action_pricing_versions")
@@ -465,11 +531,11 @@ model AIGeneration {
   startedAt         DateTime?
   finishedAt        DateTime?
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  billingPeriod BillingPeriod? @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
-  workflowRun   AIWorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
-  workflowStep  AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  billingPeriod BillingPeriod?      @relation(fields: [billingPeriodId], references: [id], onDelete: SetNull)
+  workflowRun   AIWorkflowRun?      @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  workflowStep  AIWorkflowStep?     @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   usageEvents   AIUsageEvent[]
   providerCalls AIProviderCall[]
   ledgerEntries CreditLedgerEntry[]
@@ -515,7 +581,7 @@ model AIUsageEvent {
 }
 
 model AIProviderCall {
-  id                String    @id @default(uuid())
+  id                String     @id @default(uuid())
   generationId      String?
   workflowRunId     String?
   workflowStepId    String?
@@ -531,24 +597,24 @@ model AIProviderCall {
   actionKey         String
   pipeline          String?
   stage             String
-  status            String    @default("RUNNING")
-  inputTokens       Int       @default(0)
-  cachedInputTokens Int       @default(0)
-  outputTokens      Int       @default(0)
-  reasoningTokens   Int       @default(0)
-  audioInputTokens  Int       @default(0)
-  audioOutputTokens Int       @default(0)
+  status            String     @default("RUNNING")
+  inputTokens       Int        @default(0)
+  cachedInputTokens Int        @default(0)
+  outputTokens      Int        @default(0)
+  reasoningTokens   Int        @default(0)
+  audioInputTokens  Int        @default(0)
+  audioOutputTokens Int        @default(0)
   latencyMs         Int?
-  retryIndex        Int       @default(0)
-  isBatch           Boolean   @default(false)
-  costUsd           Decimal   @default(0) @db.Decimal(18, 8)
+  retryIndex        Int        @default(0)
+  isBatch           Boolean    @default(false)
+  costUsd           Decimal    @default(0) @db.Decimal(18, 8)
   pricingSnapshot   Json?
   errorCode         String?
   errorMessage      String?
   metadata          Json?
-  startedAt         DateTime  @default(now())
+  startedAt         DateTime   @default(now())
   finishedAt        DateTime?
-  createdAt         DateTime  @default(now())
+  createdAt         DateTime   @default(now())
 
   generation AIGeneration? @relation(fields: [generationId], references: [id], onDelete: SetNull)
 
@@ -565,33 +631,33 @@ model AIProviderCall {
 }
 
 model AIBatchJob {
-  id                String   @id @default(uuid())
-  userId            String
-  projectId         String
-  actionKey         String
-  featureCode       String
-  workflow          String
-  step              String
-  status            String   @default("queued")
-  idempotencyKey    String   @unique
-  provider          AIProvider @default(OPENAI)
-  providerBatchId   String?  @unique
-  inputFileId       String?
-  outputFileId      String?
-  errorFileId       String?
-  totalItems        Int
-  completedItems    Int      @default(0)
-  failedItems       Int      @default(0)
-  metadata          Json?
-  errorMessage      String?
-  submittedAt       DateTime?
-  inProgressAt      DateTime?
-  finalizingAt      DateTime?
-  completedAt       DateTime?
-  cancelledAt       DateTime?
-  expiredAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String     @id @default(uuid())
+  userId          String
+  projectId       String
+  actionKey       String
+  featureCode     String
+  workflow        String
+  step            String
+  status          String     @default("queued")
+  idempotencyKey  String     @unique
+  provider        AIProvider @default(OPENAI)
+  providerBatchId String?    @unique
+  inputFileId     String?
+  outputFileId    String?
+  errorFileId     String?
+  totalItems      Int
+  completedItems  Int        @default(0)
+  failedItems     Int        @default(0)
+  metadata        Json?
+  errorMessage    String?
+  submittedAt     DateTime?
+  inProgressAt    DateTime?
+  finalizingAt    DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  expiredAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -605,25 +671,25 @@ model AIBatchJob {
 }
 
 model AIBatchItem {
-  id                  String   @id @default(uuid())
-  batchJobId          String
-  customId            String
-  position            Int
-  status              String   @default("queued")
-  input               Json
-  output              Json?
-  error               Json?
-  generationId        String?  @unique
-  artifactId          String?
-  aiPoints            Int
-  inputTokens         Int      @default(0)
-  outputTokens        Int      @default(0)
-  cachedInputTokens   Int      @default(0)
-  reasoningTokens     Int      @default(0)
-  costUsd             Decimal  @default(0) @db.Decimal(18, 8)
-  completedAt         DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String    @id @default(uuid())
+  batchJobId        String
+  customId          String
+  position          Int
+  status            String    @default("queued")
+  input             Json
+  output            Json?
+  error             Json?
+  generationId      String?   @unique
+  artifactId        String?
+  aiPoints          Int
+  inputTokens       Int       @default(0)
+  outputTokens      Int       @default(0)
+  cachedInputTokens Int       @default(0)
+  reasoningTokens   Int       @default(0)
+  costUsd           Decimal   @default(0) @db.Decimal(18, 8)
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   batchJob AIBatchJob @relation(fields: [batchJobId], references: [id], onDelete: Cascade)
 
@@ -676,7 +742,7 @@ model AIWorkflowStep {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  workflowRun AIWorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  workflowRun AIWorkflowRun  @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   artifacts   AIArtifact[]
   generations AIGeneration[]
 
@@ -703,10 +769,10 @@ model AIArtifact {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workflowRun  AIWorkflowRun?  @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
-  workflowStep AIWorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowRun       AIWorkflowRun?            @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  workflowStep      AIWorkflowStep?           @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   structuredOutputs ProjectStructuredOutput[]
 
   @@index([userId, createdAt])
@@ -814,7 +880,7 @@ model PromptVersion {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   variants  PromptExperimentVariant[]
 
   @@index([workflow, step, status])
@@ -836,7 +902,7 @@ model PromptExperiment {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   variants  PromptExperimentVariant[]
 
   @@index([workflow, step, status])
@@ -927,7 +993,7 @@ model Project {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   jtbdSessions        JTBDSession[]
   audienceAvatars     AudienceAvatar[]
   products            Product[]
@@ -951,23 +1017,23 @@ model Project {
 }
 
 model ProjectTask {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   projectId       String
   userId          String
   title           String
   description     String?
   category        String
   priority        String
-  status          String   @default("backlog")
-  dueBucket       String   @default("backlog")
+  status          String    @default("backlog")
+  dueBucket       String    @default("backlog")
   route           String?
-  taskKey         String?  @map("key")
-  sortOrder       Int      @default(0)
+  taskKey         String?   @map("key")
+  sortOrder       Int       @default(0)
   source          String?
   taskPlanVersion String?
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1073,23 +1139,23 @@ model GeneratedText {
 }
 
 model CastDevRecord {
-  id           String   @id @default(uuid())
-  userId       String
-  projectId    String
-  title        String
-  sourceUrl    String
-  sourceType   String   @default("google_drive")
-  fileName     String?
-  mimeType     String?
-  durationSec  Int?
-  status       String   @default("pending")
-  transcriptText String?
+  id                  String   @id @default(uuid())
+  userId              String
+  projectId           String
+  title               String
+  sourceUrl           String
+  sourceType          String   @default("google_drive")
+  fileName            String?
+  mimeType            String?
+  durationSec         Int?
+  status              String   @default("pending")
+  transcriptText      String?
   transcriptFormatted String?
-  analysis     Json?
-  metadata     Json?
-  errorMessage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  analysis            Json?
+  metadata            Json?
+  errorMessage        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1154,6 +1220,26 @@ enum PaymentSource {
   TRIBUTE
   MANUAL
   PROMO
+}
+
+enum CheckoutIntentStatus {
+  PENDING
+  PAYMENT_CREATED
+  PAID
+  ACCOUNT_LINK_PENDING
+  ACCOUNT_CREATED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum CheckoutPaymentAttemptStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  CANCELLED
+  FAILED
+  UNKNOWN
 }
 
 enum ProjectStatus {

@@ -1,27 +1,16 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
-import { billingApi, BillingScenario } from '../../api/billing.api';
+import { billingApi } from '../../api/billing.api';
+import { landingContent, landingPlanUiCopy } from '../../config/landing-content';
 import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { useSeo } from '../../utils/seo';
 import styles from './PlatformLanding.module.css';
-
-type PlatformPlan = {
-  id: string;
-  scenario: BillingScenario;
-  name: string;
-  price: number;
-  period: string;
-  description: string;
-  features: string[];
-  aiPoints: number;
-  projectsLimit: number;
-  exampleUsage: string[];
-  usageDisclaimer: string;
-  purchasable: boolean;
-  badge?: string;
-  buttonText: string;
-};
+import {
+  LandingFooter,
+  LandingHeader,
+  LandingMain,
+  LandingPlan,
+} from './sections/LandingSections';
 
 type LeadForm = {
   name: string;
@@ -31,132 +20,12 @@ type LeadForm = {
   comment: string;
 };
 
-const audienceCards = [
-  'Психологи и специалисты помогающих практик',
-  'Нутрициологи и wellness-эксперты',
-  'Коучи и наставники',
-  'Консультанты и методологи',
-  'Преподаватели и авторы курсов',
-  'Эксперты, которые хотят выйти в онлайн или усилить продвижение',
-];
-
-const problems = [
-  'Непонятно, какую аудиторию выбрать.',
-  'Сложно объяснить, чем вы отличаетесь от других экспертов.',
-  'Есть много знаний, но нет понятной продуктовой линейки.',
-  'Контент создаётся хаотично и не ведёт к продажам.',
-  'Каждый пост приходится придумывать с нуля.',
-  'Непонятно, что вести: Telegram, VK, Reels, Shorts, YouTube или Threads.',
-  'Нет единого плана: что делать сегодня, завтра и в течение месяца.',
-  'Сложно собрать воронку из контента, лид-магнита, мини-продукта и основного продукта.',
-];
-
-const solutionSteps = [
-  'Разработать стратегию',
-  'Определить целевую аудиторию',
-  'Сформулировать позиционирование',
-  'Собрать продуктовую линейку',
-  'Создать офферы',
-  'Подготовить контент-план',
-  'Генерировать посты, сценарии и статьи',
-  'Вести задачи по продвижению',
-  'Работать с AI-чатом по проекту',
-];
-
-const workflowSteps = [
-  ['Создаёте проект', 'Проект — это отдельное направление, ниша, продукт или сегмент аудитории.'],
-  ['Заполняете данные о себе и своей экспертности', 'Платформа собирает контекст, чтобы AI работал с учётом вашей ниши, опыта и задач.'],
-  ['Разрабатываете стратегию', 'Luma IQ помогает сформулировать аудиторию, боли, желания, JTBD, позиционирование и ключевые смыслы.'],
-  ['Собираете продуктовую линейку', 'Платформа помогает создать бесплатный продукт, мини-продукт, основной продукт, офферы и связку между ними.'],
-  ['Создаёте контент', 'Посты, Reels, Shorts, Threads, YouTube-сценарии, статьи, лонгриды, прогревы и контент-планы.'],
-  ['Ведёте задачи', 'Сервис помогает превратить стратегию в конкретные действия: что сделать, что опубликовать, что доработать.'],
-];
-
-const modules = [
-  ['Проекты', 'Хранит отдельные направления, ниши и продуктовые стратегии.'],
-  ['AI-чат', 'Помогает обсуждать проект с учётом собранного контекста.'],
-  ['О себе', 'Собирает экспертность, опыт, подход и сильные стороны.'],
-  ['Позиционирование', 'Помогает сформулировать, кто вы, для кого и чем отличаетесь.'],
-  ['Целевая аудитория', 'Помогает определить сегменты, боли, желания и JTBD.'],
-  ['Создание УТП', 'Помогает сформулировать сильное предложение.'],
-  ['Оформление соцсетей', 'Помогает подготовить описание, шапку профиля и структуру аккаунта.'],
-  ['Основной продукт', 'Помогает собрать главный продукт или сопровождение.'],
-  ['Мини-продукт', 'Помогает создать недорогой входной продукт.'],
-  ['Лид-магнит', 'Помогает создать бесплатный продукт для привлечения аудитории.'],
-  ['Посты', 'Генерирует контент под выбранную стратегию.'],
-  ['План задач', 'Помогает вести действия по продвижению.'],
-];
-
-const deliverables = [
-  'Позиционирование эксперта',
-  'Описание целевой аудитории',
-  'JTBD-сегменты',
-  'УТП',
-  'Продуктовая линейка',
-  'Бесплатный продукт',
-  'Мини-продукт',
-  'Основной продукт',
-  'Офферы',
-  'Контент-план',
-  'Посты для Telegram и VK',
-  'Сценарии Reels и Shorts',
-  'Threads-треды',
-  'YouTube-сценарии',
-  'Лонгриды и статьи',
-  'Прогревы',
-  'ТЗ на лендинг',
-  'ТЗ на чатбот',
-  'План задач по продвижению',
-];
-
-const planGuide = [
-  ['Хочу собрать систему для одного направления', 'Старт'],
-  ['Хочу развивать несколько сегментов и продуктов', 'Системная воронка'],
-  ['Хочу построить несколько постоянных воронок', 'Вечная автоворонка'],
-];
-
-const comparisonRows = [
-  ['Идеи хранятся в разных документах', 'Вся стратегия хранится в одном проекте'],
-  ['AI не помнит контекст', 'AI работает с данными вашего проекта'],
-  ['Каждый пост нужно придумывать заново', 'Контент создаётся на основе стратегии'],
-  ['Продукты собираются хаотично', 'Продуктовая линейка выстраивается последовательно'],
-  ['Нет плана действий', 'Есть задачи и контент-план'],
-  ['Нужно самому соединять стратегию, контент и продажи', 'Платформа ведёт по шагам'],
-];
-
-const aiNotes = [
-  'AI-материалы нужно проверять перед публикацией.',
-  'Платформа не гарантирует заявки, продажи или рост дохода.',
-  'Результат зависит от вашей экспертности, ниши, качества внедрения и регулярности действий.',
-  'Сервис помогает создать систему, но не заменяет профессиональную ответственность эксперта.',
-];
-
-const faq = [
-  ['Чем Luma IQ отличается от обычного ChatGPT?', 'Обычный AI-чат каждый раз требует заново объяснять контекст. В Luma IQ работа строится вокруг проекта: целевая аудитория, позиционирование, продуктовая линейка, офферы и контент связаны между собой.'],
-  ['Можно ли использовать платформу, если я не психолог?', 'Да. Luma IQ подходит разным экспертам: нутрициологам, коучам, консультантам, наставникам, преподавателям, авторам курсов и другим специалистам, которые продают знания, консультации или сопровождение.'],
-  ['Нужно ли мне разбираться в маркетинге?', 'Нет, платформа ведёт по шагам. Но чем внимательнее вы заполняете данные о себе, аудитории и продуктах, тем полезнее становятся результаты.'],
-  ['Что такое проект?', 'Проект — это отдельное направление, ниша, продукт или сегмент аудитории. Например, один эксперт может создать отдельные проекты под разные аудитории или продукты.'],
-  ['Что такое AI-баланс?', 'AI-баланс — это ресурс тарифа для работы с искусственным интеллектом: диалога, стратегии, продуктов, постов, статей, сценариев и контент-планов.'],
-  ['На что он расходуется?', 'Простое сообщение в диалоге списывает меньше баллов, а большие сборки стратегии, продукта или контент-плана списывают больше.'],
-  ['Можно ли перейти на другой тариф?', 'Да, тариф можно изменить. Переход на более высокий тариф может быть доступен сразу после доплаты, а переход на более низкий — со следующего расчётного периода.'],
-  ['Что будет, если я исчерпаю лимиты?', 'Вы сможете дождаться обновления лимитов в следующем периоде или перейти на более высокий тариф.'],
-  ['Различается ли качество AI между тарифами?', 'Нет. Во всех тарифах доступны одни и те же инструменты и качество AI. Отличаются только AI-баланс и количество активных проектов.'],
-  ['Входит ли сборка лендинга и чатбота?', 'Платформа помогает подготовить структуру, тексты и сценарии. Внешние сервисы для лендингов, чатботов, CRM и рекламы оплачиваются отдельно.'],
-  ['Можно ли отменить подписку?', 'Да, условия отмены подписки и возвратов регулируются офертой и выбранным способом оплаты.'],
-  ['Гарантируете ли вы заявки и продажи?', 'Нет. Luma IQ помогает собрать систему продвижения, но не гарантирует конкретное количество заявок, продаж, подписчиков или дохода. Результат зависит от ниши, предложения, внедрения, регулярности действий и других факторов.'],
-  ['Кому принадлежат созданные материалы?', 'Материалы, созданные внутри сервиса на основе ваших данных, можно использовать в вашей профессиональной и коммерческой деятельности. Перед публикацией вы самостоятельно проверяете корректность, этичность и правомерность материалов.'],
-];
-
 function formatPrice(value: number) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value);
 }
 
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 export default function PlatformLanding() {
-  const [plans, setPlans] = useState<PlatformPlan[]>([]);
+  const [plans, setPlans] = useState<LandingPlan[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [leadForm, setLeadForm] = useState<LeadForm>({
     name: '',
@@ -167,48 +36,56 @@ export default function PlatformLanding() {
   });
 
   useSeo({
-    title: 'Luma IQ Platform — AI-платформа для упаковки, продуктов и контента экспертов',
-    description: 'Luma IQ помогает экспертам собрать маркетинговую упаковку, продуктовую линейку, офферы, контент-план и материалы для продвижения с помощью AI.',
-    canonical: '/platform',
+    title: landingContent.seo.title,
+    description: landingContent.seo.description,
+    canonical: landingContent.seo.canonical,
     type: 'website',
   });
 
   useEffect(() => {
     billingApi.listPlans()
       .then((backendPlans) => {
-        setPlans(backendPlans.map((plan) => ({
-          id: plan.id,
-          scenario: plan.scenario,
-          name: plan.name,
-          price: plan.priceMonthlyRub,
-          period: 'на 30 дней',
-          description: plan.shortDescription,
-          features: [
-            `${new Intl.NumberFormat('ru-RU').format(plan.aiBalanceTotal ?? 0)} AI-баллов`,
-            plan.projectsTotal === 1 ? '1 активный проект' : `До ${plan.projectsTotal} активных проектов`,
-            'Полный доступ к инструментам Luma IQ',
-          ],
-          aiPoints: plan.aiBalanceTotal ?? 0,
-          projectsLimit: plan.projectsTotal ?? 0,
-          exampleUsage: plan.exampleUsage,
-          usageDisclaimer: plan.usageDisclaimer,
-          purchasable: plan.purchasable,
-          badge: plan.badge ?? undefined,
-          buttonText: 'Выбрать тариф',
-        })));
+        setPlans(backendPlans
+          .filter((plan) => plan.scenario === 'self')
+          .map((plan) => ({
+            id: plan.id,
+            name: plan.name,
+            price: plan.priceMonthlyRub,
+            period: landingPlanUiCopy.period,
+            description: plan.shortDescription,
+            features: [
+              landingPlanUiCopy.aiBalanceFeature(formatPrice(plan.aiBalanceTotal ?? 0)),
+              landingPlanUiCopy.projectsFeature(plan.projectsTotal ?? 0),
+              landingPlanUiCopy.allToolsFeature,
+            ],
+            aiPoints: plan.aiBalanceTotal ?? 0,
+            projectsLimit: plan.projectsTotal ?? 0,
+            exampleUsage: plan.exampleUsage,
+            usageDisclaimer: plan.usageDisclaimer,
+            purchasable: plan.purchasable,
+            badge: plan.badge ?? undefined,
+            buttonText: landingPlanUiCopy.selectButton,
+          })));
       })
       .catch(() => setPlans([]));
   }, []);
 
-  const visiblePlans = useMemo(() => plans.filter((plan) => plan.scenario === 'self'), [plans]);
-
   useEffect(() => {
-    if (visiblePlans.length > 0) {
-      trackOncePerSession('platform_pricing_view', 'pricing_viewed', { plans_count: visiblePlans.length, source: 'platform' });
+    if (plans.length > 0) {
+      trackOncePerSession('platform_pricing_view', 'pricing_viewed', {
+        plans_count: plans.length,
+        source: 'platform',
+      });
     }
-  }, [visiblePlans.length]);
+  }, [plans.length]);
 
-  const openLeadModal = (plan: PlatformPlan) => {
+  const primaryCtaLabel = useMemo(() => {
+    const prices = plans.filter((plan) => plan.purchasable).map((plan) => plan.price);
+    if (prices.length === 0) return landingContent.cta.selectPlan;
+    return `${landingContent.cta.startFrom} ${formatPrice(Math.min(...prices))} ₽`;
+  }, [plans]);
+
+  const openLeadModal = (plan: LandingPlan) => {
     if (!plan.purchasable) return;
     trackEvent('plan_selected', {
       plan_code: plan.id,
@@ -225,343 +102,50 @@ export default function PlatformLanding() {
   const submitLead = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setModalOpen(false);
-    toast.success('Заявка отправлена. Мы свяжемся с вами в ближайшее время.');
+    toast.success(landingContent.leadModal.success);
     setLeadForm({ name: '', email: '', contact: '', plan: 'Старт', comment: '' });
   };
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <Link className={styles.logo} to="/platform" aria-label="Luma IQ Platform">
-          <span className={styles.logoMark}>✦</span>
-          <span>LumaIQ</span>
-        </Link>
-        <nav className={styles.nav} aria-label="Навигация по лендингу">
-          <a href="#how-it-works">Как работает</a>
-          <a href="#modules">Модули</a>
-          <a href="#pricing">Тарифы</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-        <button className={styles.headerButton} type="button" onClick={() => scrollToSection('pricing')}>
-          Выбрать тариф
-        </button>
-      </header>
-
-      <main>
-        <section className={`${styles.section} ${styles.hero}`}>
-          <div className={styles.container}>
-            <div className={styles.heroGrid}>
-              <div className={styles.heroText}>
-                <p className={styles.eyebrow}>LUMA IQ PLATFORM</p>
-                <h1>Соберите маркетинговую систему эксперта с помощью AI</h1>
-                <p className={styles.heroLead}>
-                  Luma IQ помогает превратить вашу экспертность в понятную упаковку, продуктовую линейку и регулярный контент — без хаоса в документах, таблицах и отдельных AI-чатах.
-                </p>
-                <ul className={styles.heroBullets}>
-                  <li>Определите целевую аудиторию и позиционирование</li>
-                  <li>Соберите продукты, офферы и воронку</li>
-                  <li>Создавайте посты, Reels, Shorts, Threads и YouTube-сценарии по единой стратегии</li>
-                </ul>
-                <div className={styles.heroActions}>
-                  <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>Выбрать тариф</button>
-                  <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('how-it-works')}>Посмотреть, как работает платформа</button>
-                </div>
-              </div>
-
-              <div className={styles.productPreview} aria-label="Превью интерфейса Luma IQ">
-                <div className={styles.previewChrome}>
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <div className={styles.previewHeader}>
-                  <div>
-                    <span className={styles.previewLabel}>Проект эксперта</span>
-                    <strong>Маркетинговая система</strong>
-                    <p>Упаковка, продукты, контент и задачи в одном контексте.</p>
-                  </div>
-                  <div className={styles.previewBadges} aria-label="Статус проекта">
-                    <span>AI-баланс 148</span>
-                    <span>Системная воронка</span>
-                    <span>AI ready</span>
-                  </div>
-                </div>
-                <div className={styles.previewBody}>
-                  <div className={`${styles.previewCard} ${styles.previewCardWide}`}>
-                    <div>
-                      <span>AI-чат</span>
-                      <p>Подготовить оффер для мини-продукта на основе сегмента ЦА.</p>
-                    </div>
-                    <b>Ответ готов</b>
-                  </div>
-                  <div className={styles.previewCard}>
-                    <span>Целевая аудитория</span>
-                    <p>3 сегмента, JTBD, боли и критерии выбора.</p>
-                  </div>
-                  <div className={styles.previewCard}>
-                    <span>Продуктовая линейка</span>
-                    <p>Лидмагнит, мини-продукт, основной продукт.</p>
-                  </div>
-                  <div className={styles.previewCard}>
-                    <span>Контент-план</span>
-                    <p>Telegram, Reels, Threads и YouTube на неделю.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <PlatformSection
-          id="audience"
-          eyebrow="Для кого"
-          title="Для экспертов, которые продают знания, консультации, сопровождение или обучающие продукты"
-        >
-          <div className={styles.cardGrid}>
-            {audienceCards.map((item) => <article className={styles.smallCard} key={item}>{item}</article>)}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection
-          eyebrow="Проблема"
-          title="Большинство экспертов застревают не из-за слабой экспертности, а из-за хаоса в маркетинге"
-        >
-          <div className={styles.problemGrid}>
-            {problems.map((item) => <div className={styles.problemItem} key={item}>{item}</div>)}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection
-          eyebrow="Решение"
-          title="Luma IQ собирает маркетинговую систему эксперта шаг за шагом"
-          description="Платформа не просто генерирует тексты. Она помогает пройти путь от стратегии до регулярного контента и задач по продвижению."
-        >
-          <div className={styles.stepGrid}>
-            {solutionSteps.map((item, index) => (
-              <article className={styles.stepCard} key={item}>
-                <span>{index + 1}</span>
-                <p>{item}</p>
-              </article>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection id="how-it-works" eyebrow="Процесс" title="Как вы работаете в Luma IQ">
-          <div className={styles.timeline}>
-            {workflowSteps.map(([title, text], index) => (
-              <article className={styles.timelineItem} key={title}>
-                <span>Шаг {index + 1}</span>
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </article>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection id="modules" eyebrow="Модули" title="Что входит в платформу">
-          <div className={styles.moduleGrid}>
-            {modules.map(([title, text]) => (
-              <article className={styles.moduleCard} key={title}>
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </article>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection
-          eyebrow="Результаты"
-          title="В Luma IQ вы создаёте не “тексты ради текстов”, а материалы для продвижения и продаж"
-        >
-          <div className={styles.tagCloud}>
-            {deliverables.map((item) => <span key={item}>{item}</span>)}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection eyebrow="Формат" title="Одинаковые инструменты на всех тарифах">
-          <div className={styles.formatGrid}>
-            <article className={styles.formatCard}>
-              <h3>Самостоятельно</h3>
-              <p>Для экспертов, которые хотят сами работать в платформе, собирать стратегию, продукты и контент с помощью AI.</p>
-              <ul>
-                <li>вы хотите разобраться самостоятельно;</li>
-                <li>вам нужен инструмент, а не агентство;</li>
-                <li>вы готовы сами внедрять рекомендации;</li>
-                <li>вам важно регулярно создавать контент.</li>
-              </ul>
-            </article>
-          </div>
-        </PlatformSection>
-
-        <section className={`${styles.section} ${styles.pricingSection}`} id="pricing">
-          <div className={styles.container}>
-            <div className={styles.sectionHead}>
-              <p className={styles.eyebrow}>Тарифы</p>
-              <h2>Выберите тариф Luma IQ</h2>
-              <p>Во всех тарифах доступны одни и те же инструменты. Тарифы различаются AI-балансом и количеством активных проектов.</p>
-            </div>
-            <div className={styles.pricingGrid}>
-              {visiblePlans.map((plan) => (
-                <article className={`${styles.planCard} ${plan.badge ? styles.planHighlighted : ''}`} key={plan.id}>
-                  {plan.badge && <span className={styles.badge}>{plan.badge}</span>}
-                  <h3>{plan.name}</h3>
-                  <div className={styles.price}>{formatPrice(plan.price)} ₽ <span>{plan.period}</span></div>
-                  <p>{plan.description}</p>
-                  <ul>
-                    {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
-                  </ul>
-                  <details>
-                    <summary>Ориентировочно хватит на</summary>
-                    <ul>{plan.exampleUsage.map((item) => <li key={item}>{item}</li>)}</ul>
-                    <p>{plan.usageDisclaimer}</p>
-                  </details>
-                  <button className={styles.primaryButton} type="button" disabled={!plan.purchasable} onClick={() => openLeadModal(plan)}>
-                    {plan.purchasable ? plan.buttonText : 'Временно недоступен'}
-                  </button>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <PlatformSection eyebrow="Выбор" title="Какой тариф выбрать">
-          <div className={styles.choiceList}>
-            {planGuide.map(([task, plan]) => (
-              <div className={styles.choiceRow} key={task}>
-                <span>{task}</span>
-                <strong>{plan}</strong>
-              </div>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection
-          eyebrow="Сравнение"
-          title="Luma IQ заменяет хаотичную работу с десятками таблиц, документов и отдельных AI-чатов"
-        >
-          <div className={styles.compareGrid}>
-            <div className={styles.compareHead}>Без Luma IQ</div>
-            <div className={styles.compareHead}>С Luma IQ</div>
-            {comparisonRows.map(([before, after]) => (
-              <div className={styles.comparePair} key={before}>
-                <p>{before}</p>
-                <p>{after}</p>
-              </div>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection
-          eyebrow="Важно"
-          title="AI помогает быстрее думать, структурировать и создавать материалы, но финальное решение остаётся за вами"
-        >
-          <div className={styles.noteList}>
-            {aiNotes.map((note) => <div key={note}>{note}</div>)}
-          </div>
-        </PlatformSection>
-
-        <PlatformSection id="faq" eyebrow="FAQ" title="Частые вопросы">
-          <div className={styles.faqList}>
-            {faq.map(([question, answer]) => (
-              <details className={styles.faqItem} key={question}>
-                <summary>{question}</summary>
-                <p>{answer}</p>
-              </details>
-            ))}
-          </div>
-        </PlatformSection>
-
-        <section className={`${styles.section} ${styles.finalCta}`}>
-          <div className={styles.container}>
-            <h2>Соберите маркетинговую систему эксперта в Luma IQ</h2>
-            <p>Выберите подходящий объём AI-баланса и количество активных проектов, чтобы собирать стратегию, продукты и контент в одном личном кабинете.</p>
-            <div className={styles.heroActions}>
-              <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>Выбрать тариф</button>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className={styles.footer}>
-        <div className={styles.container}>
-          <Link className={styles.logo} to="/platform" aria-label="Luma IQ Platform">
-            <span className={styles.logoMark}>✦</span>
-            <span>LumaIQ</span>
-          </Link>
-          <nav aria-label="Юридические ссылки">
-            <Link to="/legal/offer">Оферта</Link>
-            <Link to="/legal/privacy-policy">Политика обработки персональных данных</Link>
-            <Link to="/legal/personal-data">Согласие на обработку персональных данных</Link>
-            <Link to="/legal/ai-terms">Условия использования AI</Link>
-            <a href="#pricing">Тарифы и лимиты</a>
-            <Link to="/contacts">Контакты</Link>
-          </nav>
-        </div>
-      </footer>
+      <LandingHeader primaryCtaLabel={primaryCtaLabel} />
+      <LandingMain plans={plans} primaryCtaLabel={primaryCtaLabel} onPlanSelect={openLeadModal} />
+      <LandingFooter />
 
       {modalOpen && (
         <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setModalOpen(false)}>
           <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="lead-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className={styles.modalClose} type="button" aria-label="Закрыть" onClick={() => setModalOpen(false)}>×</button>
-            <h2 id="lead-title">Оставьте заявку на подключение тарифа</h2>
-            <p>Оплата подписки будет подключена на следующем этапе. Сейчас вы можете оставить заявку, и мы свяжемся с вами для подключения подходящего тарифа.</p>
+            <h2 id="lead-title">{landingContent.leadModal.title}</h2>
+            <p>{landingContent.leadModal.description}</p>
             <form className={styles.leadForm} onSubmit={submitLead}>
               <label>
-                Имя
+                {landingContent.leadModal.fields.name}
                 <input value={leadForm.name} onChange={(event) => setLeadForm({ ...leadForm, name: event.target.value })} required />
               </label>
               <label>
-                Email
+                {landingContent.leadModal.fields.email}
                 <input type="email" value={leadForm.email} onChange={(event) => setLeadForm({ ...leadForm, email: event.target.value })} required />
               </label>
               <label>
-                Telegram или телефон
+                {landingContent.leadModal.fields.contact}
                 <input value={leadForm.contact} onChange={(event) => setLeadForm({ ...leadForm, contact: event.target.value })} required />
               </label>
               <label>
-                Выбранный тариф
+                {landingContent.leadModal.fields.plan}
                 <select value={leadForm.plan} onChange={(event) => setLeadForm({ ...leadForm, plan: event.target.value })}>
-                  {plans.map((plan) => plan.name).map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
+                  {plans.map((plan) => <option key={plan.id} value={plan.name}>{plan.name}</option>)}
                 </select>
               </label>
               <label>
-                Комментарий
+                {landingContent.leadModal.fields.comment}
                 <textarea value={leadForm.comment} onChange={(event) => setLeadForm({ ...leadForm, comment: event.target.value })} rows={4} />
               </label>
-              <button className={styles.primaryButton} type="submit">Оставить заявку</button>
+              <button className={styles.primaryButton} type="submit">{landingContent.leadModal.submit}</button>
             </form>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function PlatformSection({
-  id,
-  eyebrow,
-  title,
-  description,
-  children,
-}: {
-  id?: string;
-  eyebrow: string;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={styles.section} id={id}>
-      <div className={styles.container}>
-        <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>{eyebrow}</p>
-          <h2>{title}</h2>
-          {description && <p>{description}</p>}
-        </div>
-        {children}
-      </div>
-    </section>
   );
 }
