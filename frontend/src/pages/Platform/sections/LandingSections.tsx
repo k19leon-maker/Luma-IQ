@@ -184,37 +184,87 @@ function HeroSection() {
   );
 }
 
-function AudienceStrip() {
+type Specialty = (typeof landingContent.audience.items)[number];
+type OldModelColumn = (typeof landingContent.oldModel.columns)[number];
+
+function SpecialtyItem({ specialty }: { specialty: Specialty }) {
   return (
-    <section className={styles.audienceStrip} aria-labelledby="audience-strip-title">
-      <div className={styles.container}>
-        <h2 className={styles.visuallyHidden} id="audience-strip-title">{landingContent.audience.title}</h2>
-        <div className={styles.audienceItems}>
-          {landingContent.audience.items.map((item) => <span key={item}>{item}</span>)}
+    <li className={styles.specialtyItem}>
+      <img
+        src={specialty.icon}
+        width={24}
+        height={24}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+      />
+      <span>{specialty.label}</span>
+    </li>
+  );
+}
+
+function SpecialtiesStrip() {
+  return (
+    <section className={styles.specialtiesSection} aria-labelledby="specialties-title">
+      <div className={styles.specialtiesContainer}>
+        <h2 className={styles.specialtiesCaption} id="specialties-title">
+          {landingContent.audience.caption}
+        </h2>
+        <ul className={styles.specialtiesPanel}>
+          {landingContent.audience.items.map((specialty) => (
+            <SpecialtyItem specialty={specialty} key={specialty.id} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function OldModelCard({ column }: { column: OldModelColumn }) {
+  return (
+    <article className={`${styles.oldModelCard} ${column.result ? styles.oldModelResultCard : ''}`}>
+      <span className={styles.oldModelCardNumber} aria-hidden="true">{column.number}</span>
+      <h3>{column.title}</h3>
+      <ul className={styles.oldModelList}>
+        {column.items.map((item) => <li key={item}>{item}</li>)}
+      </ul>
+      {column.summary && <p className={styles.oldModelResultSummary}>{column.summary}</p>}
+    </article>
+  );
+}
+
+function OldMarketingModelSection() {
+  return (
+    <section className={styles.oldModelSection} aria-labelledby="old-model-title">
+      <div className={styles.oldModelContainer}>
+        <div className={styles.oldModelIntro}>
+          <div>
+            <p className={styles.eyebrow}>{landingContent.oldModel.eyebrow}</p>
+            <h2 id="old-model-title">{landingContent.oldModel.title}</h2>
+          </div>
+          <p className={styles.oldModelDescription}>{landingContent.oldModel.description}</p>
+        </div>
+        <div className={styles.oldModelGrid}>
+          {landingContent.oldModel.columns.map((column) => (
+            <OldModelCard column={column} key={column.number} />
+          ))}
+        </div>
+        <div className={styles.oldModelTransition}>
+          <strong>{landingContent.oldModel.transition.title}</strong>
+          <a href="#market-shift">
+            {landingContent.oldModel.transition.link}
+            <span aria-hidden="true">→</span>
+          </a>
         </div>
       </div>
     </section>
   );
 }
 
-function OldMarketingModelSection() {
-  return (
-    <SectionShell {...landingContent.oldModel}>
-      <div className={styles.threeColumnGrid}>
-        {landingContent.oldModel.columns.map((column) => (
-          <article className={styles.listCard} key={column.title}>
-            <h3>{column.title}</h3>
-            <ul>{column.items.map((item) => <li key={item}>{item}</li>)}</ul>
-          </article>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
 function MarketShiftSection() {
   return (
-    <SectionShell {...landingContent.marketShift} dark>
+    <SectionShell {...landingContent.marketShift} id="market-shift" dark>
       <div className={styles.splitVisual}>
         <div>
           {landingContent.marketShift.paragraphs.map((item) => <p className={styles.largeCopy} key={item}>{item}</p>)}
@@ -535,7 +585,7 @@ export function LandingMain({ plans, primaryCtaLabel, onPlanSelect }: LandingMai
   return (
     <main>
       <HeroSection />
-      <AudienceStrip />
+      <SpecialtiesStrip />
       <OldMarketingModelSection />
       <MarketShiftSection />
       <DigitalHeadquartersSection />
