@@ -245,10 +245,27 @@ function OldMarketingModelSection() {
           </div>
           <p className={styles.oldModelDescription}>{landingContent.oldModel.description}</p>
         </div>
-        <div className={styles.oldModelGrid}>
-          {landingContent.oldModel.columns.map((column) => (
-            <OldModelCard column={column} key={column.number} />
-          ))}
+        <div className={styles.oldModelContent}>
+          <div className={styles.oldModelGrid}>
+            {landingContent.oldModel.columns.map((column) => (
+              <OldModelCard column={column} key={column.number} />
+            ))}
+          </div>
+          <div className={styles.oldModelVisualColumn}>
+            <figure className={styles.oldModelVisual}>
+              <AssetImage
+                asset={LANDING_MEDIA.oldModelExpertOverload}
+                alt="Эксперт пытается одновременно удерживать в голове аудиторию, продукты, офферы, контент, воронки, чат-боты, лендинги и аналитику"
+                className={styles.oldModelIllustration}
+              />
+            </figure>
+            <div className={styles.oldModelOverloadCaption}>
+              <AssetImage asset={LANDING_ICONS.context} alt="" className={styles.oldModelOverloadIcon} />
+              <p>
+                <strong>Отсюда</strong> — {landingContent.oldModel.overloadCaption}
+              </p>
+            </div>
+          </div>
         </div>
         <div className={styles.oldModelTransition}>
           <strong>{landingContent.oldModel.transition.title}</strong>

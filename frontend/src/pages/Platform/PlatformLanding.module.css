@@ -746,9 +746,16 @@
   line-height: 1.55;
 }
 
+.oldModelContent {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+  gap: clamp(32px, 4vw, 64px);
+  align-items: stretch;
+}
+
 .oldModelGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -758,12 +765,13 @@
   box-sizing: border-box;
   border: 1px solid #e7e2d8;
   border-radius: 16px;
-  padding: 28px 28px 30px;
+  padding: 26px 26px 28px;
   background: #fff;
   box-shadow: 0 8px 28px rgba(17, 17, 17, 0.025);
 }
 
 .oldModelResultCard {
+  grid-column: 1 / -1;
   border-color: rgba(200, 160, 75, 0.5);
   background: #f5eedc;
 }
@@ -774,7 +782,7 @@
   height: 38px;
   align-items: center;
   justify-content: center;
-  margin-bottom: 22px;
+  margin-bottom: 20px;
   border-radius: 50%;
   background: #c8a04b;
   color: #111;
@@ -788,9 +796,9 @@
 }
 
 .oldModelCard h3 {
-  margin: 0 0 20px;
+  margin: 0 0 18px;
   color: #111;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
@@ -798,7 +806,7 @@
 
 .oldModelList {
   display: grid;
-  gap: 10px;
+  gap: 9px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -806,19 +814,19 @@
 
 .oldModelList li {
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr);
-  gap: 11px;
+  grid-template-columns: 6px minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
   color: #6f6a61;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.42;
 }
 
 .oldModelList li::before {
   content: "";
-  width: 6px;
-  height: 6px;
-  margin-top: 8px;
+  width: 5px;
+  height: 5px;
+  margin-top: 7px;
   border-radius: 50%;
   background: #c8a04b;
 }
@@ -833,19 +841,79 @@
   line-height: 1.45;
 }
 
+.oldModelVisualColumn {
+  display: flex;
+  width: 100%;
+  max-width: 560px;
+  min-width: 0;
+  justify-self: end;
+  flex-direction: column;
+}
+
+.oldModelVisual {
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #e7e2d8;
+  border-radius: 24px;
+  padding: 12px;
+  background: #fff;
+  box-shadow:
+    0 24px 60px rgba(17, 17, 17, 0.07),
+    0 6px 18px rgba(17, 17, 17, 0.04);
+}
+
+.oldModelIllustration {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+}
+
+.oldModelOverloadCaption {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-top: 14px;
+  border: 1px solid rgba(200, 160, 75, 0.45);
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: #fcfbf8;
+  color: #111;
+}
+
+.oldModelOverloadIcon {
+  width: 42px;
+  height: 42px;
+}
+
+.oldModelOverloadCaption p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.oldModelOverloadCaption strong {
+  color: #a97d2d;
+}
+
 .oldModelTransition {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-top: 40px;
+  margin-top: 42px;
   border-top: 1px solid #e7e2d8;
   padding-top: 28px;
 }
 
 .oldModelTransition strong {
   color: #111;
-  font-size: clamp(22px, 2vw, 30px);
+  font-size: clamp(24px, 2.2vw, 32px);
   font-weight: 750;
   line-height: 1.2;
   letter-spacing: 0;
@@ -1644,6 +1712,18 @@
   }
 }
 
+@media (max-width: 1099px) {
+  .oldModelContent {
+    grid-template-columns: 1fr;
+  }
+
+  .oldModelVisualColumn {
+    width: min(100%, 720px);
+    max-width: 720px;
+    justify-self: center;
+  }
+}
+
 @media (max-width: 980px) {
   .header {
     grid-template-columns: auto auto;
@@ -1837,6 +1917,33 @@
 
   .oldModelCard {
     padding: 24px;
+  }
+
+  .oldModelContent {
+    gap: 32px;
+  }
+
+  .oldModelVisual {
+    border-radius: 16px;
+    padding: 6px;
+  }
+
+  .oldModelIllustration {
+    border-radius: 12px;
+  }
+
+  .oldModelOverloadCaption {
+    grid-template-columns: 38px minmax(0, 1fr);
+    padding: 16px 18px;
+  }
+
+  .oldModelOverloadIcon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .oldModelOverloadCaption p {
+    font-size: 15px;
   }
 
   .oldModelTransition {
