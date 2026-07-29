@@ -225,6 +225,9 @@ function OldModelCard({ column }: { column: OldModelColumn }) {
   return (
     <article className={`${styles.oldModelCard} ${column.result ? styles.oldModelResultCard : ''}`}>
       <span className={styles.oldModelCardNumber} aria-hidden="true">{column.number}</span>
+      {'label' in column && column.label && (
+        <span className={styles.oldModelResultLabel}>{column.label}</span>
+      )}
       <h3>{column.title}</h3>
       <ul className={styles.oldModelList}>
         {column.items.map((item) => <li key={item}>{item}</li>)}
@@ -262,7 +265,9 @@ function OldMarketingModelSection() {
             <div className={styles.oldModelOverloadCaption}>
               <AssetImage asset={LANDING_ICONS.context} alt="" className={styles.oldModelOverloadIcon} />
               <p>
-                <strong>Отсюда</strong> — {landingContent.oldModel.overloadCaption}
+                {landingContent.oldModel.overloadCaption.before}{' '}
+                <strong>{landingContent.oldModel.overloadCaption.highlight}</strong>,{' '}
+                {landingContent.oldModel.overloadCaption.after}
               </p>
             </div>
           </div>

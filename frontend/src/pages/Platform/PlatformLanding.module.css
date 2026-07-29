@@ -721,7 +721,7 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.8fr);
   gap: clamp(48px, 6vw, 96px);
   align-items: end;
-  margin-bottom: 38px;
+  margin-bottom: 50px;
 }
 
 .oldModelIntro .eyebrow {
@@ -748,8 +748,8 @@
 
 .oldModelContent {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
-  gap: clamp(32px, 4vw, 64px);
+  grid-template-columns: minmax(0, 1.1fr) minmax(400px, 0.9fr);
+  gap: clamp(32px, 3.5vw, 56px);
   align-items: stretch;
 }
 
@@ -765,7 +765,7 @@
   box-sizing: border-box;
   border: 1px solid #e7e2d8;
   border-radius: 16px;
-  padding: 26px 26px 28px;
+  padding: 24px 24px 26px;
   background: #fff;
   box-shadow: 0 8px 28px rgba(17, 17, 17, 0.025);
 }
@@ -782,7 +782,7 @@
   height: 38px;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   border-radius: 50%;
   background: #c8a04b;
   color: #111;
@@ -795,13 +795,28 @@
   color: #fff;
 }
 
+.oldModelResultLabel {
+  display: inline-flex;
+  margin: 7px 0 18px 12px;
+  color: #8d6824;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-transform: uppercase;
+  vertical-align: top;
+}
+
 .oldModelCard h3 {
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   color: #111;
   font-size: 21px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
+}
+
+.oldModelResultCard h3 {
+  font-size: 23px;
 }
 
 .oldModelList {
@@ -833,8 +848,8 @@
 
 .oldModelResultSummary {
   margin: 24px 0 0;
-  border-top: 1px solid rgba(169, 125, 45, 0.25);
-  padding-top: 20px;
+  border-left: 3px solid #c8a04b;
+  padding: 2px 0 2px 18px;
   color: #111;
   font-size: 15px;
   font-weight: 700;
@@ -844,7 +859,7 @@
 .oldModelVisualColumn {
   display: flex;
   width: 100%;
-  max-width: 560px;
+  max-width: 600px;
   min-width: 0;
   justify-self: end;
   flex-direction: column;
@@ -857,37 +872,35 @@
   margin: 0;
   overflow: hidden;
   border: 1px solid #e7e2d8;
-  border-radius: 24px;
-  padding: 12px;
+  border-radius: 20px;
+  padding: 6px;
   background: #fff;
-  box-shadow:
-    0 24px 60px rgba(17, 17, 17, 0.07),
-    0 6px 18px rgba(17, 17, 17, 0.04);
+  box-shadow: 0 18px 48px rgba(17, 17, 17, 0.06);
 }
 
 .oldModelIllustration {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 16px;
+  border-radius: 15px;
 }
 
 .oldModelOverloadCaption {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 16px;
   align-items: center;
   margin-top: 14px;
   border: 1px solid rgba(200, 160, 75, 0.45);
   border-radius: 14px;
-  padding: 18px 20px;
+  padding: 22px;
   background: #fcfbf8;
-  color: #111;
+  color: #2b2925;
 }
 
 .oldModelOverloadIcon {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
 }
 
 .oldModelOverloadCaption p {
