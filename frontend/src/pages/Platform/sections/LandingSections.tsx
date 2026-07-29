@@ -160,9 +160,6 @@ function HeroSection() {
               <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.cta.selectPlan}</button>
               <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('how-it-works')}>{landingContent.cta.learnMore}</button>
             </div>
-            <div className={styles.heroNotes}>
-              {landingContent.hero.notes.map((item) => <span key={item}>{item}</span>)}
-            </div>
           </div>
           <figure className={styles.heroVisual}>
             <figcaption className={styles.heroVisualLabel}>
@@ -176,6 +173,9 @@ function HeroSection() {
                 className={styles.heroDashboard}
                 eager
               />
+            </div>
+            <div className={styles.heroVisualNotes}>
+              {landingContent.hero.notes.map((item) => <span key={item}>{item}</span>)}
             </div>
           </figure>
         </div>
