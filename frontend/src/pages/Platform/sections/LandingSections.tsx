@@ -1,7 +1,12 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LandingLogo } from '../../../components/LandingLogo/LandingLogo';
-import { LANDING_ICONS, LANDING_ILLUSTRATIONS, LandingAsset } from '../../../config/landing-assets';
+import {
+  LANDING_ICONS,
+  LANDING_ILLUSTRATIONS,
+  LANDING_MEDIA,
+  LandingAsset,
+} from '../../../config/landing-assets';
 import { landingContent, landingPlanUiCopy } from '../../../config/landing-content';
 import styles from '../PlatformLanding.module.css';
 
@@ -93,7 +98,7 @@ function SectionShell({
   );
 }
 
-export function LandingHeader({ primaryCtaLabel }: { primaryCtaLabel: string }) {
+export function LandingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
@@ -120,7 +125,7 @@ export function LandingHeader({ primaryCtaLabel }: { primaryCtaLabel: string }) 
       <div className={styles.headerActions}>
         <Link className={styles.loginLink} to="/auth">Войти</Link>
         <button className={styles.headerButton} type="button" onClick={() => scrollToSection('pricing')}>
-          {primaryCtaLabel}
+          {landingContent.cta.selectPlan}
         </button>
         <button
           className={styles.menuButton}
@@ -139,35 +144,40 @@ export function LandingHeader({ primaryCtaLabel }: { primaryCtaLabel: string }) 
   );
 }
 
-function HeroSection({ primaryCtaLabel }: { primaryCtaLabel: string }) {
+function HeroSection() {
   return (
     <section className={`${styles.section} ${styles.hero}`}>
-      <div className={styles.container}>
+      <div className={`${styles.container} ${styles.heroContainer}`}>
         <div className={styles.heroGrid}>
           <div className={styles.heroText}>
             <p className={styles.eyebrow}>{landingContent.hero.eyebrow}</p>
-            <h1>
-              <span className={styles.desktopTitle}>{landingContent.hero.title}</span>
-              <span className={styles.mobileTitle}>{landingContent.hero.mobileTitle}</span>
-            </h1>
+            <h1>{landingContent.hero.title}</h1>
             <p className={styles.heroLead}>{landingContent.hero.description}</p>
             <ul className={styles.heroBullets}>
               {landingContent.hero.bullets.map((item) => <li key={item}>{item}</li>)}
             </ul>
             <div className={styles.heroActions}>
-              <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{primaryCtaLabel}</button>
-              <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('capabilities')}>{landingContent.cta.learnMore}</button>
+              <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.cta.selectPlan}</button>
+              <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('how-it-works')}>{landingContent.cta.learnMore}</button>
             </div>
             <div className={styles.heroNotes}>
               {landingContent.hero.notes.map((item) => <span key={item}>{item}</span>)}
             </div>
           </div>
-          <AssetImage
-            asset={LANDING_ILLUSTRATIONS.heroContext}
-            alt="Архитектура маркетинговой системы Luma IQ"
-            className={styles.heroIllustration}
-            eager
-          />
+          <figure className={styles.heroVisual}>
+            <figcaption className={styles.heroVisualLabel}>
+              <span aria-hidden="true" />
+              Рабочее пространство проекта в Luma IQ
+            </figcaption>
+            <div className={styles.heroProductPreview}>
+              <AssetImage
+                asset={LANDING_MEDIA.heroDashboard}
+                alt="Главный дашборд проекта в Luma IQ"
+                className={styles.heroDashboard}
+                eager
+              />
+            </div>
+          </figure>
         </div>
       </div>
     </section>
@@ -524,7 +534,7 @@ function FinalCtaSection({ primaryCtaLabel }: { primaryCtaLabel: string }) {
 export function LandingMain({ plans, primaryCtaLabel, onPlanSelect }: LandingMainProps) {
   return (
     <main>
-      <HeroSection primaryCtaLabel={primaryCtaLabel} />
+      <HeroSection />
       <AudienceStrip />
       <OldMarketingModelSection />
       <MarketShiftSection />

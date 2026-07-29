@@ -108,7 +108,7 @@ export default function PlatformLanding() {
 
   return (
     <div className={styles.page}>
-      <LandingHeader primaryCtaLabel={primaryCtaLabel} />
+      <LandingHeader />
       <LandingMain plans={plans} primaryCtaLabel={primaryCtaLabel} onPlanSelect={openLeadModal} />
       <LandingFooter />
 

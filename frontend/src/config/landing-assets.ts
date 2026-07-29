@@ -52,3 +52,7 @@ export const LANDING_BACKGROUNDS = {
   topographicCorner: asset('04_backgrounds_svg/gold-topographic-corner.svg', 600, 600),
   warmGrid: asset('04_backgrounds_svg/warm-grid-pattern.svg', 800, 800),
 } as const;
+
+export const LANDING_MEDIA = {
+  heroDashboard: asset('hero-dashboard.webp', 2000, 1063),
+} as const;
