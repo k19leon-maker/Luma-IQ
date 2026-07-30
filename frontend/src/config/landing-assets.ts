@@ -55,5 +55,7 @@ export const LANDING_BACKGROUNDS = {
 
 export const LANDING_MEDIA = {
   heroDashboard: asset('hero-dashboard.webp', 2000, 1063),
+  newModelEcosystem: asset('new-model-ecosystem.webp', 1448, 1086),
+  newModelEcosystemMobile: asset('new-model-ecosystem-mobile.webp', 971, 1619),
   oldModelExpertOverload: asset('old-model-expert-overload.webp', 1060, 1180),
 } as const;

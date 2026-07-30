@@ -286,23 +286,52 @@ function OldMarketingModelSection() {
 
 function MarketShiftSection() {
   return (
-    <SectionShell {...landingContent.marketShift} id="market-shift" dark>
-      <div className={styles.splitVisual}>
-        <div>
-          {landingContent.marketShift.paragraphs.map((item) => <p className={styles.largeCopy} key={item}>{item}</p>)}
-          <div className={styles.darkTheses}>
-            {landingContent.marketShift.theses.map((item) => (
-              <article key={item.title}>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-              </article>
-            ))}
+    <section className={`${styles.section} ${styles.darkSection} ${styles.newModelSection}`} id="market-shift">
+      <div className={`${styles.container} ${styles.newModelContainer}`}>
+        <div className={styles.newModelGrid}>
+          <div className={styles.newModelCopy}>
+            <p className={styles.eyebrow}>{landingContent.marketShift.eyebrow}</p>
+            <h2>{landingContent.marketShift.title}</h2>
+            <div className={styles.newModelParagraphs}>
+              {landingContent.marketShift.paragraphs.map((item) => <p key={item}>{item}</p>)}
+            </div>
+            <div className={styles.newModelPoints}>
+              {landingContent.marketShift.theses.map((item) => (
+                <article className={styles.newModelPoint} key={item.title}>
+                  <h3>{item.title}</h3>
+                  <p>{item.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+          <div className={styles.newModelVisual}>
+            <div className={styles.newModelVisualShell}>
+              <picture>
+                <source
+                  media="(max-width: 720px)"
+                  srcSet={LANDING_MEDIA.newModelEcosystemMobile.src}
+                  width={LANDING_MEDIA.newModelEcosystemMobile.width}
+                  height={LANDING_MEDIA.newModelEcosystemMobile.height}
+                />
+                <img
+                  src={LANDING_MEDIA.newModelEcosystem.src}
+                  width={LANDING_MEDIA.newModelEcosystem.width}
+                  height={LANDING_MEDIA.newModelEcosystem.height}
+                  alt="Luma IQ объединяет стратегию, конструктор продуктов, контент, чатбот и лендинг, аналитику в одной системе"
+                  className={styles.newModelIllustration}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </div>
           </div>
         </div>
-        <AssetImage asset={LANDING_ILLUSTRATIONS.marketShift} alt="Сравнение старой и новой модели маркетинга" className={styles.sectionIllustration} />
+        <div className={styles.newModelSummary}>
+          <p>{landingContent.marketShift.quote}</p>
+          <span>{landingContent.marketShift.quoteDetail}</span>
+        </div>
       </div>
-      <blockquote className={styles.bigQuote}>{landingContent.marketShift.quote}</blockquote>
-    </SectionShell>
+    </section>
   );
 }
 
