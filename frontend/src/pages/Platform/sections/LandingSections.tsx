@@ -376,41 +376,55 @@ function MarketingTeamSection() {
     <section className={`${styles.section} ${styles.marketingTeamSection}`}>
       <div className={styles.container}>
         <div className={styles.marketingTeamIntro}>
-          <div>
-            <p className={styles.eyebrow}>{landingContent.marketingTeam.eyebrow}</p>
-            <h2>{landingContent.marketingTeam.title}</h2>
-          </div>
+          <p className={styles.eyebrow}>{landingContent.marketingTeam.eyebrow}</p>
+          <h2>{landingContent.marketingTeam.title}</h2>
           <p>{landingContent.marketingTeam.description}</p>
         </div>
-        <div className={styles.marketingTeamContent}>
-          <figure className={styles.marketingTeamVisual}>
-            <AssetImage
-              asset={LANDING_MEDIA.marketingTeamWorkspace}
-              alt="Шесть маркетинговых ролей работают вместе в единой системе"
-              className={styles.marketingTeamIllustration}
-            />
-            <figcaption>{landingContent.marketingTeam.visualCaption}</figcaption>
-          </figure>
-          <div className={styles.roleGrid}>
-            {landingContent.marketingTeam.roles.map((item, index) => {
-              const icon = LANDING_ICONS[item.icon];
-              return (
-                <article className={styles.teamRoleCard} key={item.title}>
-                  <div className={styles.teamRoleMeta}>
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <AssetImage asset={icon} alt="" className={styles.teamRoleIcon} />
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                  <strong className={styles.teamRoleResult}>
-                    <span aria-hidden="true">→</span>
-                    {item.result}
-                  </strong>
-                </article>
-              );
-            })}
+        <figure className={styles.teamSystemMap}>
+          <div className={styles.teamSystemCanvas}>
+            <div className={styles.teamSystemCore}>
+              <span>Luma IQ</span>
+              <small>Единая система</small>
+            </div>
+            {landingContent.marketingTeam.systemRoles.map((role, index) => (
+              <div
+                className={`${styles.teamSystemNode} ${styles[`teamSystemNode${index + 1}`]}`}
+                key={role}
+              >
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <strong>{role}</strong>
+              </div>
+            ))}
+            {landingContent.marketingTeam.systemRoles.map((role, index) => (
+              <span
+                aria-hidden="true"
+                className={`${styles.teamSystemConnector} ${styles[`teamSystemConnector${index + 1}`]}`}
+                key={`${role}-connector`}
+              />
+            ))}
           </div>
+          <figcaption>{landingContent.marketingTeam.visualCaption}</figcaption>
+        </figure>
+        <div className={styles.roleGrid}>
+          {landingContent.marketingTeam.roles.map((item, index) => {
+            const icon = LANDING_ICONS[item.icon];
+            return (
+              <article className={styles.teamRoleCard} key={item.title}>
+                <div className={styles.teamRoleMeta}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <AssetImage asset={icon} alt="" className={styles.teamRoleIcon} />
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+                <strong className={styles.teamRoleResult}>
+                  <span aria-hidden="true">→</span>
+                  {item.result}
+                </strong>
+              </article>
+            );
+          })}
         </div>
+        <p className={styles.marketingTeamConclusion}>{landingContent.marketingTeam.conclusion}</p>
       </div>
     </section>
   );
