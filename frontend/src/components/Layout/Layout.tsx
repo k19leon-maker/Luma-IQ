@@ -64,7 +64,7 @@ const pageTitles: Record<string, string> = {
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/castdev':      'CustDev',
   '/strategy/utp':          'Создание УТП',
-  '/strategy/social':       'Инста',
+  '/strategy/social':       'Упаковка Instagram',
   '/products/main':         'Основной продукт',
   '/products/mini':         'Мини-продукт',
   '/products/lead-magnet':  'Лид-магнит',

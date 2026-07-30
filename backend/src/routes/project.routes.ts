@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { projectController } from '../controllers/project.controller';
+import { instagramPackagingController } from '../controllers/instagram-packaging.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -15,5 +16,7 @@ router.get('/:id/strategy',           requireAuth, projectController.getStrategy
 router.patch('/:id/strategy',         requireAuth, projectController.saveStrategyData);
 router.get('/:id/utp',                requireAuth, projectController.getUtpData);
 router.patch('/:id/utp',              requireAuth, projectController.saveUtpData);
+router.get('/:id/instagram-packaging', requireAuth, instagramPackagingController.get);
+router.put('/:id/instagram-packaging', requireAuth, instagramPackagingController.save);
 
 export default router;
