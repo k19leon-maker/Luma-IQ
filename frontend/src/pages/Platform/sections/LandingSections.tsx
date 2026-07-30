@@ -449,20 +449,71 @@ function CapabilitiesSection() {
   );
 }
 
+type WorkflowStep = (typeof landingContent.workflow.steps)[number];
+
+function ProcessArrow() {
+  return <span className={styles.workflowArrow} aria-hidden="true">→</span>;
+}
+
+function HowItWorksStepCard({ item, index }: { item: WorkflowStep; index: number }) {
+  const icon = LANDING_ICONS[item.icon];
+
+  return (
+    <li className={styles.workflowStep}>
+      <article className={styles.workflowCard}>
+        <div className={styles.workflowCardHeader}>
+          <span className={styles.workflowNumber}>{String(index + 1).padStart(2, '0')}</span>
+          <AssetImage asset={icon} alt="" className={styles.workflowIcon} />
+        </div>
+        <h3>{item.title}</h3>
+        <p>{item.text}</p>
+        <div className={styles.workflowResult}>
+          <span>Результат</span>
+          <strong>{item.result}</strong>
+        </div>
+      </article>
+      {index < landingContent.workflow.steps.length - 1 && <ProcessArrow />}
+    </li>
+  );
+}
+
+function ContextGrowthLine() {
+  return (
+    <div className={styles.contextGrowth} aria-label="Рост контекста проекта">
+      <div className={styles.contextGrowthLine} aria-hidden="true" />
+      <ol className={styles.contextGrowthPoints}>
+        {landingContent.workflow.contextStages.map((stage, index) => (
+          <li className={index === landingContent.workflow.contextStages.length - 1 ? styles.contextGrowthPointFinal : ''} key={stage}>
+            <span aria-hidden="true" />
+            <strong>{stage}</strong>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function HowItWorksSummary() {
+  return (
+    <div className={styles.workflowSummary}>
+      <div className={styles.workflowSummaryIcon} aria-hidden="true">
+        <AssetImage asset={LANDING_ICONS.context} alt="" />
+      </div>
+      <p>{landingContent.workflow.summary}</p>
+    </div>
+  );
+}
+
 function WorkflowSection() {
   return (
-    <SectionShell id="how-it-works" {...landingContent.workflow}>
-      <AssetImage asset={LANDING_ILLUSTRATIONS.workflow} alt="Пять шагов работы в Luma IQ" className={styles.workflowIllustration} />
-      <div className={styles.fiveStepGrid}>
+    <SectionShell id="how-it-works" {...landingContent.workflow} className={styles.workflowSection}>
+      <ol className={styles.workflowSteps}>
         {landingContent.workflow.steps.map((item, index) => (
-          <article key={item.title}>
-            <span>{index + 1}</span>
-            <h3>{item.title}</h3>
-            <p>{item.text}</p>
-          </article>
+          <HowItWorksStepCard item={item} index={index} key={item.title} />
         ))}
-      </div>
-      <p className={styles.keyNote}>{landingContent.workflow.note}</p>
+      </ol>
+      <ContextGrowthLine />
+      <HowItWorksSummary />
     </SectionShell>
   );
 }
