@@ -337,39 +337,82 @@ function MarketShiftSection() {
 
 function DigitalHeadquartersSection() {
   return (
-    <SectionShell {...landingContent.headquarters}>
-      <div className={styles.headquartersGrid}>
-        <div className={styles.editorialCopy}>
-          {landingContent.headquarters.paragraphs.map((item) => <p key={item}>{item}</p>)}
-        </div>
-        <div className={styles.benefitGrid}>
-          {landingContent.headquarters.benefits.map((item) => (
-            <article key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </article>
-          ))}
+    <section className={`${styles.section} ${styles.headquartersSection}`}>
+      <div className={styles.container}>
+        <div className={styles.headquartersGrid}>
+          <div className={styles.headquartersCopy}>
+            <p className={styles.eyebrow}>{landingContent.headquarters.eyebrow}</p>
+            <h2>{landingContent.headquarters.title}</h2>
+            <div className={styles.headquartersParagraphs}>
+              {landingContent.headquarters.paragraphs.map((item) => <p key={item}>{item}</p>)}
+            </div>
+            <p className={styles.headquartersConclusion}>{landingContent.headquarters.conclusion}</p>
+          </div>
+          <div className={styles.headquartersCards}>
+            {landingContent.headquarters.benefits.map((item, index) => {
+              const icon = LANDING_ICONS[item.icon];
+              return (
+                <article
+                  className={`${styles.headquartersCard} ${index === 0 ? styles.headquartersCardFeatured : ''}`}
+                  key={item.title}
+                >
+                  <AssetImage asset={icon} alt="" className={styles.headquartersCardIcon} />
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.text}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </div>
-    </SectionShell>
+    </section>
   );
 }
 
 function MarketingTeamSection() {
   return (
-    <SectionShell {...landingContent.marketingTeam}>
-      <div className={styles.splitVisual}>
-        <AssetImage asset={LANDING_ILLUSTRATIONS.marketingTeam} alt="Функциональные роли маркетинговой команды Luma IQ" className={styles.sectionIllustration} />
-        <div className={styles.roleGrid}>
-          {landingContent.marketingTeam.roles.map((item) => (
-            <article key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </article>
-          ))}
+    <section className={`${styles.section} ${styles.marketingTeamSection}`}>
+      <div className={styles.container}>
+        <div className={styles.marketingTeamIntro}>
+          <div>
+            <p className={styles.eyebrow}>{landingContent.marketingTeam.eyebrow}</p>
+            <h2>{landingContent.marketingTeam.title}</h2>
+          </div>
+          <p>{landingContent.marketingTeam.description}</p>
+        </div>
+        <div className={styles.marketingTeamContent}>
+          <figure className={styles.marketingTeamVisual}>
+            <AssetImage
+              asset={LANDING_MEDIA.marketingTeamWorkspace}
+              alt="Шесть маркетинговых ролей работают вместе в единой системе"
+              className={styles.marketingTeamIllustration}
+            />
+            <figcaption>{landingContent.marketingTeam.visualCaption}</figcaption>
+          </figure>
+          <div className={styles.roleGrid}>
+            {landingContent.marketingTeam.roles.map((item, index) => {
+              const icon = LANDING_ICONS[item.icon];
+              return (
+                <article className={styles.teamRoleCard} key={item.title}>
+                  <div className={styles.teamRoleMeta}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <AssetImage asset={icon} alt="" className={styles.teamRoleIcon} />
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.text}</p>
+                  <strong className={styles.teamRoleResult}>
+                    <span aria-hidden="true">→</span>
+                    {item.result}
+                  </strong>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </div>
-    </SectionShell>
+    </section>
   );
 }
 
