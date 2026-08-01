@@ -48,7 +48,7 @@ const root = document.getElementById('root');
 root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px/1.5 Inter,Arial,sans-serif;color:#6f6a61;background:#fcfbf8">Загружаем Luma IQ...</div>';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  const workerUrl = '/frontend-loader-sw-v17.js';
+  const workerUrl = '/frontend-loader-sw-v18.js';
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (!event.data?.type?.startsWith('asset-loader-')) return;
     console.info('[LumaIQ asset loader]', JSON.stringify(event.data));
