@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v2';
+const CACHE_NAME = 'lumaiq-frontend-assets-v3';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = 'https://api.lumaiq.ru/frontend';
