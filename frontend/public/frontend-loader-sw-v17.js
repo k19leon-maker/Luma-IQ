@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v16';
+const CACHE_NAME = 'lumaiq-frontend-assets-v17';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
@@ -57,8 +57,8 @@ async function fetchInChunks(request) {
   if (cached) return cached;
 
   const pathname = new URL(request.url).pathname;
-  const metadataResponse = await fetch(`${SOURCE_ORIGIN}${pathname}.parts.json`, {
-    cache: 'force-cache',
+  const metadataResponse = await fetch(`${SOURCE_ORIGIN}${pathname}.parts.json?assetVersion=17`, {
+    cache: 'no-store',
     credentials: 'omit',
   });
   if (!metadataResponse.ok) throw new Error(`Asset metadata failed with HTTP ${metadataResponse.status}`);
