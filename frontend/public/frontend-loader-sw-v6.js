@@ -1,10 +1,10 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v5';
+const CACHE_NAME = 'lumaiq-frontend-assets-v6';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
-const CHUNK_SIZE = 8192;
-const BATCH_SIZE = 4;
-const MAX_ATTEMPTS = 5;
+const CHUNK_SIZE = 4096;
+const BATCH_SIZE = 16;
+const MAX_ATTEMPTS = 4;
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -23,7 +23,7 @@ async function fetchRange(url, start, end) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(sourceUrl, {
         mode: 'cors',
