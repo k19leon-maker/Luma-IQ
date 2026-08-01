@@ -9,7 +9,10 @@ import './styles/luma.css';
 
 cleanupDemoProductStorage();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')!;
+rootElement.dataset.appBuild = '2026-08-01-instagram';
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <Analytics />
