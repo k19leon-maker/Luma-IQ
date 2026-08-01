@@ -28,17 +28,16 @@ async function boot() {
   });
   const registration = await navigator.serviceWorker.register(workerUrl, { scope: '/' });
   await registration.update();
-  const isCurrentWorker = () => navigator.serviceWorker.controller?.scriptURL.includes(workerUrl);
-  if (!isCurrentWorker()) {
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Asset loader activation timed out')), 20000);
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!isCurrentWorker()) return;
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
+  if (!navigator.serviceWorker.controller) {
+    await navigator.serviceWorker.ready;
+    if (!sessionStorage.getItem('lumaiq-asset-loader-reload')) {
+      sessionStorage.setItem('lumaiq-asset-loader-reload', '1');
+      location.reload();
+      return;
+    }
+    throw new Error('Asset loader could not control the page');
   }
+  sessionStorage.removeItem('lumaiq-asset-loader-reload');
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
   stylesheet.href = ${JSON.stringify(stylesheetTag[1])};
