@@ -5,6 +5,32 @@ import tailwindcss from '@tailwindcss/vite';
 const resilientProductionAssets = {
   name: 'resilient-production-assets',
   enforce: 'post' as const,
+  generateBundle(_options: unknown, bundle: Record<string, any>) {
+    const encoder = new TextEncoder();
+    const partSize = 8192;
+    for (const [fileName, output] of Object.entries(bundle)) {
+      if (!fileName.startsWith('frontend-assets-v2/') || !/\.(?:js|css)$/.test(fileName)) continue;
+      const source = output.type === 'chunk' ? output.code : output.source;
+      const bytes = typeof source === 'string' ? encoder.encode(source) : new Uint8Array(source);
+      const parts = Math.ceil(bytes.byteLength / partSize);
+      for (let index = 0; index < parts; index += 1) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.parts/${String(index).padStart(4, '0')}`,
+          source: bytes.slice(index * partSize, Math.min((index + 1) * partSize, bytes.byteLength)),
+        });
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: `${fileName}.parts.json`,
+        source: JSON.stringify({
+          parts,
+          totalSize: bytes.byteLength,
+          contentType: fileName.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8',
+        }),
+      });
+    }
+  },
   transformIndexHtml: {
     order: 'post' as const,
     handler(html: string) {
@@ -21,7 +47,7 @@ const root = document.getElementById('root');
 root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px/1.5 Inter,Arial,sans-serif;color:#6f6a61;background:#fcfbf8">Загружаем Luma IQ...</div>';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  const workerUrl = '/frontend-loader-sw-v11.js';
+  const workerUrl = '/frontend-loader-sw-v12.js';
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (!event.data?.type?.startsWith('asset-loader-')) return;
     console.info('[LumaIQ asset loader]', JSON.stringify(event.data));

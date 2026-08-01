@@ -1,8 +1,7 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v11';
+const CACHE_NAME = 'lumaiq-frontend-assets-v12';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
-const CHUNK_SIZE = 8192;
 const BATCH_SIZE = 8;
 const MAX_ATTEMPTS = 3;
 
@@ -23,34 +22,22 @@ async function notifyClients(payload) {
   windows.forEach((client) => client.postMessage(payload));
 }
 
-async function fetchRange(url, start, end) {
-  const sourceUrl = new URL(`${SOURCE_ORIGIN}${new URL(url).pathname}`);
-  sourceUrl.searchParams.set('lumaiqRange', `${start}-${end}`);
+async function fetchPart(url) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(sourceUrl.toString(), {
+      const response = await fetch(url, {
         mode: 'cors',
         credentials: 'omit',
-        cache: 'no-store',
+        cache: 'force-cache',
         signal: controller.signal,
-        headers: { Range: `bytes=${start}-${end}` },
       });
-      if (response.status !== 206) {
-        throw new Error(`Expected HTTP 206, received ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Part request failed with HTTP ${response.status}`);
       const buffer = await response.arrayBuffer();
-      const expectedSize = end - start + 1;
-      if (buffer.byteLength !== expectedSize) {
-        throw new Error(`Incomplete range: expected ${expectedSize}, received ${buffer.byteLength}`);
-      }
-      return {
-        buffer,
-        contentRange: response.headers.get('Content-Range'),
-        contentType: response.headers.get('Content-Type'),
-      };
+      if (!buffer.byteLength) throw new Error('Asset part is empty');
+      return buffer;
     } catch (error) {
       lastError = error;
       if (attempt < MAX_ATTEMPTS) {
@@ -68,33 +55,39 @@ async function fetchInChunks(request) {
   const cached = await cache.match(request.url);
   if (cached) return cached;
 
-  const firstResponse = await fetchRange(request.url, 0, CHUNK_SIZE - 1);
-  const contentRange = firstResponse.contentRange;
-  const match = contentRange && contentRange.match(/bytes 0-\d+\/(\d+)/);
-  if (!match) throw new Error('Content-Range is missing');
-
-  const totalSize = Number(match[1]);
-  const contentType = firstResponse.contentType || 'application/octet-stream';
+  const pathname = new URL(request.url).pathname;
+  const metadataResponse = await fetch(`${SOURCE_ORIGIN}${pathname}.parts.json`, {
+    cache: 'force-cache',
+    credentials: 'omit',
+  });
+  if (!metadataResponse.ok) throw new Error(`Asset metadata failed with HTTP ${metadataResponse.status}`);
+  const { parts, totalSize, contentType } = await metadataResponse.json();
+  if (!Number.isInteger(parts) || parts < 1 || !Number.isInteger(totalSize) || totalSize < 1) {
+    throw new Error('Asset metadata is invalid');
+  }
   await notifyClients({ type: 'asset-loader-start', path: new URL(request.url).pathname, totalSize });
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(new Uint8Array(firstResponse.buffer));
       (async () => {
         try {
-          for (let offset = CHUNK_SIZE; offset < totalSize; offset += CHUNK_SIZE * BATCH_SIZE) {
+          let loaded = 0;
+          for (let offset = 0; offset < parts; offset += BATCH_SIZE) {
             const jobs = [];
             for (let index = 0; index < BATCH_SIZE; index += 1) {
-              const start = offset + index * CHUNK_SIZE;
-              if (start >= totalSize) break;
-              const end = Math.min(start + CHUNK_SIZE - 1, totalSize - 1);
-              jobs.push(fetchRange(request.url, start, end));
+              const partIndex = offset + index;
+              if (partIndex >= parts) break;
+              const partUrl = `${SOURCE_ORIGIN}${pathname}.parts/${String(partIndex).padStart(4, '0')}`;
+              jobs.push(fetchPart(partUrl));
             }
             const batch = await Promise.all(jobs);
-            batch.forEach(({ buffer }) => controller.enqueue(new Uint8Array(buffer)));
+            batch.forEach((buffer) => {
+              loaded += buffer.byteLength;
+              controller.enqueue(new Uint8Array(buffer));
+            });
             await notifyClients({
               type: 'asset-loader-progress',
               path: new URL(request.url).pathname,
-              loaded: Math.min(offset + CHUNK_SIZE * BATCH_SIZE, totalSize),
+              loaded,
               totalSize,
             });
           }
