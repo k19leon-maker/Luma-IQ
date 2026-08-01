@@ -1,8 +1,10 @@
 const CACHE_NAME = 'lumaiq-frontend-assets-v2';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
+const SOURCE_ORIGIN = 'https://api.lumaiq.ru/frontend';
 const CHUNK_SIZE = 4096;
 const BATCH_SIZE = 1;
+const MAX_ATTEMPTS = 5;
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -17,16 +19,33 @@ self.addEventListener('activate', (event) => {
 });
 
 async function fetchRange(url, start, end) {
-  const response = await fetch(url, {
-    mode: 'cors',
-    credentials: 'omit',
-    cache: 'no-store',
-    headers: { Range: `bytes=${start}-${end}` },
-  });
-  if (response.status !== 206) {
-    throw new Error(`Expected HTTP 206, received ${response.status}`);
+  const sourceUrl = `${SOURCE_ORIGIN}${new URL(url).pathname}`;
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(sourceUrl, {
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { Range: `bytes=${start}-${end}` },
+      });
+      if (response.status !== 206) {
+        throw new Error(`Expected HTTP 206, received ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
-  return response;
+  throw lastError;
 }
 
 async function fetchInChunks(request) {
