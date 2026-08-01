@@ -1,9 +1,9 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v4';
+const CACHE_NAME = 'lumaiq-frontend-assets-v5';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
 const CHUNK_SIZE = 8192;
-const BATCH_SIZE = 1;
+const BATCH_SIZE = 4;
 const MAX_ATTEMPTS = 5;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -35,7 +35,16 @@ async function fetchRange(url, start, end) {
       if (response.status !== 206) {
         throw new Error(`Expected HTTP 206, received ${response.status}`);
       }
-      return response;
+      const buffer = await response.arrayBuffer();
+      const expectedSize = end - start + 1;
+      if (buffer.byteLength !== expectedSize) {
+        throw new Error(`Incomplete range: expected ${expectedSize}, received ${buffer.byteLength}`);
+      }
+      return {
+        buffer,
+        contentRange: response.headers.get('Content-Range'),
+        contentType: response.headers.get('Content-Type'),
+      };
     } catch (error) {
       lastError = error;
       if (attempt < MAX_ATTEMPTS) {
@@ -54,14 +63,14 @@ async function fetchInChunks(request) {
   if (cached) return cached;
 
   const firstResponse = await fetchRange(request.url, 0, CHUNK_SIZE - 1);
-  const contentRange = firstResponse.headers.get('Content-Range');
+  const contentRange = firstResponse.contentRange;
   const match = contentRange && contentRange.match(/bytes 0-\d+\/(\d+)/);
   if (!match) throw new Error('Content-Range is missing');
 
   const totalSize = Number(match[1]);
-  const contentType = firstResponse.headers.get('Content-Type') || 'application/octet-stream';
+  const contentType = firstResponse.contentType || 'application/octet-stream';
   const chunks = new Array(Math.ceil(totalSize / CHUNK_SIZE));
-  chunks[0] = await firstResponse.arrayBuffer();
+  chunks[0] = firstResponse.buffer;
 
   for (let offset = CHUNK_SIZE; offset < totalSize; offset += CHUNK_SIZE * BATCH_SIZE) {
     const jobs = [];
@@ -69,9 +78,9 @@ async function fetchInChunks(request) {
       const start = offset + index * CHUNK_SIZE;
       if (start >= totalSize) break;
       const end = Math.min(start + CHUNK_SIZE - 1, totalSize - 1);
-      jobs.push(fetchRange(request.url, start, end).then(async (response) => ({
+      jobs.push(fetchRange(request.url, start, end).then((response) => ({
         index: Math.floor(start / CHUNK_SIZE),
-        buffer: await response.arrayBuffer(),
+        buffer: response.buffer,
       })));
     }
     const batch = await Promise.all(jobs);
