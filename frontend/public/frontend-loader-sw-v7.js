@@ -18,6 +18,11 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+async function notifyClients(payload) {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  windows.forEach((client) => client.postMessage(payload));
+}
+
 async function fetchRange(url, start, end) {
   const sourceUrl = `${SOURCE_ORIGIN}${new URL(url).pathname}`;
   let lastError;
@@ -71,6 +76,7 @@ async function fetchInChunks(request) {
   const contentType = firstResponse.contentType || 'application/octet-stream';
   const chunks = new Array(Math.ceil(totalSize / CHUNK_SIZE));
   chunks[0] = firstResponse.buffer;
+  await notifyClients({ type: 'asset-loader-start', path: new URL(request.url).pathname, totalSize });
 
   for (let offset = CHUNK_SIZE; offset < totalSize; offset += CHUNK_SIZE * BATCH_SIZE) {
     const jobs = [];
@@ -85,6 +91,12 @@ async function fetchInChunks(request) {
     }
     const batch = await Promise.all(jobs);
     batch.forEach(({ index, buffer }) => { chunks[index] = buffer; });
+    await notifyClients({
+      type: 'asset-loader-progress',
+      path: new URL(request.url).pathname,
+      loaded: Math.min(offset + CHUNK_SIZE * BATCH_SIZE, totalSize),
+      totalSize,
+    });
   }
 
   const response = new Response(new Blob(chunks, { type: contentType }), {
@@ -101,5 +113,12 @@ async function fetchInChunks(request) {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== ASSET_ORIGIN || !url.pathname.startsWith(ASSET_PREFIX)) return;
-  event.respondWith(fetchInChunks(event.request));
+  event.respondWith(fetchInChunks(event.request).catch(async (error) => {
+    await notifyClients({
+      type: 'asset-loader-error',
+      path: url.pathname,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }));
 });
