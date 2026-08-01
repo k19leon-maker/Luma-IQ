@@ -1,8 +1,7 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v13';
+const CACHE_NAME = 'lumaiq-frontend-assets-v14';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
-const BATCH_SIZE = 1;
 const MAX_ATTEMPTS = 3;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -66,45 +65,22 @@ async function fetchInChunks(request) {
     throw new Error('Asset metadata is invalid');
   }
   await notifyClients({ type: 'asset-loader-start', path: new URL(request.url).pathname, totalSize });
-  const stream = new ReadableStream({
-    start(controller) {
-      (async () => {
-        try {
-          let loaded = 0;
-          for (let offset = 0; offset < parts; offset += BATCH_SIZE) {
-            const jobs = [];
-            for (let index = 0; index < BATCH_SIZE; index += 1) {
-              const partIndex = offset + index;
-              if (partIndex >= parts) break;
-              const partUrl = `${SOURCE_ORIGIN}${pathname}.parts/${String(partIndex).padStart(4, '0')}`;
-              jobs.push(fetchPart(partUrl));
-            }
-            const batch = await Promise.all(jobs);
-            batch.forEach((buffer) => {
-              loaded += buffer.byteLength;
-              controller.enqueue(new Uint8Array(buffer));
-            });
-            await notifyClients({
-              type: 'asset-loader-progress',
-              path: new URL(request.url).pathname,
-              loaded,
-              totalSize,
-            });
-          }
-          controller.close();
-        } catch (error) {
-          await notifyClients({
-            type: 'asset-loader-error',
-            path: new URL(request.url).pathname,
-            message: error instanceof Error ? error.message : String(error),
-          });
-          controller.error(error);
-        }
-      })();
-    },
-  });
+  const chunks = [];
+  let loaded = 0;
+  for (let index = 0; index < parts; index += 1) {
+    const partUrl = `${SOURCE_ORIGIN}${pathname}.parts/${String(index).padStart(4, '0')}`;
+    const buffer = await fetchPart(partUrl);
+    chunks.push(buffer);
+    loaded += buffer.byteLength;
+    await notifyClients({
+      type: 'asset-loader-progress',
+      path: new URL(request.url).pathname,
+      loaded,
+      totalSize,
+    });
+  }
 
-  return new Response(stream, {
+  return new Response(new Blob(chunks, { type: contentType }), {
     status: 200,
     headers: {
       'Content-Type': contentType,
@@ -114,10 +90,18 @@ async function fetchInChunks(request) {
   });
 }
 
+let assetQueue = Promise.resolve();
+
+function queueAsset(request) {
+  const task = assetQueue.then(() => fetchInChunks(request));
+  assetQueue = task.then(() => undefined, () => undefined);
+  return task;
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== ASSET_ORIGIN || !url.pathname.startsWith(ASSET_PREFIX)) return;
-  event.respondWith(fetchInChunks(event.request).catch(async (error) => {
+  event.respondWith(queueAsset(event.request).catch(async (error) => {
     await notifyClients({
       type: 'asset-loader-error',
       path: url.pathname,
