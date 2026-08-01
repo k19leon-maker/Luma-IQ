@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v9';
+const CACHE_NAME = 'lumaiq-frontend-assets-v10';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
@@ -24,13 +24,14 @@ async function notifyClients(payload) {
 }
 
 async function fetchRange(url, start, end) {
-  const sourceUrl = `${SOURCE_ORIGIN}${new URL(url).pathname}`;
+  const sourceUrl = new URL(`${SOURCE_ORIGIN}${new URL(url).pathname}`);
+  sourceUrl.searchParams.set('lumaiqRange', `${start}-${end}`);
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch(sourceUrl, {
+      const response = await fetch(sourceUrl.toString(), {
         mode: 'cors',
         credentials: 'omit',
         cache: 'no-store',
@@ -99,6 +100,11 @@ async function fetchInChunks(request) {
           }
           controller.close();
         } catch (error) {
+          await notifyClients({
+            type: 'asset-loader-error',
+            path: new URL(request.url).pathname,
+            message: error instanceof Error ? error.message : String(error),
+          });
           controller.error(error);
         }
       })();
