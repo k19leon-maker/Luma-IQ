@@ -218,7 +218,7 @@ export default function AboutExpert() {
     }
 
     setLoading(true);
-    projectsApi.getStrategy(activeProjectId)
+    projectsApi.getStrategy(activeProjectId, ['expertProfileData'])
       .then((data) => {
         const saved = (data as Record<string, unknown> | null)?.['expertProfileData'] as Partial<ExpertProfileData> | undefined;
         setProfile(normalizeProfile(saved));
@@ -323,7 +323,7 @@ export default function AboutExpert() {
 
     setImporting(true);
     try {
-      const data = await projectsApi.getStrategy(importSourceId);
+      const data = await projectsApi.getStrategy(importSourceId, ['expertProfileData']);
       const imported = (data as Record<string, unknown> | null)?.['expertProfileData'] as Partial<ExpertProfileData> | undefined;
       const normalized = normalizeProfile(imported);
       if (!buildSummary(normalized) && !normalized.aiSummary) {

@@ -174,7 +174,7 @@ export default function Positioning() {
     }
 
     setLoading(true);
-    projectsApi.getStrategy(activeProjectId)
+    projectsApi.getStrategy(activeProjectId, ['positioningData', 'expertProfileData'])
       .then((data) => {
         const saved = (data as Record<string, unknown> | null)?.['positioningData'] as Partial<PositioningData> | undefined;
         const expert = (data as Record<string, unknown> | null)?.['expertProfileData'] as ExpertProfileData | undefined;

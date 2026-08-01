@@ -126,7 +126,7 @@ export function useProjectMarketingContext() {
     void loadMaterialsFromDb(activeProjectId);
     void loadGeneratedFromDb(activeProjectId);
 
-    projectsApi.getStrategy(activeProjectId)
+    projectsApi.getStrategy(activeProjectId, ['expertProfileData', 'positioningData', 'answers', 'completed'])
       .then((data) => {
         if (!alive || !data) return;
         const raw = data as Record<string, unknown>;

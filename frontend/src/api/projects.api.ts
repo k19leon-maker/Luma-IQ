@@ -12,6 +12,18 @@ export interface Project {
   updatedAt: string;
 }
 
+export type ProjectStrategyField =
+  | 'answers'
+  | 'completed'
+  | 'expertProfileData'
+  | 'positioningData'
+  | 'unpackingData'
+  | 'unpackingAnswers'
+  | 'unpackingCompleted'
+  | 'progressFlags'
+  | 'materialsData'
+  | 'generatedData';
+
 export const INSTAGRAM_PACKAGING_VERSION = 1 as const;
 
 export interface InstagramStoryDraft {
@@ -133,9 +145,12 @@ export const projectsApi = {
   setArchived: (id: string, archived: boolean) =>
     apiClient.patch<{ project: Project }>(`/projects/${id}/archive`, { archived }).then((r) => r.data.project),
 
-  getStrategy: (id: string) =>
+  getStrategy: (id: string, fields?: ProjectStrategyField[]) =>
     apiClient
-      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`)
+      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`, {
+        params: fields?.length ? { fields: fields.join(',') } : undefined,
+        timeout: 60_000,
+      })
       .then((r) => r.data.strategyData),
 
   saveStrategy: (id: string, data: Record<string, unknown>) =>
@@ -150,7 +165,9 @@ export const projectsApi = {
 
   getUnpacking: (id: string) =>
     apiClient
-      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`)
+      .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`, {
+        params: { fields: 'unpackingData' },
+      })
       .then((r) => (r.data.strategyData as Record<string, unknown> | null)?.['unpackingData'] as Record<string, unknown> | null ?? null),
 
   getInstagramPackaging: (id: string) =>

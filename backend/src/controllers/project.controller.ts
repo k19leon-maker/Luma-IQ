@@ -6,6 +6,7 @@ import { projectService } from '../services/project.service';
 import { eventService } from '../services/event.service';
 import { AccessPolicyError } from '../services/access-policy.service';
 import { sanitizeProjectStrategyData } from '../utils/demo-products';
+import { parseProjectStrategyFields, pickProjectStrategyFields } from '../utils/project-strategy-fields';
 
 function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
   res.status(err.status).json({
@@ -309,14 +310,23 @@ export const projectController = {
   /** GET /api/v1/projects/:id/strategy — load persisted project data */
   async getStrategyData(req: AuthRequest, res: Response): Promise<void> {
     try {
+      const requested = parseProjectStrategyFields(req.query.fields);
+      if (requested.invalid.length > 0) {
+        res.status(400).json({ error: `Неизвестные поля стратегии: ${requested.invalid.join(', ')}` });
+        return;
+      }
       const project = await projectService.getOwned(req.userId!, req.params.id as string);
       if (!project) {
         res.status(404).json({ error: 'Проект не найден' });
         return;
       }
+      const strategyData = project.strategyData
+        ? sanitizeProjectStrategyData(project.strategyData as Record<string, unknown>)
+        : null;
+      res.set('Cache-Control', 'private, no-store');
       res.json({
-        strategyData: project.strategyData
-          ? sanitizeProjectStrategyData(project.strategyData as Record<string, unknown>)
+        strategyData: strategyData
+          ? pickProjectStrategyFields(strategyData, requested.fields)
           : null,
       });
     } catch (err) {

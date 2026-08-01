@@ -270,7 +270,7 @@ export default function Strategy() {
 
     if (!activeProjectId || activeProjectId === 'default') return () => { alive = false; };
 
-    projectsApi.getStrategy(activeProjectId)
+    projectsApi.getStrategy(activeProjectId, ['positioningData'])
       .then((dbData) => {
         if (!alive || !dbData) return;
         const remotePositioning = (dbData as Record<string, unknown>).positioningData as PositioningData | undefined;
@@ -303,7 +303,7 @@ export default function Strategy() {
     }
 
     if (activeProjectId && activeProjectId !== 'default') {
-      projectsApi.getStrategy(activeProjectId)
+      projectsApi.getStrategy(activeProjectId, ['answers', 'completed'])
         .then((dbData) => {
           if (!dbData) return;
           const remoteAnswers   = (dbData as Record<string, unknown>).answers as Partial<AudienceAnswers> | undefined;

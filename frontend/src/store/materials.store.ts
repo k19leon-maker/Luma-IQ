@@ -110,7 +110,7 @@ export const useMaterialsStore = create<MaterialsState>()(
       loadFromDb: async (projectId) => {
         if (!projectId || projectId === 'default') return;
         try {
-          const data = await projectsApi.getStrategy(projectId);
+          const data = await projectsApi.getStrategy(projectId, ['materialsData']);
           const materialsData = (data as Record<string, unknown> | null)?.['materialsData'] as ProjectMaterial[] | undefined;
           if (!materialsData?.length) return;
           set((s) => ({

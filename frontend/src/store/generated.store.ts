@@ -79,7 +79,7 @@ export const useGeneratedStore = create<GeneratedState>()((set, get) => ({
   loadFromDb: async (projectId) => {
     if (!projectId || get().loadedProjects[projectId]) return;
     try {
-      const data = await projectsApi.getStrategy(projectId);
+      const data = await projectsApi.getStrategy(projectId, ['generatedData']);
       const generatedData = (data as Record<string, unknown> | null)?.['generatedData'] as ProjectGeneratedData | undefined;
       set((s) => ({
         projects: generatedData ? { ...s.projects, [projectId]: generatedData } : s.projects,

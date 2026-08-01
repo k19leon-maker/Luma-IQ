@@ -224,7 +224,14 @@ export default function TgChannel() {
     if (!hasActiveProject || !activeProjectId) return;
 
     setStrategyLoading(true);
-    projectsApi.getStrategy(activeProjectId)
+    projectsApi.getStrategy(activeProjectId, [
+      'expertProfileData',
+      'positioningData',
+      'answers',
+      'completed',
+      'unpackingData',
+      'generatedData',
+    ])
       .then((data) => {
         if (!alive) return;
         const next = data && typeof data === 'object' && !Array.isArray(data) ? data : null;

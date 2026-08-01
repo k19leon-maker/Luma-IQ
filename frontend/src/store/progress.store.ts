@@ -95,7 +95,7 @@ export const useProgressStore = create<ProgressState>()((set) => ({
   loadFromDb: async (projectId: string) => {
     if (!projectId || projectId === 'default') return;
     try {
-      const data = await projectsApi.getStrategy(projectId);
+      const data = await projectsApi.getStrategy(projectId, ['progressFlags']);
       const flags = { ...DEFAULT_FLAGS, ...((data as Record<string, unknown> | null)?.progressFlags as Partial<ProgressFlags> | undefined ?? {}) };
       set((s) => ({
         ...flags,
