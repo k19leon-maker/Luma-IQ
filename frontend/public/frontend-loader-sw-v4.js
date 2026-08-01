@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v3';
+const CACHE_NAME = 'lumaiq-frontend-assets-v4';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
-const SOURCE_ORIGIN = 'https://api.lumaiq.ru/frontend';
-const CHUNK_SIZE = 4096;
+const SOURCE_ORIGIN = self.location.origin;
+const CHUNK_SIZE = 8192;
 const BATCH_SIZE = 1;
 const MAX_ATTEMPTS = 5;
 
