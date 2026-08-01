@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v1';
+const CACHE_NAME = 'lumaiq-frontend-assets-v2';
 const ASSET_ORIGIN = 'https://api.lumaiq.ru';
 const ASSET_PREFIX = '/frontend/';
-const CHUNK_SIZE = 8192;
-const BATCH_SIZE = 8;
+const CHUNK_SIZE = 4096;
+const BATCH_SIZE = 1;
 
 self.addEventListener('install', () => self.skipWaiting());
 

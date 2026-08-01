@@ -22,7 +22,7 @@ root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;p
 const reloadKey = 'lumaiq:asset-loader-reload';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  await navigator.serviceWorker.register('/frontend-loader-sw.js?v=2026-08-01-1', { scope: '/' });
+  await navigator.serviceWorker.register('/frontend-loader-sw.js?v=2026-08-01-2', { scope: '/' });
   await navigator.serviceWorker.ready;
   if (!navigator.serviceWorker.controller) {
     if (sessionStorage.getItem(reloadKey)) throw new Error('Asset loader did not activate');
