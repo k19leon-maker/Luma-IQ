@@ -48,8 +48,8 @@ const root = document.getElementById('root');
 root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px/1.5 Inter,Arial,sans-serif;color:#6f6a61;background:#fcfbf8">Загружаем Luma IQ...</div>';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  const workerUrl = '/frontend-loader-sw-v19.js';
-  const assetCacheName = 'lumaiq-frontend-assets-v19';
+  const workerUrl = '/frontend-loader-sw-v20.js';
+  const assetCacheName = 'lumaiq-frontend-assets-v20';
   const assetSource = 'https://api.lumaiq.ru/frontend';
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (!event.data?.type?.startsWith('asset-loader-')) return;
@@ -95,7 +95,8 @@ async function boot() {
   async function preloadAsset(path) {
     const cache = await caches.open(assetCacheName);
     const requestUrl = new URL(path, location.origin).href;
-    if (await cache.match(requestUrl)) return;
+    const cached = await cache.match(requestUrl);
+    if (cached) return cached.blob();
     const metadataResponse = await fetch(assetSource + path + '.parts.json?assetVersion=19', {
       cache: 'no-store',
       credentials: 'omit',
@@ -112,20 +113,24 @@ async function boot() {
       loaded += buffer.byteLength;
       root.firstElementChild.textContent = 'Загружаем Luma IQ... ' + Math.round(loaded / metadata.totalSize * 100) + '%';
     }
-    await cache.put(requestUrl, new Response(new Blob(chunks, { type: metadata.contentType }), {
+    const blob = new Blob(chunks, { type: metadata.contentType });
+    await cache.put(requestUrl, new Response(blob, {
       headers: {
         'Content-Type': metadata.contentType,
         'Content-Length': String(metadata.totalSize),
       },
     }));
+    return blob;
   }
-  await preloadAsset(${JSON.stringify(stylesheetTag[1])});
-  await preloadAsset(${JSON.stringify(scriptTag[1])});
+  const stylesheetBlob = await preloadAsset(${JSON.stringify(stylesheetTag[1])});
+  const scriptBlob = await preloadAsset(${JSON.stringify(scriptTag[1])});
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
-  stylesheet.href = ${JSON.stringify(stylesheetTag[1])};
+  stylesheet.href = URL.createObjectURL(stylesheetBlob);
   document.head.append(stylesheet);
-  await import(${JSON.stringify(scriptTag[1])});
+  const assetBase = location.origin + '/frontend-assets-v2/';
+  const scriptText = (await scriptBlob.text()).replaceAll('import("./', 'import("' + assetBase);
+  await import(URL.createObjectURL(new Blob([scriptText], { type: 'application/javascript' })));
 }
 boot().catch((error) => {
   console.error('[LumaIQ bootstrap]', error);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v19';
+const CACHE_NAME = 'lumaiq-frontend-assets-v20';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = 'https://api.lumaiq.ru/frontend';
@@ -27,7 +27,7 @@ async function fetchPart(url, expectedSize) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
     try {
-      const response = await fetch(`${url}?assetVersion=19&retry=${attempt}`, {
+      const response = await fetch(`${url}?assetVersion=20&retry=${attempt}`, {
         mode: 'cors',
         credentials: 'omit',
         cache: 'no-store',
@@ -57,7 +57,7 @@ async function fetchInChunks(request) {
   if (cached) return cached;
 
   const pathname = new URL(request.url).pathname;
-  const metadataResponse = await fetch(`${SOURCE_ORIGIN}${pathname}.parts.json?assetVersion=19`, {
+  const metadataResponse = await fetch(`${SOURCE_ORIGIN}${pathname}.parts.json?assetVersion=20`, {
     cache: 'no-store',
     credentials: 'omit',
   });
