@@ -48,7 +48,9 @@ const root = document.getElementById('root');
 root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px/1.5 Inter,Arial,sans-serif;color:#6f6a61;background:#fcfbf8">Загружаем Luma IQ...</div>';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  const workerUrl = '/frontend-loader-sw-v18.js';
+  const workerUrl = '/frontend-loader-sw-v19.js';
+  const assetCacheName = 'lumaiq-frontend-assets-v19';
+  const assetSource = 'https://api.lumaiq.ru/frontend';
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (!event.data?.type?.startsWith('asset-loader-')) return;
     console.info('[LumaIQ asset loader]', JSON.stringify(event.data));
@@ -56,16 +58,69 @@ async function boot() {
   const registration = await navigator.serviceWorker.register(workerUrl, { scope: '/' });
   await registration.update();
   await navigator.serviceWorker.ready;
-  if (!navigator.serviceWorker.controller) {
+  const isCurrentWorker = () => navigator.serviceWorker.controller?.scriptURL.includes(workerUrl);
+  if (!isCurrentWorker()) {
     await Promise.race([
       new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true })),
-      new Promise((resolve) => setTimeout(resolve, 5000)),
+      new Promise((resolve) => setTimeout(resolve, 10000)),
     ]);
   }
-  if (!navigator.serviceWorker.controller) {
+  if (!isCurrentWorker()) {
     location.reload();
     return;
   }
+  async function fetchPart(url, expectedSize) {
+    let lastError;
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(url + '?assetVersion=19&retry=' + attempt, {
+          cache: 'no-store',
+          credentials: 'omit',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Asset part failed with HTTP ' + response.status);
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength !== expectedSize) throw new Error('Asset part has invalid size');
+        return buffer;
+      } catch (error) {
+        lastError = error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    throw lastError;
+  }
+  async function preloadAsset(path) {
+    const cache = await caches.open(assetCacheName);
+    const requestUrl = new URL(path, location.origin).href;
+    if (await cache.match(requestUrl)) return;
+    const metadataResponse = await fetch(assetSource + path + '.parts.json?assetVersion=19', {
+      cache: 'no-store',
+      credentials: 'omit',
+    });
+    if (!metadataResponse.ok) throw new Error('Asset metadata failed with HTTP ' + metadataResponse.status);
+    const metadata = await metadataResponse.json();
+    const chunks = [];
+    let loaded = 0;
+    for (let index = 0; index < metadata.parts; index += 1) {
+      const expectedSize = Math.min(metadata.partSize, metadata.totalSize - index * metadata.partSize);
+      const partUrl = assetSource + path + '.parts/' + String(index).padStart(4, '0');
+      const buffer = await fetchPart(partUrl, expectedSize);
+      chunks.push(buffer);
+      loaded += buffer.byteLength;
+      root.firstElementChild.textContent = 'Загружаем Luma IQ... ' + Math.round(loaded / metadata.totalSize * 100) + '%';
+    }
+    await cache.put(requestUrl, new Response(new Blob(chunks, { type: metadata.contentType }), {
+      headers: {
+        'Content-Type': metadata.contentType,
+        'Content-Length': String(metadata.totalSize),
+      },
+    }));
+  }
+  await preloadAsset(${JSON.stringify(stylesheetTag[1])});
+  await preloadAsset(${JSON.stringify(scriptTag[1])});
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
   stylesheet.href = ${JSON.stringify(stylesheetTag[1])};
