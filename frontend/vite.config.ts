@@ -47,25 +47,24 @@ const root = document.getElementById('root');
 root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px/1.5 Inter,Arial,sans-serif;color:#6f6a61;background:#fcfbf8">Загружаем Luma IQ...</div>';
 async function boot() {
   if (!('serviceWorker' in navigator)) throw new Error('Service Worker is not supported');
-  const workerUrl = '/frontend-loader-sw-v14.js';
+  const workerUrl = '/frontend-loader-sw-v15.js';
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (!event.data?.type?.startsWith('asset-loader-')) return;
     console.info('[LumaIQ asset loader]', JSON.stringify(event.data));
   });
   const registration = await navigator.serviceWorker.register(workerUrl, { scope: '/' });
   await registration.update();
-  const isCurrentWorker = () => navigator.serviceWorker.controller?.scriptURL.includes(workerUrl);
-  if (!isCurrentWorker()) {
-    await navigator.serviceWorker.ready;
-    if (!sessionStorage.getItem('lumaiq-asset-loader-reload')) {
-      sessionStorage.setItem('lumaiq-asset-loader-reload', '1');
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      location.reload();
-      return;
-    }
-    throw new Error('Asset loader could not control the page');
+  await navigator.serviceWorker.ready;
+  if (!navigator.serviceWorker.controller) {
+    await Promise.race([
+      new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true })),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
   }
-  sessionStorage.removeItem('lumaiq-asset-loader-reload');
+  if (!navigator.serviceWorker.controller) {
+    location.reload();
+    return;
+  }
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
   stylesheet.href = ${JSON.stringify(stylesheetTag[1])};

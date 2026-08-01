@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v14';
+const CACHE_NAME = 'lumaiq-frontend-assets-v15';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -25,9 +25,9 @@ async function fetchPart(url) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 4000);
     try {
-      const response = await fetch(url, {
+      const response = await fetch(attempt === 1 ? url : `${url}?retry=${attempt}`, {
         mode: 'cors',
         credentials: 'omit',
         cache: 'force-cache',
@@ -80,7 +80,7 @@ async function fetchInChunks(request) {
     });
   }
 
-  return new Response(new Blob(chunks, { type: contentType }), {
+  const response = new Response(new Blob(chunks, { type: contentType }), {
     status: 200,
     headers: {
       'Content-Type': contentType,
@@ -88,6 +88,8 @@ async function fetchInChunks(request) {
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });
+  await cache.put(request.url, response.clone());
+  return response;
 }
 
 let assetQueue = Promise.resolve();
