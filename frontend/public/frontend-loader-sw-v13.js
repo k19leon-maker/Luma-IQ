@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v12';
+const CACHE_NAME = 'lumaiq-frontend-assets-v13';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
-const BATCH_SIZE = 8;
+const BATCH_SIZE = 1;
 const MAX_ATTEMPTS = 3;
 
 self.addEventListener('install', () => self.skipWaiting());
