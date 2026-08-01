@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v6';
+const CACHE_NAME = 'lumaiq-frontend-assets-v8';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
@@ -74,40 +74,45 @@ async function fetchInChunks(request) {
 
   const totalSize = Number(match[1]);
   const contentType = firstResponse.contentType || 'application/octet-stream';
-  const chunks = new Array(Math.ceil(totalSize / CHUNK_SIZE));
-  chunks[0] = firstResponse.buffer;
   await notifyClients({ type: 'asset-loader-start', path: new URL(request.url).pathname, totalSize });
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(firstResponse.buffer));
+      (async () => {
+        try {
+          for (let offset = CHUNK_SIZE; offset < totalSize; offset += CHUNK_SIZE * BATCH_SIZE) {
+            const jobs = [];
+            for (let index = 0; index < BATCH_SIZE; index += 1) {
+              const start = offset + index * CHUNK_SIZE;
+              if (start >= totalSize) break;
+              const end = Math.min(start + CHUNK_SIZE - 1, totalSize - 1);
+              jobs.push(fetchRange(request.url, start, end));
+            }
+            const batch = await Promise.all(jobs);
+            batch.forEach(({ buffer }) => controller.enqueue(new Uint8Array(buffer)));
+            await notifyClients({
+              type: 'asset-loader-progress',
+              path: new URL(request.url).pathname,
+              loaded: Math.min(offset + CHUNK_SIZE * BATCH_SIZE, totalSize),
+              totalSize,
+            });
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      })();
+    },
+  });
 
-  for (let offset = CHUNK_SIZE; offset < totalSize; offset += CHUNK_SIZE * BATCH_SIZE) {
-    const jobs = [];
-    for (let index = 0; index < BATCH_SIZE; index += 1) {
-      const start = offset + index * CHUNK_SIZE;
-      if (start >= totalSize) break;
-      const end = Math.min(start + CHUNK_SIZE - 1, totalSize - 1);
-      jobs.push(fetchRange(request.url, start, end).then((response) => ({
-        index: Math.floor(start / CHUNK_SIZE),
-        buffer: response.buffer,
-      })));
-    }
-    const batch = await Promise.all(jobs);
-    batch.forEach(({ index, buffer }) => { chunks[index] = buffer; });
-    await notifyClients({
-      type: 'asset-loader-progress',
-      path: new URL(request.url).pathname,
-      loaded: Math.min(offset + CHUNK_SIZE * BATCH_SIZE, totalSize),
-      totalSize,
-    });
-  }
-
-  const response = new Response(new Blob(chunks, { type: contentType }), {
+  return new Response(stream, {
     status: 200,
     headers: {
       'Content-Type': contentType,
+      'Content-Length': String(totalSize),
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });
-  await cache.put(request.url, response.clone());
-  return response;
 }
 
 self.addEventListener('fetch', (event) => {
