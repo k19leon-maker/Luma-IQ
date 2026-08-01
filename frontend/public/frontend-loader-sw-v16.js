@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumaiq-frontend-assets-v15';
+const CACHE_NAME = 'lumaiq-frontend-assets-v16';
 const ASSET_ORIGIN = self.location.origin;
 const ASSET_PREFIX = '/frontend-assets-v2/';
 const SOURCE_ORIGIN = self.location.origin;
@@ -21,21 +21,23 @@ async function notifyClients(payload) {
   windows.forEach((client) => client.postMessage(payload));
 }
 
-async function fetchPart(url) {
+async function fetchPart(url, expectedSize) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
     try {
-      const response = await fetch(attempt === 1 ? url : `${url}?retry=${attempt}`, {
+      const response = await fetch(`${url}?assetVersion=16&retry=${attempt}`, {
         mode: 'cors',
         credentials: 'omit',
-        cache: 'force-cache',
+        cache: 'no-store',
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Part request failed with HTTP ${response.status}`);
       const buffer = await response.arrayBuffer();
-      if (!buffer.byteLength) throw new Error('Asset part is empty');
+      if (buffer.byteLength !== expectedSize) {
+        throw new Error(`Asset part has invalid size: ${buffer.byteLength} instead of ${expectedSize}`);
+      }
       return buffer;
     } catch (error) {
       lastError = error;
@@ -60,8 +62,9 @@ async function fetchInChunks(request) {
     credentials: 'omit',
   });
   if (!metadataResponse.ok) throw new Error(`Asset metadata failed with HTTP ${metadataResponse.status}`);
-  const { parts, totalSize, contentType } = await metadataResponse.json();
-  if (!Number.isInteger(parts) || parts < 1 || !Number.isInteger(totalSize) || totalSize < 1) {
+  const { parts, partSize, totalSize, contentType } = await metadataResponse.json();
+  if (!Number.isInteger(parts) || parts < 1 || !Number.isInteger(partSize) || partSize < 1
+    || !Number.isInteger(totalSize) || totalSize < 1) {
     throw new Error('Asset metadata is invalid');
   }
   await notifyClients({ type: 'asset-loader-start', path: new URL(request.url).pathname, totalSize });
@@ -69,7 +72,8 @@ async function fetchInChunks(request) {
   let loaded = 0;
   for (let index = 0; index < parts; index += 1) {
     const partUrl = `${SOURCE_ORIGIN}${pathname}.parts/${String(index).padStart(4, '0')}`;
-    const buffer = await fetchPart(partUrl);
+    const expectedSize = Math.min(partSize, totalSize - index * partSize);
+    const buffer = await fetchPart(partUrl, expectedSize);
     chunks.push(buffer);
     loaded += buffer.byteLength;
     await notifyClients({
