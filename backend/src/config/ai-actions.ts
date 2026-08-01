@@ -12,6 +12,12 @@ export type AiActionType =
   | 'utp'
   | 'offer'
   | 'social'
+  | 'instagram_profile_generate'
+  | 'instagram_profile_improve'
+  | 'instagram_highlights_generate'
+  | 'instagram_highlight_scenario_generate'
+  | 'instagram_highlight_improve'
+  | 'instagram_story_improve'
   | 'product_strategy_audit'
   | 'product_main'
   | 'product_main_edit'
@@ -57,6 +63,12 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   utp: 20,
   offer: 30,
   social: 15,
+  instagram_profile_generate: 15,
+  instagram_profile_improve: 5,
+  instagram_highlights_generate: 40,
+  instagram_highlight_scenario_generate: 20,
+  instagram_highlight_improve: 10,
+  instagram_story_improve: 3,
   product_strategy_audit: 60,
   product_main: 60,
   product_main_edit: 10,
@@ -103,6 +115,12 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   utp: 'УТП',
   offer: 'Системный оффер',
   social: 'Оформление соцсетей',
+  instagram_profile_generate: 'Шапка профиля Instagram',
+  instagram_profile_improve: 'Доработка шапки Instagram',
+  instagram_highlights_generate: 'Highlights и сценарии Instagram',
+  instagram_highlight_scenario_generate: 'Сценарий Highlight Instagram',
+  instagram_highlight_improve: 'Доработка Highlight Instagram',
+  instagram_story_improve: 'Доработка сторис Instagram',
   product_strategy_audit: 'Аудит продуктовой стратегии',
   product_main: 'Основной продукт',
   product_main_edit: 'Доработка основного продукта',
@@ -149,6 +167,12 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   utp: 'Стратегия',
   offer: 'Стратегия',
   social: 'Стратегия',
+  instagram_profile_generate: 'Упаковка Instagram',
+  instagram_profile_improve: 'Упаковка Instagram',
+  instagram_highlights_generate: 'Упаковка Instagram',
+  instagram_highlight_scenario_generate: 'Упаковка Instagram',
+  instagram_highlight_improve: 'Упаковка Instagram',
+  instagram_story_improve: 'Упаковка Instagram',
   product_strategy_audit: 'Конструктор продуктов',
   strategy_rebuild: 'Стратегия',
   product_main: 'Конструктор продуктов',
@@ -193,6 +217,12 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
       return 'audience';
     case 'utp': return 'utp';
     case 'social': return 'social';
+    case 'instagram_profile_generate': return 'instagram_profile_generate';
+    case 'instagram_profile_improve': return 'instagram_profile_improve';
+    case 'instagram_highlights_generate': return 'instagram_highlights_generate';
+    case 'instagram_highlight_scenario_generate': return 'instagram_highlight_scenario_generate';
+    case 'instagram_highlight_improve': return 'instagram_highlight_improve';
+    case 'instagram_story_improve': return 'instagram_story_improve';
     case 'product_main': return 'product_main';
     case 'product_mini': return 'product_mini';
     case 'lead_magnet': return 'lead_magnet';

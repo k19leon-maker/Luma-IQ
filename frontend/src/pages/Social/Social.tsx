@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   INSTAGRAM_PACKAGING_VERSION,
   projectsApi,
   type InstagramPackaging,
+  type InstagramHighlightDraft,
   type InstagramPackagingLimits,
   type InstagramProfileHeader,
+  type InstagramProfileReadiness,
 } from '../../api/projects.api';
+import { aiApi, type WorkflowResponse } from '../../api/ai';
+import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { useProjectsStore } from '../../store/projects.store';
 import {
   validateInstagramProfile,
   type InstagramProfileField,
 } from '../../utils/instagramPackagingValidation';
 import styles from './Social.module.css';
+import InstagramHighlightsEditor from './InstagramHighlightsEditor';
 
 type PreviewMode = 'desktop' | 'mobile';
 type Tab = 'profile' | 'highlights';
@@ -27,6 +32,8 @@ const EMPTY_PROFILE: InstagramProfileHeader = {
   link: '',
   logicExplanation: '',
 };
+
+const HIGHLIGHTS_DRAFT_PREFIX = 'lumaiq:instagram-highlights-draft:';
 
 interface FieldDefinition {
   key: InstagramProfileField;
@@ -79,6 +86,57 @@ function profileKey(profile: InstagramProfileHeader): string {
   return JSON.stringify(profile);
 }
 
+function highlightsKey(highlights: InstagramHighlightDraft[]): string {
+  return JSON.stringify(highlights);
+}
+
+function isHighlightDraft(value: unknown): value is InstagramHighlightDraft {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string'
+    && typeof item.title === 'string'
+    && typeof item.goal === 'string'
+    && typeof item.description === 'string'
+    && typeof item.icon === 'string'
+    && typeof item.position === 'number'
+    && Array.isArray(item.stories)
+    && item.stories.every((story) => {
+      if (!story || typeof story !== 'object' || Array.isArray(story)) return false;
+      const candidate = story as Record<string, unknown>;
+      return typeof candidate.id === 'string'
+        && typeof candidate.title === 'string'
+        && typeof candidate.role === 'string'
+        && typeof candidate.goal === 'string'
+        && typeof candidate.format === 'string'
+        && typeof candidate.customFormat === 'string'
+        && typeof candidate.frame === 'string'
+        && typeof candidate.screenText === 'string'
+        && typeof candidate.speech === 'string'
+        && typeof candidate.interactive === 'string'
+        && typeof candidate.callToAction === 'string'
+        && typeof candidate.transition === 'string'
+        && typeof candidate.position === 'number';
+    });
+}
+
+function readHighlightsDraft(projectId: string, baseUpdatedAt: string): InstagramHighlightDraft[] | null {
+  try {
+    const raw = sessionStorage.getItem(`${HIGHLIGHTS_DRAFT_PREFIX}${projectId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { baseUpdatedAt?: unknown; highlights?: unknown };
+    if (parsed.baseUpdatedAt !== baseUpdatedAt
+      || !Array.isArray(parsed.highlights)
+      || !parsed.highlights.every(isHighlightDraft)) {
+      sessionStorage.removeItem(`${HIGHLIGHTS_DRAFT_PREFIX}${projectId}`);
+      return null;
+    }
+    return parsed.highlights;
+  } catch {
+    sessionStorage.removeItem(`${HIGHLIGHTS_DRAFT_PREFIX}${projectId}`);
+    return null;
+  }
+}
+
 function copyText(value: string, successMessage: string): void {
   if (!value.trim()) {
     toast.error('Поле пока не заполнено');
@@ -101,16 +159,44 @@ function buildProfileText(profile: InstagramProfileHeader): string {
   ].filter(Boolean).join('\n');
 }
 
-function readApiError(error: unknown): string {
+function readApiError(error: unknown, fallback = 'Не удалось сохранить шапку профиля'): string {
   if (typeof error !== 'object' || error === null || !('response' in error)) {
-    return 'Не удалось сохранить шапку профиля';
+    return fallback;
   }
   const response = (error as {
-    response?: { data?: { error?: string; issues?: Array<{ message?: string }> } };
+    response?: { data?: { error?: string; userMessage?: string; issues?: Array<{ message?: string }> } };
   }).response;
   return response?.data?.issues?.[0]?.message
+    ?? response?.data?.userMessage
     ?? response?.data?.error
-    ?? 'Не удалось сохранить шапку профиля';
+    ?? fallback;
+}
+
+function aiProfileFromResponse(
+  response: WorkflowResponse,
+  currentProfile: InstagramProfileHeader,
+): InstagramProfileHeader {
+  let candidate: Record<string, unknown> | null = response.structured ?? null;
+  if (!candidate) {
+    const normalized = response.content
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    candidate = JSON.parse(normalized) as Record<string, unknown>;
+  }
+  const text = (key: keyof InstagramProfileHeader) => (
+    typeof candidate?.[key] === 'string' ? String(candidate[key]).trim() : ''
+  );
+  return {
+    username: currentProfile.username,
+    displayName: text('displayName'),
+    category: text('category'),
+    bio: text('bio'),
+    callToAction: text('callToAction'),
+    link: currentProfile.link,
+    logicExplanation: text('logicExplanation'),
+  };
 }
 
 function ProfilePreview({
@@ -166,24 +252,44 @@ export default function Social() {
 
   const [packaging, setPackaging] = useState<InstagramPackaging | null>(null);
   const [baselineProfile, setBaselineProfile] = useState<InstagramProfileHeader>(EMPTY_PROFILE);
+  const [baselineHighlights, setBaselineHighlights] = useState<InstagramHighlightDraft[]>([]);
   const [limits, setLimits] = useState<InstagramPackagingLimits | null>(null);
+  const [readiness, setReadiness] = useState<InstagramProfileReadiness | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [aiInstruction, setAiInstruction] = useState('');
+  const [aiAction, setAiAction] = useState<'generate' | 'improve' | null>(null);
+  const [aiProposal, setAiProposal] = useState<InstagramProfileHeader | null>(null);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
 
   const profile = packaging?.profileHeader ?? EMPTY_PROFILE;
   const validation = useMemo(
     () => limits ? validateInstagramProfile(profile, limits) : null,
     [limits, profile],
   );
-  const dirty = packaging !== null && profileKey(profile) !== profileKey(baselineProfile);
-  const canSave = Boolean(activeProjectId && dirty && validation?.valid && !saving);
+  const highlights = packaging?.highlights ?? [];
+  const profileDirty = packaging !== null && profileKey(profile) !== profileKey(baselineProfile);
+  const highlightsDirty = packaging !== null
+    && highlightsKey(highlights) !== highlightsKey(baselineHighlights);
+  const dirty = profileDirty || highlightsDirty;
+  const highlightsValid = highlights.every((highlight) => (
+    highlight.title.trim().length > 0
+      && highlight.stories.every((story) => (
+        story.title.trim().length > 0
+          && (story.format !== 'custom' || story.customFormat.trim().length > 0)
+      ))
+  ));
+  const canSave = Boolean(activeProjectId && dirty && validation?.valid && highlightsValid && !saving);
 
   useEffect(() => {
     if (!activeProjectId) {
       setPackaging(null);
       setLimits(null);
+      setReadiness(null);
+      setBaselineHighlights([]);
+      setActiveHighlightId(null);
       setLoadError('');
       return;
     }
@@ -192,12 +298,26 @@ export default function Social() {
     setLoading(true);
     setLoadError('');
     setPackaging(null);
+    setAiProposal(null);
+    setAiInstruction('');
     void projectsApi.getInstagramPackaging(activeProjectId)
       .then((response) => {
         if (cancelled) return;
-        setPackaging(response.packaging);
+        const draftHighlights = readHighlightsDraft(activeProjectId, response.packaging.updatedAt);
+        const loadedPackaging = draftHighlights
+          ? { ...response.packaging, highlights: draftHighlights }
+          : response.packaging;
+        setPackaging(loadedPackaging);
         setBaselineProfile(response.packaging.profileHeader);
+        setBaselineHighlights(response.packaging.highlights);
         setLimits(response.limits);
+        setReadiness(response.readiness);
+        const requestedHighlight = new URLSearchParams(window.location.search).get('highlight');
+        setActiveHighlightId(
+          loadedPackaging.highlights.some((item) => item.id === requestedHighlight)
+            ? requestedHighlight
+            : loadedPackaging.highlights[0]?.id ?? null,
+        );
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не удалось загрузить упаковку Instagram');
@@ -220,11 +340,42 @@ export default function Social() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!activeProjectId || !packaging) return;
+    const key = `${HIGHLIGHTS_DRAFT_PREFIX}${activeProjectId}`;
+    if (!highlightsDirty) {
+      sessionStorage.removeItem(key);
+      return;
+    }
+    sessionStorage.setItem(key, JSON.stringify({
+      baseUpdatedAt: packaging.updatedAt,
+      highlights: packaging.highlights,
+    }));
+  }, [activeProjectId, highlightsDirty, packaging]);
+
   function selectTab(nextTab: Tab) {
     const next = new URLSearchParams(searchParams);
-    if (nextTab === 'profile') next.delete('tab');
-    else next.set('tab', nextTab);
+    if (nextTab === 'profile') {
+      next.delete('tab');
+      next.delete('highlight');
+    } else {
+      next.set('tab', nextTab);
+      if (activeHighlightId) next.set('highlight', activeHighlightId);
+    }
     setSearchParams(next, { replace: true });
+  }
+
+  function selectHighlight(id: string | null) {
+    setActiveHighlightId(id);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'highlights');
+    if (id) next.set('highlight', id);
+    else next.delete('highlight');
+    setSearchParams(next, { replace: true });
+  }
+
+  function updateHighlights(next: InstagramHighlightDraft[]) {
+    setPackaging((current) => current ? { ...current, highlights: next } : current);
   }
 
   function updateField(field: InstagramProfileField, value: string) {
@@ -237,7 +388,7 @@ export default function Social() {
     } : current);
   }
 
-  async function saveProfile() {
+  async function savePackaging(successMessage = 'Шапка профиля сохранена') {
     if (!activeProjectId || !packaging || !canSave) return;
     setSaving(true);
     try {
@@ -248,13 +399,57 @@ export default function Social() {
       });
       setPackaging(response.packaging);
       setBaselineProfile(response.packaging.profileHeader);
+      setBaselineHighlights(response.packaging.highlights);
       setLimits(response.limits);
-      toast.success('Шапка профиля сохранена');
+      setReadiness(response.readiness);
+      toast.success(successMessage);
     } catch (error) {
-      toast.error(readApiError(error));
+      toast.error(readApiError(
+        error,
+        successMessage === 'Highlights сохранены'
+          ? 'Не удалось сохранить Highlights'
+          : 'Не удалось сохранить шапку профиля',
+      ));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function runAiProfile(action: 'generate' | 'improve') {
+    if (!activeProjectId || !packaging || aiAction) return;
+    setAiAction(action);
+    try {
+      const workflow = `instagram.profile.${action}`;
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        inputs: {
+          currentProfile: profile,
+          instruction: aiInstruction.trim(),
+        },
+        idempotencyKey: typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${workflow}:${Date.now()}`,
+      });
+      const proposal = aiProfileFromResponse(response, profile);
+      if (limits && !validateInstagramProfile(proposal, limits).valid) {
+        throw new Error('AI вернул шапку, которая не проходит ограничения Instagram');
+      }
+      setAiProposal(proposal);
+      toast.success(response.aiPointsCharged !== undefined
+        ? `Вариант готов. Списано ${response.aiPointsCharged} AI-баллов`
+        : 'Вариант готов. Проверьте его перед применением');
+    } catch (error) {
+      toast.error(readApiError(error, error instanceof Error ? error.message : 'Не удалось подготовить вариант'));
+    } finally {
+      setAiAction(null);
+    }
+  }
+
+  function applyAiProposal() {
+    if (!aiProposal) return;
+    setPackaging((current) => current ? { ...current, profileHeader: aiProposal } : current);
+    setAiProposal(null);
+    toast.success('AI-вариант применён. Проверьте и сохраните изменения');
   }
 
   if (!activeProjectId) {
@@ -318,6 +513,108 @@ export default function Social() {
       {!loading && !loadError && packaging && tab === 'profile' && limits && (
         <div className={styles.workspace}>
           <div className={styles.editor}>
+            <div className={styles.aiPanel}>
+              <div className={styles.aiPanelHeader}>
+                <div>
+                  <span className={styles.aiLabel}>AI-помощник</span>
+                  <h2>Собрать или улучшить шапку</h2>
+                  <p>AI использует только данные текущего проекта. Результат появится как вариант для сравнения.</p>
+                </div>
+                {readiness && (
+                  <span className={readiness.sufficient ? styles.readinessReady : styles.readinessBase}>
+                    Контекст {readiness.score}%
+                  </span>
+                )}
+              </div>
+
+              {readiness && !readiness.sufficient && (
+                <div className={styles.readinessNotice}>
+                  <strong>Можно собрать базовый вариант</strong>
+                  <p>Точнее получится после заполнения недостающих разделов:</p>
+                  <div className={styles.readinessLinks}>
+                    {readiness.items.filter((item) => !item.ready).map((item) => (
+                      <Link key={item.key} to={item.path}>{item.label}</Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <label className={styles.aiInstruction}>
+                <span>Пожелание к результату</span>
+                <textarea
+                  value={aiInstruction}
+                  onChange={(event) => setAiInstruction(event.target.value)}
+                  placeholder="Например: сделай спокойнее, конкретнее или усили следующий шаг"
+                  rows={2}
+                  disabled={Boolean(aiAction)}
+                />
+              </label>
+
+              <div className={styles.aiActions}>
+                <button
+                  type="button"
+                  onClick={() => void runAiProfile('generate')}
+                  disabled={Boolean(aiAction)}
+                >
+                  {aiAction === 'generate' ? 'Собираем…' : 'Сгенерировать шапку'}
+                  <AiWorkflowCost
+                    workflow="instagram.profile.generate"
+                    projectId={activeProjectId}
+                    inputs={{ currentProfile: profile, instruction: aiInstruction.trim() }}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className={styles.aiSecondaryButton}
+                  onClick={() => void runAiProfile('improve')}
+                  disabled={Boolean(aiAction)}
+                >
+                  {aiAction === 'improve' ? 'Улучшаем…' : 'Улучшить текущую'}
+                  <AiWorkflowCost
+                    workflow="instagram.profile.improve"
+                    projectId={activeProjectId}
+                    inputs={{ currentProfile: profile, instruction: aiInstruction.trim() }}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {aiProposal && (
+              <div className={styles.aiProposal}>
+                <div className={styles.aiProposalHeader}>
+                  <div>
+                    <span className={styles.aiLabel}>Предложенная версия</span>
+                    <h2>Сравните перед применением</h2>
+                  </div>
+                  <button type="button" onClick={() => setAiProposal(null)}>Закрыть</button>
+                </div>
+                <div className={styles.comparisonGrid}>
+                  <div className={styles.comparisonHeading}>Сейчас</div>
+                  <div className={styles.comparisonHeading}>Предложено</div>
+                  {([
+                    ['Имя', profile.displayName, aiProposal.displayName],
+                    ['Категория', profile.category, aiProposal.category],
+                    ['Bio', profile.bio, aiProposal.bio],
+                    ['Призыв', profile.callToAction, aiProposal.callToAction],
+                  ] as Array<[string, string, string]>).map(([label, before, after]) => (
+                    <div className={styles.comparisonRow} key={label}>
+                      <div><strong>{label}</strong><span>{before || 'Не заполнено'}</span></div>
+                      <div><strong>{label}</strong><span>{after || 'Не заполнено'}</span></div>
+                    </div>
+                  ))}
+                </div>
+                {aiProposal.logicExplanation && (
+                  <p className={styles.aiLogic}>{aiProposal.logicExplanation}</p>
+                )}
+                <div className={styles.proposalActions}>
+                  <button type="button" className={styles.aiSecondaryButton} onClick={() => setAiProposal(null)}>
+                    Оставить текущую
+                  </button>
+                  <button type="button" onClick={applyAiProposal}>Применить вариант</button>
+                </div>
+              </div>
+            )}
+
             <div className={styles.sectionHeading}>
               <div>
                 <h2>Шапка профиля</h2>
@@ -394,11 +691,11 @@ export default function Social() {
               <span>
                 {!dirty
                   ? 'Все изменения сохранены'
-                  : validation?.valid
+                  : validation?.valid && highlightsValid
                     ? 'Можно сохранить текущую версию'
                     : 'Исправьте ошибки перед сохранением'}
               </span>
-              <button type="button" disabled={!canSave} onClick={() => void saveProfile()}>
+              <button type="button" disabled={!canSave} onClick={() => void savePackaging()}>
                 {saving ? 'Сохраняем…' : 'Сохранить'}
               </button>
             </div>
@@ -434,16 +731,25 @@ export default function Social() {
         </div>
       )}
 
-      {!loading && !loadError && packaging && tab === 'highlights' && (
-        <div className={styles.highlightsPlaceholder}>
-          <div className={styles.placeholderIcon} aria-hidden="true">H</div>
-          <h2>Highlights</h2>
-          <p>
-            Здесь появятся структура актуальных историй, их порядок и сценарии.
-            Шапку профиля уже можно собирать и сохранять в соседней вкладке.
-          </p>
-          <button type="button" onClick={() => selectTab('profile')}>Открыть шапку профиля</button>
-        </div>
+      {!loading && !loadError && packaging && tab === 'highlights' && limits && (
+        <InstagramHighlightsEditor
+          projectId={activeProjectId}
+          highlights={packaging.highlights}
+          activeId={activeHighlightId}
+          dirty={dirty}
+          saving={saving}
+          canSave={canSave}
+          saveHint={highlightsValid && validation?.valid
+            ? 'Можно сохранить текущую структуру'
+            : !validation?.valid
+              ? 'Сначала заполните обязательные поля шапки профиля'
+              : 'Добавьте название каждому Highlight'}
+          previewMode={previewMode}
+          onChange={updateHighlights}
+          onActiveChange={selectHighlight}
+          onPreviewModeChange={setPreviewMode}
+          onSave={() => void savePackaging('Highlights сохранены')}
+        />
       )}
     </section>
   );

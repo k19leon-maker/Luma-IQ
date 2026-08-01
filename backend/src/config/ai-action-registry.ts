@@ -99,6 +99,44 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
   ], AI_ACTION_COSTS.social, {
     fallbackPolicy: { aliases: [], allowDowngrade: false },
   }),
+  instagram_profile_generate: one(
+    'instagram_profile_generate',
+    'LUNA',
+    AI_ACTION_COSTS.instagram_profile_generate,
+    { contextBudget: 14_000, outputLimit: 1_500 },
+  ),
+  instagram_profile_improve: one(
+    'instagram_profile_improve',
+    'LUNA',
+    AI_ACTION_COSTS.instagram_profile_improve,
+    { contextBudget: 9_000, outputLimit: 1_500 },
+  ),
+  instagram_highlights_generate: multi('instagram_highlights_generate', [
+    { stage: 'architecture', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 3_000 },
+    { stage: 'scenarios', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 12_000 },
+  ], AI_ACTION_COSTS.instagram_highlights_generate, {
+    contextBudget: 30_000,
+    outputLimit: 12_000,
+    fallbackPolicy: { aliases: [], allowDowngrade: false },
+  }),
+  instagram_highlight_scenario_generate: one(
+    'instagram_highlight_scenario_generate',
+    'LUNA',
+    AI_ACTION_COSTS.instagram_highlight_scenario_generate,
+    { contextBudget: 18_000, outputLimit: 7_000 },
+  ),
+  instagram_highlight_improve: one(
+    'instagram_highlight_improve',
+    'LUNA',
+    AI_ACTION_COSTS.instagram_highlight_improve,
+    { contextBudget: 14_000, outputLimit: 7_000 },
+  ),
+  instagram_story_improve: one(
+    'instagram_story_improve',
+    'LUNA',
+    AI_ACTION_COSTS.instagram_story_improve,
+    { contextBudget: 9_000, outputLimit: 2_500 },
+  ),
   product_main: multi('product_main', [
     { stage: 'architecture', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 2_500 },
     { stage: 'details', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 10_000 },
@@ -225,6 +263,8 @@ export const LEGACY_FEATURE_TO_ACTION: Record<string, AIActionKey> = {
   jtbd: 'audience',
   utp: 'utp',
   social: 'social',
+  instagram_profile_generate: 'instagram_profile_generate',
+  instagram_profile_improve: 'instagram_profile_improve',
   product_main: 'product_main',
   product_mini: 'product_mini',
   lead_magnet: 'lead_magnet',

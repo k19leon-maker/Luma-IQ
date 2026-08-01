@@ -46,7 +46,14 @@ vi.mock('../../src/services/credit-ledger.service', () => ({
 }));
 vi.mock('../../src/services/ai-balance.service', () => ({
   aiBalanceService: {
-    resolvePointsForGeneration: vi.fn(() => Promise.resolve(20)),
+    resolvePointsForGeneration: vi.fn((input: { featureCode: string }) => Promise.resolve(({
+      instagram_profile_generate: 15,
+      instagram_profile_improve: 5,
+      instagram_highlights_generate: 40,
+      instagram_highlight_scenario_generate: 20,
+      instagram_highlight_improve: 10,
+      instagram_story_improve: 3,
+    } as Record<string, number>)[input.featureCode] ?? 20)),
   },
 }));
 vi.mock('../../src/services/feature-pricing.service', () => ({
@@ -231,5 +238,103 @@ describe('AI points V2 generation lifecycle', () => {
 
     expect(pointLedgerMock.reserve).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  describe('Instagram profile billing regressions', () => {
+    it('reserves the backend-owned generation price and releases it after provider failure', async () => {
+      await expect(aiGenerationService.run({
+        userId: 'user-1',
+        projectId: 'project-1',
+        featureCode: 'instagram_profile_generate',
+        actionKey: 'instagram_profile_generate',
+        provider: 'OPENAI',
+        model: 'gpt-5.6-luna',
+        idempotencyKey: 'instagram-provider-error',
+        execute: async () => {
+          throw new Error('instagram provider failed');
+        },
+      })).rejects.toThrow('instagram provider failed');
+
+      expect(pointLedgerMock.reserve).toHaveBeenCalledWith(expect.objectContaining({
+        actionKey: 'instagram_profile_generate',
+        points: 15,
+        idempotencyKey: 'instagram-provider-error',
+      }));
+      expect(pointLedgerMock.release).toHaveBeenCalledWith(expect.objectContaining({
+        actionKey: 'instagram_profile_generate',
+      }));
+      expect(pointLedgerMock.captureWithPersistence).not.toHaveBeenCalled();
+    });
+
+    it('does not call the provider or capture points when the Instagram balance is insufficient', async () => {
+      const execute = vi.fn();
+      pointLedgerMock.reserve.mockRejectedValueOnce(Object.assign(
+        new Error('AI-баланс закончился'),
+        { code: 'AI_BALANCE_EXHAUSTED', status: 402 },
+      ));
+
+      await expect(aiGenerationService.run({
+        userId: 'user-1',
+        projectId: 'project-1',
+        featureCode: 'instagram_profile_improve',
+        actionKey: 'instagram_profile_improve',
+        provider: 'OPENAI',
+        model: 'gpt-5.6-luna',
+        idempotencyKey: 'instagram-no-balance',
+        execute,
+      })).rejects.toMatchObject({ code: 'AI_BALANCE_EXHAUSTED' });
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(pointLedgerMock.captureWithPersistence).not.toHaveBeenCalled();
+    });
+
+    it('does not reserve or execute a repeated completed Instagram request', async () => {
+      prismaMock.aIGeneration.findUnique.mockResolvedValueOnce({
+        id: 'instagram-existing',
+        status: 'SUCCEEDED',
+      });
+      const execute = vi.fn();
+
+      await expect(aiGenerationService.run({
+        userId: 'user-1',
+        projectId: 'project-1',
+        featureCode: 'instagram_profile_generate',
+        actionKey: 'instagram_profile_generate',
+        provider: 'OPENAI',
+        model: 'gpt-5.6-luna',
+        idempotencyKey: 'instagram-repeat',
+        execute,
+      })).rejects.toMatchObject({ code: 'IDEMPOTENCY_REPLAY' });
+
+      expect(pointLedgerMock.reserve).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['instagram_highlights_generate', 40],
+      ['instagram_highlight_scenario_generate', 20],
+      ['instagram_highlight_improve', 10],
+      ['instagram_story_improve', 3],
+    ] as const)('uses a separate backend price for %s', async (actionKey, points) => {
+      await expect(aiGenerationService.run({
+        userId: 'user-1',
+        projectId: 'project-1',
+        featureCode: actionKey,
+        actionKey,
+        provider: 'OPENAI',
+        model: 'gpt-5.6-luna',
+        idempotencyKey: `billing-${actionKey}`,
+        execute: async () => {
+          throw new Error('provider failed');
+        },
+      })).rejects.toThrow('provider failed');
+
+      expect(pointLedgerMock.reserve).toHaveBeenCalledWith(expect.objectContaining({
+        actionKey,
+        points,
+      }));
+      expect(pointLedgerMock.release).toHaveBeenCalledWith(expect.objectContaining({ actionKey }));
+      expect(pointLedgerMock.captureWithPersistence).not.toHaveBeenCalled();
+    });
   });
 });

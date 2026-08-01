@@ -111,4 +111,69 @@ describe('Instagram packaging limits', () => {
         .toBe(true);
     }
   });
+
+  it('requires Highlight titles and unique ids', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const baseHighlight = {
+      id,
+      title: 'Обо мне',
+      goal: '',
+      description: '',
+      icon: '',
+      position: 0,
+      stories: [],
+    };
+    const missingTitle = saveInstagramPackagingSchema.safeParse({
+      version: 1,
+      profileHeader: profile(),
+      highlights: [{ ...baseHighlight, title: '   ' }],
+    });
+    expect(missingTitle.success).toBe(false);
+
+    const duplicateIds = saveInstagramPackagingSchema.safeParse({
+      version: 1,
+      profileHeader: profile(),
+      highlights: [baseHighlight, { ...baseHighlight, title: 'Кейсы', position: 1 }],
+    });
+    expect(duplicateIds.success).toBe(false);
+  });
+
+  it('supports legacy short stories and validates custom story formats', () => {
+    const baseHighlight = {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Обо мне',
+      goal: '',
+      description: '',
+      icon: '',
+      position: 0,
+      stories: [{
+        id: '22222222-2222-4222-8222-222222222222',
+        title: 'Знакомство',
+        position: 0,
+      }],
+    };
+    const legacyStory = saveInstagramPackagingSchema.safeParse({
+      version: 1,
+      profileHeader: profile(),
+      highlights: [baseHighlight],
+    });
+    expect(legacyStory.success).toBe(true);
+    if (legacyStory.success) {
+      expect(legacyStory.data.highlights[0].stories[0]).toMatchObject({
+        format: 'talking_head',
+        screenText: '',
+        speech: '',
+      });
+    }
+
+    const missingCustomFormat = saveInstagramPackagingSchema.safeParse({
+      version: 1,
+      profileHeader: profile(),
+      highlights: [{
+        ...baseHighlight,
+        stories: [{ ...baseHighlight.stories[0], format: 'custom', customFormat: '' }],
+      }],
+    });
+    expect(missingCustomFormat.success).toBe(false);
+  });
 });

@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AI_ACTION_COSTS,
   aiPointsForGeneration,
   getCastDevAnalysisCost,
   getCastDevTranscriptionCost,
 } from '../../src/config/ai-actions';
 
 describe('ai action point costs', () => {
+  it('charges Instagram generation and improvement as separate actions', () => {
+    expect(AI_ACTION_COSTS.instagram_profile_generate).toBe(15);
+    expect(AI_ACTION_COSTS.instagram_profile_improve).toBe(5);
+    expect(AI_ACTION_COSTS.instagram_highlights_generate).toBe(40);
+    expect(AI_ACTION_COSTS.instagram_highlight_scenario_generate).toBe(20);
+    expect(AI_ACTION_COSTS.instagram_highlight_improve).toBe(10);
+    expect(AI_ACTION_COSTS.instagram_story_improve).toBe(3);
+  });
+
   it('calculates flexible CustDev transcription costs by duration', () => {
     expect(getCastDevTranscriptionCost(null)).toBe(20);
     expect(getCastDevTranscriptionCost(10 * 60)).toBe(10);

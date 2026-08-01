@@ -144,6 +144,9 @@ function contextBudgetFor(workflow: string, step?: string): number {
   if (workflow.startsWith('tg-channel.')) {
     return step === 'plan' ? 12000 : 9000;
   }
+  if (workflow.startsWith('instagram.')) {
+    return step === 'improve' ? 5000 : 7000;
+  }
   if (workflow.startsWith('positioning.')) {
     if (workflow === 'positioning.variants') return 5200;
     return 4200;
@@ -178,6 +181,10 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
 
   if (workflow.startsWith('tg-channel.')) {
     return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
+  }
+
+  if (workflow.startsWith('instagram.')) {
+    return ['strategy_summary', 'positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary'].includes(blockKey);
   }
 
   if (group === 'reels') {

@@ -82,6 +82,7 @@ describe('projectContextService CustDev context', () => {
     'articles.article',
     'threads.plan',
     'tg-channel',
+    'instagram.profile',
   ])('includes CustDev summary for %s without full transcript', async (workflow) => {
     const context = await build(workflow);
 

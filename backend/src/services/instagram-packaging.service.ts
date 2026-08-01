@@ -2,7 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import {
   emptyInstagramPackaging,
+  instagramHighlightSchema,
   instagramPackagingSchema,
+  INSTAGRAM_PACKAGING_VERSION,
   type InstagramPackaging,
   type SaveInstagramPackagingInput,
 } from '../schemas/instagram-packaging.schema';
@@ -40,6 +42,97 @@ function fromLegacy(text: string): InstagramPackaging {
     importedFrom: 'generatedData.social.instagram',
     legacyInstagramText: text,
   };
+  return packaging;
+}
+
+type ProfileField = keyof InstagramPackaging['profileHeader'];
+
+const PROFILE_FIELD_ALIASES: Record<ProfileField, string[]> = {
+  username: ['username', 'userName', 'handle'],
+  displayName: ['displayName', 'name', 'profileName'],
+  category: ['category'],
+  bio: ['bio', 'description', 'instagram'],
+  callToAction: ['callToAction', 'cta'],
+  link: ['link', 'url'],
+  logicExplanation: ['logicExplanation', 'explanation'],
+};
+
+function firstText(record: Record<string, unknown>, aliases: string[]): string {
+  for (const alias of aliases) {
+    const value = record[alias];
+    if (typeof value === 'string') return value.trim();
+  }
+  return '';
+}
+
+function safeIsoDate(value: unknown): string {
+  if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) {
+    return new Date(value).toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function canonicalizeHighlights(
+  highlights: SaveInstagramPackagingInput['highlights'],
+): SaveInstagramPackagingInput['highlights'] {
+  return highlights.map((highlight, position) => ({
+    ...highlight,
+    position,
+    stories: highlight.stories.map((story, storyPosition) => ({
+      ...story,
+      position: storyPosition,
+    })),
+  }));
+}
+
+function normalizeCurrent(value: unknown): InstagramPackaging | null {
+  const raw = asRecord(value);
+  const nestedProfile = asRecord(raw.profileHeader);
+  const legacyProfile = asRecord(raw.profile);
+  const profileSource = Object.keys(nestedProfile).length > 0
+    ? nestedProfile
+    : Object.keys(legacyProfile).length > 0
+      ? legacyProfile
+      : raw;
+  const hasRecognizedShape = 'profileHeader' in raw
+    || 'profile' in raw
+    || Object.values(PROFILE_FIELD_ALIASES).some((aliases) => aliases.some((alias) => alias in raw));
+  if (!hasRecognizedShape) return null;
+
+  const packaging = emptyInstagramPackaging(safeIsoDate(raw.updatedAt));
+  for (const [field, aliases] of Object.entries(PROFILE_FIELD_ALIASES) as Array<[ProfileField, string[]]>) {
+    packaging.profileHeader[field] = firstText(profileSource, aliases);
+  }
+  if (Array.isArray(raw.highlights)) {
+    packaging.highlights = raw.highlights.flatMap((highlight) => {
+      const parsed = instagramHighlightSchema.safeParse(highlight);
+      return parsed.success ? [parsed.data] : [];
+    }).map((highlight, position) => ({
+      ...highlight,
+      position,
+      stories: highlight.stories.map((story, storyPosition) => ({
+        ...story,
+        position: storyPosition,
+      })),
+    }));
+  }
+
+  const rawVersion = typeof raw.version === 'number' && Number.isInteger(raw.version)
+    ? raw.version
+    : 0;
+  const metadata = asRecord(raw.metadata);
+  const importedFrom = metadata.importedFrom === 'generatedData.social.instagram'
+    ? metadata.importedFrom
+    : undefined;
+  const legacyInstagramText = typeof metadata.legacyInstagramText === 'string'
+    ? metadata.legacyInstagramText.trim()
+    : undefined;
+  packaging.metadata = {
+    ...(importedFrom ? { importedFrom } : {}),
+    ...(legacyInstagramText ? { legacyInstagramText } : {}),
+    ...(rawVersion !== INSTAGRAM_PACKAGING_VERSION ? { migratedFromVersion: rawVersion } : {}),
+  };
+  if (Object.keys(packaging.metadata).length === 0) delete packaging.metadata;
   return packaging;
 }
 
@@ -112,7 +205,11 @@ export const instagramPackagingService = {
       return { packaging: parsed.data, source: 'current' };
     }
     if (current) {
-      console.warn('[InstagramPackaging] Invalid current data, using safe fallback', { userId, projectId });
+      const migrated = normalizeCurrent(current.data);
+      if (migrated) {
+        return { packaging: migrated, source: 'current' };
+      }
+      console.warn('[InstagramPackaging] Invalid current data, using legacy fallback', { userId, projectId });
     }
 
     const legacy = legacyInstagramText(project.strategyData);
@@ -135,10 +232,10 @@ export const instagramPackagingService = {
 
     const packaging = instagramPackagingSchema.parse({
       ...input,
+      highlights: canonicalizeHighlights(input.highlights),
       updatedAt: new Date().toISOString(),
     });
     await replaceCurrent(userId, projectId, packaging);
     return packaging;
   },
 };
-

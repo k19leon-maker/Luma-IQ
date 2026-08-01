@@ -17,6 +17,16 @@ export const INSTAGRAM_PACKAGING_VERSION = 1 as const;
 export interface InstagramStoryDraft {
   id: string;
   title: string;
+  role: string;
+  goal: string;
+  format: 'talking_head' | 'text' | 'screen_recording' | 'b_roll' | 'poll' | 'quiz' | 'question' | 'custom';
+  customFormat: string;
+  frame: string;
+  screenText: string;
+  speech: string;
+  interactive: string;
+  callToAction: string;
+  transition: string;
   position: number;
 }
 
@@ -48,6 +58,7 @@ export interface InstagramPackaging {
   metadata?: {
     importedFrom?: 'generatedData.social.instagram';
     legacyInstagramText?: string;
+    migratedFromVersion?: number;
   };
 }
 
@@ -81,6 +92,18 @@ export interface InstagramPackagingResponse {
   packaging: InstagramPackaging;
   source: InstagramPackagingSource;
   limits: InstagramPackagingLimits;
+  readiness: InstagramProfileReadiness;
+}
+
+export interface InstagramProfileReadiness {
+  score: number;
+  sufficient: boolean;
+  items: Array<{
+    key: 'about' | 'positioning' | 'audience' | 'utp' | 'products';
+    label: string;
+    path: string;
+    ready: boolean;
+  }>;
 }
 
 export const projectsApi = {

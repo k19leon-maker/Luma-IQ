@@ -1234,6 +1234,268 @@ ${contextAppendix(context)}
     },
   },
   {
+    id: 'instagram.profile.generate.v1',
+    version: 'v1',
+    feature: 'instagram_profile_generate',
+    workflow: 'instagram.profile',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 1200,
+    artifactType: 'instagram_profile_proposal',
+    systemPrompt: (context) => `Ты — senior Instagram profile strategist и редактор Luma IQ.
+
+Собери одну ясную шапку профиля по контексту текущего проекта.
+
+Правила:
+- Не выдумывай имя, username, ссылку, регалии, цифры, кейсы и результаты.
+- Сохрани username и link из текущего профиля без изменений. Если они пустые, оставь пустыми.
+- Имя профиля должно объяснять имя/роль/специализацию и быть не длиннее 64 символов.
+- Bio и призыв к действию вместе, с переносом строки между ними, должны быть не длиннее 150 символов.
+- Один профиль — один сегмент, один понятный результат и один следующий шаг.
+- Не используй маркетинговый жаргон и неподтвержденные обещания.
+- Верни только один JSON-объект без markdown и вариантов.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Собери шапку Instagram.
+
+Текущий профиль пользователя:
+${value(inputs, 'currentProfile', '{}')}
+
+Дополнительное пожелание:
+${value(inputs, 'instruction', 'Нет')}
+
+Верни строго валидный JSON без markdown:
+{
+  "username": "текущее значение без изменений",
+  "displayName": "имя и специализация",
+  "category": "краткая категория",
+  "bio": "кому и с каким результатом помогает эксперт",
+  "callToAction": "один следующий шаг",
+  "link": "текущее значение без изменений",
+  "logicExplanation": "2–3 коротких предложения: почему эта шапка соответствует стратегии проекта"
+}
+
+Не добавляй поля вне этой структуры.`,
+    validationRules: {
+      minLength: 180,
+      maxLength: 3000,
+      requiredIncludes: [
+        '"username"',
+        '"displayName"',
+        '"category"',
+        '"bio"',
+        '"callToAction"',
+        '"link"',
+        '"logicExplanation"',
+      ],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'instagram.profile.improve.v1',
+    version: 'v1',
+    feature: 'instagram_profile_improve',
+    workflow: 'instagram.profile',
+    step: 'improve',
+    model: 'gpt-5.5',
+    temperature: 0.45,
+    maxTokens: 1200,
+    artifactType: 'instagram_profile_proposal',
+    systemPrompt: (context) => `Ты — senior Instagram profile editor Luma IQ.
+
+Улучши текущую шапку по инструкции пользователя и контексту текущего проекта.
+
+Правила:
+- Это точечная редактура текущей версии, а не несвязанная генерация с нуля.
+- Не выдумывай имя, username, ссылку, регалии, цифры, кейсы и результаты.
+- Сохрани username и link без изменений.
+- Bio и призыв к действию вместе не длиннее 150 символов.
+- Сохрани один сегмент, один результат и один следующий шаг.
+- Верни только один JSON-объект без markdown и вариантов.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Улучши текущую шапку Instagram.
+
+Текущий профиль:
+${value(inputs, 'currentProfile', '{}')}
+
+Инструкция пользователя:
+${value(inputs, 'instruction', 'Сделай яснее и конкретнее')}
+
+Верни строго валидный JSON без markdown:
+{
+  "username": "текущее значение без изменений",
+  "displayName": "улучшенное имя профиля",
+  "category": "улучшенная категория",
+  "bio": "улучшенное bio",
+  "callToAction": "улучшенный следующий шаг",
+  "link": "текущее значение без изменений",
+  "logicExplanation": "что изменено и почему"
+}
+
+Не добавляй поля вне этой структуры.`,
+    validationRules: {
+      minLength: 180,
+      maxLength: 3000,
+      requiredIncludes: [
+        '"username"',
+        '"displayName"',
+        '"category"',
+        '"bio"',
+        '"callToAction"',
+        '"link"',
+        '"logicExplanation"',
+      ],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'instagram.highlights.generate.v1',
+    version: 'v1',
+    feature: 'instagram_highlights_generate',
+    workflow: 'instagram.highlights',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 12000,
+    artifactType: 'instagram_highlights_proposal',
+    systemPrompt: (context) => `Ты — senior Instagram strategist Luma IQ. Собери полезную систему Highlights и сторис для текущего проекта.
+
+Правила:
+- Верни 5–8 Highlights и ориентировочно 30–40 сторис суммарно; не раздувай сценарии пустыми экранами.
+- У каждого Highlight должна быть своя роль: знакомство, доверие, продукт, доказательства, возражения или следующий шаг.
+- Опирайся только на реальные продукты, офферы, факты доверия и следующий шаг из контекста.
+- Не выдумывай ссылки, цифры, кейсы, отзывы, клиентов и обещания. Недостающие факты выноси в missingFacts.
+- Каждая сторис должна быть самостоятельной, но связанной с соседними через transition.
+- screenText — короткий текст на экране, speech — то, что говорит эксперт. Не дублируй их.
+- Верни только JSON без markdown.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Собери новую систему Highlights.
+
+Текущие Highlights для защиты от дублей:
+${value(inputs, 'currentHighlights', '[]')}
+
+Пожелание пользователя:
+${value(inputs, 'instruction', 'Нет')}
+
+Формат JSON:
+{
+  "highlights": [{
+    "title": "название",
+    "goal": "задача",
+    "description": "что внутри",
+    "icon": "1–2 буквы или символ",
+    "stories": [{
+      "title": "название", "role": "роль", "goal": "цель",
+      "format": "talking_head|text|screen_recording|b_roll|poll|quiz|question|custom",
+      "customFormat": "", "frame": "кадр", "screenText": "текст на экране",
+      "speech": "речь", "interactive": "интерактив", "callToAction": "призыв", "transition": "переход"
+    }]
+  }],
+  "missingFacts": ["что нужно уточнить вручную"]
+}`,
+    validationRules: {
+      minLength: 1800,
+      maxLength: 50000,
+      requiredIncludes: ['"highlights"', '"stories"', '"missingFacts"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'instagram.highlight.scenario.v1',
+    version: 'v1',
+    feature: 'instagram_highlight_scenario_generate',
+    workflow: 'instagram.highlight',
+    step: 'scenario',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 7000,
+    artifactType: 'instagram_highlight_scenario_proposal',
+    systemPrompt: (context) => `Ты — Instagram story producer Luma IQ. Собери цельный сценарий одного Highlight из 3–12 полезных сторис.
+
+Учитывай цель Highlight, реальные продукты, следующий шаг и другие Highlights. Не выдумывай факты, ссылки и доказательства; пиши их в missingFacts. Разделяй screenText и speech. Верни только JSON.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Собери сценарий для Highlight:
+${value(inputs, 'highlight')}
+
+Соседние Highlights:
+${value(inputs, 'neighborHighlights', '[]')}
+
+Пожелание:
+${value(inputs, 'instruction', 'Нет')}
+
+Верни {"stories": [объекты со всеми полями сторис], "missingFacts": []}.`,
+    validationRules: {
+      minLength: 500,
+      maxLength: 18000,
+      requiredIncludes: ['"stories"', '"missingFacts"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'instagram.highlight.improve.v1',
+    version: 'v1',
+    feature: 'instagram_highlight_improve',
+    workflow: 'instagram.highlight',
+    step: 'improve',
+    model: 'gpt-5.5',
+    temperature: 0.4,
+    maxTokens: 7000,
+    artifactType: 'instagram_highlight_proposal',
+    systemPrompt: (context) => `Ты — Instagram editor Luma IQ. Точечно улучши выбранный Highlight по инструкции. Сохрани его задачу и логику соседних сторис. Не выдумывай факты, продукты, ссылки и доказательства. Недостающее пиши в missingFacts. Верни только JSON.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Текущий Highlight:
+${value(inputs, 'highlight')}
+
+Инструкция:
+${value(inputs, 'instruction', 'Сделай яснее, короче и последовательнее')}
+
+Верни {"highlight": {поля Highlight без id/position, включая stories}, "missingFacts": []}.`,
+    validationRules: {
+      minLength: 500,
+      maxLength: 18000,
+      requiredIncludes: ['"highlight"', '"stories"', '"missingFacts"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'instagram.story.improve.v1',
+    version: 'v1',
+    feature: 'instagram_story_improve',
+    workflow: 'instagram.story',
+    step: 'improve',
+    model: 'gpt-5.5',
+    temperature: 0.4,
+    maxTokens: 2500,
+    artifactType: 'instagram_story_proposal',
+    systemPrompt: (context) => `Ты — Instagram story editor Luma IQ. Улучши только одну сторис по инструкции, учитывая ее роль, Highlight и соседние сторис. Не меняй весь Highlight. Не выдумывай факты, ссылки и доказательства. Недостающее пиши в missingFacts. Разделяй screenText и speech. Верни только JSON.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Highlight:
+${value(inputs, 'highlight')}
+
+Текущая сторис:
+${value(inputs, 'story')}
+
+Соседние сторис:
+${value(inputs, 'neighborStories', '[]')}
+
+Инструкция:
+${value(inputs, 'instruction', 'Сделай яснее и сильнее')}
+
+Верни {"story": {все поля сторис без id/position}, "missingFacts": []}.`,
+    validationRules: {
+      minLength: 180,
+      maxLength: 7000,
+      requiredIncludes: ['"story"', '"missingFacts"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
     id: 'strategy.social.generate.v1',
     version: 'v1',
     feature: 'social',

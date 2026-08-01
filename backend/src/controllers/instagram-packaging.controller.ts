@@ -3,6 +3,7 @@ import { INSTAGRAM_PACKAGING_LIMITS } from '../config/instagram-packaging';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { saveInstagramPackagingSchema } from '../schemas/instagram-packaging.schema';
 import { instagramPackagingService } from '../services/instagram-packaging.service';
+import { instagramProfileReadinessService } from '../services/instagram-profile-readiness.service';
 
 export const instagramPackagingController = {
   async get(req: AuthRequest, res: Response): Promise<void> {
@@ -12,7 +13,8 @@ export const instagramPackagingController = {
         res.status(404).json({ error: 'Проект не найден' });
         return;
       }
-      res.json({ ...result, limits: INSTAGRAM_PACKAGING_LIMITS });
+      const readiness = await instagramProfileReadinessService.get(req.userId!, req.params.id as string);
+      res.json({ ...result, limits: INSTAGRAM_PACKAGING_LIMITS, readiness });
     } catch (error) {
       console.error('[InstagramPackaging] get:', error);
       res.status(500).json({ error: 'Не удалось загрузить упаковку Instagram' });
@@ -42,7 +44,8 @@ export const instagramPackagingController = {
         res.status(404).json({ error: 'Проект не найден' });
         return;
       }
-      res.json({ packaging, source: 'current', limits: INSTAGRAM_PACKAGING_LIMITS });
+      const readiness = await instagramProfileReadinessService.get(req.userId!, req.params.id as string);
+      res.json({ packaging, source: 'current', limits: INSTAGRAM_PACKAGING_LIMITS, readiness });
     } catch (error) {
       console.error('[InstagramPackaging] save:', error);
       res.status(500).json({ error: 'Не удалось сохранить упаковку Instagram' });

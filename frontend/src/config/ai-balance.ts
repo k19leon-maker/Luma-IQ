@@ -5,6 +5,12 @@ export type AiActionType =
   | 'audience'
   | 'utp'
   | 'social'
+  | 'instagram_profile_generate'
+  | 'instagram_profile_improve'
+  | 'instagram_highlights_generate'
+  | 'instagram_highlight_scenario_generate'
+  | 'instagram_highlight_improve'
+  | 'instagram_story_improve'
   | 'product_main'
   | 'product_mini'
   | 'lead_magnet'
@@ -32,6 +38,12 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   audience: 25,
   utp: 20,
   social: 15,
+  instagram_profile_generate: 15,
+  instagram_profile_improve: 5,
+  instagram_highlights_generate: 40,
+  instagram_highlight_scenario_generate: 20,
+  instagram_highlight_improve: 10,
+  instagram_story_improve: 3,
   product_main: 60,
   product_mini: 80,
   lead_magnet: 70,
@@ -60,6 +72,12 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   audience: 'Целевая аудитория',
   utp: 'УТП',
   social: 'Оформление соцсетей',
+  instagram_profile_generate: 'Шапка профиля Instagram',
+  instagram_profile_improve: 'Доработка шапки Instagram',
+  instagram_highlights_generate: 'Highlights и сценарии Instagram',
+  instagram_highlight_scenario_generate: 'Сценарий Highlight Instagram',
+  instagram_highlight_improve: 'Доработка Highlight Instagram',
+  instagram_story_improve: 'Доработка сторис Instagram',
   product_main: 'Основной продукт',
   product_mini: 'Мини-продукт',
   lead_magnet: 'Сборка лид-магнита',
@@ -88,6 +106,12 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   audience: 'Стратегия',
   utp: 'Стратегия',
   social: 'Стратегия',
+  instagram_profile_generate: 'Упаковка Instagram',
+  instagram_profile_improve: 'Упаковка Instagram',
+  instagram_highlights_generate: 'Упаковка Instagram',
+  instagram_highlight_scenario_generate: 'Упаковка Instagram',
+  instagram_highlight_improve: 'Упаковка Instagram',
+  instagram_story_improve: 'Упаковка Instagram',
   strategy_rebuild: 'Стратегия',
   product_main: 'Конструктор продуктов',
   product_mini: 'Конструктор продуктов',

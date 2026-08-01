@@ -15,8 +15,24 @@ import { structuredOutputService } from './structured-output.service';
 import { aiActionRegistryService } from './ai-action-registry.service';
 import { aiFeatureFlagsService } from './ai-feature-flags.service';
 import { modelRegistryService } from './model-registry.service';
+import { workflowOutputValidationService } from './workflow-output-validation.service';
 
 const RUNNING_GENERATION_STALE_AFTER_MS = 10 * 60 * 1000;
+
+function validateWorkflowOutput(
+  workflow: string,
+  step: string,
+  content: string,
+  rules: Parameters<typeof aiValidationService.validate>[1],
+  inputs: Record<string, unknown>,
+) {
+  const base = aiValidationService.validate(content, rules);
+  const domain = workflowOutputValidationService.validate(workflow, step, content, inputs);
+  return {
+    ok: base.ok && domain.ok,
+    errors: [...base.errors, ...domain.errors],
+  };
+}
 
 export interface RunWorkflowInput {
   userId: string;
@@ -429,7 +445,13 @@ export const aiWorkflowService = {
             },
           });
 
-          let validation = aiValidationService.validate(response.content, config.validationRules);
+          let validation = validateWorkflowOutput(
+            input.workflow,
+            input.step,
+            response.content,
+            config.validationRules,
+            input.inputs,
+          );
           let retryCount = 0;
           let usage = response.usage;
 
@@ -460,11 +482,20 @@ export const aiWorkflowService = {
               audioOutputTokens: (usage.audioOutputTokens ?? 0) + (repair.usage.audioOutputTokens ?? 0),
               totalTokens: usage.totalTokens + repair.usage.totalTokens,
             };
-            validation = aiValidationService.validate(response.content, config.validationRules);
+            validation = validateWorkflowOutput(
+              input.workflow,
+              input.step,
+              response.content,
+              config.validationRules,
+              input.inputs,
+            );
           }
 
           if (input.workflow === 'castdev' && input.step === 'analysis' && !validation.ok) {
             throw new Error(`Cast Dev analysis validation failed: ${validation.errors.join('; ')}`);
+          }
+          if (input.workflow === 'instagram.profile' && !validation.ok) {
+            throw new Error(`Instagram profile validation failed: ${validation.errors.join('; ')}`);
           }
 
           return {

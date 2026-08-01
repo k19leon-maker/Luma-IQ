@@ -8,6 +8,12 @@ export type FeatureCode =
   | 'audience'
   | 'utp'
   | 'social'
+  | 'instagram_profile_generate'
+  | 'instagram_profile_improve'
+  | 'instagram_highlights_generate'
+  | 'instagram_highlight_scenario_generate'
+  | 'instagram_highlight_improve'
+  | 'instagram_story_improve'
   | 'product_main'
   | 'product_mini'
   | 'lead_magnet'
@@ -106,6 +112,54 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 3,
     includedTokens: 10000,
     maxContextTokens: 18000,
+  },
+  instagram_profile_generate: {
+    featureCode: 'instagram_profile_generate',
+    featureGroup: 'strategy',
+    generationClass: 'MEDIUM',
+    creditPrice: 3,
+    includedTokens: 7000,
+    maxContextTokens: 14000,
+  },
+  instagram_profile_improve: {
+    featureCode: 'instagram_profile_improve',
+    featureGroup: 'strategy',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 4000,
+    maxContextTokens: 9000,
+  },
+  instagram_highlights_generate: {
+    featureCode: 'instagram_highlights_generate',
+    featureGroup: 'content',
+    generationClass: 'HEAVY',
+    creditPrice: 4,
+    includedTokens: 14000,
+    maxContextTokens: 28000,
+  },
+  instagram_highlight_scenario_generate: {
+    featureCode: 'instagram_highlight_scenario_generate',
+    featureGroup: 'content',
+    generationClass: 'MEDIUM',
+    creditPrice: 2,
+    includedTokens: 8000,
+    maxContextTokens: 18000,
+  },
+  instagram_highlight_improve: {
+    featureCode: 'instagram_highlight_improve',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 6000,
+    maxContextTokens: 14000,
+  },
+  instagram_story_improve: {
+    featureCode: 'instagram_story_improve',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 3500,
+    maxContextTokens: 9000,
   },
   product_main: {
     featureCode: 'product_main',
