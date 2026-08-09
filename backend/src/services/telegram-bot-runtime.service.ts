@@ -28,6 +28,17 @@ function spreadsheetId(): string {
 }
 
 function now(): string { return new Date().toISOString(); }
+// Moscow stays on UTC+3 year-round. 09:00 MSK is therefore 06:00 UTC.
+function nextMoscowNine(from = new Date()): string {
+  const candidate = new Date(Date.UTC(
+    from.getUTCFullYear(),
+    from.getUTCMonth(),
+    from.getUTCDate(),
+    6, 0, 0, 0,
+  ));
+  if (candidate.getTime() <= from.getTime()) candidate.setUTCDate(candidate.getUTCDate() + 1);
+  return candidate.toISOString();
+}
 function allowedUserIds(): Set<string> { return new Set(env.TELEGRAM_BOT_TEST_USER_IDS.split(',').map(v => v.trim()).filter(Boolean)); }
 function testUserAllowed(id: number): boolean { return !env.TELEGRAM_BOT_TEST_MODE || allowedUserIds().has(String(id)); }
 function rowValues(columns: readonly string[], data: Record<string, unknown>): Array<string | number | boolean> {
@@ -110,7 +121,7 @@ async function startSubscription(subscriber: SheetRow, startParameter: string, c
   await append(SHEETS.subscriptions, COLUMNS.subscriptions, {
     subscription_id: randomUUID(), subscriber_id: subscriber.subscriber_id, bot_id: cfg.bot.bot_id, scenario_id: cfg.scenario.scenario_id,
     scenario_name: cfg.scenario.name, status: 'active', source: 'telegram_start', start_parameter: startParameter,
-    current_step_id: messageSteps[0].step_id, current_day: 0, started_at: stamp, next_send_at: stamp,
+    current_step_id: messageSteps[0].step_id, current_day: 0, started_at: stamp, next_send_at: nextMoscowNine(),
     tags_in_scenario: '', consent_version: 'telegram_start_v1', updated_at: stamp,
   });
 }
@@ -155,7 +166,7 @@ async function sendDueSubscription(subscription: SheetRow, cfg: Awaited<ReturnTy
     const next = messageSteps[currentIndex + 1];
     await updateRow(SHEETS.subscriptions, COLUMNS.subscriptions, subscription.__row, {
       ...subscription, status: next ? 'active' : 'completed', current_step_id: next?.step_id || '', current_day: next?.sequence_day || step.sequence_day,
-      next_send_at: next ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : '', completed_at: next ? '' : sentAt,
+      next_send_at: next ? nextMoscowNine(new Date(sentAt)) : '', completed_at: next ? '' : sentAt,
       tags_in_scenario: scenarioTags, updated_at: sentAt,
     });
   } catch (error) {
