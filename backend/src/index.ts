@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { castDevTranscriptionQueueService } from './services/castdev-transcription-queue.service';
 import { batchJobService } from './services/batch-job.service';
 import { aiMaintenanceService } from './services/ai-maintenance.service';
+import { telegramBotRuntimeService } from './services/telegram-bot-runtime.service';
 
 const app = createApp();
 const PORT = process.env.PORT || 3001;
@@ -23,6 +24,7 @@ app.listen(PORT, () => {
     })
     .catch((err: Error) => console.error('[BatchJob] recovery failed:', err.message));
   aiMaintenanceService.start();
+  telegramBotRuntimeService.start();
 
   // В dev-режиме создаём dev-пользователя (нужен для работы с dev-token + БД)
   if (env.isDev) {

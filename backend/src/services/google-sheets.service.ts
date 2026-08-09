@@ -89,9 +89,9 @@ async function getAccessToken(): Promise<string> {
   return payload.access_token;
 }
 
-async function sheetsFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function sheetsFetch<T>(path: string, init?: RequestInit, spreadsheetId = env.SEO_SPREADSHEET_ID): Promise<T> {
   const accessToken = await getAccessToken();
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${env.SEO_SPREADSHEET_ID}${path}`, {
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -114,8 +114,8 @@ function encodeRange(range: string): string {
 }
 
 export const googleSheetsService = {
-  async getValues(range: string): Promise<string[][]> {
-    const payload = await sheetsFetch<{ values?: unknown[][] }>(`/values/${encodeRange(range)}`);
+  async getValues(range: string, spreadsheetId = env.SEO_SPREADSHEET_ID): Promise<string[][]> {
+    const payload = await sheetsFetch<{ values?: unknown[][] }>(`/values/${encodeRange(range)}`, undefined, spreadsheetId);
     return (payload.values ?? []).map((row) => row.map((value) => String(value ?? '')));
   },
 
@@ -128,5 +128,20 @@ export const googleSheetsService = {
         data,
       }),
     });
+  },
+
+  async appendValues(range: string, values: Array<Array<string | number | boolean>>, spreadsheetId = env.SEO_SPREADSHEET_ID) {
+    if (!values.length) return;
+    await sheetsFetch(`/values/${encodeRange(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      body: JSON.stringify({ values }),
+    }, spreadsheetId);
+  },
+
+  async updateValues(range: string, values: Array<Array<string | number | boolean>>, spreadsheetId = env.SEO_SPREADSHEET_ID) {
+    await sheetsFetch(`/values/${encodeRange(range)}?valueInputOption=USER_ENTERED`, {
+      method: 'PUT',
+      body: JSON.stringify({ values }),
+    }, spreadsheetId);
   },
 };

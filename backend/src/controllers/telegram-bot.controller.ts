@@ -4,6 +4,7 @@ import { createHash, timingSafeEqual } from 'crypto';
 import { env } from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { TelegramBotApiError, telegramBotService } from '../services/telegram-bot.service';
+import { TelegramUpdate, telegramBotRuntimeService } from '../services/telegram-bot-runtime.service';
 
 const diagnoseSchema = z.object({
   token: z.string()
@@ -58,6 +59,16 @@ export const telegramBotController = {
       updateId: parsed.data.update_id,
       kind: updateKind(parsed.data),
     });
+    try {
+      await telegramBotRuntimeService.handleUpdate(parsed.data as TelegramUpdate);
+    } catch (error) {
+      console.error('[TelegramWebhook] processing failed', {
+        updateId: parsed.data.update_id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: 'TELEGRAM_UPDATE_PROCESSING_FAILED' });
+      return;
+    }
     res.sendStatus(200);
   },
 
