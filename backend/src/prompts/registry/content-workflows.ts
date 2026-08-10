@@ -101,10 +101,10 @@ const MAIN_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number
   {
     step: 'edit',
     label: 'Редактирование продукта',
-    maxTokens: 1800,
+    maxTokens: 3200,
     minLength: 80,
     task: `Выполни правку основного продукта по запросу пользователя.
-Если запрос точечный (название, формулировка оффера, цена, формат, отдельный модуль, одно обещание) — НЕ пересобирай весь продукт. Коротко подтверди, что именно изменено, и верни только обновлённый фрагмент.
+Если запрос точечный (название, формулировка оффера, цена, формат, отдельный модуль, одно обещание) — НЕ пересобирай весь продукт. Верни только один или несколько полных обновлённых разделов, начиная каждый с исходного заголовка ##.
 Полную версию продукта возвращай только если пользователь явно просит пересобрать/переписать весь продукт.`,
   },
 ];
@@ -137,6 +137,21 @@ const getAudienceAnswers = (inputs: Record<string, unknown>) => {
 
 const buildAudienceStepPrompt = (inputs: Record<string, unknown>) => {
   const stepId = Number(inputs.stepId ?? 1);
+  if (value(inputs, 'mode') === 'stepEdit') {
+    return `Контекст проекта:
+${value(inputs, 'projectContext', 'Контекст пока не заполнен.')}
+
+Текущий шаг: ${value(inputs, 'stepTitle', `Шаг ${stepId}`)}
+
+Текущая версия результата:
+${value(inputs, 'currentResult', 'Результатов по шагам пока нет.')}
+
+Правка пользователя:
+${value(inputs, 'question', 'нет запроса')}
+
+Внеси правку в текущую версию результата. Сохрани полезные части, которых запрос не касается.
+Верни только полный обновлённый результат этого шага без подтверждения, пояснений и служебных комментариев.`;
+  }
   if (value(inputs, 'mode') === 'stepChat') {
     const choiceInstruction = inputs.isChoicePending
       ? 'Ответь как AI-маркетолог. Если пользователь предлагает новый вариант, кратко оцени его и сформулируй название варианта в жирном формате **...**. Не спрашивай "готов ли продолжать" и не проси написать, когда пользователь будет готов. Если пользователь хочет продолжить, скажи выбрать вариант кнопкой в интерфейсе.'
@@ -226,7 +241,7 @@ const MINI_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number
   { step: 'landingBlock', label: 'Продающий блок для лендинга', maxTokens: 5200, minLength: 1400, task: 'Сформируй продающий блок для лендинга: первый экран, боль, уже пробовали, почему не работает, что будет иначе, программа, результат, формат, эксперт, бонусы, кому подходит/не подходит, FAQ, финальный CTA.' },
   { step: 'telegramPosts', label: '3 Telegram-поста', maxTokens: 5200, minLength: 1400, task: 'Напиши 3 Telegram-поста для продажи мини-продукта: через боль и узнавание, через экспертный разворот, через оффер и приглашение. Каждый пост должен быть готов к публикации.' },
   { step: 'nextProductBridge', label: 'Мост к следующему продукту', maxTokens: 3200, minLength: 650, task: 'Опиши мост к следующему продукту: что участник уже получил, что понял, где проявились более глубокие задачи, почему логично идти дальше, какой следующий продукт решает большую проблему.' },
-  { step: 'edit', label: 'Редактирование мини-продукта', maxTokens: 1800, minLength: 80, task: 'Выполни правку мини-продукта по запросу пользователя. Если запрос точечный (название, оффер, занятие, бонус, CTA, цена, формат) — НЕ пересобирай весь мини-продукт. Коротко подтверди изменение и верни только обновлённый фрагмент. Полную версию возвращай только по явной просьбе пересобрать/переписать весь мини-продукт.' },
+  { step: 'edit', label: 'Редактирование мини-продукта', maxTokens: 3200, minLength: 80, task: 'Выполни правку мини-продукта по запросу пользователя. Если запрос точечный (название, оффер, занятие, бонус, CTA, цена, формат) — НЕ пересобирай весь мини-продукт. Верни только один или несколько полных обновлённых разделов, начиная каждый с исходного заголовка ##. Полную версию возвращай только по явной просьбе пересобрать/переписать весь мини-продукт.' },
 ];
 
 const LEAD_MAGNET_STEPS: Array<{ step: string; maxTokens: number; minLength: number }> = [
@@ -238,7 +253,7 @@ const LEAD_MAGNET_STEPS: Array<{ step: string; maxTokens: number; minLength: num
   ].map((step) => ({ step, maxTokens: 4200, minLength: 350 })),
   ...['concept', 'hook', 'script', 'practice', 'cta', 'structure', 'content', 'checklist']
     .map((step) => ({ step, maxTokens: step === 'script' || step === 'content' ? 5200 : 3600, minLength: 450 })),
-  { step: 'edit', maxTokens: 1800, minLength: 80 },
+  { step: 'edit', maxTokens: 3200, minLength: 80 },
 ];
 
 export const CONTENT_WORKFLOW_PROMPTS: PromptConfig[] = [
@@ -298,6 +313,7 @@ ${value(inputs, 'message')}
 Платформа: ${value(inputs, 'platform', 'Telegram')}
 Тип поста: ${value(inputs, 'postType', 'экспертный / прогревающий')}
 Цель: ${value(inputs, 'goal', 'прогреть аудиторию и привести к следующему шагу')}
+Поток идей пользователя: ${value(inputs, 'ideaFlow', 'не передан')}
 
 Для каждой темы верни:
 - заголовок;
@@ -337,6 +353,29 @@ ${contextAppendix(context)}
     validationRules: { minLength: 600, requiredPatterns: ['CTA|призыв|следующ'], structuredOutput: 'text' },
   },
   {
+    id: 'posts.post.edit.v1',
+    version: 'v1',
+    feature: 'post',
+    workflow: 'posts.post',
+    step: 'edit',
+    model: 'gpt-5.4',
+    temperature: 0.55,
+    maxTokens: 3600,
+    artifactType: 'post',
+    systemPrompt: (context) => buildPostsPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Доработай готовый пост по инструкции пользователя.
+
+Инструкция: ${value(inputs, 'instruction')}
+Текущий заголовок: ${value(inputs, 'title', 'Пост')}
+Текущий пост:
+${value(inputs, 'currentContent')}
+
+${contextAppendix(context)}
+
+Сохрани полезную фактуру и не выдумывай новые факты. Верни только полный обновлённый текст поста без комментариев о правках.`,
+    validationRules: { minLength: 120, maxLength: 18000, structuredOutput: 'text' },
+  },
+  {
     id: 'reels.hooks.generate.v1',
     version: 'v1',
     feature: 'reel',
@@ -353,6 +392,7 @@ ${contextAppendix(context)}
 Цель: ${value(inputs, 'goal', 'лидмагнит')}
 Тон: ${value(inputs, 'tone', 'экспертный')}
 Интенсивность: ${value(inputs, 'intensity', 'medium')}
+Поток идей пользователя: ${value(inputs, 'ideaFlow', 'не передан')}
 
 Раздели на:
 - высокий приоритет;
@@ -406,6 +446,29 @@ ${contextAppendix(context)}
     },
   },
   {
+    id: 'reels.script.edit.v1',
+    version: 'v1',
+    feature: 'reel',
+    workflow: 'reels.script',
+    step: 'edit',
+    model: 'gpt-5.4',
+    temperature: 0.55,
+    maxTokens: 4600,
+    artifactType: 'reels_script',
+    systemPrompt: (context) => buildReelsPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Доработай готовый сценарий короткого видео по инструкции пользователя.
+
+Инструкция: ${value(inputs, 'instruction')}
+Текущий заголовок: ${value(inputs, 'title', 'Сценарий')}
+Текущий сценарий:
+${value(inputs, 'currentContent')}
+
+${contextAppendix(context)}
+
+Сохрани формат, факты и полезные части, которых правка не касается. Верни только полный обновлённый сценарий.`,
+    validationRules: { minLength: 180, maxLength: 24000, structuredOutput: 'script' },
+  },
+  {
     id: 'articles.topic.generate.v1',
     version: 'v1',
     feature: 'article',
@@ -422,6 +485,7 @@ ${contextAppendix(context)}
 Площадка: ${value(inputs, 'platform', 'VC.ru')}
 Тон: ${value(inputs, 'tone', 'editorial')}
 Глубина: ${value(inputs, 'depth', 'deep')}
+Поток идей пользователя: ${value(inputs, 'ideaFlow', 'не передан')}
 
 Для каждой темы верни:
 - заголовок;
@@ -484,6 +548,29 @@ ${contextAppendix(context)}
     },
   },
   {
+    id: 'articles.article.edit.v1',
+    version: 'v1',
+    feature: 'article',
+    workflow: 'articles.article',
+    step: 'edit',
+    model: 'gpt-5.4',
+    temperature: 0.5,
+    maxTokens: 8000,
+    artifactType: 'article',
+    systemPrompt: (context) => buildArticlesPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Доработай готовую статью по инструкции пользователя.
+
+Инструкция: ${value(inputs, 'instruction')}
+Текущий заголовок: ${value(inputs, 'title', 'Статья')}
+Текущая статья:
+${value(inputs, 'currentContent')}
+
+${contextAppendix(context)}
+
+Не сокращай и не пересобирай материал без прямой просьбы. Сохрани факты и структуру, которых правка не касается. Верни только полный обновлённый текст статьи.`,
+    validationRules: { minLength: 300, maxLength: 50000, structuredOutput: 'article' },
+  },
+  {
     id: 'chatbot.chain.generate.v1',
     version: 'v1',
     feature: 'chatbot_chain',
@@ -500,6 +587,7 @@ ${contextAppendix(context)}
 Целевой сегмент: ${value(inputs, 'segment', 'сегмент из проекта')}
 Формат лид-магнита: ${value(inputs, 'leadMagnetFormat', 'материал')}
 Расписание встреч: ${value(inputs, 'meetingSchedule', 'не указано')}
+Свободная инструкция и фактура пользователя: ${value(inputs, 'customInstruction', 'не передана')}
 
 Логика цепочки:
 1-5 — продать изучение лидмагнита.
@@ -518,6 +606,30 @@ ${contextAppendix(context)}
     validationRules: { minLength: 2200, minListItems: 10, structuredOutput: 'list' },
   },
   {
+    id: 'chatbot.chain.edit.v1',
+    version: 'v1',
+    feature: 'chatbot_chain',
+    workflow: 'chatbot.chain',
+    step: 'edit',
+    model: 'gpt-5.4',
+    temperature: 0.55,
+    maxTokens: 3000,
+    artifactType: 'chatbot_message',
+    systemPrompt: (context) => buildChatbotPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Доработай одно сообщение цепочки чат-бота.
+
+Роль сообщения: ${value(inputs, 'messageRole')}
+Номер сообщения: ${value(inputs, 'messageIndex')}
+Инструкция пользователя: ${value(inputs, 'instruction')}
+Текущий текст:
+${value(inputs, 'currentContent')}
+
+${contextAppendix(context)}
+
+Сохрани назначение сообщения и связь с цепочкой. Не добавляй вымышленные факты. Верни только полный обновлённый текст сообщения.`,
+    validationRules: { minLength: 60, maxLength: 10000, structuredOutput: 'text' },
+  },
+  {
     id: 'video.topic.generate.v1',
     version: 'v1',
     feature: 'video_script',
@@ -532,6 +644,7 @@ ${contextAppendix(context)}
 
 Длительность: примерно ${value(inputs, 'duration', '10')} минут.
 Целевой сегмент: ${value(inputs, 'segment', 'сегмент из проекта')}
+Поток идей пользователя: ${value(inputs, 'ideaFlow', 'не передан')}
 
 Темы должны быть привязаны к проекту, ЦА, позиционированию и продуктовой логике.
 Верни только нумерованный список из 5 тем, одна тема — одна строка.
@@ -572,6 +685,29 @@ ${contextAppendix(context)}
 
 Верни только готовый сценарий.`,
     validationRules: { minLength: 1200, requiredPatterns: ['КРЮЧОК|Хук', 'ПРИЗЫВ|CTA'], structuredOutput: 'script' },
+  },
+  {
+    id: 'video.script.edit.v1',
+    version: 'v1',
+    feature: 'video_script',
+    workflow: 'video.script',
+    step: 'edit',
+    model: 'gpt-5.4',
+    temperature: 0.52,
+    maxTokens: 7000,
+    artifactType: 'video_script',
+    systemPrompt: (context) => buildVideoScriptsPrompt(context.base),
+    userPromptBuilder: ({ inputs, context }) => `Доработай готовый сценарий видео по инструкции пользователя.
+
+Инструкция: ${value(inputs, 'instruction')}
+Текущий заголовок: ${value(inputs, 'title', 'Видео-сценарий')}
+Текущий сценарий:
+${value(inputs, 'currentContent')}
+
+${contextAppendix(context)}
+
+Сохрани тайминги, факты и структуру, которых правка не касается. Верни только полный обновлённый сценарий.`,
+    validationRules: { minLength: 220, maxLength: 40000, structuredOutput: 'script' },
   },
   {
     id: 'product.main.build.v2',
@@ -663,6 +799,7 @@ ${step.task}
 - Не подставляй психологию или другую нишу, если её нет в контексте.
 - Пиши конкретно, как рабочий продуктовый черновик.
 - Верни только результат шага, без служебных комментариев.
+- Для шага edit верни обновлённые разделы с их исходными заголовками ##; не добавляй подтверждение перед результатом.
 
 ${contextAppendix(context)}`,
     validationRules: { minLength: step.minLength, structuredOutput: 'text' },
@@ -766,6 +903,7 @@ ${step.task}
 - Не обещай полного решения большой системной проблемы за 7 дней.
 - Используй selective project context ниже, не расползайся в generic.
 - Верни только результат шага, без служебных комментариев.
+- Для шага edit верни обновлённые разделы с их исходными заголовками ##; не добавляй подтверждение перед результатом.
 
 ${contextAppendix(context)}`,
     validationRules: { minLength: step.minLength, structuredOutput: 'text' },
@@ -859,7 +997,7 @@ ${value(inputs, 'stepTask', 'Сгенерируй качественный бл�
 
 Правила:
 - Работай только над указанным шагом, не переписывай весь материал без необходимости.
-- Если это шаг edit и запрос точечный (название, заголовок, CTA, формат, отдельный блок) — ответь коротко: что зафиксировано и какой фрагмент обновлён. Полный лид-магнит возвращай только по явной просьбе пересобрать весь материал.
+- Если это шаг edit и запрос точечный (название, заголовок, CTA, формат, отдельный блок) — верни один или несколько полных обновлённых разделов, начиная каждый с исходного заголовка ##. Не добавляй подтверждение перед результатом. Полный лид-магнит возвращай только по явной просьбе пересобрать весь материал.
 - Используй selective project context ниже.
 - Верни только готовый блок в markdown, без служебных комментариев.
 
@@ -978,6 +1116,9 @@ ${contextAppendix(context)}
 Текущая гипотеза пользователя, если есть:
 ${value(inputs, 'currentHypothesis', 'нет')}
 
+Пожелание пользователя к новым вариантам:
+${value(inputs, 'instruction', 'нет')}
+
 ${contextAppendix(context)}
 
 Варианты должны быть разными, не перефразировками одного и того же.
@@ -1052,6 +1193,9 @@ ${value(inputs, 'selectedVariant', 'нет')}
 
 Текущий черновик:
 ${value(inputs, 'currentDraft', 'нет')}
+
+Пожелание пользователя к финальной формулировке:
+${value(inputs, 'instruction', 'нет')}
 
 Верни строго в формате:
 Кто вы: ...
@@ -1727,6 +1871,7 @@ ${contextAppendix(context)}`,
 - Формат: ${value(inputs, 'formatMix', 'Смешанный план')}
 - Интенсивность продаж: ${value(inputs, 'salesIntensity', 'Мягкие CTA')}
 - Тональность: ${value(inputs, 'tone', 'Тёплая экспертная')}
+- Свободная инструкция и идеи пользователя: ${value(inputs, 'customInstruction', 'Не переданы')}
 
 Недостающие стратегические данные:
 ${value(inputs, 'missingSections', 'Не указаны')}
@@ -1836,6 +1981,37 @@ format только: "single_post", "mini_thread" или "deep_thread".
     },
   },
   {
+    id: 'threads.post.edit.v1',
+    version: 'v1',
+    feature: 'threads',
+    workflow: 'threads.post',
+    step: 'edit',
+    model: 'gpt-5.5',
+    temperature: 0.58,
+    maxTokens: 3600,
+    artifactType: 'threads_post',
+    systemPrompt: (context) => `Ты — senior редактор Threads-контента.
+
+Выполняй конкретную правку одного поста, сохраняя его место в серии, основную мысль и факты проекта. Не выдумывай кейсы, цифры и результаты.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Доработай один пост Threads по свободной инструкции.
+
+Инструкция: ${value(inputs, 'instruction')}
+Текущий пост:
+${value(inputs, 'existingPost', 'Нет')}
+Снимок стратегии:
+${value(inputs, 'sourceSnapshot', 'Не передан')}
+
+Верни строго JSON одного полного обновлённого поста в той же структуре, что и входной объект. Без markdown и code fence.`,
+    validationRules: {
+      minLength: 200,
+      maxLength: 18000,
+      requiredIncludes: ['"dayNumber"', '"title"', '"format"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
     id: 'tg-channel.channel-for.v1',
     version: 'v1',
     feature: 'tg_channel_post_edit',
@@ -1920,6 +2096,7 @@ ${contextAppendix(context)}`,
 - Для кого канал: ${value(inputs, 'channelFor', 'Не указано')}
 - Точка конверсии: ${value(inputs, 'conversionPoint', 'Не указано')}
 - Описание первого шага: ${value(inputs, 'conversionDetails', 'Не указано')}
+- Свободная инструкция и идеи пользователя: ${value(inputs, 'customInstruction', 'Не переданы')}
 
 Недостающие стратегические данные:
 ${value(inputs, 'missingSections', 'Не указаны')}

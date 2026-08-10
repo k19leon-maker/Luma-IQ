@@ -11,6 +11,8 @@ import { useProjectsStore } from '../../store/projects.store';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import s from './TgChannel.module.css';
 
 type TgPostStatus = 'idea' | 'ready' | 'planned';
@@ -217,6 +219,7 @@ export default function TgChannel() {
   const [generationMode, setGenerationMode] = useState<AiGenerationMode>('now');
   const [batchJob, setBatchJob] = useState<AiBatchJob | null>(null);
   const [error, setError] = useState('');
+  const [customInstruction, setCustomInstruction] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -224,14 +227,17 @@ export default function TgChannel() {
     if (!hasActiveProject || !activeProjectId) return;
 
     setStrategyLoading(true);
-    projectsApi.getStrategy(activeProjectId, [
-      'expertProfileData',
-      'positioningData',
-      'answers',
-      'completed',
-      'unpackingData',
-      'generatedData',
+    Promise.all([
+      projectsApi.getStrategyFields(activeProjectId, [
+        'expertProfileData',
+        'positioningData',
+        'answers',
+        'completed',
+        'unpackingData',
+      ]),
+      projectsApi.getStrategy(activeProjectId, ['generatedData'], ['social']),
     ])
+      .then(([strategy, generated]) => ({ ...strategy, ...(generated ?? {}) }))
       .then((data) => {
         if (!alive) return;
         const next = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
@@ -403,6 +409,7 @@ export default function TgChannel() {
         ...settings,
         missingSections: missingSections.length ? missingSections.join(', ') : 'Нет',
         sourceSnapshot,
+        customInstruction: customInstruction.trim() || null,
       };
       const response = await aiApi.startWorkflow(workflow, {
         projectId: activeProjectId,
@@ -444,8 +451,8 @@ export default function TgChannel() {
     }
   }
 
-  async function runPostWorkflow(item: TgPlanItem, step: 'post' | 'edit' | 'audio' | 'video', editAction?: string) {
-    if (!hasActiveProject || !activeProjectId || !result) return;
+  async function runPostWorkflow(item: TgPlanItem, step: 'post' | 'edit' | 'audio' | 'video', editAction?: string): Promise<boolean> {
+    if (!hasActiveProject || !activeProjectId || !result) return false;
     setBusyPostId(item.id);
     setBusyAction(editAction || step);
     setError('');
@@ -491,10 +498,12 @@ export default function TgChannel() {
       setResult(next);
       await persistResult(next, metadata);
       toast.success(`Готово. Списано ${response.aiPointsCharged ?? (step === 'post' ? AI_ACTION_COSTS.tg_channel_post : AI_ACTION_COSTS.tg_channel_post_edit)} AI-баллов.`);
+      return true;
     } catch (err) {
       const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось выполнить AI-действие с постом.';
       setError(message);
       toast.error(message);
+      return false;
     } finally {
       setBusyPostId(null);
       setBusyAction('');
@@ -622,6 +631,17 @@ export default function TgChannel() {
                 <span className={s.fieldHint}>AI использует «Целевую аудиторию», «Позиционирование» и «УТП».</span>
               </div>
             </label>
+            <div className={`${s.field} ${s.fieldWide}`}>
+              <span className={s.label}>Свободная инструкция и идеи</span>
+              <VoiceComposer
+                value={customInstruction}
+                onChange={setCustomInstruction}
+                placeholder="Наговорите темы, истории, ограничения или пожелания к плану..."
+                textareaClassName={s.textarea}
+                rows={4}
+              />
+              <span className={s.fieldHint}>Инструкция учитывается при создании плана и не запускает публикацию.</span>
+            </div>
             <label className={`${s.field} ${s.fieldWide}`}>
               <span className={s.label}>Кратко опишите первый шаг</span>
               <textarea className={s.textarea} value={settings.conversionDetails} onChange={(e) => setSettings((current) => ({ ...current, conversionDetails: e.target.value }))} placeholder="Например: бесплатная Zoom-диагностика на 30 минут..." />
@@ -770,6 +790,14 @@ export default function TgChannel() {
                       </button>
                     ))}
                   </div>
+                  <ContentRevisionComposer
+                    key={selectedItem.id}
+                    projectId={activeProjectId}
+                    workflow="tg-channel.edit"
+                    isLoading={busyPostId === selectedItem.id && busyAction !== ''}
+                    onSubmit={(instruction) => runPostWorkflow(selectedItem, 'edit', instruction)}
+                    placeholder="Например: добавьте мою историю, уберите давление и сделайте призыв конкретнее"
+                  />
                 </>
               ) : (
                 <div className={s.postActions}>

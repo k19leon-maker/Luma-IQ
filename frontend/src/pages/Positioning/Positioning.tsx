@@ -10,6 +10,7 @@ import type { AiResultVersion } from '../../store/generated.store';
 import { buildPositioningMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import {
   EditableVariantPreview,
   EmptyState,
@@ -74,6 +75,8 @@ export default function Positioning() {
   const [expertProfile, setExpertProfile] = useState<ExpertProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState('');
   const [saving, setSaving] = useState(false);
   const [briefExpanded, setBriefExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'variants' | 'final'>('variants');
@@ -174,7 +177,7 @@ export default function Positioning() {
     }
 
     setLoading(true);
-    projectsApi.getStrategy(activeProjectId, ['positioningData', 'expertProfileData'])
+    projectsApi.getStrategyFields(activeProjectId, ['positioningData', 'expertProfileData'])
       .then((data) => {
         const saved = (data as Record<string, unknown> | null)?.['positioningData'] as Partial<PositioningData> | undefined;
         const expert = (data as Record<string, unknown> | null)?.['expertProfileData'] as ExpertProfileData | undefined;
@@ -259,6 +262,7 @@ export default function Positioning() {
   }
 
   async function runVariants() {
+    if (voiceBusy) return;
     if (!activeProjectId) {
       toast.error('Сначала создайте проект');
       return;
@@ -268,7 +272,10 @@ export default function Positioning() {
     try {
       toast.loading('ИИ генерирует варианты позиционирования...', { id: 'positioning-variants' });
       const workflow = 'positioning.variants.generate';
-      const inputs = { currentHypothesis: finalStatement };
+      const inputs = {
+        currentHypothesis: finalStatement,
+        instruction: aiInstruction.trim(),
+      };
       const variantsResp = await aiApi.startWorkflow('positioning.variants.generate', {
         projectId: activeProjectId,
         inputs,
@@ -296,6 +303,7 @@ export default function Positioning() {
   }
 
   async function runFinalAssembly() {
+    if (voiceBusy) return;
     if (!activeProjectId) {
       toast.error('Сначала создайте проект');
       return;
@@ -313,6 +321,7 @@ export default function Positioning() {
       const inputs = {
         selectedVariant,
         currentDraft: finalStatement,
+        instruction: aiInstruction.trim(),
       };
       const resp = await aiApi.startWorkflow('positioning.final.generate', {
         projectId: activeProjectId,
@@ -471,7 +480,7 @@ export default function Positioning() {
               Сгенерируйте варианты и зафиксируйте финальную формулировку на основе раздела «О себе». Подходящую AI-модель сервис выберет автоматически.
             </p>
           </div>
-          <button className={s.primaryButton} onClick={() => void runVariants()} disabled={running || loading || !activeProjectId}>
+          <button className={s.primaryButton} onClick={() => void runVariants()} disabled={running || voiceBusy || loading || !activeProjectId}>
             {running ? 'ИИ работает...' : variants ? 'Пересобрать варианты' : 'Сгенерировать варианты'}
             {!running && <AiWorkflowCost workflow="positioning.variants.generate" projectId={activeProjectId} />}
           </button>
@@ -505,6 +514,23 @@ export default function Positioning() {
             <button className={s.textButton} onClick={() => navigate('/app/strategy/about')}>Заполнить «О себе»</button>
           </div>
         )}
+
+        <div className={s.aiInstructionPanel}>
+          <div>
+            <strong>Пожелание к следующему AI-результату</strong>
+            <span>Можно описать акцент, стиль или правку текстом либо голосом.</span>
+          </div>
+          <VoiceComposer
+            value={aiInstruction}
+            onChange={setAiInstruction}
+            onBusyChange={setVoiceBusy}
+            disabled={running}
+            placeholder="Например: сделай позиционирование конкретнее и подчеркни мой практический опыт"
+            textareaClassName={s.aiInstructionTextarea}
+            rows={3}
+            maxLength={4000}
+          />
+        </div>
 
         <div className={s.grid}>
           <aside className={s.sidebar}>
@@ -639,7 +665,7 @@ export default function Positioning() {
                 </div>
 
                 <div className={s.actionRow}>
-                  <button className={s.secondaryButton} onClick={() => void runFinalAssembly()} disabled={running || !selectedVariant.trim()}>
+                  <button className={s.secondaryButton} onClick={() => void runFinalAssembly()} disabled={running || voiceBusy || !selectedVariant.trim()}>
                     {running ? 'ИИ работает...' : 'Сформулировать итог с ИИ'}
                     {!running && <AiWorkflowCost workflow="positioning.final.generate" projectId={activeProjectId} />}
                   </button>

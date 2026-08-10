@@ -6,7 +6,8 @@ import { URL, URLSearchParams } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 import { env } from '../config/env';
 import { openAIProvider } from '../providers/openai.provider';
-import { modelRegistryService } from './model-registry.service';
+import { aiActionRegistryService } from './ai-action-registry.service';
+import { modelRouterService } from './model-router.service';
 import type { TokenUsage } from './ai-cost.service';
 
 const SUPPORTED_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.mp4', '.mov', '.webm', '.ogg']);
@@ -341,9 +342,17 @@ export async function transcribeCastDevRecord(
   if (!env.OPENAI_API_KEY) {
     throw new CastDevTranscriptionError('Транскрибация временно недоступна', 'OPENAI_NOT_CONFIGURED', 503);
   }
-  const modelAlias = options.mode === 'diarize' ? 'TRANSCRIBE_DIARIZE' : 'TRANSCRIBE_MINI';
-  const modelProfile = await modelRegistryService.resolve(modelAlias);
-  if (modelProfile.provider !== 'OPENAI') {
+  const modelAlias: 'TRANSCRIBE_MINI' | 'TRANSCRIBE_DIARIZE' = options.mode === 'diarize'
+    ? 'TRANSCRIBE_DIARIZE'
+    : 'TRANSCRIBE_MINI';
+  const definition = await aiActionRegistryService.resolve('castdev_transcription');
+  const baseStage = definition.pipeline[0];
+  if (!baseStage) {
+    throw new CastDevTranscriptionError('Профиль транскрибации не настроен', 'BAD_TRANSCRIPTION_PROFILE', 503);
+  }
+  const stage = { ...baseStage, modelAlias };
+  const modelRoute = await modelRouterService.routeForAttempt({ definition, stage, attemptIndex: 0 });
+  if (modelRoute.provider !== 'OPENAI') {
     throw new CastDevTranscriptionError('Профиль транскрибации настроен на неподдерживаемого провайдера', 'BAD_TRANSCRIPTION_PROVIDER', 503);
   }
 
@@ -356,7 +365,7 @@ export async function transcribeCastDevRecord(
       durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
       chunksCount: prepared.uploadPaths.length,
       modelAlias,
-      modelId: modelProfile.actualModelId,
+      modelId: modelRoute.actualModelId,
     });
     const transcripts: string[] = [];
     const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
@@ -366,7 +375,7 @@ export async function transcribeCastDevRecord(
       try {
         const result = await openAIProvider.transcribe({
           apiKey: env.OPENAI_API_KEY,
-          model: modelProfile.actualModelId,
+          model: modelRoute.actualModelId,
           file: fs.createReadStream(prepared.uploadPaths[index]),
           language: env.OPENAI_TRANSCRIPTION_LANGUAGE,
           diarize: modelAlias === 'TRANSCRIBE_DIARIZE',
@@ -380,9 +389,9 @@ export async function transcribeCastDevRecord(
             promptVersion: 'not-applicable',
             modelAlias,
             modelSnapshot: {
-              actualModelId: modelProfile.actualModelId,
-              source: modelProfile.source,
-              versionId: modelProfile.versionId,
+              actualModelId: modelRoute.actualModelId,
+              source: modelRoute.profileSource,
+              versionId: modelRoute.profileVersionId,
             },
             retryIndex: 0,
             metadata: {
@@ -428,7 +437,7 @@ export async function transcribeCastDevRecord(
       durationSec: prepared.durationSec ? Math.round(prepared.durationSec) : null,
       chunksCount: prepared.uploadPaths.length,
       modelAlias,
-      modelId: modelProfile.actualModelId,
+      modelId: modelRoute.actualModelId,
       usage,
       actualCostUsd,
     };

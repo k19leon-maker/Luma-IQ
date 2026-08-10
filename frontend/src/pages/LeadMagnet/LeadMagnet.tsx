@@ -11,6 +11,7 @@ import { buildProductMaterial } from '../../utils/projectMaterials';
 import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
 import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import { mergeMarkdownRevision } from '../../utils/markdownRevision';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import AiPipelineProgress from '../../components/AiPipelineProgress/AiPipelineProgress';
@@ -974,8 +975,11 @@ ${currentMarkdown || 'Пока пусто.'}`;
         userRequest: text,
       });
       const response = resp.content;
-
-      const description = response.includes('# Лид-магнит') ? response : `# Лид-магнит\n\n## Формат\n${FORMAT_LABELS[selectedFormat]}\n\n${response}`;
+      const description = mergeMarkdownRevision(
+        stateWithUser.currentMarkdown || buildLeadMagnetMarkdownFromParts(stateWithUser),
+        response,
+        { rootHeading: '# Лид-магнит', fallbackHeading: 'Доработка лид-магнита' },
+      );
       persistState({
         ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
@@ -984,7 +988,7 @@ ${currentMarkdown || 'Пока пусто.'}`;
         name: stateWithUser.name || extractName(description, FORMAT_LABELS[selectedFormat]),
         chatMessages: [
           ...(stateWithUser.chatMessages ?? []),
-          ...splitLeadMagnetMarkdownToMessages(description, 'Обновленный лид-магнит').map((message) => ({
+          ...splitLeadMagnetMarkdownToMessages(response, 'Обновленный лид-магнит').map((message) => ({
             ...message,
             stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
           })),

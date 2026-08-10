@@ -1,0 +1,206 @@
+.composer {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.controls.field {
+  gap: 8px;
+}
+
+.controls.compact {
+  gap: 5px;
+}
+
+.recordButton,
+.controlButton,
+.finishButton,
+.cancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color, #e7e2d8);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text-primary, #171717);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.recordButton svg,
+.controlButton svg,
+.finishButton svg,
+.cancelButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.recordButton {
+  color: #8b641f;
+  border-color: rgba(200, 160, 75, 0.55);
+  background: #fcfbf8;
+}
+
+.recordButton:hover:not(:disabled),
+.controlButton:hover:not(:disabled) {
+  border-color: #c8a04b;
+  background: #f5eedc;
+}
+
+.finishButton {
+  border-color: #bf3f3f;
+  background: #d64545;
+  color: #fff;
+}
+
+.finishButton:hover:not(:disabled) {
+  background: #bd3636;
+}
+
+.cancelButton {
+  color: var(--text-muted, #6f6a61);
+  background: transparent;
+}
+
+.cancelButton:hover:not(:disabled) {
+  color: #9f2f2f;
+  border-color: rgba(190, 55, 55, 0.45);
+  background: #fff5f5;
+}
+
+.recordButton:disabled,
+.controlButton:disabled,
+.finishButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.compact .recordButton,
+.compact .controlButton,
+.compact .finishButton,
+.compact .cancelButton {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.compact .recordButton,
+.compact .controlButton,
+.compact .cancelButton {
+  border-color: transparent;
+  background: transparent;
+}
+
+.compact .recordButton:hover:not(:disabled),
+.compact .controlButton:hover:not(:disabled) {
+  border-color: var(--border-color, #e7e2d8);
+  background: var(--hover-bg, #f5f3ee);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-muted, #6f6a61);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.compact .status {
+  max-width: min(260px, 32vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusError {
+  color: #a93636;
+}
+
+.audioLevel {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #d64545;
+  transform: scale(calc(0.8 + var(--voice-level, 0) * 0.8));
+  opacity: calc(0.55 + var(--voice-level, 0) * 0.45);
+  transition: transform 80ms linear, opacity 80ms linear;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid rgba(169, 125, 45, 0.24);
+  border-top-color: #a97d2d;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+.unsupported {
+  margin: 0;
+  color: var(--text-muted, #6f6a61);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recordButton,
+  .controlButton,
+  .finishButton,
+  .cancelButton,
+  .audioLevel {
+    transition: none;
+  }
+
+  .spinner {
+    animation-duration: 1.4s;
+  }
+}
+
+@media (max-width: 640px) {
+  .controls.field {
+    align-items: flex-start;
+  }
+
+  .controls.field .status {
+    width: 100%;
+    order: 5;
+  }
+
+  .recordButton,
+  .controlButton,
+  .finishButton,
+  .cancelButton {
+    min-height: 40px;
+    padding-inline: 11px;
+  }
+
+  .compact .status {
+    max-width: 128px;
+  }
+}

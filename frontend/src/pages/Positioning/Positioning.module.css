@@ -76,12 +76,68 @@
   max-width: 1040px;
 }
 
+.aiInstructionPanel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(200, 160, 75, 0.42);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.aiInstructionPanel strong,
+.aiInstructionPanel span {
+  display: block;
+}
+
+.aiInstructionPanel strong {
+  color: #242329;
+  font-size: 13px;
+}
+
+.aiInstructionPanel span {
+  margin-top: 5px;
+  color: #706c76;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.aiInstructionTextarea {
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #e4ded1;
+  border-radius: 7px;
+  outline: none;
+  color: #242329;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.aiInstructionTextarea:focus {
+  border-color: #c8a04b;
+  box-shadow: 0 0 0 3px rgba(200, 160, 75, 0.12);
+}
+
 .briefActions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
   flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .aiInstructionPanel {
+    grid-template-columns: 1fr;
+  }
 }
 
 .grid {

@@ -12,9 +12,10 @@ import { exportToDocx } from '../../utils/exportDocx';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import s from '../Posts/Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -288,16 +289,14 @@ export default function Reels() {
   const [tone,      setTone]      = useState<Tone>('expert');
   const [intensity, setIntensity] = useState<Intensity>('medium');
   const [keyword,   setKeyword]   = useState('');
+  const [ideaFlow, setIdeaFlow] = useState('');
 
   const [hooks,        setHooks]        = useState<HookOption[]>([]);
   const [selectedHook, setSelectedHook] = useState('');
   const [hooksWorkflowRunId, setHooksWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
-  const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const voice = useAudioRecorder(
-    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
-    (message) => toast.error(message),
-  );
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [revisingId, setRevisingId] = useState<string | null>(null);
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
 
   const updateReels = useCallback((next: SavedReel[]) => {
@@ -358,6 +357,7 @@ export default function Reels() {
         selectedSubsegment: strat.chosenSubsegment ?? null,
         corePains: strat.corePains ?? null,
         finalResult: strat.finalResult ?? null,
+        ideaFlow: ideaFlow.trim() || null,
       };
       const resp = await aiApi.startWorkflow('reels.hooks.generate', {
         projectId: activeProjectId,
@@ -473,6 +473,31 @@ export default function Reels() {
     if (reel?.dbId) void updateInApi(reel.dbId, { title: ov.title, content: ov.content });
   }
 
+  async function handleAiRevision(reel: SavedReel, instruction: string): Promise<boolean> {
+    if (!activeProjectId) return false;
+    const current = getEditorState(reel);
+    setRevisingId(reel.id);
+    try {
+      const workflow = 'reels.script.edit';
+      const inputs = { title: current.title, currentContent: current.content, instruction };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      setEditorField(reel.id, 'content', response.content);
+      toast.success('Сценарий доработан. Проверьте результат и сохраните.');
+      return true;
+    } catch (error) {
+      console.error('[Reels] AI revision failed', error);
+      toast.error('Не удалось доработать сценарий. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingId(null);
+    }
+  }
+
   function handleCopy(reelId: string) {
     const reel = reels.find(r => r.id === reelId); if (!reel) return;
     navigator.clipboard.writeText(getEditorState(reel).content);
@@ -528,6 +553,14 @@ export default function Reels() {
           <button className={`${s.actionBtn} ${s.actionBtnPrimary}${!hasChanges ? ' ' + s.actionBtnDisabled : ''}`} onClick={() => handleSave(reel.id)} disabled={!hasChanges}>Сохранить</button>
           <button className={s.actionBtn} onClick={() => handleDownload(reel.id)}>Скачать</button>
         </div>
+        <ContentRevisionComposer
+          key={reel.id}
+          projectId={activeProjectId}
+          workflow="reels.script.edit"
+          isLoading={revisingId === reel.id}
+          onSubmit={(instruction) => handleAiRevision(reel, instruction)}
+          placeholder="Например: сделайте хук короче, добавьте конкретный пример и сохраните CTA"
+        />
       </div>
     );
   }
@@ -613,9 +646,21 @@ export default function Reels() {
           <input className={s.textInput} placeholder="Например: ПОКОЙ, СТАРТ, ПОМОЩЬ" value={keyword} onChange={e => setKeyword(e.target.value)} />
           <div className={s.inputHint}>Используется в призыве в конце рилса</div>
         </div>
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Ваши идеи для ролика</div>
+          <div className={s.sectionSub}>Надиктуйте поток мыслей. AI предложит хуки, а сценарий появится только после вашего выбора.</div>
+          <VoiceComposer
+            value={ideaFlow}
+            onChange={setIdeaFlow}
+            placeholder="Наговорите историю, наблюдение, тезисы или пример..."
+            textareaClassName={s.factureTextarea}
+            rows={4}
+            onBusyChange={setVoiceBusy}
+          />
+        </div>
         <div className={s.btnRow}>
           {reels.length > 0 && <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>← Назад к рилсам</button>}
-          <button className={s.primaryBtn} onClick={() => handleGenerateHooks()}>Сгенерировать хуки<AiWorkflowCost workflow="reels.hooks.generate" projectId={activeProjectId} /> →</button>
+          <button className={s.primaryBtn} onClick={() => handleGenerateHooks()} disabled={voiceBusy}>Сгенерировать хуки<AiWorkflowCost workflow="reels.hooks.generate" projectId={activeProjectId} /> →</button>
         </div>
       </div>
     );
@@ -652,22 +697,13 @@ export default function Reels() {
         <div className={s.factureCard}>
           {FACTURE_HINTS.map((hint, i) => <div key={i} className={s.factureHint}>{hint}</div>)}
         </div>
-        {voice.isSupported && (
-          <div className={s.inputModeRow}>
-            <button className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`} onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}>✏️ Текст</button>
-            <button className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`} onClick={() => setInputMode('voice')}>🎤 Голос</button>
-          </div>
-        )}
-        {inputMode === 'text' ? (
-          <textarea className={s.factureTextarea} placeholder="Опишите реальные ситуации, ошибки аудитории, кейсы, фразы клиентов, эмоции и главный инсайт для сценария..." value={facture} onChange={e => setFacture(e.target.value)} />
-        ) : (
-          <div className={s.voiceArea}>
-            <button className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`} onClick={voice.toggle} disabled={voice.isTranscribing}>
-              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
-            </button>
-            {facture && <div className={s.voiceTranscript}>{facture}</div>}
-          </div>
-        )}
+        <VoiceComposer
+          value={facture}
+          onChange={setFacture}
+          textareaClassName={s.factureTextarea}
+          placeholder="Опишите реальные ситуации, ошибки аудитории, кейсы, фразы клиентов, эмоции и главный инсайт для сценария..."
+          onBusyChange={setVoiceBusy}
+        />
         <div className={s.factureCounter}>
           {facture.length} символов{' '}
           {facture.trim().length < 30 && <span className={s.factureCounterWarn}>(минимум 30)</span>}
@@ -675,7 +711,7 @@ export default function Reels() {
       </div>
       <div className={s.btnRow}>
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
-        <button className={s.primaryBtn} disabled={facture.trim().length < 30 || !selectedHook} onClick={handleGenerateReel}>Написать сценарий<AiWorkflowCost workflow="reels.script.write" projectId={activeProjectId} /> →</button>
+        <button className={s.primaryBtn} disabled={facture.trim().length < 30 || !selectedHook || voiceBusy} onClick={handleGenerateReel}>Написать сценарий<AiWorkflowCost workflow="reels.script.write" projectId={activeProjectId} /> →</button>
       </div>
     </div>
   );

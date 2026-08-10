@@ -9,6 +9,8 @@ import { useProjectsStore } from '../../store/projects.store';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import s from './Threads.module.css';
 
 type ThreadsPostFormat = 'single_post' | 'mini_thread' | 'deep_thread';
@@ -220,6 +222,8 @@ export default function Threads() {
   const [activeTab, setActiveTab] = useState<'plan' | 'posts'>('plan');
   const [generating, setGenerating] = useState(false);
   const [regeneratingDay, setRegeneratingDay] = useState<number | null>(null);
+  const [revisingDay, setRevisingDay] = useState<number | null>(null);
+  const [customInstruction, setCustomInstruction] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -228,14 +232,17 @@ export default function Threads() {
     if (!hasActiveProject || !activeProjectId) return;
 
     setStrategyLoading(true);
-    projectsApi.getStrategy(activeProjectId, [
-      'expertProfileData',
-      'positioningData',
-      'answers',
-      'completed',
-      'unpackingData',
-      'generatedData',
+    Promise.all([
+      projectsApi.getStrategyFields(activeProjectId, [
+        'expertProfileData',
+        'positioningData',
+        'answers',
+        'completed',
+        'unpackingData',
+      ]),
+      projectsApi.getStrategy(activeProjectId, ['generatedData'], ['social']),
     ])
+      .then(([strategy, generated]) => ({ ...strategy, ...(generated ?? {}) }))
       .then((data) => {
         if (!alive) return;
         const next = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
@@ -322,6 +329,7 @@ export default function Threads() {
         ...settings,
         missingSections: missingSections.length ? missingSections.join(', ') : 'Нет',
         sourceSnapshot,
+        customInstruction: customInstruction.trim() || null,
       };
       const response = await aiApi.startWorkflow('threads.plan.generate', {
         projectId: activeProjectId,
@@ -423,6 +431,51 @@ export default function Threads() {
     }
   }
 
+  async function handleRevisePost(post: ThreadsPost, instruction: string): Promise<boolean> {
+    if (!activeProjectId || !result) return false;
+    setRevisingDay(post.dayNumber);
+    setError('');
+    try {
+      const workflow = 'threads.post.edit';
+      const inputs = {
+        dayNumber: post.dayNumber,
+        existingPost: JSON.stringify(post, null, 2),
+        instruction,
+        sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
+      };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: modelSettings.provider,
+        openaiModel: modelSettings.openaiModel,
+        claudeModel: modelSettings.claudeModel,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      const nextPost = normalizePost(JSON.parse(stripJsonFence(response.content)), post.dayNumber - 1);
+      const nextResult = {
+        ...result,
+        posts: result.posts.map((item) => item.dayNumber === post.dayNumber ? nextPost : item),
+      };
+      setResult(nextResult);
+      await persistResult(nextResult, {
+        kind: 'threads_plan',
+        contentType: 'threads',
+        status: 'generated',
+        sourceSnapshot: nextResult.sourceSnapshot,
+        settings,
+        lastPostRevision: { dayNumber: post.dayNumber, instruction, workflowRunId: response.workflowRunId },
+      });
+      toast.success(`День ${post.dayNumber} доработан`);
+      return true;
+    } catch (error) {
+      console.error('[Threads] revision failed', error);
+      toast.error('Не удалось доработать пост. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingDay(null);
+    }
+  }
+
   async function handleCopy(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success('Скопировано');
@@ -491,6 +544,16 @@ export default function Threads() {
           <SettingGroup label="Формат" options={FORMATS} value={settings.formatMix} onChange={(formatMix) => setSettings((current) => ({ ...current, formatMix }))} />
           <SettingGroup label="Интенсивность продаж" options={SALES} value={settings.salesIntensity} onChange={(salesIntensity) => setSettings((current) => ({ ...current, salesIntensity }))} />
           <SettingGroup label="Тональность" options={TONES} value={settings.tone} onChange={(tone) => setSettings((current) => ({ ...current, tone }))} />
+          <div className={s.customInstruction}>
+            <div className={s.settingLabel}>Свободная инструкция и ваши идеи</div>
+            <VoiceComposer
+              value={customInstruction}
+              onChange={setCustomInstruction}
+              placeholder="Наговорите темы, примеры, наблюдения или требования к серии..."
+              textareaClassName={s.customTextarea}
+              rows={4}
+            />
+          </div>
         </div>
       </section>
 
@@ -574,6 +637,13 @@ export default function Threads() {
                         : <>Перегенерировать<AiWorkflowCost workflow="threads.post.regenerate" projectId={activeProjectId} /></>}
                     </button>
                   </div>
+                  <ContentRevisionComposer
+                    projectId={activeProjectId}
+                    workflow="threads.post.edit"
+                    isLoading={revisingDay === post.dayNumber}
+                    onSubmit={(instruction) => handleRevisePost(post, instruction)}
+                    placeholder="Например: сохраните мысль, добавьте мой пример и сделайте тон менее назидательным"
+                  />
                 </article>
               ))}
             </div>

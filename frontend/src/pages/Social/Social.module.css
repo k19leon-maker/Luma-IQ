@@ -200,7 +200,7 @@
   font-weight: 650;
 }
 
-.aiInstruction textarea {
+.aiInstructionTextarea {
   display: block;
   width: 100%;
   min-height: 62px;
@@ -217,7 +217,7 @@
   resize: vertical;
 }
 
-.aiInstruction textarea:focus {
+.aiInstructionTextarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(200, 160, 75, 0.12);
 }
@@ -1179,8 +1179,8 @@
   line-height: 1.45;
 }
 
-.highlightsAiPanel > input,
-.storyAiPanel > input {
+.highlightsAiInstruction,
+.storyAiInstruction {
   width: 100%;
   min-height: 40px;
   box-sizing: border-box;
@@ -1194,8 +1194,8 @@
   font-size: 11px;
 }
 
-.highlightsAiPanel > input:focus,
-.storyAiPanel > input:focus {
+.highlightsAiInstruction:focus,
+.storyAiInstruction:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(200, 160, 75, 0.12);
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { projectsApi } from '../api/projects.api';
+import { projectsApi, type ProjectGeneratedDataField } from '../api/projects.api';
 
 export interface ProductDraft {
   id?: string;
@@ -50,8 +50,8 @@ interface ProjectGeneratedData {
 
 interface GeneratedState {
   projects: Record<string, ProjectGeneratedData>;
-  loadedProjects: Record<string, boolean>;
-  loadFromDb: (projectId: string) => Promise<void>;
+  loadedProjectFields: Record<string, Partial<Record<ProjectGeneratedDataField, boolean>>>;
+  loadFromDb: (projectId: string, fields?: ProjectGeneratedDataField[]) => Promise<void>;
   setUtp: (projectId: string, value: string, history?: AiResultVersion<string>[]) => void;
   setSocial: (projectId: string, platform: keyof SocialDraft, value: string) => void;
   setProductMain: (projectId: string, value: ProductDraft) => void;
@@ -62,6 +62,15 @@ interface GeneratedState {
 }
 
 const EMPTY: ProjectGeneratedData = {};
+const ALL_GENERATED_FIELDS: ProjectGeneratedDataField[] = [
+  'utp',
+  'utpHistory',
+  'social',
+  'productMain',
+  'productMini',
+  'leadMagnet',
+  'leadMagnets',
+];
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,20 +83,38 @@ function syncGenerated(projectId: string, data: ProjectGeneratedData) {
 
 export const useGeneratedStore = create<GeneratedState>()((set, get) => ({
   projects: {},
-  loadedProjects: {},
+  loadedProjectFields: {},
 
-  loadFromDb: async (projectId) => {
-    if (!projectId || get().loadedProjects[projectId]) return;
-    try {
-      const data = await projectsApi.getStrategy(projectId, ['generatedData']);
-      const generatedData = (data as Record<string, unknown> | null)?.['generatedData'] as ProjectGeneratedData | undefined;
-      set((s) => ({
-        projects: generatedData ? { ...s.projects, [projectId]: generatedData } : s.projects,
-        loadedProjects: { ...s.loadedProjects, [projectId]: true },
-      }));
-    } catch {
-      set((s) => ({ loadedProjects: { ...s.loadedProjects, [projectId]: true } }));
-    }
+  loadFromDb: async (projectId, fields = ALL_GENERATED_FIELDS) => {
+    if (!projectId) return;
+    const loaded = get().loadedProjectFields[projectId] ?? {};
+    const missing = [...new Set(fields)].filter((field) => !loaded[field]);
+    if (!missing.length) return;
+
+    const parts = await Promise.allSettled(missing.map(async (field) => {
+      const data = await projectsApi.getStrategy(projectId, ['generatedData'], [field]);
+      const generatedData = (data as Record<string, unknown> | null)?.generatedData as ProjectGeneratedData | undefined;
+      return { field, generatedData };
+    }));
+
+    set((state) => {
+      const currentProject = state.projects[projectId] ?? EMPTY;
+      const nextLoaded = { ...(state.loadedProjectFields[projectId] ?? {}) };
+      let nextProject = currentProject;
+
+      for (const part of parts) {
+        if (part.status !== 'fulfilled') continue;
+        nextLoaded[part.value.field] = true;
+        if (part.value.generatedData) {
+          nextProject = { ...nextProject, ...part.value.generatedData };
+        }
+      }
+
+      return {
+        projects: { ...state.projects, [projectId]: nextProject },
+        loadedProjectFields: { ...state.loadedProjectFields, [projectId]: nextLoaded },
+      };
+    });
   },
 
   setUtp: (projectId, utp, utpHistory) =>

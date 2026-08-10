@@ -15,6 +15,7 @@ import { downloadStrategyPdf } from '../../api/strategy.api';
 import { projectsApi } from '../../api/projects.api';
 import { buildAudienceMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import { isAudienceRevisionRequest } from '../../utils/markdownRevision';
 import type { AudienceAnswers } from '../../store/audience.store';
 import {
   ChoiceCard,
@@ -303,7 +304,7 @@ export default function Strategy() {
     }
 
     if (activeProjectId && activeProjectId !== 'default') {
-      projectsApi.getStrategy(activeProjectId, ['answers', 'completed'])
+      projectsApi.getStrategyFields(activeProjectId, ['answers', 'completed'])
         .then((dbData) => {
           if (!dbData) return;
           const remoteAnswers   = (dbData as Record<string, unknown>).answers as Partial<AudienceAnswers> | undefined;
@@ -680,7 +681,13 @@ export default function Strategy() {
     const currentEntry = [...docEntries].reverse().find((entry) => entry.stepId !== 99);
     const stepTitle = currentEntry ? STEP_TITLES[currentEntry.stepId] : 'ЦЕЛЕВАЯ АУДИТОРИЯ';
     const stepId = currentEntry?.stepId ?? 0;
+    const currentStep = STEPS.find((step) => step.id === stepId);
     const isChoicePending = Boolean(currentEntry?.type === 'choice' && !currentEntry.chosen);
+    const isRevision = Boolean(
+      currentEntry?.type === 'text'
+      && currentStep?.answerKey
+      && isAudienceRevisionRequest(question),
+    );
     const questionCandidate = currentEntry && isChoicePending
       ? extractChoiceCandidate(question, currentEntry.stepId)
       : null;
@@ -739,7 +746,7 @@ export default function Strategy() {
 
     try {
       const content = await runAudienceWorkflow(stepId, answersRef.current, projectContext, mergedProfile, {
-        mode: 'stepChat',
+        mode: isRevision ? 'stepEdit' : 'stepChat',
         stepTitle,
         currentResult,
         question,
@@ -750,7 +757,23 @@ export default function Strategy() {
         ? extractChoiceCandidate(content, currentEntry.stepId)
         : null;
       if (responseCandidate) setPendingCustomChoice(responseCandidate);
-      setStepChatMessages((prev) => [...prev, { role: 'assistant', content, stepTitle, stepId }]);
+
+      if (isRevision && currentStep?.answerKey) {
+        const nextAnswers = { ...answersRef.current, [currentStep.answerKey]: content };
+        answersRef.current = nextAnswers;
+        updateDocEntry(stepId, { fullText: content, displayedText: content, isTyping: false });
+        persistAudienceProgress(nextAnswers, completed);
+        if (completed) upsertMaterial(activeProjectId, buildAudienceMaterial(nextAnswers));
+        setStepChatMessages((prev) => [...prev, {
+          role: 'assistant',
+          content: `Текущая версия шага обновлена.\n\n${content}`,
+          stepTitle,
+          stepId,
+        }]);
+        toast.success('Результат шага обновлён');
+      } else {
+        setStepChatMessages((prev) => [...prev, { role: 'assistant', content, stepTitle, stepId }]);
+      }
     } catch {
       toast.error('Не удалось получить ответ в чате шага');
       setStepChatMessages((prev) => prev.filter((msg) => msg !== userMsg));
@@ -1148,7 +1171,7 @@ export default function Strategy() {
               isLoading={stepChatLoading}
               disabled={!activeStepEntry}
               section="audience"
-              placeholder={activeStepEntry ? `Спросите по шагу: ${activeStepTitle.toLowerCase()}...` : 'Сначала запустите анализ, затем можно будет уточнять каждый шаг...'}
+              placeholder={activeStepEntry ? `Спросите или скажите, что изменить в шаге: ${activeStepTitle.toLowerCase()}...` : 'Сначала запустите анализ, затем можно будет уточнять каждый шаг...'}
             />
           </div>
           <div style={{ maxWidth: 900, margin: '5px auto 0', color: '#aaa', fontSize: 10.5, textAlign: 'right' }}>

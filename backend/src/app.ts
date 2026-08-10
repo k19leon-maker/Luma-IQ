@@ -29,6 +29,7 @@ import telegramBotRouter from './routes/telegram-bot.routes';
 import { env } from './config/env';
 import { errorHandler } from './middleware/error.middleware';
 import { healthService } from './services/health.service';
+import { requestContext } from './middleware/request-context.middleware';
 
 export function createApp() {
   const app = express();
@@ -39,6 +40,7 @@ export function createApp() {
   ])];
 
   app.set('trust proxy', 1);
+  app.use(requestContext);
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {

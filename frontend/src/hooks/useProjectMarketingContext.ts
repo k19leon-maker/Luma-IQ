@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { projectsApi } from '../api/projects.api';
 import { useAudienceStore, type AudienceAnswers } from '../store/audience.store';
-import { useGeneratedStore } from '../store/generated.store';
 import { useMaterialsStore } from '../store/materials.store';
 import { useProjectsStore } from '../store/projects.store';
 import { useUnpackingStore } from '../store/unpacking.store';
@@ -107,7 +106,6 @@ export function useProjectMarketingContext() {
   const audienceSave = useAudienceStore((s) => s.save);
   const materials = useMaterialsStore((s) => activeProjectId ? (s.projects[activeProjectId] ?? EMPTY_MATERIALS) : EMPTY_MATERIALS);
   const loadMaterialsFromDb = useMaterialsStore((s) => s.loadFromDb);
-  const loadGeneratedFromDb = useGeneratedStore((s) => s.loadFromDb);
 
   const [positioning, setPositioning] = useState<PositioningData | null>(null);
   const [expertProfile, setExpertProfile] = useState<ExpertProfileData | null>(null);
@@ -124,9 +122,8 @@ export function useProjectMarketingContext() {
     if (!activeProjectId || activeProjectId === 'default') return;
 
     void loadMaterialsFromDb(activeProjectId);
-    void loadGeneratedFromDb(activeProjectId);
 
-    projectsApi.getStrategy(activeProjectId, ['expertProfileData', 'positioningData', 'answers', 'completed'])
+    projectsApi.getStrategyFields(activeProjectId, ['expertProfileData', 'positioningData', 'answers', 'completed'])
       .then((data) => {
         if (!alive || !data) return;
         const raw = data as Record<string, unknown>;
@@ -141,7 +138,7 @@ export function useProjectMarketingContext() {
       .catch(() => {});
 
     return () => { alive = false; };
-  }, [activeProjectId, audienceSave, loadGeneratedFromDb, loadMaterialsFromDb]);
+  }, [activeProjectId, audienceSave, loadMaterialsFromDb]);
 
   const audience = useMemo(
     () => ({ ...remoteAudience, ...localAudience }),

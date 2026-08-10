@@ -59,4 +59,7 @@ export const LANDING_MEDIA = {
   newModelEcosystem: asset('new-model-ecosystem.webp', 1448, 1086),
   newModelEcosystemMobile: asset('new-model-ecosystem-mobile.webp', 971, 1619),
   oldModelExpertOverload: asset('old-model-expert-overload.webp', 1060, 1180),
+  aiTeamHeroDesktop: asset('landing-v2/hero-ai-team-desktop.webp', 1254, 1120),
+  aiTeamHeroMobile: asset('landing-v2/hero-ai-team-mobile.webp', 900, 1350),
+  productStrategy: asset('landing-v2/product-strategy.webp', 1200, 800),
 } as const;

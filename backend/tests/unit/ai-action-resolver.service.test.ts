@@ -57,6 +57,22 @@ describe('aiActionResolverService', () => {
     })).toBe('lead_magnet_edit');
   });
 
+  it.each([
+    ['post', 'posts.post', 'content_post_edit'],
+    ['reel', 'reels.script', 'content_reel_edit'],
+    ['threads', 'threads.post', 'content_thread_edit'],
+    ['article', 'articles.article', 'content_article_edit'],
+    ['video_script', 'video.script', 'youtube_script_edit'],
+    ['chatbot_chain', 'chatbot.chain', 'chatbot_scenario_edit'],
+  ])('routes %s revisions to the lower-cost edit action', (featureCode, workflow, expected) => {
+    expect(aiActionResolverService.resolve({
+      featureCode,
+      workflow,
+      step: 'edit',
+      inputs: {},
+    })).toBe(expected);
+  });
+
   it('routes selling posts and video scripts to their own pipelines', () => {
     expect(aiActionResolverService.resolve({
       featureCode: 'post',

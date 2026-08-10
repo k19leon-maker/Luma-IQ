@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  parseProjectGeneratedDataFields,
   parseProjectStrategyFields,
+  pickProjectGeneratedDataFields,
   pickProjectStrategyFields,
 } from '../../src/utils/project-strategy-fields';
 
@@ -33,5 +35,17 @@ describe('project strategy field selection', () => {
       fields: ['expertProfileData'],
       invalid: ['passwordHash'],
     });
+  });
+
+  it('selects only requested generated data fields', () => {
+    const parsed = parseProjectGeneratedDataFields('utp,productMain,utp');
+    const selected = pickProjectGeneratedDataFields({
+      utp: 'УТП',
+      productMain: { name: 'Продукт' },
+      productMini: { name: 'Мини-продукт' },
+    }, parsed.fields);
+
+    expect(parsed).toEqual({ fields: ['utp', 'productMain'], invalid: [] });
+    expect(selected).toEqual({ utp: 'УТП', productMain: { name: 'Продукт' } });
   });
 });

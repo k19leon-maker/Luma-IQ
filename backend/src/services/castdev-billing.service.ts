@@ -9,7 +9,7 @@ import { aiFeatureFlagsService } from './ai-feature-flags.service';
 import { aiPointLedgerService } from './ai-point-ledger.service';
 
 function transcriptionModel(modelId?: string): string {
-  return modelId ?? process.env['OPENAI_TRANSCRIPTION_MODEL'] ?? 'gpt-4o-mini-transcribe';
+  return modelId ?? 'TRANSCRIBE_MINI';
 }
 
 function transcriptionMetadata(input: {

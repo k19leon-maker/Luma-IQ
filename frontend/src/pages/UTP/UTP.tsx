@@ -9,6 +9,8 @@ import { buildUtpMaterial } from '../../utils/projectMaterials';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import s from './UTPVoice.module.css';
 
 
 export default function UTP() {
@@ -20,9 +22,9 @@ export default function UTP() {
 
   const [utpText,   setUtpText]   = useState('');
   const [inputText, setInputText] = useState('');
-  const [focused,   setFocused]   = useState(false);
   const [copied,    setCopied]    = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [materialStatus, setMaterialStatus] = useState('');
   const loadedUtpKeyRef = useRef('');
 
@@ -66,7 +68,7 @@ export default function UTP() {
   }
 
   async function handleGenerate() {
-    if (loading) return;
+    if (loading || voiceBusy) return;
     if (!activeProjectId) {
       toast.error('Сначала выберите проект');
       return;
@@ -96,7 +98,7 @@ export default function UTP() {
   }
 
   async function handleImprove() {
-    if (!utpText || loading) return;
+    if (!utpText || loading || voiceBusy) return;
     if (!activeProjectId) {
       toast.error('Сначала выберите проект');
       return;
@@ -174,34 +176,24 @@ export default function UTP() {
         </div>
       )}
 
-      <textarea
+      <VoiceComposer
         value={inputText}
-        onChange={(e) => setInputText(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onChange={setInputText}
+        onBusyChange={setVoiceBusy}
+        disabled={loading}
         placeholder="Опишите вашу уникальность или вставьте текст для улучшения"
-        style={{
-          width: '100%',
-          minHeight: 120,
-          padding: 14,
-          border: `1px solid ${focused ? '#D4A847' : '#E5E3DC'}`,
-          borderRadius: 8,
-          fontSize: 14,
-          resize: 'vertical',
-          outline: 'none',
-          fontFamily: 'inherit',
-          boxSizing: 'border-box',
-          marginBottom: 16,
-          color: '#1a1a1a',
-        }}
+        textareaClassName={s.instruction}
+        className={s.voiceComposer}
+        rows={5}
+        maxLength={4000}
       />
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <button style={btnGold} onClick={() => void handleGenerate()} disabled={loading}>
+        <button style={btnGold} onClick={() => void handleGenerate()} disabled={loading || voiceBusy}>
           {loading ? 'Генерирую...' : 'Сгенерировать УТП'}
           {!loading && <AiWorkflowCost workflow="strategy.utp.generate" projectId={activeProjectId} />}
         </button>
-        <button style={btnOutlined} onClick={() => void handleImprove()} disabled={loading || !utpText}>
+        <button style={btnOutlined} onClick={() => void handleImprove()} disabled={loading || voiceBusy || !utpText}>
           Улучшить с AI
           {!loading && <AiWorkflowCost workflow="strategy.utp.generate" projectId={activeProjectId} />}
         </button>

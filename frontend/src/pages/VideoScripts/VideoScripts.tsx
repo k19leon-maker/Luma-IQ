@@ -13,7 +13,8 @@ import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './VideoScripts.module.css';
 
@@ -144,16 +145,14 @@ export default function VideoScripts() {
   const [duration,   setDuration]   = useState<Duration>('10');
   const [ctaType,    setCtaType]    = useState<CtaType>('telegram');
   const [botKeyword, setBotKeyword] = useState('');
+  const [ideaFlow, setIdeaFlow] = useState('');
 
   // Step 2
   const [themes,        setThemes]        = useState<string[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [facture,       setFacture]       = useState('');
-  const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const voice = useAudioRecorder(
-    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
-    (message) => toast.error(message),
-  );
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [revisingId, setRevisingId] = useState<string | null>(null);
 
   // Editor unsaved changes
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
@@ -230,6 +229,7 @@ export default function VideoScripts() {
       const inputs = {
         duration,
         segment: seg,
+        ideaFlow: ideaFlow.trim() || null,
       };
       const resp = await aiApi.startWorkflow('video.topic.generate', {
         projectId: activeProjectId,
@@ -379,6 +379,31 @@ export default function VideoScripts() {
     setEditMap(prev => { const n = { ...prev }; delete n[scId]; return n; });
   }
 
+  async function handleAiRevision(script: SavedScript, instruction: string): Promise<boolean> {
+    if (!activeProjectId) return false;
+    const current = getEditorState(script);
+    setRevisingId(script.id);
+    try {
+      const workflow = 'video.script.edit';
+      const inputs = { title: current.title, currentContent: current.content, instruction };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      setEditorField(script.id, 'content', response.content);
+      toast.success('Сценарий доработан. Проверьте результат и сохраните.');
+      return true;
+    } catch (error) {
+      console.error('[VideoScripts] AI revision failed', error);
+      toast.error('Не удалось доработать сценарий. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingId(null);
+    }
+  }
+
   function handleCopy(scId: string) {
     const sc = scripts.find(s => s.id === scId);
     if (sc) navigator.clipboard.writeText(getEditorState(sc).content);
@@ -453,6 +478,14 @@ export default function VideoScripts() {
           </button>
           <button className={s.actionBtn} onClick={() => handleDownload(sc.id)}>Скачать .docx</button>
         </div>
+        <ContentRevisionComposer
+          key={sc.id}
+          projectId={activeProjectId}
+          workflow="video.script.edit"
+          isLoading={revisingId === sc.id}
+          onSubmit={(instruction) => handleAiRevision(sc, instruction)}
+          placeholder="Например: усилите первые 30 секунд, добавьте пример и сохраните тайминги"
+        />
       </div>
     );
   }
@@ -562,13 +595,26 @@ export default function VideoScripts() {
           )}
         </div>
 
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Ваши идеи для видео</div>
+          <div className={s.sectionSub}>Надиктуйте поток мыслей. AI предложит темы, а сценарий будет создан только после вашего выбора.</div>
+          <VoiceComposer
+            value={ideaFlow}
+            onChange={setIdeaFlow}
+            placeholder="Наговорите тезисы, историю, пример или вопрос аудитории..."
+            textareaClassName={s.factureTextarea}
+            rows={4}
+            onBusyChange={setVoiceBusy}
+          />
+        </div>
+
         <div className={s.btnRow}>
           {scripts.length > 0 && (
             <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>
               ← Назад к сценариям
             </button>
           )}
-          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()}>
+          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()} disabled={voiceBusy}>
             Сгенерировать темы →
           </button>
         </div>
@@ -609,38 +655,13 @@ export default function VideoScripts() {
           ))}
         </div>
 
-        {voice.isSupported && (
-          <div className={s.inputModeRow}>
-            <button
-              className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}
-            >✏️ Текст</button>
-            <button
-              className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => setInputMode('voice')}
-            >🎤 Голос</button>
-          </div>
-        )}
-
-        {inputMode === 'text' ? (
-          <textarea
-            className={s.factureTextarea}
-            placeholder="Расскажите о своём опыте, случае из практики, кейсе клиента..."
-            value={facture}
-            onChange={e => setFacture(e.target.value)}
-          />
-        ) : (
-          <div className={s.voiceArea}>
-            <button
-              className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`}
-              onClick={voice.toggle}
-              disabled={voice.isTranscribing}
-            >
-              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
-            </button>
-            {facture && <div className={s.voiceTranscript}>{facture}</div>}
-          </div>
-        )}
+        <VoiceComposer
+          value={facture}
+          onChange={setFacture}
+          textareaClassName={s.factureTextarea}
+          placeholder="Расскажите о своём опыте, случае из практики, кейсе клиента..."
+          onBusyChange={setVoiceBusy}
+        />
 
         <div className={s.factureCounter}>
           {facture.length} символов{' '}
@@ -654,7 +675,7 @@ export default function VideoScripts() {
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
         <button
           className={s.primaryBtn}
-          disabled={facture.trim().length < 50}
+          disabled={facture.trim().length < 50 || voiceBusy}
           onClick={() => void handleGenerateScript()}
         >
           Написать сценарий

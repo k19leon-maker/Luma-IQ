@@ -12,6 +12,7 @@ import {
 } from '../../api/projects.api';
 import { aiApi, type WorkflowResponse } from '../../api/ai';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import { useProjectsStore } from '../../store/projects.store';
 import {
   validateInstagramProfile,
@@ -260,6 +261,7 @@ export default function Social() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [aiInstruction, setAiInstruction] = useState('');
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [aiAction, setAiAction] = useState<'generate' | 'improve' | null>(null);
   const [aiProposal, setAiProposal] = useState<InstagramProfileHeader | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
@@ -416,7 +418,7 @@ export default function Social() {
   }
 
   async function runAiProfile(action: 'generate' | 'improve') {
-    if (!activeProjectId || !packaging || aiAction) return;
+    if (!activeProjectId || !packaging || aiAction || voiceBusy) return;
     setAiAction(action);
     try {
       const workflow = `instagram.profile.${action}`;
@@ -541,12 +543,15 @@ export default function Social() {
 
               <label className={styles.aiInstruction}>
                 <span>Пожелание к результату</span>
-                <textarea
+                <VoiceComposer
                   value={aiInstruction}
-                  onChange={(event) => setAiInstruction(event.target.value)}
+                  onChange={setAiInstruction}
+                  onBusyChange={setVoiceBusy}
                   placeholder="Например: сделай спокойнее, конкретнее или усили следующий шаг"
                   rows={2}
+                  maxLength={2000}
                   disabled={Boolean(aiAction)}
+                  textareaClassName={styles.aiInstructionTextarea}
                 />
               </label>
 
@@ -554,7 +559,7 @@ export default function Social() {
                 <button
                   type="button"
                   onClick={() => void runAiProfile('generate')}
-                  disabled={Boolean(aiAction)}
+                  disabled={Boolean(aiAction) || voiceBusy}
                 >
                   {aiAction === 'generate' ? 'Собираем…' : 'Сгенерировать шапку'}
                   <AiWorkflowCost
@@ -567,7 +572,7 @@ export default function Social() {
                   type="button"
                   className={styles.aiSecondaryButton}
                   onClick={() => void runAiProfile('improve')}
-                  disabled={Boolean(aiAction)}
+                  disabled={Boolean(aiAction) || voiceBusy}
                 >
                   {aiAction === 'improve' ? 'Улучшаем…' : 'Улучшить текущую'}
                   <AiWorkflowCost

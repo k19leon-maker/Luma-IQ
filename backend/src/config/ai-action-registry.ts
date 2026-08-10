@@ -55,6 +55,16 @@ const multi = (
 
 export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
   ai_chat: one('ai_chat', 'LUNA', AI_ACTION_COSTS.ai_chat, { contextBudget: 8_000, outputLimit: 1_500 }),
+  audio_transcription: one(
+    'audio_transcription',
+    'TRANSCRIBE_MINI',
+    AI_ACTION_COSTS.audio_transcription,
+    {
+      contextBudget: 0,
+      outputLimit: 0,
+      fallbackPolicy: { aliases: [], allowDowngrade: false },
+    },
+  ),
   ai_chat_quick: one('ai_chat_quick', 'LUNA', AI_ACTION_COSTS.ai_chat_quick, { contextBudget: 6_000, outputLimit: 1_200 }),
   ai_chat_deep: one('ai_chat_deep', 'LUNA', AI_ACTION_COSTS.ai_chat_deep, { contextBudget: 14_000, outputLimit: 3_500 }),
   ai_chat_strategy: one('ai_chat_strategy', 'LUNA', AI_ACTION_COSTS.ai_chat_strategy, { contextBudget: 24_000, outputLimit: 7_000 }),
@@ -169,12 +179,14 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
     { stage: 'draft', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 10_000 },
     { stage: 'review', modelAlias: 'TERRA', reasoning: 'low', outputLimit: 12_000 },
   ], AI_ACTION_COSTS.content_article, { contextBudget: 28_000, outputLimit: 12_000 }),
+  content_article_edit: one('content_article_edit', 'LUNA', AI_ACTION_COSTS.content_article_edit, { contextBudget: 18_000, outputLimit: 8_000 }),
   content_longread: multi('content_longread', [
     { stage: 'outline', modelAlias: 'TERRA', reasoning: 'medium' },
     { stage: 'draft', modelAlias: 'LUNA', reasoning: 'low' },
     { stage: 'review', modelAlias: 'TERRA', reasoning: 'low' },
   ], AI_ACTION_COSTS.content_longread, { contextBudget: 32_000, outputLimit: 16_000 }),
   youtube_script: one('youtube_script', 'LUNA', AI_ACTION_COSTS.youtube_script, { outputLimit: 12_000 }),
+  youtube_script_edit: one('youtube_script_edit', 'LUNA', AI_ACTION_COSTS.youtube_script_edit, { contextBudget: 16_000, outputLimit: 7_000 }),
   youtube_script_selling: multi('youtube_script_selling', [
     { stage: 'architecture', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 1_800 },
     { stage: 'script', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 9_000 },
@@ -192,6 +204,7 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
   tg_channel_post_edit: one('tg_channel_post_edit', 'LUNA', AI_ACTION_COSTS.tg_channel_post_edit, { contextBudget: 6_000 }),
   tg_channel_post_audio_adapt: one('tg_channel_post_audio_adapt', 'LUNA', AI_ACTION_COSTS.tg_channel_post_audio_adapt),
   tg_channel_post_video_script: one('tg_channel_post_video_script', 'LUNA', AI_ACTION_COSTS.tg_channel_post_video_script),
+  chatbot_scenario_edit: one('chatbot_scenario_edit', 'LUNA', AI_ACTION_COSTS.chatbot_scenario_edit, { contextBudget: 8_000, outputLimit: 3_000 }),
   castdev_transcription: one('castdev_transcription', 'TRANSCRIBE_MINI', AI_ACTION_COSTS.castdev_transcription, {
     contextBudget: 0,
     outputLimit: 0,
@@ -257,6 +270,7 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
 
 export const LEGACY_FEATURE_TO_ACTION: Record<string, AIActionKey> = {
   ai_chat: 'ai_chat',
+  audio_transcription: 'audio_transcription',
   about_ai_summary: 'strategy_about',
   positioning: 'positioning',
   audience: 'audience',

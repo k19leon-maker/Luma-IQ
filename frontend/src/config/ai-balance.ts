@@ -18,8 +18,11 @@ export type AiActionType =
   | 'content_reel'
   | 'content_thread'
   | 'content_article'
+  | 'content_article_edit'
   | 'content_longread'
   | 'youtube_script'
+  | 'youtube_script_edit'
+  | 'chatbot_scenario_edit'
   | 'content_plan'
   | 'tg_channel_plan'
   | 'tg_channel_post'
@@ -51,8 +54,11 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   content_reel: 7,
   content_thread: 20,
   content_article: 30,
+  content_article_edit: 5,
   content_longread: 30,
   youtube_script: 35,
+  youtube_script_edit: 5,
+  chatbot_scenario_edit: 3,
   content_plan: 40,
   tg_channel_plan: 40,
   tg_channel_post: 5,
@@ -85,8 +91,11 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   content_reel: 'Рилс',
   content_thread: 'Цепочка постов',
   content_article: 'Статья',
+  content_article_edit: 'Доработка статьи',
   content_longread: 'Лонгрид',
   youtube_script: 'YouTube-сценарий',
+  youtube_script_edit: 'Доработка YouTube-сценария',
+  chatbot_scenario_edit: 'Доработка сообщения чат-бота',
   content_plan: 'Контент-план',
   tg_channel_plan: 'План ТГ-канала',
   tg_channel_post: 'Пост для ТГ-канала',
@@ -120,8 +129,11 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   content_reel: 'Контент',
   content_thread: 'Контент',
   content_article: 'Контент',
+  content_article_edit: 'Контент',
   content_longread: 'Контент',
   youtube_script: 'Контент',
+  youtube_script_edit: 'Контент',
+  chatbot_scenario_edit: 'Упаковка',
   content_plan: 'Контент',
   tg_channel_plan: 'Контент',
   tg_channel_post: 'Контент',

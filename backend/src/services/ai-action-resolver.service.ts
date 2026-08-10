@@ -60,6 +60,9 @@ function explicitContentAction(
   if (workflow === 'reels.script' && step === 'edit') return 'content_reel_edit';
   if (workflow === 'reels.script' && step === 'regenerate') return 'content_reel_regenerate';
   if (workflow === 'threads.post' && step === 'edit') return 'content_thread_edit';
+  if (workflow === 'articles.article' && step === 'edit') return 'content_article_edit';
+  if (workflow === 'video.script' && step === 'edit') return 'youtube_script_edit';
+  if (workflow === 'chatbot.chain' && step === 'edit') return 'chatbot_scenario_edit';
   const intent = String(inputs.intent ?? inputs.goal ?? inputs.contentType ?? '').toLowerCase();
   if (workflow === 'posts.post' && step === 'write' && /продаж|sale|selling/.test(intent)) {
     return 'selling_post';

@@ -24,6 +24,15 @@ export type ProjectStrategyField =
   | 'materialsData'
   | 'generatedData';
 
+export type ProjectGeneratedDataField =
+  | 'utp'
+  | 'utpHistory'
+  | 'social'
+  | 'productMain'
+  | 'productMini'
+  | 'leadMagnet'
+  | 'leadMagnets';
+
 export const INSTAGRAM_PACKAGING_VERSION = 1 as const;
 
 export interface InstagramStoryDraft {
@@ -145,13 +154,21 @@ export const projectsApi = {
   setArchived: (id: string, archived: boolean) =>
     apiClient.patch<{ project: Project }>(`/projects/${id}/archive`, { archived }).then((r) => r.data.project),
 
-  getStrategy: (id: string, fields?: ProjectStrategyField[]) =>
+  getStrategy: (id: string, fields?: ProjectStrategyField[], generatedFields?: ProjectGeneratedDataField[]) =>
     apiClient
       .get<{ strategyData: Record<string, unknown> | null }>(`/projects/${id}/strategy`, {
-        params: fields?.length ? { fields: fields.join(',') } : undefined,
+        params: {
+          ...(fields?.length ? { fields: fields.join(',') } : {}),
+          ...(generatedFields?.length ? { generatedFields: generatedFields.join(',') } : {}),
+        },
         timeout: 60_000,
       })
       .then((r) => r.data.strategyData),
+
+  getStrategyFields: async (id: string, fields: ProjectStrategyField[]) => {
+    const parts = await Promise.all(fields.map((field) => projectsApi.getStrategy(id, [field])));
+    return Object.assign({}, ...parts.filter(Boolean)) as Record<string, unknown>;
+  },
 
   saveStrategy: (id: string, data: Record<string, unknown>) =>
     apiClient

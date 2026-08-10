@@ -12,9 +12,10 @@ import { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import s from './Posts.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -213,17 +214,15 @@ export default function Posts() {
   const [postType, setPostType] = useState<PostType>('pain');
   const [offer,    setOffer]    = useState<Offer>('lead');
   const [keyword,  setKeyword]  = useState('');
+  const [ideaFlow, setIdeaFlow] = useState('');
 
   // Step 2 state
   const [themes,        setThemes]        = useState<string[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [facture,       setFacture]       = useState('');
   const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
-  const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const voice = useAudioRecorder(
-    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
-    (message) => toast.error(message),
-  );
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [revisingId, setRevisingId] = useState<string | null>(null);
 
   // Editor edit-in-progress (unsaved changes per post id)
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
@@ -268,6 +267,7 @@ export default function Posts() {
         postType: typeLabels[postType],
         goal: offer === 'lead' ? 'продать лид-магнит' : offer === 'mini' ? 'продать мини-продукт' : 'продать основной продукт',
         selectedSegment: segCtx || null,
+        ideaFlow: ideaFlow.trim() || null,
       };
       const resp = await aiApi.startWorkflow('posts.topic.generate', {
         projectId: activeProjectId,
@@ -411,6 +411,31 @@ export default function Posts() {
     }
   }
 
+  async function handleAiRevision(post: SavedPost, instruction: string): Promise<boolean> {
+    if (!activeProjectId) return false;
+    const current = getEditorState(post);
+    setRevisingId(post.id);
+    try {
+      const workflow = 'posts.post.edit';
+      const inputs = { title: current.title, currentContent: current.content, instruction };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      setEditorField(post.id, 'content', response.content);
+      toast.success('Пост доработан. Проверьте результат и сохраните.');
+      return true;
+    } catch (error) {
+      console.error('[Posts] AI revision failed', error);
+      toast.error('Не удалось доработать пост. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingId(null);
+    }
+  }
+
   function handleCopy(postId: string) {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
@@ -487,6 +512,14 @@ export default function Posts() {
           </button>
           <button className={s.actionBtn} onClick={() => handleDownload(post.id)}>Скачать</button>
         </div>
+        <ContentRevisionComposer
+          key={post.id}
+          projectId={activeProjectId}
+          workflow="posts.post.edit"
+          isLoading={revisingId === post.id}
+          onSubmit={(instruction) => handleAiRevision(post, instruction)}
+          placeholder="Например: сократите вступление, сохраните пример и сделайте CTA мягче"
+        />
       </div>
     );
   }
@@ -600,13 +633,26 @@ export default function Posts() {
           <div className={s.inputHint}>Используется в призыве в конце поста</div>
         </div>
 
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Ваши идеи и исходная фактура</div>
+          <div className={s.sectionSub}>Надиктуйте поток мыслей. AI превратит его в список тем, но ничего не опубликует и не создаст без вашего выбора.</div>
+          <VoiceComposer
+            value={ideaFlow}
+            onChange={setIdeaFlow}
+            placeholder="Наговорите мысли, наблюдения, истории или темы..."
+            textareaClassName={s.factureTextarea}
+            rows={4}
+            onBusyChange={setVoiceBusy}
+          />
+        </div>
+
         <div className={s.btnRow}>
           {posts.length > 0 && (
             <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>
               ← Назад к постам
             </button>
           )}
-          <button className={s.primaryBtn} onClick={handleGenerateThemes}>
+          <button className={s.primaryBtn} onClick={handleGenerateThemes} disabled={voiceBusy}>
             Сгенерировать темы<AiWorkflowCost workflow="posts.topic.generate" projectId={activeProjectId} /> →
           </button>
         </div>
@@ -646,42 +692,13 @@ export default function Posts() {
           ))}
         </div>
 
-        {voice.isSupported && (
-          <div className={s.inputModeRow}>
-            <button
-              className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}
-            >
-              ✏️ Текст
-            </button>
-            <button
-              className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => setInputMode('voice')}
-            >
-              🎤 Голос
-            </button>
-          </div>
-        )}
-
-        {inputMode === 'text' ? (
-          <textarea
-            className={s.factureTextarea}
-            placeholder="Расскажите о своём опыте, случае из практики или инсайте..."
-            value={facture}
-            onChange={e => setFacture(e.target.value)}
-          />
-        ) : (
-          <div className={s.voiceArea}>
-            <button
-              className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`}
-              onClick={voice.toggle}
-              disabled={voice.isTranscribing}
-            >
-              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
-            </button>
-            {facture && <div className={s.voiceTranscript}>{facture}</div>}
-          </div>
-        )}
+        <VoiceComposer
+          value={facture}
+          onChange={setFacture}
+          textareaClassName={s.factureTextarea}
+          placeholder="Расскажите о своём опыте, случае из практики или инсайте..."
+          onBusyChange={setVoiceBusy}
+        />
 
         <div className={s.factureCounter}>
           {facture.length} символов{' '}
@@ -695,7 +712,7 @@ export default function Posts() {
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
         <button
           className={s.primaryBtn}
-          disabled={facture.trim().length < 30}
+          disabled={facture.trim().length < 30 || voiceBusy}
           onClick={handleGeneratePost}
         >
           Написать пост<AiWorkflowCost workflow="posts.post.write" projectId={activeProjectId} inputs={{ intent: 'selling' }} /> →

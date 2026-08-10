@@ -6,7 +6,12 @@ import { projectService } from '../services/project.service';
 import { eventService } from '../services/event.service';
 import { AccessPolicyError } from '../services/access-policy.service';
 import { sanitizeProjectStrategyData } from '../utils/demo-products';
-import { parseProjectStrategyFields, pickProjectStrategyFields } from '../utils/project-strategy-fields';
+import {
+  parseProjectGeneratedDataFields,
+  parseProjectStrategyFields,
+  pickProjectGeneratedDataFields,
+  pickProjectStrategyFields,
+} from '../utils/project-strategy-fields';
 
 function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
   res.status(err.status).json({
@@ -311,8 +316,13 @@ export const projectController = {
   async getStrategyData(req: AuthRequest, res: Response): Promise<void> {
     try {
       const requested = parseProjectStrategyFields(req.query.fields);
+      const requestedGenerated = parseProjectGeneratedDataFields(req.query.generatedFields);
       if (requested.invalid.length > 0) {
         res.status(400).json({ error: `Неизвестные поля стратегии: ${requested.invalid.join(', ')}` });
+        return;
+      }
+      if (requestedGenerated.invalid.length > 0) {
+        res.status(400).json({ error: `Неизвестные поля generatedData: ${requestedGenerated.invalid.join(', ')}` });
         return;
       }
       const project = await projectService.getOwned(req.userId!, req.params.id as string);
@@ -324,11 +334,14 @@ export const projectController = {
         ? sanitizeProjectStrategyData(project.strategyData as Record<string, unknown>)
         : null;
       res.set('Cache-Control', 'private, no-store');
-      res.json({
-        strategyData: strategyData
-          ? pickProjectStrategyFields(strategyData, requested.fields)
-          : null,
-      });
+      const selected = strategyData ? pickProjectStrategyFields(strategyData, requested.fields) : null;
+      if (selected?.generatedData && typeof selected.generatedData === 'object' && !Array.isArray(selected.generatedData)) {
+        selected.generatedData = pickProjectGeneratedDataFields(
+          selected.generatedData as Record<string, unknown>,
+          requestedGenerated.fields,
+        );
+      }
+      res.json({ strategyData: selected });
     } catch (err) {
       console.error('[Projects] getStrategyData:', err);
       res.status(500).json({ error: 'Ошибка при загрузке данных стратегии' });
@@ -388,7 +401,19 @@ export const projectController = {
       // Merge new data into existing strategyData
       const existing = sanitizeProjectStrategyData((project.strategyData as Record<string, unknown>) ?? {});
       const cleanedData = sanitizeProjectStrategyData(parsed.data);
-      const merged = sanitizeProjectStrategyData({ ...existing, ...cleanedData }) as Prisma.InputJsonValue;
+      const mergedGeneratedData = cleanedData.generatedData
+        ? {
+            ...((existing.generatedData && typeof existing.generatedData === 'object' && !Array.isArray(existing.generatedData))
+              ? existing.generatedData as Record<string, unknown>
+              : {}),
+            ...cleanedData.generatedData,
+          }
+        : existing.generatedData;
+      const merged = sanitizeProjectStrategyData({
+        ...existing,
+        ...cleanedData,
+        ...(mergedGeneratedData ? { generatedData: mergedGeneratedData } : {}),
+      }) as Prisma.InputJsonValue;
       const { prisma } = await import('../lib/prisma');
       await prisma.project.update({
         where: { id: req.params.id as string },

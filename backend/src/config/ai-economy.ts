@@ -3,6 +3,7 @@ import { getPlanBySubscriptionPlan, PricingPlanLimits } from './pricing-plans';
 
 export type FeatureCode =
   | 'ai_chat'
+  | 'audio_transcription'
   | 'about_ai_summary'
   | 'positioning'
   | 'audience'
@@ -72,6 +73,14 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 1,
     includedTokens: 4000,
     maxContextTokens: 8000,
+  },
+  audio_transcription: {
+    featureCode: 'audio_transcription',
+    featureGroup: 'chat',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 0,
+    maxContextTokens: 0,
   },
   about_ai_summary: {
     featureCode: 'about_ai_summary',

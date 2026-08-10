@@ -457,3 +457,16 @@
     grid-template-columns: 1fr;
   }
 }
+.customInstruction { margin-top: 18px; }
+.customTextarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}

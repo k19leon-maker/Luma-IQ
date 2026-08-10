@@ -14,7 +14,8 @@ import type { ContentItem } from '../../api/content.api';
 import { contentGenerationKey, useContentGenerationStore } from '../../store/content-generation.store';
 import { createdDateRu, isMigrated, markMigrated, metadataString, readLegacyItemsWithProjectFallback } from '../../utils/generatedContentPersistence';
 import { isDemoContentText } from '../../utils/demoDataCleanup';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
 import s from './Articles.module.css';
 
@@ -233,17 +234,15 @@ export default function Articles() {
   const [depth,       setDepth]       = useState<Depth>('deep');
   const [ctaType,     setCtaType]     = useState<CtaType>('soft');
   const [botKeyword,  setBotKeyword]  = useState('');
+  const [ideaFlow, setIdeaFlow] = useState('');
 
   // Step 2
   const [topics,        setTopics]        = useState<TopicOption[]>([]);
   const [selectedTheme, setSelectedTheme] = useState('');
   const [topicsWorkflowRunId, setTopicsWorkflowRunId] = useState('');
   const [facture,       setFacture]       = useState('');
-  const [inputMode,     setInputMode]     = useState<'text' | 'voice'>('text');
-  const voice = useAudioRecorder(
-    (text) => setFacture((prev) => prev ? `${prev} ${text}` : text),
-    (message) => toast.error(message),
-  );
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [revisingId, setRevisingId] = useState<string | null>(null);
 
   // Editor unsaved changes
   const [editMap, setEditMap] = useState<Record<string, { title: string; content: string }>>({});
@@ -353,6 +352,7 @@ export default function Articles() {
         depth,
         selectedSegment: seg || null,
         platformFormat: PLATFORM_OPTIONS.find((p) => p.key === platform)?.desc ?? '',
+        ideaFlow: ideaFlow.trim() || null,
       };
       const resp = await aiApi.startWorkflow('articles.topic.generate', {
         projectId: activeProjectId,
@@ -507,6 +507,31 @@ export default function Articles() {
     setEditMap(prev => { const n = { ...prev }; delete n[artId]; return n; });
   }
 
+  async function handleAiRevision(article: SavedArticle, instruction: string): Promise<boolean> {
+    if (!activeProjectId) return false;
+    const current = getEditorState(article);
+    setRevisingId(article.id);
+    try {
+      const workflow = 'articles.article.edit';
+      const inputs = { title: current.title, currentContent: current.content, instruction };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      setEditorField(article.id, 'content', response.content);
+      toast.success('Статья доработана. Проверьте результат и сохраните.');
+      return true;
+    } catch (error) {
+      console.error('[Articles] AI revision failed', error);
+      toast.error('Не удалось доработать статью. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingId(null);
+    }
+  }
+
   function handleCopy(artId: string) {
     const art = articles.find(a => a.id === artId);
     if (art) navigator.clipboard.writeText(getEditorState(art).content);
@@ -589,6 +614,14 @@ export default function Articles() {
           </button>
           <button className={s.actionBtn} onClick={() => handleDownload(art.id)}>Скачать .docx</button>
         </div>
+        <ContentRevisionComposer
+          key={art.id}
+          projectId={activeProjectId}
+          workflow="articles.article.edit"
+          isLoading={revisingId === art.id}
+          onSubmit={(instruction) => handleAiRevision(art, instruction)}
+          placeholder="Например: сократите второй раздел, добавьте этот аргумент и не меняйте SEO-блок"
+        />
       </div>
     );
   }
@@ -762,13 +795,26 @@ export default function Articles() {
           )}
         </div>
 
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Ваши идеи и заметки</div>
+          <div className={s.sectionSub}>Надиктуйте поток мыслей. AI разложит его на темы, а статья будет создана только после выбора темы.</div>
+          <VoiceComposer
+            value={ideaFlow}
+            onChange={setIdeaFlow}
+            placeholder="Наговорите тезисы, наблюдения, кейсы или спорные вопросы..."
+            textareaClassName={s.factureTextarea}
+            rows={4}
+            onBusyChange={setVoiceBusy}
+          />
+        </div>
+
         <div className={s.btnRow}>
           {articles.length > 0 && (
             <button className={s.secondaryBtn} onClick={() => setPhase('editor')}>
               ← Назад к статьям
             </button>
           )}
-          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()}>
+          <button className={s.primaryBtn} onClick={() => void handleGenerateThemes()} disabled={voiceBusy}>
             Сгенерировать темы →
           </button>
         </div>
@@ -818,38 +864,13 @@ export default function Articles() {
           ))}
         </div>
 
-        {voice.isSupported && (
-          <div className={s.inputModeRow}>
-            <button
-              className={`${s.modeBtn}${inputMode === 'text' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => { setInputMode('text'); if (voice.isRecording) voice.stop(); }}
-            >✏️ Текст</button>
-            <button
-              className={`${s.modeBtn}${inputMode === 'voice' ? ' ' + s.modeBtnActive : ''}`}
-              onClick={() => setInputMode('voice')}
-            >🎤 Голос</button>
-          </div>
-        )}
-
-        {inputMode === 'text' ? (
-          <textarea
-            className={s.factureTextarea}
-            placeholder="Расскажите о практике, кейсах, ошибках аудитории, рыночном контексте, спорной позиции, цифрах, примерах и главном выводе статьи..."
-            value={facture}
-            onChange={e => setFacture(e.target.value)}
-          />
-        ) : (
-          <div className={s.voiceArea}>
-            <button
-              className={`${s.voiceBtn}${voice.isRecording ? ' ' + s.voiceBtnActive : ''}`}
-              onClick={voice.toggle}
-              disabled={voice.isTranscribing}
-            >
-              {voice.isRecording ? '⏹ Остановить запись' : voice.isTranscribing ? 'Распознаём...' : '🎤 Начать запись'}
-            </button>
-            {facture && <div className={s.voiceTranscript}>{facture}</div>}
-          </div>
-        )}
+        <VoiceComposer
+          value={facture}
+          onChange={setFacture}
+          textareaClassName={s.factureTextarea}
+          placeholder="Расскажите о практике, кейсах, ошибках аудитории, рыночном контексте, спорной позиции, цифрах, примерах и главном выводе статьи..."
+          onBusyChange={setVoiceBusy}
+        />
 
         <div className={s.factureCounter}>
           {facture.length} символов{' '}
@@ -864,7 +885,7 @@ export default function Articles() {
         <button className={s.secondaryBtn} onClick={() => setPhase('step1')}>← Назад</button>
         <button
           className={s.primaryBtn}
-          disabled={facture.trim().length < 30}
+          disabled={facture.trim().length < 30 || voiceBusy}
           onClick={() => void handleGenerateArticle()}
         >
           Написать статью

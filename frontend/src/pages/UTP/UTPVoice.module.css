@@ -1,0 +1,23 @@
+.voiceComposer {
+  margin-bottom: 16px;
+}
+
+.instruction {
+  width: 100%;
+  min-height: 120px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+  outline: none;
+  color: #1a1a1a;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.instruction:focus {
+  border-color: #d4a847;
+  box-shadow: 0 0 0 3px rgba(212, 168, 71, 0.12);
+}

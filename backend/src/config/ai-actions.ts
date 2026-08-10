@@ -2,6 +2,7 @@ import type { FeatureCode } from './ai-economy';
 
 export type AiActionType =
   | 'ai_chat'
+  | 'audio_transcription'
   | 'ai_chat_quick'
   | 'ai_chat_deep'
   | 'ai_chat_strategy'
@@ -35,11 +36,14 @@ export type AiActionType =
   | 'content_thread_edit'
   | 'content_thread_regenerate'
   | 'content_article'
+  | 'content_article_edit'
   | 'content_longread'
   | 'youtube_script'
+  | 'youtube_script_edit'
   | 'youtube_script_selling'
   | 'selling_post'
   | 'chatbot_scenario'
+  | 'chatbot_scenario_edit'
   | 'content_plan'
   | 'tg_channel_plan'
   | 'tg_channel_post'
@@ -53,6 +57,7 @@ export type AiActionType =
 
 export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   ai_chat: 1,
+  audio_transcription: 1,
   ai_chat_quick: 5,
   ai_chat_deep: 20,
   ai_chat_strategy: 60,
@@ -86,11 +91,14 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   content_thread_edit: 5,
   content_thread_regenerate: 20,
   content_article: 30,
+  content_article_edit: 5,
   content_longread: 30,
   youtube_script: 35,
+  youtube_script_edit: 5,
   youtube_script_selling: 50,
   selling_post: 10,
   chatbot_scenario: 30,
+  chatbot_scenario_edit: 3,
   content_plan: 40,
   tg_channel_plan: 40,
   tg_channel_post: 5,
@@ -105,6 +113,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
 
 export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   ai_chat: 'Сообщение в диалоге',
+  audio_transcription: 'Распознавание голосового сообщения',
   ai_chat_quick: 'Быстрый ответ в диалоге',
   ai_chat_deep: 'Глубокий анализ в диалоге',
   ai_chat_strategy: 'Стратегический разбор в диалоге',
@@ -138,11 +147,14 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   content_thread_edit: 'Доработка цепочки постов',
   content_thread_regenerate: 'Пересборка цепочки постов',
   content_article: 'Статья',
+  content_article_edit: 'Доработка статьи',
   content_longread: 'Лонгрид',
   youtube_script: 'YouTube-сценарий',
+  youtube_script_edit: 'Доработка YouTube-сценария',
   youtube_script_selling: 'Продающий видеосценарий',
   selling_post: 'Продающий пост',
   chatbot_scenario: 'Сценарий чат-бота',
+  chatbot_scenario_edit: 'Доработка сообщения чат-бота',
   content_plan: 'Контент-план',
   tg_channel_plan: 'План ТГ-канала',
   tg_channel_post: 'Пост для ТГ-канала',
@@ -157,6 +169,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
 
 export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   ai_chat: 'Диалог с ИИ',
+  audio_transcription: 'Голосовой ввод',
   ai_chat_quick: 'Диалог с ИИ',
   ai_chat_deep: 'Диалог с ИИ',
   ai_chat_strategy: 'Диалог с ИИ',
@@ -191,11 +204,14 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   content_thread_edit: 'Контент',
   content_thread_regenerate: 'Контент',
   content_article: 'Контент',
+  content_article_edit: 'Контент',
   content_longread: 'Контент',
   youtube_script: 'Контент',
+  youtube_script_edit: 'Контент',
   youtube_script_selling: 'Контент',
   selling_post: 'Контент',
   chatbot_scenario: 'Упаковка',
+  chatbot_scenario_edit: 'Упаковка',
   content_plan: 'Контент',
   tg_channel_plan: 'Контент',
   tg_channel_post: 'Контент',
@@ -210,6 +226,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
 export function featureCodeToAiAction(featureCode: string): AiActionType {
   switch (featureCode as FeatureCode) {
     case 'ai_chat': return 'ai_chat';
+    case 'audio_transcription': return 'audio_transcription';
     case 'about_ai_summary': return 'strategy_about';
     case 'positioning': return 'positioning';
     case 'audience':

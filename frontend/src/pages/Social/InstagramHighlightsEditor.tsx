@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { aiApi } from '../../api/ai';
 import type { InstagramHighlightDraft } from '../../api/projects.api';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import {
   parseHighlightProposal,
   parseHighlightsProposal,
@@ -251,6 +252,7 @@ export default function InstagramHighlightsEditor({
 }: Props) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [aiInstruction, setAiInstruction] = useState('');
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [aiAction, setAiAction] = useState<'all' | 'scenario' | 'improve' | null>(null);
   const [aiProposal, setAiProposal] = useState<AiProposal | null>(null);
   const sensors = useSensors(
@@ -324,7 +326,7 @@ export default function InstagramHighlightsEditor({
   }
 
   async function runAi(action: 'all' | 'scenario' | 'improve') {
-    if (aiAction || (action !== 'all' && !active)) return;
+    if (aiAction || voiceBusy || (action !== 'all' && !active)) return;
     setAiAction(action);
     try {
       const workflow = action === 'all'
@@ -418,24 +420,28 @@ export default function InstagramHighlightsEditor({
             <strong>AI-помощник</strong>
             <span>Снача покажет новую версию. Текущие данны не изменятся без вашего подтверждения.</span>
           </div>
-          <input
+          <VoiceComposer
             value={aiInstruction}
-            onChange={(event) => setAiInstruction(event.target.value)}
+            onChange={setAiInstruction}
+            onBusyChange={setVoiceBusy}
             placeholder="Пожелание к сценариям, если нужно"
+            disabled={aiAction !== null}
+            textareaClassName={styles.highlightsAiInstruction}
+            rows={2}
             maxLength={2000}
           />
           <div className={styles.highlightsAiActions}>
-            <button type="button" disabled={aiAction !== null} onClick={() => void runAi('all')}>
+            <button type="button" disabled={aiAction !== null || voiceBusy} onClick={() => void runAi('all')}>
               {aiAction === 'all' ? 'Собираем…' : 'Собрать Highlights'}
               <AiWorkflowCost workflow="instagram.highlights.generate" projectId={projectId} />
             </button>
             {active && (
               <>
-                <button type="button" disabled={aiAction !== null} onClick={() => void runAi('scenario')}>
+                <button type="button" disabled={aiAction !== null || voiceBusy} onClick={() => void runAi('scenario')}>
                   {aiAction === 'scenario' ? 'Собираем…' : 'Собрать сценарий'}
                   <AiWorkflowCost workflow="instagram.highlight.scenario" projectId={projectId} />
                 </button>
-                <button type="button" disabled={aiAction !== null} onClick={() => void runAi('improve')}>
+                <button type="button" disabled={aiAction !== null || voiceBusy} onClick={() => void runAi('improve')}>
                   {aiAction === 'improve' ? 'Дорабатываем…' : 'Доработать Highlight'}
                   <AiWorkflowCost workflow="instagram.highlight.improve" projectId={projectId} />
                 </button>

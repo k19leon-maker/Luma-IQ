@@ -274,30 +274,6 @@
   line-height: 1.5;
 }
 
-.inputModeRow {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.modeBtn {
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition);
-}
-
-.modeBtnActive {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-muted);
-}
-
 .factureTextarea {
   width: 100%;
   min-height: 130px;
@@ -331,42 +307,6 @@
 }
 
 /* ── Voice ───────────────────────────────────────────────────────────────────── */
-
-.voiceArea {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.voiceBtn {
-  padding: 12px 20px;
-  border-radius: var(--radius-md);
-  border: 1.5px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
-  align-self: flex-start;
-}
-
-.voiceBtnActive {
-  border-color: #e05c5c;
-  background: rgba(224, 92, 92, 0.08);
-  color: #e05c5c;
-}
-
-.voiceTranscript {
-  padding: 12px 14px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
 
 /* ── Buttons ─────────────────────────────────────────────────────────────────── */
 

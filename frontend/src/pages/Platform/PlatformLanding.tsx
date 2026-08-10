@@ -1,50 +1,41 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import toast from 'react-hot-toast';
 import { billingApi } from '../../api/billing.api';
+import { paymentApi } from '../../api/projects.api';
 import { landingContent, landingPlanUiCopy } from '../../config/landing-content';
+import { useAuthStore } from '../../store/auth.store';
 import { trackEvent, trackOncePerSession } from '../../utils/analytics';
 import { useSeo } from '../../utils/seo';
 import styles from './PlatformLanding.module.css';
-import {
-  LandingFooter,
-  LandingHeader,
-  LandingMain,
-  LandingPlan,
-} from './sections/LandingSections';
+import { LandingFooter, LandingHeader, LandingMain, LandingPlan } from './sections/LandingSections';
 
-type LeadForm = {
-  name: string;
-  email: string;
-  contact: string;
-  plan: string;
-  comment: string;
-};
+type PublicPlanId = 'START' | 'SYSTEM_FUNNEL' | 'EVERGREEN_FUNNEL';
 
-function formatPrice(value: number) {
+function formatNumber(value: number) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value);
 }
 
-export default function PlatformLanding() {
-  const [plans, setPlans] = useState<LandingPlan[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [leadForm, setLeadForm] = useState<LeadForm>({
-    name: '',
-    email: '',
-    contact: '',
-    plan: 'Старт',
-    comment: '',
-  });
+function getCheckoutErrorMessage(error: unknown) {
+  if (axios.isAxiosError<{ error?: string }>(error)) {
+    return error.response?.data?.error ?? 'Не удалось создать платеж';
+  }
+  return error instanceof Error ? error.message : 'Не удалось создать платеж';
+}
 
-  useSeo({
-    title: landingContent.seo.title,
-    description: landingContent.seo.description,
-    canonical: landingContent.seo.canonical,
-    type: 'website',
-  });
+export default function PlatformLanding() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [plans, setPlans] = useState<LandingPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
+
+  useSeo({ ...landingContent.seo, type: 'website' });
 
   useEffect(() => {
+    let cancelled = false;
     billingApi.listPlans()
       .then((backendPlans) => {
+        if (cancelled) return;
         setPlans(backendPlans
           .filter((plan) => plan.scenario === 'self')
           .map((plan) => ({
@@ -54,7 +45,7 @@ export default function PlatformLanding() {
             period: landingPlanUiCopy.period,
             description: plan.shortDescription,
             features: [
-              landingPlanUiCopy.aiBalanceFeature(formatPrice(plan.aiBalanceTotal ?? 0)),
+              landingPlanUiCopy.aiBalanceFeature(formatNumber(plan.aiBalanceTotal ?? 0)),
               landingPlanUiCopy.projectsFeature(plan.projectsTotal ?? 0),
               landingPlanUiCopy.allToolsFeature,
             ],
@@ -67,7 +58,13 @@ export default function PlatformLanding() {
             buttonText: landingPlanUiCopy.selectButton,
           })));
       })
-      .catch(() => setPlans([]));
+      .catch(() => {
+        if (!cancelled) toast.error('Не удалось загрузить тарифы');
+      })
+      .finally(() => {
+        if (!cancelled) setPlansLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -79,73 +76,46 @@ export default function PlatformLanding() {
     }
   }, [plans.length]);
 
-  const primaryCtaLabel = useMemo(() => {
-    const prices = plans.filter((plan) => plan.purchasable).map((plan) => plan.price);
-    if (prices.length === 0) return landingContent.cta.selectPlan;
-    return `${landingContent.cta.startFrom} ${formatPrice(Math.min(...prices))} ₽`;
-  }, [plans]);
-
-  const openLeadModal = (plan: LandingPlan) => {
-    if (!plan.purchasable) return;
-    trackEvent('plan_selected', {
+  async function handlePlanSelect(plan: LandingPlan) {
+    if (!plan.purchasable || checkoutPlanId) return;
+    const analytics = {
       plan_code: plan.id,
       plan_name: plan.name,
       price_rub: plan.price,
       ai_points: plan.aiPoints,
       active_projects_limit: plan.projectsLimit,
       source: 'platform',
-    });
-    setLeadForm((current) => ({ ...current, plan: plan.name }));
-    setModalOpen(true);
-  };
+    };
+    trackEvent('plan_selected', analytics);
 
-  const submitLead = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setModalOpen(false);
-    toast.success(landingContent.leadModal.success);
-    setLeadForm({ name: '', email: '', contact: '', plan: 'Старт', comment: '' });
-  };
+    if (!isAuthenticated) {
+      toast.error('Чтобы оплатить тариф, войдите или зарегистрируйтесь');
+      window.location.href = '/auth?next=%2Fapp%2Fpricing';
+      return;
+    }
+
+    try {
+      setCheckoutPlanId(plan.id);
+      const payment = await paymentApi.createPayment(plan.id as PublicPlanId);
+      trackEvent('payment_started', { ...analytics, payment_id: payment.paymentId });
+      window.location.href = payment.confirmationUrl;
+    } catch (error) {
+      trackEvent('payment_failed', analytics);
+      toast.error(getCheckoutErrorMessage(error));
+      setCheckoutPlanId(null);
+    }
+  }
 
   return (
     <div className={styles.page}>
       <LandingHeader />
-      <LandingMain plans={plans} primaryCtaLabel={primaryCtaLabel} onPlanSelect={openLeadModal} />
+      <LandingMain
+        plans={plans}
+        plansLoading={plansLoading}
+        checkoutPlanId={checkoutPlanId}
+        onPlanSelect={handlePlanSelect}
+      />
       <LandingFooter />
-
-      {modalOpen && (
-        <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setModalOpen(false)}>
-          <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="lead-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className={styles.modalClose} type="button" aria-label="Закрыть" onClick={() => setModalOpen(false)}>×</button>
-            <h2 id="lead-title">{landingContent.leadModal.title}</h2>
-            <p>{landingContent.leadModal.description}</p>
-            <form className={styles.leadForm} onSubmit={submitLead}>
-              <label>
-                {landingContent.leadModal.fields.name}
-                <input value={leadForm.name} onChange={(event) => setLeadForm({ ...leadForm, name: event.target.value })} required />
-              </label>
-              <label>
-                {landingContent.leadModal.fields.email}
-                <input type="email" value={leadForm.email} onChange={(event) => setLeadForm({ ...leadForm, email: event.target.value })} required />
-              </label>
-              <label>
-                {landingContent.leadModal.fields.contact}
-                <input value={leadForm.contact} onChange={(event) => setLeadForm({ ...leadForm, contact: event.target.value })} required />
-              </label>
-              <label>
-                {landingContent.leadModal.fields.plan}
-                <select value={leadForm.plan} onChange={(event) => setLeadForm({ ...leadForm, plan: event.target.value })}>
-                  {plans.map((plan) => <option key={plan.id} value={plan.name}>{plan.name}</option>)}
-                </select>
-              </label>
-              <label>
-                {landingContent.leadModal.fields.comment}
-                <textarea value={leadForm.comment} onChange={(event) => setLeadForm({ ...leadForm, comment: event.target.value })} rows={4} />
-              </label>
-              <button className={styles.primaryButton} type="submit">{landingContent.leadModal.submit}</button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

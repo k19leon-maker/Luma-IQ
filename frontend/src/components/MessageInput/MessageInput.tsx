@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { VoiceComposer } from '../VoiceComposer/VoiceComposer';
 import styles from './MessageInput.module.css';
 
 function CopyIcon() {
@@ -16,15 +16,6 @@ function PaperclipIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l9.8-9.8a4 4 0 1 1 5.7 5.7l-9.8 9.8a2 2 0 0 1-2.8-2.8l8.8-8.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" strokeWidth="2" />
-      <path d="M19 11a7 7 0 0 1-14 0M12 18v4M8 22h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -110,18 +101,15 @@ export function MessageInput({
 }: MessageInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [attachOpen, setAttachOpen] = useState(false);
-  const voice = useAudioRecorder(
-    (text) => onChange(value.trim() ? `${value.trim()} ${text}` : text),
-    (message) => toast.error(message),
-  );
+  const [voiceBusy, setVoiceBusy] = useState(false);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    if (!isLoading) inputRef.current?.focus();
-  }, [isLoading]);
+    if (!isLoading && !voiceBusy) inputRef.current?.focus();
+  }, [isLoading, voiceBusy]);
 
   useEffect(() => {
     const ta = inputRef.current;
@@ -134,8 +122,13 @@ export function MessageInput({
     if (multiline) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && value.trim()) onSend();
+      if (!isLoading && !voiceBusy && value.trim()) onSend();
     }
+  }
+
+  function handleSend() {
+    if (isLoading || disabled || voiceBusy || !value.trim()) return;
+    onSend();
   }
 
   return (
@@ -171,16 +164,13 @@ export function MessageInput({
               </div>
             )}
           </div>
-          <button
-            type="button"
-            className={`${styles.iconBtn}${voice.isRecording ? ' ' + styles.iconBtnActive : ''}`}
-            onClick={voice.toggle}
-            title={voice.isRecording ? 'Остановить запись' : voice.isTranscribing ? 'Распознаём...' : 'Записать голосом'}
-            aria-label={voice.isRecording ? 'Остановить запись' : 'Записать голосом'}
-            disabled={isLoading || disabled || voice.isTranscribing || !voice.isSupported}
-          >
-            <MicIcon />
-          </button>
+          <VoiceComposer
+            variant="compact"
+            value={value}
+            onChange={onChange}
+            disabled={isLoading || disabled}
+            onBusyChange={setVoiceBusy}
+          />
           <button type="button" className={styles.iconBtn} onClick={() => toast('Google Drive будет подключен после интеграции')} title="Google Drive" aria-label="Google Drive">
             <DriveIcon />
           </button>
@@ -191,8 +181,8 @@ export function MessageInput({
         </div>}
         <button
           className={styles.sendBtn}
-          onClick={onSend}
-          disabled={isLoading || disabled || !value.trim()}
+          onClick={handleSend}
+          disabled={isLoading || disabled || voiceBusy || !value.trim()}
           title="Отправить"
         >
           {isLoading ? <span className={styles.spinner} /> : '↑'}

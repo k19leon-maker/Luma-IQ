@@ -1,12 +1,7 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LandingLogo } from '../../../components/LandingLogo/LandingLogo';
-import {
-  LANDING_ICONS,
-  LANDING_ILLUSTRATIONS,
-  LANDING_MEDIA,
-  LandingAsset,
-} from '../../../config/landing-assets';
+import { LANDING_ICONS, LANDING_MEDIA, LandingAsset } from '../../../config/landing-assets';
 import { landingContent, landingPlanUiCopy } from '../../../config/landing-content';
 import styles from '../PlatformLanding.module.css';
 
@@ -28,24 +23,17 @@ export type LandingPlan = {
 
 type LandingMainProps = {
   plans: LandingPlan[];
-  primaryCtaLabel: string;
+  plansLoading: boolean;
+  checkoutPlanId: string | null;
   onPlanSelect: (plan: LandingPlan) => void;
 };
 
 function scrollToSection(id: string) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  document.getElementById(id)?.scrollIntoView({
-    behavior: reduceMotion ? 'auto' : 'smooth',
-    block: 'start',
-  });
+  document.getElementById(id)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
 }
 
-function AssetImage({
-  asset,
-  alt,
-  className,
-  eager = false,
-}: {
+function AssetImage({ asset, alt, className, eager = false }: {
   asset: LandingAsset;
   alt: string;
   className?: string;
@@ -64,80 +52,53 @@ function AssetImage({
   );
 }
 
-function SectionShell({
-  id,
-  eyebrow,
-  title,
-  description,
-  children,
-  dark = false,
-  className = '',
-}: {
-  id?: string;
-  eyebrow: string;
-  title: string;
-  description?: string;
-  children: ReactNode;
-  dark?: boolean;
-  className?: string;
-}) {
+function SectionIntro({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
   return (
-    <section
-      className={`${styles.section} ${dark ? styles.darkSection : ''} ${className}`}
-      id={id}
-    >
-      <div className={styles.container}>
-        <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>{eyebrow}</p>
-          <h2>{title}</h2>
-          {description && <p className={styles.sectionDescription}>{description}</p>}
-        </div>
-        {children}
-      </div>
-    </section>
+    <div className={styles.sectionIntro}>
+      <p className={styles.eyebrow}>{eyebrow}</p>
+      <h2>{title}</h2>
+      {description && <p className={styles.sectionDescription}>{description}</p>}
+    </div>
   );
+}
+
+function Icon({ name, className = '' }: { name: keyof typeof LANDING_ICONS; className?: string }) {
+  return <AssetImage asset={LANDING_ICONS[name]} alt="" className={className} />;
 }
 
 export function LandingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const closeMenu = () => setMenuOpen(false);
-
   useEffect(() => {
     if (!menuOpen) return undefined;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
+    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && setMenuOpen(false);
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [menuOpen]);
 
   return (
     <header className={styles.header}>
-      <Link className={styles.logo} to="/" aria-label="Luma IQ">
-        <LandingLogo />
-      </Link>
+      <Link className={styles.logo} to="/" aria-label="Luma IQ"><LandingLogo /></Link>
       <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} id="landing-navigation" aria-label="Навигация по лендингу">
         {landingContent.navigation.map((item) => (
-          <a href={item.href} key={item.href} onClick={closeMenu}>{item.label}</a>
+          <a href={item.href} key={item.href} onClick={() => setMenuOpen(false)}>{item.label}</a>
         ))}
+        <button type="button" className={styles.mobileNavCta} onClick={() => { setMenuOpen(false); scrollToSection('pricing'); }}>
+          {landingContent.cta.selectPlan}
+        </button>
       </nav>
       <div className={styles.headerActions}>
         <Link className={styles.loginLink} to="/auth">Войти</Link>
-        <button className={styles.headerButton} type="button" onClick={() => scrollToSection('pricing')}>
-          {landingContent.cta.selectPlan}
-        </button>
+        <button className={styles.headerButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.cta.selectPlan}</button>
         <button
           className={styles.menuButton}
           type="button"
           aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
           aria-expanded={menuOpen}
           aria-controls="landing-navigation"
-          onClick={() => setMenuOpen((current) => !current)}
+          onClick={() => setMenuOpen((value) => !value)}
         >
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
+          <span /><span /><span />
         </button>
       </div>
     </header>
@@ -147,510 +108,187 @@ export function LandingHeader() {
 function HeroSection() {
   return (
     <section className={`${styles.section} ${styles.hero}`}>
-      <div className={`${styles.container} ${styles.heroContainer}`}>
-        <div className={styles.heroGrid}>
-          <div className={styles.heroText}>
-            <p className={styles.eyebrow}>{landingContent.hero.eyebrow}</p>
-            <h1>{landingContent.hero.title}</h1>
-            <p className={styles.heroLead}>{landingContent.hero.description}</p>
-            <ul className={styles.heroBullets}>
-              {landingContent.hero.bullets.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-            <div className={styles.heroActions}>
-              <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.cta.selectPlan}</button>
-              <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('how-it-works')}>{landingContent.cta.learnMore}</button>
-            </div>
+      <div className={`${styles.container} ${styles.heroGrid}`}>
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>{landingContent.hero.eyebrow}</p>
+          <h1>{landingContent.hero.title}</h1>
+          <div className={styles.heroText}>{landingContent.hero.paragraphs.map((text) => <p key={text}>{text}</p>)}</div>
+          <div className={styles.heroActions}>
+            <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.cta.selectPlan}</button>
+            <button className={styles.secondaryButton} type="button" onClick={() => scrollToSection('how-it-works')}>{landingContent.cta.learnMore}</button>
           </div>
-          <figure className={styles.heroVisual}>
-            <figcaption className={styles.heroVisualLabel}>
-              <span aria-hidden="true" />
-              Рабочее пространство проекта в Luma IQ
-            </figcaption>
-            <div className={styles.heroProductPreview}>
-              <AssetImage
-                asset={LANDING_MEDIA.heroDashboard}
-                alt="Главный дашборд проекта в Luma IQ"
-                className={styles.heroDashboard}
-                eager
-              />
-            </div>
-            <div className={styles.heroVisualNotes}>
-              {landingContent.hero.notes.map((item) => <span key={item}>{item}</span>)}
-            </div>
-          </figure>
+          <ul className={styles.heroBenefits}>
+            {landingContent.hero.benefits.map((item) => (
+              <li key={item.title}>
+                <Icon name={item.icon} className={styles.benefitIcon} />
+                <span><strong>{item.title}</strong><small>{item.text}</small></span>
+              </li>
+            ))}
+          </ul>
         </div>
+        <picture className={styles.heroVisual}>
+          <source media="(max-width: 767px)" srcSet={LANDING_MEDIA.aiTeamHeroMobile.src} width={LANDING_MEDIA.aiTeamHeroMobile.width} height={LANDING_MEDIA.aiTeamHeroMobile.height} />
+          <AssetImage asset={LANDING_MEDIA.aiTeamHeroDesktop} alt="Восемь ИИ-специалистов Luma IQ для стратегии, исследований, продуктов, контента, чатботов и аналитики" eager />
+        </picture>
       </div>
     </section>
   );
 }
 
-type Specialty = (typeof landingContent.audience.items)[number];
-type OldModelColumn = (typeof landingContent.oldModel.columns)[number];
+const problemIcons: Array<keyof typeof LANDING_ICONS> = ['tasks', 'content', 'chatbot', 'analytics', 'offers', 'strategy', 'product', 'funnel', 'team', 'audience'];
 
-function SpecialtyItem({ specialty }: { specialty: Specialty }) {
+function ProblemPath({ path, index }: { path: (typeof landingContent.problem.paths)[number]; index: number }) {
   return (
-    <li className={styles.specialtyItem}>
-      <img
-        src={specialty.icon}
-        width={24}
-        height={24}
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        decoding="async"
-      />
-      <span>{specialty.label}</span>
-    </li>
-  );
-}
-
-function SpecialtiesStrip() {
-  return (
-    <section className={styles.specialtiesSection} aria-labelledby="specialties-title">
-      <div className={styles.specialtiesContainer}>
-        <h2 className={styles.specialtiesCaption} id="specialties-title">
-          {landingContent.audience.caption}
-        </h2>
-        <ul className={styles.specialtiesPanel}>
-          {landingContent.audience.items.map((specialty) => (
-            <SpecialtyItem specialty={specialty} key={specialty.id} />
+    <article className={styles.problemCard}>
+      <h3>{path.title}</h3>
+      <div className={styles.problemMap}>
+        <strong className={styles.problemCenter}>{path.center}</strong>
+        <ul>
+          {path.nodes.map((node, nodeIndex) => (
+            <li key={node}><Icon name={problemIcons[(nodeIndex + index) % problemIcons.length]} /><span>{node}</span></li>
           ))}
         </ul>
       </div>
-    </section>
-  );
-}
-
-function OldModelCard({ column }: { column: OldModelColumn }) {
-  return (
-    <article className={`${styles.oldModelCard} ${column.result ? styles.oldModelResultCard : ''}`}>
-      <span className={styles.oldModelCardNumber} aria-hidden="true">{column.number}</span>
-      {'label' in column && column.label && (
-        <span className={styles.oldModelResultLabel}>{column.label}</span>
-      )}
-      <h3>{column.title}</h3>
-      <ul className={styles.oldModelList}>
-        {column.items.map((item) => <li key={item}>{item}</li>)}
-      </ul>
-      {column.summary && <p className={styles.oldModelResultSummary}>{column.summary}</p>}
+      <p>{path.caption}</p>
     </article>
   );
 }
 
-function OldMarketingModelSection() {
+function ProblemSection() {
   return (
-    <section className={styles.oldModelSection} aria-labelledby="old-model-title">
-      <div className={styles.oldModelContainer}>
-        <div className={styles.oldModelIntro}>
-          <div>
-            <p className={styles.eyebrow}>{landingContent.oldModel.eyebrow}</p>
-            <h2 id="old-model-title">{landingContent.oldModel.title}</h2>
-          </div>
-          <p className={styles.oldModelDescription}>{landingContent.oldModel.description}</p>
-        </div>
-        <div className={styles.oldModelContent}>
-          <div className={styles.oldModelGrid}>
-            {landingContent.oldModel.columns.map((column) => (
-              <OldModelCard column={column} key={column.number} />
-            ))}
-          </div>
-          <div className={styles.oldModelVisualColumn}>
-            <figure className={styles.oldModelVisual}>
-              <AssetImage
-                asset={LANDING_MEDIA.oldModelExpertOverload}
-                alt="Эксперт пытается одновременно удерживать в голове аудиторию, продукты, офферы, контент, воронки, чат-боты, лендинги и аналитику"
-                className={styles.oldModelIllustration}
-              />
-            </figure>
-            <div className={styles.oldModelOverloadCaption}>
-              <AssetImage asset={LANDING_ICONS.context} alt="" className={styles.oldModelOverloadIcon} />
-              <p>
-                {landingContent.oldModel.overloadCaption.before}{' '}
-                <strong>{landingContent.oldModel.overloadCaption.highlight}</strong>,{' '}
-                {landingContent.oldModel.overloadCaption.after}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className={styles.oldModelTransition}>
-          <strong>{landingContent.oldModel.transition.title}</strong>
-          <a href="#market-shift">
-            {landingContent.oldModel.transition.link}
-            <span aria-hidden="true">→</span>
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MarketShiftSection() {
-  return (
-    <section className={`${styles.section} ${styles.darkSection} ${styles.newModelSection}`} id="market-shift">
-      <div className={`${styles.container} ${styles.newModelContainer}`}>
-        <div className={styles.newModelGrid}>
-          <div className={styles.newModelCopy}>
-            <p className={styles.eyebrow}>{landingContent.marketShift.eyebrow}</p>
-            <h2>{landingContent.marketShift.title}</h2>
-            <div className={styles.newModelParagraphs}>
-              {landingContent.marketShift.paragraphs.map((item) => <p key={item}>{item}</p>)}
-            </div>
-            <div className={styles.newModelPoints}>
-              {landingContent.marketShift.theses.map((item) => (
-                <article className={styles.newModelPoint} key={item.title}>
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-          <div className={styles.newModelVisual}>
-            <div className={styles.newModelVisualShell}>
-              <picture>
-                <source
-                  media="(max-width: 720px)"
-                  srcSet={LANDING_MEDIA.newModelEcosystemMobile.src}
-                  width={LANDING_MEDIA.newModelEcosystemMobile.width}
-                  height={LANDING_MEDIA.newModelEcosystemMobile.height}
-                />
-                <img
-                  src={LANDING_MEDIA.newModelEcosystem.src}
-                  width={LANDING_MEDIA.newModelEcosystem.width}
-                  height={LANDING_MEDIA.newModelEcosystem.height}
-                  alt="Luma IQ объединяет стратегию, конструктор продуктов, контент, чатбот и лендинг, аналитику в одной системе"
-                  className={styles.newModelIllustration}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </picture>
-            </div>
-          </div>
-        </div>
-        <div className={styles.newModelSummary}>
-          <p>{landingContent.marketShift.quote}</p>
-          <span>{landingContent.marketShift.quoteDetail}</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DigitalHeadquartersSection() {
-  return (
-    <section className={`${styles.section} ${styles.headquartersSection}`}>
+    <section className={styles.section}>
       <div className={styles.container}>
-        <div className={styles.headquartersGrid}>
-          <div className={styles.headquartersCopy}>
-            <p className={styles.eyebrow}>{landingContent.headquarters.eyebrow}</p>
-            <h2>{landingContent.headquarters.title}</h2>
-            <div className={styles.headquartersParagraphs}>
-              {landingContent.headquarters.paragraphs.map((item) => <p key={item}>{item}</p>)}
-            </div>
-            <p className={styles.headquartersConclusion}>{landingContent.headquarters.conclusion}</p>
-          </div>
-          <div className={styles.headquartersCards}>
-            {landingContent.headquarters.benefits.map((item, index) => {
-              const icon = LANDING_ICONS[item.icon];
-              return (
-                <article
-                  className={`${styles.headquartersCard} ${index === 0 ? styles.headquartersCardFeatured : ''}`}
-                  key={item.title}
-                >
-                  <AssetImage asset={icon} alt="" className={styles.headquartersCardIcon} />
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.text}</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
+        <SectionIntro eyebrow={landingContent.problem.eyebrow} title={landingContent.problem.title} />
+        <div className={styles.problemGrid}>{landingContent.problem.paths.map((path, index) => <ProblemPath key={path.title} path={path} index={index} />)}</div>
       </div>
     </section>
   );
 }
 
-function MarketingTeamSection() {
+function WorkflowArrow() {
+  return <AssetImage asset={LANDING_ICONS.arrow} alt="" className={styles.workflowArrow} />;
+}
+
+function AiTeamWorkflowSection() {
   return (
-    <section className={`${styles.section} ${styles.marketingTeamSection}`}>
+    <section className={`${styles.section} ${styles.workflowSection}`}>
       <div className={styles.container}>
-        <div className={styles.marketingTeamIntro}>
-          <p className={styles.eyebrow}>{landingContent.marketingTeam.eyebrow}</p>
-          <h2>{landingContent.marketingTeam.title}</h2>
-          <p>{landingContent.marketingTeam.description}</p>
-        </div>
-        <figure className={styles.teamSystemMap}>
-          <div className={styles.teamSystemCanvas}>
-            <div className={styles.teamSystemCore}>
-              <span>Luma IQ</span>
-              <small>Единая система</small>
-            </div>
-            {landingContent.marketingTeam.systemRoles.map((role, index) => (
-              <div
-                className={`${styles.teamSystemNode} ${styles[`teamSystemNode${index + 1}`]}`}
-                key={role}
-              >
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <strong>{role}</strong>
-              </div>
-            ))}
-            {landingContent.marketingTeam.systemRoles.map((role, index) => (
-              <span
-                aria-hidden="true"
-                className={`${styles.teamSystemConnector} ${styles[`teamSystemConnector${index + 1}`]}`}
-                key={`${role}-connector`}
-              />
-            ))}
-          </div>
-          <figcaption>{landingContent.marketingTeam.visualCaption}</figcaption>
-        </figure>
-        <div className={styles.roleGrid}>
-          {landingContent.marketingTeam.roles.map((item, index) => {
-            const icon = LANDING_ICONS[item.icon];
-            return (
-              <article className={styles.teamRoleCard} key={item.title}>
-                <div className={styles.teamRoleMeta}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <AssetImage asset={icon} alt="" className={styles.teamRoleIcon} />
-                </div>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-                <strong className={styles.teamRoleResult}>
-                  <span aria-hidden="true">→</span>
-                  {item.result}
-                </strong>
+        <SectionIntro eyebrow={landingContent.workflow.eyebrow} title={landingContent.workflow.title} description={landingContent.workflow.description} />
+        <ol className={styles.workflowGrid}>
+          {landingContent.workflow.steps.map((step, index) => (
+            <li className={styles.workflowItem} key={step.label}>
+              <span className={styles.workflowLabel}>{step.label}</span>
+              <article className={styles.workflowCard}>
+                <h3>{step.title}</h3><p>{step.text}</p><span className={styles.workflowAction}>{step.action}</span>
               </article>
-            );
-          })}
-        </div>
-        <p className={styles.marketingTeamConclusion}>{landingContent.marketingTeam.conclusion}</p>
+              {index < landingContent.workflow.steps.length - 1 && <WorkflowArrow />}
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
 }
 
-function CapabilitiesSection() {
+function SpecialistGridSection() {
   return (
-    <SectionShell id="capabilities" {...landingContent.capabilityCards}>
-      <div className={styles.capabilityGrid}>
-        {landingContent.capabilityCards.items.map((item) => {
-          const icon = LANDING_ICONS[item.icon];
-          return (
-            <article className={styles.capabilityCard} key={item.title}>
-              <AssetImage asset={icon} alt="" className={styles.capabilityIcon} />
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
+    <section className={styles.section} id="capabilities">
+      <div className={styles.container}>
+        <SectionIntro eyebrow={landingContent.specialists.eyebrow} title={landingContent.specialists.title} />
+        <div className={styles.specialistGrid}>
+          {landingContent.specialists.items.map((item) => (
+            <article className={styles.specialistCard} key={item.title}>
+              <Icon name={item.icon} className={styles.cardIcon} /><h3>{item.title}</h3><p>{item.text}</p>
             </article>
-          );
-        })}
-      </div>
-    </SectionShell>
-  );
-}
-
-type WorkflowStep = (typeof landingContent.workflow.steps)[number];
-
-function ProcessArrow() {
-  return <span className={styles.workflowArrow} aria-hidden="true">→</span>;
-}
-
-function HowItWorksStepCard({ item, index }: { item: WorkflowStep; index: number }) {
-  const icon = LANDING_ICONS[item.icon];
-
-  return (
-    <li className={styles.workflowStep}>
-      <article className={styles.workflowCard}>
-        <div className={styles.workflowCardHeader}>
-          <span className={styles.workflowNumber}>{String(index + 1).padStart(2, '0')}</span>
-          <AssetImage asset={icon} alt="" className={styles.workflowIcon} />
+          ))}
         </div>
-        <h3>{item.title}</h3>
-        <p>{item.text}</p>
-        <div className={styles.workflowResult}>
-          <span>Результат</span>
-          <strong>{item.result}</strong>
+      </div>
+    </section>
+  );
+}
+
+function ProjectContextSection() {
+  return (
+    <section className={`${styles.section} ${styles.contextSection}`}>
+      <div className={`${styles.container} ${styles.contextLayout}`}>
+        <SectionIntro eyebrow={landingContent.context.eyebrow} title={landingContent.context.title} description={landingContent.context.description} />
+        <div className={styles.contextMap}>
+          <div className={styles.contextCore}><LandingLogo variant="symbol" /><strong>Контекст проекта</strong><span>Luma IQ</span></div>
+          <ul>
+            {landingContent.context.nodes.map((node) => (
+              <li key={node.title}><Icon name={node.icon} /><span><strong>{node.title}</strong><small>{node.text}</small></span></li>
+            ))}
+          </ul>
         </div>
-      </article>
-      {index < landingContent.workflow.steps.length - 1 && <ProcessArrow />}
-    </li>
-  );
-}
-
-function ContextGrowthLine() {
-  return (
-    <div className={styles.contextGrowth} aria-label="Рост контекста проекта">
-      <div className={styles.contextGrowthLine} aria-hidden="true" />
-      <ol className={styles.contextGrowthPoints}>
-        {landingContent.workflow.contextStages.map((stage, index) => (
-          <li className={index === landingContent.workflow.contextStages.length - 1 ? styles.contextGrowthPointFinal : ''} key={stage}>
-            <span aria-hidden="true" />
-            <strong>{stage}</strong>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-function HowItWorksSummary() {
-  return (
-    <div className={styles.workflowSummary}>
-      <div className={styles.workflowSummaryIcon} aria-hidden="true">
-        <AssetImage asset={LANDING_ICONS.context} alt="" />
       </div>
-      <p>{landingContent.workflow.summary}</p>
-    </div>
+    </section>
   );
 }
 
-function WorkflowSection() {
-  return (
-    <SectionShell id="how-it-works" {...landingContent.workflow} className={styles.workflowSection}>
-      <ol className={styles.workflowSteps}>
-        {landingContent.workflow.steps.map((item, index) => (
-          <HowItWorksStepCard item={item} index={index} key={item.title} />
-        ))}
-      </ol>
-      <ContextGrowthLine />
-      <HowItWorksSummary />
-    </SectionShell>
-  );
+function StructuredPreview({ type }: { type: string }) {
+  if (type === 'products') {
+    return <div className={styles.structuredPreview}><div className={styles.previewToolbar}>Продукты и тарифы</div><div className={styles.productTiles}><span>Курс PRO</span><span>Наставничество</span><span>Вебинар</span></div></div>;
+  }
+  if (type === 'funnel') {
+    return <div className={styles.structuredPreview}><div className={styles.previewToolbar}>Воронка и чатбот</div><div className={styles.funnelFlow}><span>Трафик</span><span>Лид-магнит</span><span>Прогрев</span><span>Продажа</span></div></div>;
+  }
+  return <div className={styles.structuredPreview}><div className={styles.previewToolbar}>Контент-план</div><div className={styles.contentCalendar}>{Array.from({ length: 12 }, (_, index) => <span key={index}>{index + 1}</span>)}</div></div>;
 }
 
-function ContextCapitalSection() {
+function ProductResultsSection() {
   return (
-    <SectionShell {...landingContent.contextCapital} className={styles.contextSection}>
-      <div className={styles.splitVisual}>
-        <div>
-          <ol className={styles.numberedList}>
-            {landingContent.contextCapital.steps.map((item) => <li key={item}>{item}</li>)}
-          </ol>
-          <p className={styles.keyNote}>{landingContent.contextCapital.conclusion}</p>
+    <section className={styles.section}>
+      <div className={styles.container}>
+        <SectionIntro eyebrow={landingContent.results.eyebrow} title={landingContent.results.title} />
+        <div className={styles.resultsGrid}>
+          {landingContent.results.items.map((item) => (
+            <article className={styles.resultCard} key={item.title}>
+              {item.preview === 'strategy'
+                ? <AssetImage asset={LANDING_MEDIA.productStrategy} alt="Экран стратегии проекта в Luma IQ" className={styles.resultImage} />
+                : <StructuredPreview type={item.preview} />}
+              <div className={styles.resultCopy}><Icon name={item.icon} /><div><h3>{item.title}</h3><p>{item.text}</p></div></div>
+            </article>
+          ))}
         </div>
-        <AssetImage asset={LANDING_ILLUSTRATIONS.contextCapital} alt="Контекст проекта как маркетинговый актив" className={styles.contextIllustration} />
       </div>
-    </SectionShell>
+    </section>
   );
 }
 
-function ComparisonTable({
-  beforeTitle,
-  afterTitle,
-  rows,
-}: {
-  beforeTitle: string;
-  afterTitle: string;
-  rows: ReadonlyArray<{ before: string; after: string }>;
-}) {
+function ManagedProcessSection() {
   return (
-    <div className={styles.compareGrid}>
-      <div className={styles.compareHead}>{beforeTitle}</div>
-      <div className={styles.compareHead}>{afterTitle}</div>
-      {rows.map((item) => (
-        <div className={styles.comparePair} key={item.before}>
-          <p>{item.before}</p>
-          <p>{item.after}</p>
+    <section className={styles.section} id="how-it-works">
+      <div className={styles.container}>
+        <SectionIntro eyebrow={landingContent.process.eyebrow} title={landingContent.process.title} />
+        <ol className={styles.processGrid}>
+          {landingContent.process.steps.map((step, index) => (
+            <li key={step.title}>
+              <span className={styles.processNumber}>{index + 1}</span><Icon name={step.icon} className={styles.processIcon} />
+              <h3>{step.title}</h3><p>{step.text}</p>
+              {index < landingContent.process.steps.length - 1 && <WorkflowArrow />}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+function ComparisonSection() {
+  return (
+    <section className={styles.section} id="comparison">
+      <div className={styles.container}>
+        <SectionIntro eyebrow={landingContent.comparison.eyebrow} title={landingContent.comparison.title} />
+        <div className={styles.comparisonGrid}>
+          {landingContent.comparison.items.map((item) => (
+            <article className={`${styles.comparisonCard} ${'featured' in item && item.featured ? styles.comparisonFeatured : ''}`} key={item.title}>
+              <Icon name={item.icon} className={styles.cardIcon} /><h3>{item.title}</h3>
+              <ul>{item.points.map((point) => <li key={point}>{point}</li>)}</ul>
+            </article>
+          ))}
         </div>
-      ))}
-    </div>
-  );
-}
-
-function AiComparisonSection() {
-  return (
-    <SectionShell id="comparison" {...landingContent.aiComparison}>
-      <ComparisonTable
-        beforeTitle={landingContent.aiComparison.beforeTitle}
-        afterTitle={landingContent.aiComparison.afterTitle}
-        rows={landingContent.aiComparison.rows}
-      />
-      <p className={styles.sectionNote}>{landingContent.aiComparison.note}</p>
-    </SectionShell>
-  );
-}
-
-function ApproachComparisonSection() {
-  return (
-    <SectionShell {...landingContent.approachComparison}>
-      <div className={styles.threeColumnGrid}>
-        {landingContent.approachComparison.columns.map((column) => (
-          <article className={`${styles.listCard} ${'highlighted' in column && column.highlighted ? styles.highlightedCard : ''}`} key={column.title}>
-            <h3>{column.title}</h3>
-            <ul>{column.items.map((item) => <li key={item}>{item}</li>)}</ul>
-            <strong>{column.summary}</strong>
-          </article>
-        ))}
       </div>
-      <p className={styles.sectionNote}>{landingContent.approachComparison.disclaimer}</p>
-    </SectionShell>
-  );
-}
-
-function DemoProjectSection() {
-  return (
-    <SectionShell {...landingContent.demoProject}>
-      <p className={styles.demoLabel}>{landingContent.demoProject.label}</p>
-      <div className={styles.projectFlow}>
-        {landingContent.demoProject.steps.map((item, index) => (
-          <article key={item.title}>
-            <span>{index + 1}</span>
-            <div><h3>{item.title}</h3><p>{item.text}</p></div>
-          </article>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
-function CasesSection() {
-  return (
-    <SectionShell id="cases" eyebrow={landingContent.cases.eyebrow} title={landingContent.cases.title}>
-      <AssetImage
-        asset={LANDING_ILLUSTRATIONS.caseBeforeAfter}
-        alt="Схема изменений маркетинга проекта до и после системной работы"
-        className={styles.workflowIllustration}
-      />
-      <div className={styles.casesGrid}>
-        {landingContent.cases.items.map((item) => (
-          <article className={styles.caseCard} key={item.id}>
-            {item.isDemo && <span className={styles.demoLabel}>{landingContent.cases.demoLabel}</span>}
-            <h3>{item.title}</h3>
-            <div><h4>Было</h4><ul>{item.before.map((line) => <li key={line}>{line}</li>)}</ul></div>
-            <div><h4>Стало</h4><ul>{item.after.map((line) => <li key={line}>{line}</li>)}</ul></div>
-            <strong>{item.result}</strong>
-          </article>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
-function TestimonialsSection() {
-  return (
-    <SectionShell eyebrow={landingContent.testimonials.eyebrow} title={landingContent.testimonials.title}>
-      <p className={styles.demoNotice}>{landingContent.testimonials.demoLabel}</p>
-      <div className={styles.testimonialGrid}>
-        {landingContent.testimonials.items.map((item) => (
-          <figure key={item.id}>
-            <blockquote>{item.text}</blockquote>
-            <figcaption>{item.author}</figcaption>
-          </figure>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
-function AudienceSegmentsSection() {
-  return (
-    <SectionShell eyebrow="Сценарии использования" title="Для экспертов и небольших команд">
-      <div className={styles.roleGrid}>
-        {landingContent.roles.map((item) => (
-          <article key={item.title}><h3>{item.title}</h3><p>{item.text}</p></article>
-        ))}
-      </div>
-    </SectionShell>
+    </section>
   );
 }
 
@@ -658,128 +296,49 @@ function formatPrice(value: number) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value);
 }
 
-function PricingSection({ plans, onPlanSelect }: Pick<LandingMainProps, 'plans' | 'onPlanSelect'>) {
+function PricingSection({ plans, plansLoading, checkoutPlanId, onPlanSelect }: LandingMainProps) {
   return (
-    <section className={`${styles.section} ${styles.pricingSection}`} id="pricing">
+    <section className={`${styles.section} ${styles.pricingSection}`} id="pricing" aria-busy={plansLoading}>
       <div className={styles.container}>
-        <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>{landingContent.pricing.eyebrow}</p>
-          <h2>{landingContent.pricing.title}</h2>
-          <p className={styles.sectionDescription}>{landingContent.pricing.description}</p>
-        </div>
+        <SectionIntro eyebrow={landingContent.pricing.eyebrow} title={landingContent.pricing.title} />
+        {plansLoading && <p className={styles.loadingState}>Загружаем тарифы...</p>}
+        {!plansLoading && plans.length === 0 && <p className={styles.loadingState}>Не удалось загрузить тарифы. Обновите страницу.</p>}
         <div className={styles.pricingGrid}>
-          {plans.map((plan) => (
-            <article className={`${styles.planCard} ${plan.badge ? styles.planHighlighted : ''}`} key={plan.id}>
-              {plan.badge && <span className={styles.badge}>{plan.badge}</span>}
-              <h3>{plan.name}</h3>
-              <div className={styles.price}>{formatPrice(plan.price)} ₽ <span>{plan.period}</span></div>
-              <p>{plan.description}</p>
-              <ul>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
-              <details>
-                <summary>{landingContent.pricing.usageTitle}</summary>
-                <ul>{plan.exampleUsage.map((item) => <li key={item}>{item}</li>)}</ul>
-                <p>{plan.usageDisclaimer}</p>
-              </details>
-              <button className={styles.primaryButton} type="button" disabled={!plan.purchasable} onClick={() => onPlanSelect(plan)}>
-                {plan.purchasable ? plan.buttonText : landingPlanUiCopy.unavailableButton}
-              </button>
-            </article>
-          ))}
+          {plans.map((plan) => {
+            const checkingOut = checkoutPlanId === plan.id;
+            return (
+              <article className={`${styles.planCard} ${plan.badge ? styles.planFeatured : ''}`} key={plan.id}>
+                {plan.badge && <span className={styles.planBadge}>{plan.badge}</span>}
+                <h3>{plan.name}</h3>
+                <div className={styles.price}>{formatPrice(plan.price)} ₽ <span>{plan.period}</span></div>
+                <p className={styles.planDescription}>{plan.description}</p>
+                <ul className={styles.planFeatures}>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
+                <div className={styles.planUsage}><h4>{landingContent.pricing.usageTitle}</h4><ul>{plan.exampleUsage.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                <p className={styles.planDisclaimer}>{plan.usageDisclaimer}</p>
+                <button className={styles.primaryButton} type="button" disabled={!plan.purchasable || Boolean(checkoutPlanId)} onClick={() => onPlanSelect(plan)}>
+                  {!plan.purchasable ? landingPlanUiCopy.unavailableButton : checkingOut ? 'Переходим к оплате...' : `Выбрать «${plan.name}»`}
+                </button>
+              </article>
+            );
+          })}
         </div>
-        <p className={styles.pricingNote}>{landingContent.pricing.balanceNote}</p>
+        <aside className={styles.balanceNote}><Icon name="context" /><div><h3>{landingContent.pricing.balanceTitle}</h3>{landingContent.pricing.balanceText.map((text) => <p key={text}>{text}</p>)}</div></aside>
       </div>
     </section>
   );
 }
 
-function PaymentStepsSection() {
-  return (
-    <SectionShell {...landingContent.paymentSteps}>
-      <div className={styles.paymentSteps}>
-        {landingContent.paymentSteps.steps.map((item, index) => (
-          <article key={item.title}><span>{index + 1}</span><h3>{item.title}</h3><p>{item.text}</p></article>
-        ))}
-      </div>
-      <p className={styles.sectionNote}>{landingContent.paymentSteps.support}</p>
-    </SectionShell>
-  );
-}
-
-function FaqSection() {
-  return (
-    <SectionShell id="faq" eyebrow={landingContent.faq.eyebrow} title={landingContent.faq.title}>
-      <div className={styles.faqList}>
-        {landingContent.faq.items.map((item) => (
-          <details className={styles.faqItem} key={item.question}>
-            <summary>{item.question}</summary>
-            <p>{item.answer}</p>
-          </details>
-        ))}
-      </div>
-    </SectionShell>
-  );
-}
-
-function FinalCtaSection({ primaryCtaLabel }: { primaryCtaLabel: string }) {
-  return (
-    <section className={`${styles.section} ${styles.finalCta}`}>
-      <AssetImage asset={LANDING_ILLUSTRATIONS.finalCta} alt="" className={styles.finalCtaDecoration} />
-      <div className={styles.container}>
-        <p className={styles.eyebrow}>{landingContent.finalCta.eyebrow}</p>
-        <h2>{landingContent.finalCta.title}</h2>
-        <p>{landingContent.finalCta.description}</p>
-        <div className={styles.heroActions}>
-          <button className={styles.primaryButton} type="button" onClick={() => scrollToSection('pricing')}>{primaryCtaLabel}</button>
-          <button className={styles.darkSecondaryButton} type="button" onClick={() => scrollToSection('pricing')}>{landingContent.finalCta.secondaryCta}</button>
-        </div>
-        <div className={styles.finalBenefits}>
-          {landingContent.finalCta.benefits.map((item) => <span key={item}>{item}</span>)}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function LandingMain({ plans, primaryCtaLabel, onPlanSelect }: LandingMainProps) {
-  return (
-    <main>
-      <HeroSection />
-      <SpecialtiesStrip />
-      <OldMarketingModelSection />
-      <MarketShiftSection />
-      <DigitalHeadquartersSection />
-      <MarketingTeamSection />
-      <CapabilitiesSection />
-      <WorkflowSection />
-      <ContextCapitalSection />
-      <AiComparisonSection />
-      <ApproachComparisonSection />
-      <DemoProjectSection />
-      <CasesSection />
-      <TestimonialsSection />
-      <AudienceSegmentsSection />
-      <PricingSection plans={plans} onPlanSelect={onPlanSelect} />
-      <PaymentStepsSection />
-      <FaqSection />
-      <FinalCtaSection primaryCtaLabel={primaryCtaLabel} />
-    </main>
-  );
+export function LandingMain(props: LandingMainProps) {
+  return <main><HeroSection /><ProblemSection /><AiTeamWorkflowSection /><SpecialistGridSection /><ProjectContextSection /><ProductResultsSection /><ManagedProcessSection /><ComparisonSection /><PricingSection {...props} /></main>;
 }
 
 export function LandingFooter() {
   return (
     <footer className={styles.footer}>
-      <div className={styles.container}>
-        <Link className={styles.logo} to="/" aria-label="Luma IQ">
-          <LandingLogo variant="onDark" />
-        </Link>
-        <nav aria-label="Юридические ссылки">
-          {landingContent.footerLinks.map((item) => (
-            item.to.startsWith('#')
-              ? <a href={item.to} key={item.to}>{item.label}</a>
-              : <Link to={item.to} key={item.to}>{item.label}</Link>
-          ))}
-        </nav>
+      <div className={`${styles.container} ${styles.footerGrid}`}>
+        <div><Link className={styles.logo} to="/" aria-label="Luma IQ"><LandingLogo variant="onDark" /></Link><p>{landingContent.footer.description}</p><small>{landingContent.footer.note}</small></div>
+        <nav aria-label="Юридические ссылки">{landingContent.footerLinks.map((item) => <Link to={item.to} key={item.to}>{item.label}</Link>)}</nav>
+        <p className={styles.copyright}>© 2026 Luma IQ</p>
       </div>
     </footer>
   );

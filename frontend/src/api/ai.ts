@@ -195,13 +195,24 @@ export const aiApi = {
       .post<{ text: string; fileName: string }>('/files/extract-url', { url })
       .then((r) => r.data),
 
-  transcribeAudio: (file: Blob) => {
+  transcribeAudio: (file: Blob, options?: { signal?: AbortSignal }) => {
     const form = new FormData();
     const extension = file.type.includes('mp4') ? 'm4a' : file.type.includes('wav') ? 'wav' : 'webm';
     form.append('file', file, `voice-message.${extension}`);
     return apiClient
-      .post<{ text: string }>('/audio/transcribe', form, { timeout: 120_000 })
-      .then((r) => r.data.text);
+      .post<{
+        text: string;
+        durationSec: number;
+        format: string;
+        generationId: string;
+        aiPointsCharged: number;
+        aiBalanceRemaining: number;
+        requestId: string;
+      }>('/audio/transcribe', form, {
+        timeout: 120_000,
+        signal: options?.signal,
+      })
+      .then((r) => notifyBalanceChanged(r.data).text);
   },
 };
 

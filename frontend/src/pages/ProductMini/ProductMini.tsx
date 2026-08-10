@@ -11,6 +11,7 @@ import { buildProductMaterial } from '../../utils/projectMaterials';
 import { exportMarkdownToDocx, exportMarkdownToPdf } from '../../utils/exportDocx';
 import { applyProductNameToMarkdown, confirmationForProductName, extractPreferredProductName, productDocFilename } from '../../utils/productDraftEdits';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
+import { mergeMarkdownRevision } from '../../utils/markdownRevision';
 import FormattedText from '../../components/FormattedText/FormattedText';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import AiPipelineProgress from '../../components/AiPipelineProgress/AiPipelineProgress';
@@ -766,8 +767,11 @@ ${currentProduct}
     try {
       const resp = await requestProductStep('edit', stateWithUser, text);
       const response = resp.content;
-
-      const description = response.includes('# Мини-продукт') ? response : `# Мини-продукт\n\n${response}`;
+      const description = mergeMarkdownRevision(
+        stateWithUser.currentMarkdown || buildMiniProductMarkdownFromParts(stateWithUser),
+        response,
+        { rootHeading: '# Мини-продукт', fallbackHeading: 'Доработка мини-продукта' },
+      );
       persistState({
         ...withWorkflowMeta(stateWithUser, resp),
         generated: true,
@@ -775,7 +779,7 @@ ${currentProduct}
         description,
         chatMessages: [
           ...(stateWithUser.chatMessages ?? []),
-          ...splitProductMarkdownToMessages(description).map((message) => ({
+          ...splitProductMarkdownToMessages(response).map((message) => ({
             ...message,
             stepTitle: message.stepTitle ? `Обновлено · ${message.stepTitle}` : 'Обновлено',
           })),

@@ -7,6 +7,8 @@ import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useContentApi } from '../../hooks/useContentApi';
 import { exportToDocx } from '../../utils/exportDocx';
 import { ModelBar } from '../../components/MessageInput/MessageInput';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
+import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { aiApi } from '../../api/ai';
 import { useModelStore } from '../../store/model.store';
@@ -173,6 +175,7 @@ export default function ChatbotChains() {
   const [format,          setFormat]          = useState<Format>('article');
   const [botName,         setBotName]         = useState('');
   const [meetingSchedule, setMeetingSchedule] = useState('');
+  const [customInstruction, setCustomInstruction] = useState('');
 
   // Step 2 state
   const [chain,      setChain]      = useState<StoredChain>(EMPTY_CHAIN);
@@ -180,6 +183,7 @@ export default function ChatbotChains() {
 
   // Unsaved edits per message
   const [editMap, setEditMap] = useState<Record<string, string>>({});
+  const [revisingId, setRevisingId] = useState<string | null>(null);
 
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -260,6 +264,7 @@ export default function ChatbotChains() {
         segment: seg,
         leadMagnetFormat: formatLabel,
         meetingSchedule: meet,
+        customInstruction: customInstruction.trim() || null,
       };
 
       const resp = await aiApi.startWorkflow('chatbot.chain.generate', {
@@ -357,6 +362,35 @@ export default function ChatbotChains() {
       });
     }
     setEditMap(prev => { const n = { ...prev }; delete n[msg.id]; return n; });
+  }
+
+  async function handleAiRevision(msg: ChainMessage, instruction: string): Promise<boolean> {
+    if (!activeProjectId) return false;
+    setRevisingId(msg.id);
+    try {
+      const workflow = 'chatbot.chain.edit';
+      const inputs = {
+        messageIndex: msg.index,
+        messageRole: msg.role,
+        currentContent: getContent(msg),
+        instruction,
+      };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: 'chatgpt',
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      setContent(msg.id, response.content);
+      toast.success('Сообщение доработано. Проверьте результат и сохраните.');
+      return true;
+    } catch (error) {
+      console.error('[ChatbotChains] AI revision failed', error);
+      toast.error('Не удалось доработать сообщение. Попробуйте ещё раз.');
+      return false;
+    } finally {
+      setRevisingId(null);
+    }
   }
 
   function handleCopyOne(msg: ChainMessage) {
@@ -457,6 +491,9 @@ export default function ChatbotChains() {
                 onChange={v => setContent(activeMsg.id, v)}
                 onSave={() => handleSave(activeMsg)}
                 onCopy={() => handleCopyOne(activeMsg)}
+                projectId={activeProjectId}
+                isRevising={revisingId === activeMsg.id}
+                onRevise={(instruction) => handleAiRevision(activeMsg, instruction)}
               />
             )}
           </div>
@@ -581,6 +618,16 @@ export default function ChatbotChains() {
               />
             </div>
           </div>
+          <div style={{ marginTop: 16 }}>
+            <div className={s.inputLabel}>Свободная инструкция и фактура</div>
+            <VoiceComposer
+              value={customInstruction}
+              onChange={setCustomInstruction}
+              placeholder="Наговорите особенности воронки, примеры, ограничения или тон сообщений..."
+              textareaClassName={s.editorTextarea}
+              rows={4}
+            />
+          </div>
         </div>
 
         <div className={s.btnRow}>
@@ -615,9 +662,12 @@ interface MessageEditorProps {
   onChange:    (v: string) => void;
   onSave:      () => void;
   onCopy:      () => void;
+  projectId?: string | null;
+  isRevising: boolean;
+  onRevise: (instruction: string) => Promise<boolean>;
 }
 
-function MessageEditor({ msg, content, hasUnsaved, onChange, onSave, onCopy }: MessageEditorProps) {
+function MessageEditor({ msg, content, hasUnsaved, onChange, onSave, onCopy, projectId, isRevising, onRevise }: MessageEditorProps) {
   const lines = lineCount(content);
   const inTarget = lines >= 3 && lines <= 7;
   const overLimit = lines > 7;
@@ -664,6 +714,13 @@ function MessageEditor({ msg, content, hasUnsaved, onChange, onSave, onCopy }: M
           💾 Сохранить
         </button>
       </div>
+      <ContentRevisionComposer
+        projectId={projectId}
+        workflow="chatbot.chain.edit"
+        isLoading={isRevising}
+        onSubmit={onRevise}
+        placeholder="Например: сделайте сообщение теплее, добавьте мой пример и сократите призыв"
+      />
     </div>
   );
 }

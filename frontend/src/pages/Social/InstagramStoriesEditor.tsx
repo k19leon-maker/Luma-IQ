@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { aiApi } from '../../api/ai';
 import type { InstagramHighlightDraft, InstagramStoryDraft } from '../../api/projects.api';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
+import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
 import { parseStoryProposal, storyDraft } from '../../utils/instagramAiProposals';
 import styles from './Social.module.css';
 
@@ -59,6 +60,7 @@ export default function InstagramStoriesEditor({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [aiInstruction, setAiInstruction] = useState('');
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [aiStoryId, setAiStoryId] = useState<string | null>(null);
   const [aiProposal, setAiProposal] = useState<{
     storyId: string;
@@ -109,7 +111,7 @@ export default function InstagramStoriesEditor({
   }
 
   async function improveStory(current: InstagramStoryDraft, index: number) {
-    if (aiStoryId) return;
+    if (aiStoryId || voiceBusy) return;
     setAiStoryId(current.id);
     try {
       const response = await aiApi.startWorkflow('instagram.story.improve', {
@@ -257,15 +259,19 @@ export default function InstagramStoriesEditor({
                         <strong>AI-доработка этой сторис</strong>
                         <span>Текущая версия сохранится, пока вы не примените предложение.</span>
                       </div>
-                      <input
+                      <VoiceComposer
                         value={aiInstruction}
-                        onChange={(event) => setAiInstruction(event.target.value)}
-                        maxLength={2000}
+                        onChange={setAiInstruction}
+                        onBusyChange={setVoiceBusy}
+                        disabled={aiStoryId !== null}
                         placeholder="Например: сделай мягче, сократи, усиль призыв"
+                        textareaClassName={styles.storyAiInstruction}
+                        rows={2}
+                        maxLength={2000}
                       />
                       <button
                         type="button"
-                        disabled={aiStoryId !== null}
+                        disabled={aiStoryId !== null || voiceBusy}
                         onClick={() => void improveStory(story, index)}
                       >
                         {aiStoryId === story.id ? 'Дорабатываем…' : 'Доработать через AI'}
