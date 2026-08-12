@@ -53,6 +53,7 @@ model User {
   projectFiles             ProjectFile[]
   projectTasks             ProjectTask[]
   castDevRecords           CastDevRecord[]
+  caseStudies              CaseStudy[]
   promptVersions           PromptVersion[]
   promptExperiments        PromptExperiment[]
   consentLogs              ConsentLog[]
@@ -1011,9 +1012,36 @@ model Project {
   projectFiles        ProjectFile[]
   tasks               ProjectTask[]
   castDevRecords      CastDevRecord[]
+  caseStudies         CaseStudy[]
 
   @@index([userId, createdAt])
   @@map("projects")
+}
+
+model CaseStudy {
+  id               String   @id @default(uuid())
+  projectId        String
+  userId           String
+  title            String
+  beforeText       String   @db.Text
+  actionsText      String   @db.Text
+  afterText        String   @db.Text
+  clientTask       String?  @db.Text
+  clientProblem    String?  @db.Text
+  desiredResult    String?  @db.Text
+  marketingInsight String?  @db.Text
+  status           String   @default("draft")
+  sourceType       String   @default("manual")
+  sourceText       String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, updatedAt])
+  @@index([userId, updatedAt])
+  @@map("case_studies")
 }
 
 model ProjectTask {

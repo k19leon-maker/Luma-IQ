@@ -28,10 +28,11 @@ const strategyNav: NavItem[] = [
   { path: '/strategy/positioning',  label: 'Позиционирование',      icon: '🧭' },
   { path: '/strategy/audience',     label: 'Целевая аудитория',    icon: '🎯' },
   { path: '/strategy/castdev',      label: 'CustDev',              icon: '🎙️' },
-  { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
+  { path: '/strategy/cases',        label: 'Кейсы',                icon: '▤' },
 ];
 
 const packagingNav: NavItem[] = [
+  { path: '/strategy/utp',          label: 'Создание УТП',         icon: '💎' },
   { path: '/strategy/social',       label: 'Инста',                icon: '📱' },
   { path: '/tg-channel',            label: 'ТГ-канал',             icon: '✈️' },
   { path: '/threads',               label: 'Тредс',                icon: '🧵' },
@@ -63,6 +64,7 @@ const pageTitles: Record<string, string> = {
   '/strategy/positioning':  'Позиционирование',
   '/strategy/audience':     'Целевая аудитория',
   '/strategy/castdev':      'CustDev',
+  '/strategy/cases':        'Кейсы',
   '/strategy/utp':          'Создание УТП',
   '/strategy/social':       'Упаковка Instagram',
   '/products/main':         'Основной продукт',
@@ -115,7 +117,7 @@ function getLocalLimitsSection(path: string): SectionUsageLimitsSection | null {
   if (path === '/posts' || path === '/reels' || path === '/chatbot-chains' || path === '/threads' || path === '/tg-channel' || path === '/content-plan') return 'content';
   if (path === '/articles') return 'longreads';
   if (path === '/video-scripts') return 'youtube_scripts';
-  if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/castdev' || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';
+  if (path === '/strategy/about' || path === '/strategy/positioning' || path === '/strategy/audience' || path === '/strategy/castdev' || path.startsWith('/strategy/cases') || path === '/strategy/utp' || path === '/strategy/social') return 'strategy';
   if (path === '/products/main' || path === '/products/mini' || path === '/products/lead-magnet') return 'products';
   return null;
 }
@@ -336,7 +338,7 @@ export default function Layout({ children }: LayoutProps) {
   const localLimitsSection = getLocalLimitsSection(appLocationPath);
   const title = projectMatch
     ? (projects.find((p) => p.id === projectMatch[1])?.name ?? 'Проект')
-    : (pageTitles[appLocationPath] ?? 'LumaIQ');
+    : (appLocationPath.startsWith('/strategy/cases') ? 'Кейсы' : (pageTitles[appLocationPath] ?? 'LumaIQ'));
 
   /* New project modal */
   const [showModal,       setShowModal]       = useState(false);

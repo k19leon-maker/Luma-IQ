@@ -9,6 +9,7 @@ import aiRouter from './routes/ai.routes';
 import audioRouter from './routes/audio.routes';
 import jtbdRouter from './routes/jtbd.routes';
 import projectRouter from './routes/project.routes';
+import caseStudyRouter from './routes/case-study.routes';
 import contentRouter from './routes/content.routes';
 import productsRouter from './routes/products.routes';
 import contentPlanRouter from './routes/content-plan.routes';
@@ -79,6 +80,7 @@ export function createApp() {
   app.use('/api/v1/audio', audioRouter);
   app.use('/api/v1/jtbd', jtbdRouter);
   app.use('/api/v1/projects', projectRouter);
+  app.use('/api/v1/projects', caseStudyRouter);
   app.use('/api/v1/content', contentRouter);
   app.use('/api/v1/products', productsRouter);
   app.use('/api/v1/content-plan', contentPlanRouter);

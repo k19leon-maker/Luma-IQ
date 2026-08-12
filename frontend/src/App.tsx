@@ -24,6 +24,7 @@ const AboutExpert = lazy(() => import('./pages/AboutExpert/AboutExpert'));
 const Positioning = lazy(() => import('./pages/Positioning/Positioning'));
 const Strategy = lazy(() => import('./pages/Strategy/Strategy'));
 const CastDev = lazy(() => import('./pages/CastDev/CastDev'));
+const Cases = lazy(() => import('./pages/Cases/Cases'));
 const UTP = lazy(() => import('./pages/UTP/UTP'));
 const Social = lazy(() => import('./pages/Social/Social'));
 const ProductMain = lazy(() => import('./pages/ProductMain/ProductMain'));
@@ -144,6 +145,8 @@ export default function App() {
           <Route path="strategy/positioning" element={page(<Positioning />)} />
           <Route path="strategy/audience" element={page(<Strategy />)} />
           <Route path="strategy/castdev" element={page(<CastDev />)} />
+          <Route path="strategy/cases" element={page(<Cases />)} />
+          <Route path="strategy/cases/:caseId" element={page(<Cases />)} />
           <Route path="strategy/utp" element={page(<UTP />)} />
           <Route path="strategy/social" element={page(<Social />)} />
 
