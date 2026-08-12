@@ -36,9 +36,20 @@ describe('caseStudyAiService', () => {
 
     expect(caseServiceMock.assertOwnedProject).toHaveBeenCalledWith('user-1', 'project-1');
     expect(runtimeMock.runWorkflow).toHaveBeenCalledWith(expect.objectContaining({
-      workflow: 'cases', step: 'extract', idempotencyKey: 'extract-key-123',
+      userId: 'user-1',
+      projectId: 'project-1',
+      workflow: 'cases',
+      step: 'extract',
+      inputs: {
+        sourceText: 'История клиента с достаточным объёмом исходного текста.',
+        sourceType: 'document',
+        transcriptChars: 55,
+      },
+      idempotencyKey: 'extract-key-123',
     }));
     expect(result.candidates[0].title).toBe('Первые заявки');
+    expect(result.aiPointsCharged).toBe(20);
+    expect(result.aiBalanceRemaining).toBe(980);
   });
 
   it('rejects malformed extraction JSON instead of persisting guesses', async () => {
@@ -65,14 +76,29 @@ describe('caseStudyAiService', () => {
     });
     caseServiceMock.update.mockResolvedValue({ id: 'case-1', clientTask: 'Получить заявки' });
 
-    await caseStudyAiService.generateInsights({
+    const result = await caseStudyAiService.generateInsights({
       userId: 'user-1', projectId: 'project-1', caseId: 'case-1', idempotencyKey: 'insights-key-123',
     });
 
     expect(caseServiceMock.get).toHaveBeenCalledWith('user-1', 'project-1', 'case-1');
+    expect(runtimeMock.runWorkflow).toHaveBeenCalledWith({
+      userId: 'user-1',
+      projectId: 'project-1',
+      workflow: 'cases',
+      step: 'insights',
+      inputs: {
+        title: 'Кейс',
+        beforeText: 'Было',
+        actionsText: 'Сделали',
+        afterText: 'Стало',
+      },
+      idempotencyKey: 'insights-key-123',
+    });
     expect(caseServiceMock.update).toHaveBeenCalledWith('user-1', 'project-1', 'case-1', {
       clientTask: 'Получить заявки', clientProblem: 'Нет системы',
       desiredResult: 'Стабильность', marketingInsight: 'Нужен следующий шаг',
     });
+    expect(result.aiPointsCharged).toBe(5);
+    expect(result.aiBalanceRemaining).toBe(980);
   });
 });

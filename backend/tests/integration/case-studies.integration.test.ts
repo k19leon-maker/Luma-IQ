@@ -203,6 +203,11 @@ describe('Case studies API', () => {
       .expect(200);
 
     expect(response.body.candidates).toHaveLength(1);
+    expect(response.body).toMatchObject({
+      generationId: 'generation-1',
+      aiPointsCharged: 20,
+      aiBalanceRemaining: 980,
+    });
     expect(mockedAiService.extract).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1', projectId, idempotencyKey: 'extract-key-123',
     }));
@@ -238,16 +243,35 @@ describe('Case studies API', () => {
       generationId: 'generation-2', aiPointsCharged: 5, aiBalanceRemaining: 975,
     } as never);
 
-    await request(createApp())
+    const response = await request(createApp())
       .post(`/api/v1/projects/${projectId}/cases/${caseId}/generate-insights`)
       .set('Authorization', authHeader('user-2'))
       .set('Idempotency-Key', 'insights-key-123')
       .send({})
       .expect(200);
 
+    expect(response.body).toMatchObject({
+      generationId: 'generation-2',
+      aiPointsCharged: 5,
+      aiBalanceRemaining: 975,
+    });
     expect(mockedAiService.generateInsights).toHaveBeenCalledWith({
       userId: 'user-2', projectId, caseId, idempotencyKey: 'insights-key-123',
     });
+  });
+
+  it('returns a safe 404 when insights are requested for a foreign case', async () => {
+    mockedAiService.generateInsights.mockRejectedValue(new CaseStudyNotFoundError());
+
+    await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/${caseId}/generate-insights`)
+      .set('Authorization', authHeader('user-2'))
+      .send({ idempotencyKey: 'foreign-insights-key' })
+      .expect(404);
+
+    expect(mockedAiService.generateInsights).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-2', projectId, caseId,
+    }));
   });
 
   it('returns the standard no-charge message for insufficient AI balance', async () => {
