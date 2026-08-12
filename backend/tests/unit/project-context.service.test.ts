@@ -5,6 +5,9 @@ vi.mock('../../src/lib/prisma', () => ({
     project: {
       findFirst: vi.fn(),
     },
+    caseStudy: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -71,6 +74,7 @@ async function build(workflow: string) {
 describe('projectContextService CustDev context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedPrisma.caseStudy.findMany.mockResolvedValue([]);
   });
 
   it.each([
@@ -98,5 +102,55 @@ describe('projectContextService CustDev context', () => {
 
     expect(context.rendered).not.toContain('CustDev / реальные интервью клиентов');
     expect(context.rendered).not.toContain('Клиент хочет быстро понять');
+    expect(mockedPrisma.caseStudy.findMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'strategy.utp',
+    'strategy.offer',
+    'product.main',
+    'leadmagnet',
+    'posts.post',
+    'reels.script',
+    'articles.article',
+    'threads.plan',
+    'tg-channel',
+    'chatbot.chain',
+    'video.script',
+    'content-plan',
+  ])('adds only ready case summaries to %s', async (workflow) => {
+    mockedPrisma.caseStudy.findMany.mockResolvedValue([{
+      id: 'case-ready',
+      title: 'Рост заявок',
+      beforeText: 'Заявки шли только по рекомендациям.',
+      actionsText: 'Собрали позиционирование и воронку.',
+      afterText: 'Появились заявки из контента.',
+      clientTask: 'Получать заявки онлайн.',
+      clientProblem: null,
+      desiredResult: null,
+      marketingInsight: 'Показывать переход к системе.',
+      updatedAt: new Date('2026-08-12T10:00:00Z'),
+    }] as never);
+
+    const context = await build(workflow);
+
+    expect(context.contextVersion).toBe('project-context-v3');
+    expect(context.rendered).toContain('Готовые кейсы проекта');
+    expect(context.rendered).toContain('Рост заявок');
+    expect(context.rendered).toContain('Не называй кейс опубликованным');
+    expect(context.blocks.find((block) => block.key === 'cases_summary')?.sourceFingerprint)
+      .toBe('case-ready:2026-08-12T10:00:00.000Z');
+    expect(mockedPrisma.caseStudy.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'user-1', projectId: 'project-1', status: 'ready' },
+      take: 5,
+      select: expect.not.objectContaining({ sourceText: true }),
+    }));
+  });
+
+  it.each(['cases', 'castdev', 'positioning.analysis', 'instagram.profile'])('does not query or include cases in %s', async (workflow) => {
+    const context = await build(workflow);
+
+    expect(context.rendered).not.toContain('Готовые кейсы проекта');
+    expect(mockedPrisma.caseStudy.findMany).not.toHaveBeenCalled();
   });
 });

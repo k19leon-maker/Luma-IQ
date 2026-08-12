@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from './demo-products';
+import { caseStudyContextService } from '../services/case-study-context.service';
 
 function shorten(value: unknown, max = 1200): string {
   if (value === null || value === undefined) return 'нет данных';
@@ -65,6 +66,9 @@ export async function buildAiDialogSystemPrompt(userId: string, projectId: strin
   });
 
   if (!project) return null;
+
+  const readyCases = await caseStudyContextService.getReadyCasesForProject(userId, projectId);
+  const casesContext = caseStudyContextService.renderForPrompt(readyCases);
 
   const strategyData = sanitizeProjectStrategyData(project.strategyData);
   const strategyRecord = (
@@ -148,10 +152,14 @@ ${content}
 КОНТЕНТ-ПЛАН:
 ${plan}
 
+ГОТОВЫЕ КЕЙСЫ ПРОЕКТА:
+${casesContext || 'готовых кейсов пока нет'}
+
 КАК ОТВЕЧАТЬ:
 - Если пользователь спрашивает "что дальше" — дай приоритетный план на 1–3 шага.
 - Если пользователь просит оценить материал — дай сильные стороны, слабые места и конкретную правку.
 - Если пользователь застрял — объясни, чего не хватает для следующего этапа.
 - Не придумывай факты, которых нет в контексте. Отмечай предположения явно.
+- Не представляй кейсы как опубликованные или согласованные отзывы, если это прямо не указано пользователем.
 `.trim();
 }

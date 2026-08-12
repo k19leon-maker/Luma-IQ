@@ -810,7 +810,7 @@ export const batchJobService = {
             idempotencyKey: generationIdempotencyKey(input.idempotencyKey, item.customId),
             aiPointsReserved: definition.aiPoints,
             promptVersion: config.version,
-            contextVersion: 'project-context-v2',
+            contextVersion: 'project-context-v3',
             metadata: {
               actionKey,
               mode: 'background',

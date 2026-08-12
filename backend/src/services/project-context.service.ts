@@ -2,6 +2,7 @@ import { GeneratedTextType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ProjectContext, buildProjectContext } from '../utils/buildProjectContext';
 import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from '../utils/demo-products';
+import { caseStudyContextService } from './case-study-context.service';
 
 export type ContextPriority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -10,6 +11,7 @@ export interface ContextBlock {
   title: string;
   priority: ContextPriority;
   content: string;
+  sourceFingerprint?: string;
 }
 
 export interface ProjectContextBundle {
@@ -162,6 +164,12 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
   const group = workflowGroup(workflow);
   const common = new Set(['project', 'expert_profile', 'workflow_inputs']);
   if (common.has(blockKey)) return true;
+
+  if (blockKey === 'cases_summary') {
+    return workflow === 'strategy.utp'
+      || workflow === 'strategy.offer'
+      || ['product', 'leadmagnet', 'posts', 'reels', 'articles', 'threads', 'tg-channel', 'chatbot', 'video', 'content-plan', 'content_plan'].includes(group);
+  }
 
   if (group === 'castdev') {
     return false;
@@ -476,6 +484,11 @@ export const projectContextService = {
     const realGeneratedTexts = project.generatedTexts.filter((item) => !isDemoContentText(item));
     const contentHistorySummary = summarizeContentHistory(realGeneratedTexts, input.workflow);
     const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);
+    const includeReadyCases = shouldInclude('cases_summary', input.workflow);
+    const readyCases = includeReadyCases
+      ? await caseStudyContextService.getReadyCasesForProject(input.userId, input.projectId)
+      : [];
+    const casesSummary = includeReadyCases ? caseStudyContextService.renderForPrompt(readyCases) : '';
     const profile = {
       expertName: stringify(about.expertName ?? about.name ?? about.displayName),
       expertProfileSummary: expertSummary,
@@ -544,6 +557,15 @@ export const projectContextService = {
         content: contentHistorySummary,
       },
       {
+        key: 'cases_summary',
+        title: 'Готовые кейсы проекта',
+        priority: 'low',
+        content: casesSummary,
+        sourceFingerprint: readyCases
+          .map((record) => `${record.id}:${record.updatedAt.toISOString()}`)
+          .join('|'),
+      },
+      {
         key: 'workflow_inputs',
         title: 'Входные параметры текущего workflow',
         priority: 'critical',
@@ -560,7 +582,7 @@ export const projectContextService = {
       projectName: project.name,
       workflow: input.workflow,
       step: input.step,
-      contextVersion: 'project-context-v2',
+      contextVersion: 'project-context-v3',
       base,
       blocks: selectedBlocks,
       rendered,

@@ -73,4 +73,60 @@ describe('contextBuilderService', () => {
       }),
     }));
   });
+
+  it('changes source hash when a context source fingerprint changes', async () => {
+    summaryStore.findFirst.mockReset().mockResolvedValue(null);
+    summaryStore.create.mockReset().mockResolvedValue(null);
+    contextMock
+      .mockResolvedValueOnce({
+        projectId: 'project-1',
+        projectName: 'Project',
+        workflow: 'posts',
+        step: 'generate',
+        contextVersion: 'project-context-v3',
+        base: {},
+        blocks: [{
+          key: 'cases_summary',
+          title: 'Готовые кейсы',
+          priority: 'low',
+          content: 'Тот же текст кейса',
+          sourceFingerprint: 'case-1:2026-08-12T10:00:00.000Z',
+        }],
+        rendered: '',
+        approxTokens: 5,
+      })
+      .mockResolvedValueOnce({
+        projectId: 'project-1',
+        projectName: 'Project',
+        workflow: 'posts',
+        step: 'generate',
+        contextVersion: 'project-context-v3',
+        base: {},
+        blocks: [{
+          key: 'cases_summary',
+          title: 'Готовые кейсы',
+          priority: 'low',
+          content: 'Тот же текст кейса',
+          sourceFingerprint: 'case-2:2026-08-12T10:00:00.000Z',
+        }],
+        rendered: '',
+        approxTokens: 5,
+      });
+
+    const input = {
+      userId: 'user-1',
+      projectId: 'project-1',
+      workflow: 'posts',
+      step: 'generate',
+      actionKey: 'content_post' as const,
+      actionDefinition: definition,
+      inputs: { topic: 'Test' },
+      promptVersion: 'v1',
+    };
+    const first = await contextBuilderService.build(input);
+    const second = await contextBuilderService.build(input);
+
+    expect(first.sourceHash).not.toBe(second.sourceHash);
+    expect(first.promptCacheKey).not.toBe(second.promptCacheKey);
+  });
 });
