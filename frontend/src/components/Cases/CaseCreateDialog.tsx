@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CreateCaseStudyInput } from '../../api/cases';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
 import s from '../../pages/Cases/Cases.module.css';
 
 interface CaseCreateDialogProps {
@@ -19,22 +20,18 @@ const EMPTY_FORM: CreateCaseStudyInput = {
 export default function CaseCreateDialog({ open, saving, onClose, onCreate }: CaseCreateDialogProps) {
   const [form, setForm] = useState<CreateCaseStudyInput>(EMPTY_FORM);
   const titleRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useDialogFocus({
+    open,
+    onClose,
+    closeDisabled: saving,
+    initialFocusRef: titleRef,
+  });
 
   useEffect(() => {
     if (!open) return undefined;
     setForm(EMPTY_FORM);
-    const focusTimer = window.setTimeout(() => titleRef.current?.focus(), 0);
-    return () => window.clearTimeout(focusTimer);
+    return undefined;
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving) onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, open, saving]);
 
   if (!open) return null;
 
@@ -43,10 +40,12 @@ export default function CaseCreateDialog({ open, saving, onClose, onCreate }: Ca
   return (
     <div className={s.dialogBackdrop} role="presentation" onMouseDown={() => !saving && onClose()}>
       <section
+        ref={dialogRef}
         className={s.createDialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-case-title"
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className={s.dialogHeader}>

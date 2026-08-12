@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -66,6 +66,8 @@ export default function Cases() {
   const [importBatchKey, setImportBatchKey] = useState('');
   const [selected, setSelected] = useState<CaseStudy | null>(null);
   const [draft, setDraft] = useState<CaseDraft | null>(null);
+  const [selectionProjectId, setSelectionProjectId] = useState<string | null>(null);
+  const previousProjectIdRef = useRef<string | null | undefined>(undefined);
 
   const dirty = useMemo(() => {
     if (!selected || !draft) return false;
@@ -80,8 +82,9 @@ export default function Cases() {
   const chooseRecord = useCallback((record: CaseStudy, replace = false) => {
     setSelected(record);
     setDraft(toDraft(record));
+    setSelectionProjectId(activeProjectId);
     navigate(appPath(`/strategy/cases/${record.id}`), { replace });
-  }, [navigate]);
+  }, [activeProjectId, navigate]);
 
   const closeCreateDialog = useCallback(() => setCreateDialogOpen(false), []);
   const resetImport = useCallback(() => {
@@ -97,10 +100,30 @@ export default function Cases() {
   }, [creatingBatch, extracting]);
 
   useEffect(() => {
+    const projectChanged = previousProjectIdRef.current !== undefined
+      && previousProjectIdRef.current !== activeProjectId;
+    previousProjectIdRef.current = activeProjectId;
+
+    if (projectChanged) {
+      setCases([]);
+      setSelected(null);
+      setDraft(null);
+      setSelectionProjectId(null);
+      setFilter('all');
+      setCreateDialogOpen(false);
+      setImportDialogOpen(false);
+      resetImport();
+      if (caseId) {
+        navigate(appPath('/strategy/cases'), { replace: true });
+        return undefined;
+      }
+    }
+
     if (!activeProjectId) {
       setCases([]);
       setSelected(null);
       setDraft(null);
+      setSelectionProjectId(null);
       return;
     }
 
@@ -115,6 +138,7 @@ export default function Cases() {
           if (fromList) {
             setSelected(fromList);
             setDraft(toDraft(fromList));
+            setSelectionProjectId(activeProjectId);
             return;
           }
           try {
@@ -123,6 +147,7 @@ export default function Cases() {
               setCases((current) => [direct, ...current]);
               setSelected(direct);
               setDraft(toDraft(direct));
+              setSelectionProjectId(activeProjectId);
             }
           } catch {
             if (!cancelled) {
@@ -135,6 +160,7 @@ export default function Cases() {
 
         setSelected(items[0] ?? null);
         setDraft(items[0] ? toDraft(items[0]) : null);
+        setSelectionProjectId(items[0] ? activeProjectId : null);
       })
       .catch((error) => {
         if (!cancelled) toast.error(getErrorMessage(error, 'Не удалось загрузить кейсы'));
@@ -144,7 +170,7 @@ export default function Cases() {
       });
 
     return () => { cancelled = true; };
-  }, [activeProjectId, caseId, navigate]);
+  }, [activeProjectId, caseId, navigate, resetImport]);
 
   useEffect(() => {
     if (!dirty) return undefined;
@@ -253,6 +279,7 @@ export default function Cases() {
       setCases((current) => current.map((record) => record.id === updated.id ? updated : record));
       setSelected(updated);
       setDraft(toDraft(updated));
+      setSelectionProjectId(activeProjectId);
       toast.success('Кейс сохранён');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Не удалось сохранить кейс'));
@@ -278,6 +305,7 @@ export default function Cases() {
       setCases((current) => current.map((record) => record.id === result.case.id ? result.case : record));
       setSelected(result.case);
       setDraft(toDraft(result.case));
+      setSelectionProjectId(activeProjectId);
       toast.success('Маркетинговые тезисы обновлены');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Не удалось обновить тезисы'));
@@ -295,6 +323,7 @@ export default function Cases() {
       setCases(remaining);
       setSelected(remaining[0] ?? null);
       setDraft(remaining[0] ? toDraft(remaining[0]) : null);
+      setSelectionProjectId(remaining[0] ? activeProjectId : null);
       navigate(appPath('/strategy/cases'), { replace: true });
       toast.success('Кейс удалён');
     } catch (error) {
@@ -306,6 +335,7 @@ export default function Cases() {
     if (!confirmDiscard()) return;
     setSelected(null);
     setDraft(null);
+    setSelectionProjectId(null);
     navigate(appPath('/strategy/cases'));
   }
 
@@ -322,7 +352,7 @@ export default function Cases() {
     <div className={`${s.page} ${caseId ? s.mobileDetailOpen : ''}`}>
       <CaseList
         cases={visibleCases}
-        selectedId={selected?.id ?? null}
+        selectedId={selectionProjectId === activeProjectId ? selected?.id ?? null : null}
         filter={filter}
         loading={loading}
         onFilterChange={setFilter}
@@ -332,7 +362,7 @@ export default function Cases() {
       />
 
       <section className={s.detailColumn} aria-label="Карточка кейса">
-        {selected && draft ? (
+        {selected && draft && selectionProjectId === activeProjectId ? (
           <CaseEditor
             record={selected}
             draft={draft}

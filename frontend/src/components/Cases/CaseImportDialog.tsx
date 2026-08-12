@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CaseExtractionCandidate, CaseStudySourceType } from '../../api/cases';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
 import AiWorkflowCost from '../AiWorkflowCost/AiWorkflowCost';
 import { VoiceComposer } from '../VoiceComposer/VoiceComposer';
 import s from '../../pages/Cases/Cases.module.css';
@@ -26,6 +27,13 @@ export default function CaseImportDialog({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [sourceType, setSourceType] = useState<CaseStudySourceType>('document');
   const textRef = useRef<HTMLDivElement>(null);
+  const busy = extracting || creating || voiceBusy;
+  const dialogRef = useDialogFocus({
+    open,
+    onClose,
+    closeDisabled: busy,
+    initialFocusRef: textRef,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -33,23 +41,13 @@ export default function CaseImportDialog({
     setSelected([]);
     setSourceType('document');
     onReset();
-    const timer = window.setTimeout(() => textRef.current?.querySelector('textarea')?.focus(), 0);
-    return () => window.clearTimeout(timer);
+    return undefined;
   }, [onReset, open]);
 
   useEffect(() => {
     setSelected(candidates.map(() => true));
     setEditableCandidates(candidates);
   }, [candidates]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !extracting && !creating && !voiceBusy) onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [creating, extracting, onClose, open, voiceBusy]);
 
   const selectedCandidates = useMemo(
     () => editableCandidates.filter((_, index) => selected[index]),
@@ -63,11 +61,10 @@ export default function CaseImportDialog({
     && selectedCandidates.every((candidate) => candidate.title.trim().length > 0);
 
   if (!open) return null;
-  const busy = extracting || creating || voiceBusy;
 
   return (
     <div className={s.dialogBackdrop} role="presentation" onMouseDown={() => !busy && onClose()}>
-      <section className={`${s.createDialog} ${s.importDialog}`} role="dialog" aria-modal="true" aria-labelledby="case-import-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className={`${s.createDialog} ${s.importDialog}`} role="dialog" aria-modal="true" aria-labelledby="case-import-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
         <div className={s.dialogHeader}>
           <div>
             <p className={s.dialogEyebrow}>AI-анализ</p>
