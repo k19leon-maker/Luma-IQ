@@ -53,6 +53,7 @@ export type AiActionType =
   | 'castdev_transcription'
   | 'castdev_analysis'
   | 'castdev_synthesis'
+  | 'cases_voice_transcription'
   | 'cases_extract_case'
   | 'cases_generate_marketing_insights'
   | 'strategy_rebuild';
@@ -110,6 +111,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   castdev_transcription: 20,
   castdev_analysis: 40,
   castdev_synthesis: 100,
+  cases_voice_transcription: 20,
   cases_extract_case: 20,
   cases_generate_marketing_insights: 5,
   strategy_rebuild: 100,
@@ -168,6 +170,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   castdev_transcription: 'Транскрибация CustDev',
   castdev_analysis: 'AI-разбор CustDev',
   castdev_synthesis: 'Синтез интервью CustDev',
+  cases_voice_transcription: 'Транскрибация голосового кейса',
   cases_extract_case: 'Извлечение кейсов из текста',
   cases_generate_marketing_insights: 'Маркетинговые тезисы кейса',
   strategy_rebuild: 'Пересборка стратегии',
@@ -227,6 +230,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   castdev_transcription: 'Стратегия',
   castdev_analysis: 'Стратегия',
   castdev_synthesis: 'Стратегия',
+  cases_voice_transcription: 'Кейсы',
   cases_extract_case: 'Кейсы',
   cases_generate_marketing_insights: 'Кейсы',
 };
@@ -267,6 +271,7 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'castdev_transcription': return 'castdev_transcription';
     case 'castdev_analysis': return 'castdev_analysis';
     case 'castdev_synthesis': return 'castdev_synthesis';
+    case 'cases_voice_transcription': return 'cases_voice_transcription';
     case 'cases_extract_case': return 'cases_extract_case';
     case 'cases_generate_marketing_insights': return 'cases_generate_marketing_insights';
     default:
@@ -350,11 +355,11 @@ export function aiPointsForGeneration(featureCode: string, metadata?: unknown): 
   const step = metadataField(metadata, 'step');
   const castDevAiPoints = metadataNumber(metadata, 'castdevAiPoints');
 
-  if ((featureCode === 'castdev_transcription' || featureCode === 'castdev_analysis' || featureCode === 'cases_extract_case') && castDevAiPoints !== null) {
+  if ((featureCode === 'castdev_transcription' || featureCode === 'cases_voice_transcription' || featureCode === 'castdev_analysis' || featureCode === 'cases_extract_case') && castDevAiPoints !== null) {
     return Math.max(0, Math.round(castDevAiPoints));
   }
 
-  if (featureCode === 'castdev_transcription') {
+  if (featureCode === 'castdev_transcription' || featureCode === 'cases_voice_transcription') {
     return getCastDevTranscriptionCost(metadataNumber(metadata, 'durationSec'));
   }
 

@@ -20,6 +20,10 @@ export interface VoiceRecorderError {
 export interface AudioRecorderOptions {
   maxDurationSeconds?: number;
   maxFileSizeBytes?: number;
+  transcriptionContext?: {
+    purpose: 'cases';
+    projectId: string;
+  };
 }
 
 const DEFAULT_MAX_DURATION_SECONDS = 5 * 60;
@@ -319,7 +323,10 @@ export function useAudioRecorder(
     const abortController = new AbortController();
     transcriptionAbortRef.current = abortController;
     try {
-      const text = await aiApi.transcribeAudio(blob, { signal: abortController.signal });
+      const text = await aiApi.transcribeAudio(blob, {
+        signal: abortController.signal,
+        ...options.transcriptionContext,
+      });
       if (sessionRef.current !== sessionId || cancelledRef.current || !mountedRef.current) return;
       const clean = text.trim();
       if (!clean) {
@@ -335,7 +342,7 @@ export function useAudioRecorder(
     } finally {
       if (transcriptionAbortRef.current === abortController) transcriptionAbortRef.current = null;
     }
-  }, [cleanupCapture, emitError, maxFileSizeBytes, updateState]);
+  }, [cleanupCapture, emitError, maxFileSizeBytes, options.transcriptionContext, updateState]);
 
   const finish = useCallback(() => {
     const recorder = recorderRef.current;

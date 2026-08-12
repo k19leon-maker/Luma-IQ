@@ -195,10 +195,16 @@ export const aiApi = {
       .post<{ text: string; fileName: string }>('/files/extract-url', { url })
       .then((r) => r.data),
 
-  transcribeAudio: (file: Blob, options?: { signal?: AbortSignal }) => {
+  transcribeAudio: (file: Blob, options?: {
+    signal?: AbortSignal;
+    purpose?: 'cases';
+    projectId?: string;
+  }) => {
     const form = new FormData();
     const extension = file.type.includes('mp4') ? 'm4a' : file.type.includes('wav') ? 'wav' : 'webm';
     form.append('file', file, `voice-message.${extension}`);
+    if (options?.purpose) form.append('purpose', options.purpose);
+    if (options?.projectId) form.append('projectId', options.projectId);
     return apiClient
       .post<{
         text: string;

@@ -155,6 +155,49 @@ describe('audioTranscriptionService', () => {
     expect(routeMock).toHaveBeenCalledWith(expect.objectContaining({ attemptIndex: 1 }));
   });
 
+  it('uses the case transcription action and project metadata for voice case imports', async () => {
+    const filePath = await tempFile();
+    actionResolveMock.mockResolvedValueOnce({
+      actionKey: 'cases_voice_transcription',
+      pipeline: [{ stage: 'generate', modelAlias: 'TRANSCRIBE_MINI', reasoning: 'low' }],
+      contextBudget: 0,
+      outputLimit: 0,
+      retryPolicy: { maxAttempts: 2, retrySameProfile: true },
+      fallbackPolicy: { aliases: [], allowDowngrade: false },
+      batchEligible: false,
+      aiPoints: 20,
+      source: 'config',
+    });
+
+    await audioTranscriptionService.transcribe({
+      userId: 'user-1',
+      projectId: '11111111-1111-4111-8111-111111111111',
+      purpose: 'cases',
+      filePath,
+      fileSize: 100,
+      claimedMimeType: 'audio/wav',
+      requestId: 'request-cases',
+    });
+
+    expect(actionResolveMock).toHaveBeenCalledWith('cases_voice_transcription');
+    expect(generationRunMock).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: '11111111-1111-4111-8111-111111111111',
+      featureCode: 'cases_voice_transcription',
+      actionKey: 'cases_voice_transcription',
+      metadata: expect.objectContaining({
+        source: 'cases',
+        purpose: 'cases',
+        durationSec: 12,
+      }),
+    }));
+    expect(transcribeMock).toHaveBeenCalledWith(expect.objectContaining({
+      telemetry: expect.objectContaining({
+        actionKey: 'cases_voice_transcription',
+        pipeline: 'cases',
+      }),
+    }));
+  });
+
   it('rejects recordings longer than five minutes before billing', async () => {
     const filePath = await tempFile();
     inspectMock.mockResolvedValue({ format: 'wav', durationSec: 302 });

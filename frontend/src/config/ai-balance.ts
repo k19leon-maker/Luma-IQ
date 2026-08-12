@@ -32,6 +32,7 @@ export type AiActionType =
   | 'castdev_transcription'
   | 'castdev_analysis'
   | 'castdev_synthesis'
+  | 'cases_voice_transcription'
   | 'cases_extract_case'
   | 'cases_generate_marketing_insights'
   | 'strategy_rebuild';
@@ -70,6 +71,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   castdev_transcription: 20,
   castdev_analysis: 40,
   castdev_synthesis: 100,
+  cases_voice_transcription: 20,
   cases_extract_case: 20,
   cases_generate_marketing_insights: 5,
   strategy_rebuild: 100,
@@ -109,6 +111,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   castdev_transcription: 'Транскрибация CustDev',
   castdev_analysis: 'AI-разбор CustDev',
   castdev_synthesis: 'Синтез интервью CustDev',
+  cases_voice_transcription: 'Транскрибация голосового кейса',
   cases_extract_case: 'Извлечение кейсов из текста',
   cases_generate_marketing_insights: 'Маркетинговые тезисы кейса',
   strategy_rebuild: 'Пересборка стратегии',
@@ -149,6 +152,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   castdev_transcription: 'Стратегия',
   castdev_analysis: 'Стратегия',
   castdev_synthesis: 'Стратегия',
+  cases_voice_transcription: 'Кейсы',
   cases_extract_case: 'Кейсы',
   cases_generate_marketing_insights: 'Кейсы',
 };

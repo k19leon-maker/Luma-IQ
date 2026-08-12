@@ -62,6 +62,7 @@ export default function Cases() {
   const [importAnalyzed, setImportAnalyzed] = useState(false);
   const [importCandidates, setImportCandidates] = useState<CaseExtractionCandidate[]>([]);
   const [importSourceText, setImportSourceText] = useState('');
+  const [importSourceType, setImportSourceType] = useState<CaseStudy['sourceType']>('document');
   const [importBatchKey, setImportBatchKey] = useState('');
   const [selected, setSelected] = useState<CaseStudy | null>(null);
   const [draft, setDraft] = useState<CaseDraft | null>(null);
@@ -87,6 +88,7 @@ export default function Cases() {
     setImportCandidates([]);
     setImportAnalyzed(false);
     setImportSourceText('');
+    setImportSourceType('document');
     setImportBatchKey('');
   }, []);
   const closeImportDialog = useCallback(() => {
@@ -170,16 +172,17 @@ export default function Cases() {
     setImportDialogOpen(true);
   }
 
-  async function handleExtract(sourceText: string) {
+  async function handleExtract(sourceText: string, sourceType: CaseStudy['sourceType']) {
     if (!activeProjectId || extracting) return;
     setExtracting(true);
     try {
       const result = await casesApi.extract(activeProjectId, {
         sourceText,
-        sourceType: 'document',
+        sourceType,
         idempotencyKey: idempotencyKey('cases-extract'),
       });
       setImportSourceText(sourceText);
+      setImportSourceType(sourceType);
       setImportCandidates(result.candidates);
       setImportBatchKey(`cases-batch-${result.generationId}`);
       setImportAnalyzed(true);
@@ -200,7 +203,7 @@ export default function Cases() {
       const result = await casesApi.createBatch(activeProjectId, {
         candidates,
         sourceText: importSourceText,
-        sourceType: 'document',
+        sourceType: importSourceType,
         idempotencyKey: importBatchKey,
       });
       setCases((current) => {
@@ -370,7 +373,7 @@ export default function Cases() {
         analyzed={importAnalyzed}
         candidates={importCandidates}
         onClose={closeImportDialog}
-        onExtract={(sourceText) => void handleExtract(sourceText)}
+        onExtract={(sourceText, sourceType) => void handleExtract(sourceText, sourceType)}
         onCreate={(candidates) => void handleCreateBatch(candidates)}
         onReset={resetImport}
       />

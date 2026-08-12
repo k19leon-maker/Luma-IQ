@@ -32,6 +32,7 @@ export type FeatureCode =
   | 'castdev_transcription'
   | 'castdev_analysis'
   | 'castdev_synthesis'
+  | 'cases_voice_transcription'
   | 'cases_extract_case'
   | 'cases_generate_marketing_insights'
   | 'content_plan'
@@ -307,6 +308,14 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 10,
     includedTokens: 24000,
     maxContextTokens: 80000,
+  },
+  cases_voice_transcription: {
+    featureCode: 'cases_voice_transcription',
+    featureGroup: 'strategy',
+    generationClass: 'MEDIUM',
+    creditPrice: 2,
+    includedTokens: 0,
+    maxContextTokens: 0,
   },
   cases_extract_case: {
     featureCode: 'cases_extract_case',

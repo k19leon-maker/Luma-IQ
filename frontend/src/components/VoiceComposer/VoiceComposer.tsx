@@ -16,6 +16,11 @@ interface VoiceComposerProps {
   rows?: number;
   maxLength?: number;
   onBusyChange?: (isBusy: boolean) => void;
+  onTranscribed?: (text: string) => void;
+  transcriptionContext?: {
+    purpose: 'cases';
+    projectId: string;
+  };
 }
 
 function MicrophoneIcon() {
@@ -80,15 +85,19 @@ export function VoiceComposer({
   rows = 5,
   maxLength,
   onBusyChange,
+  onTranscribed,
+  transcriptionContext,
 }: VoiceComposerProps) {
   const valueRef = useRef(value);
   const previousValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
   const onBusyChangeRef = useRef(onBusyChange);
+  const onTranscribedRef = useRef(onTranscribed);
   const maxLengthRef = useRef(maxLength);
   valueRef.current = value;
   onChangeRef.current = onChange;
   onBusyChangeRef.current = onBusyChange;
+  onTranscribedRef.current = onTranscribed;
   maxLengthRef.current = maxLength;
 
   const voice = useAudioRecorder(
@@ -100,8 +109,10 @@ export function VoiceComposer({
         : appendedValue;
       valueRef.current = nextValue;
       onChangeRef.current(nextValue);
+      onTranscribedRef.current?.(text);
     },
     (message) => toast.error(message),
+    { transcriptionContext },
   );
   const voiceReady = voice.isReady;
   const resetVoice = voice.reset;

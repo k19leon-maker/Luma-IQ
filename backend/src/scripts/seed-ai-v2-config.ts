@@ -14,7 +14,7 @@ const prisma = new PrismaClient({
 const validFrom = new Date('2026-07-26T00:00:00.000Z');
 
 function pricingPolicyFor(actionKey: string): Prisma.InputJsonValue | undefined {
-  if (actionKey === 'castdev_transcription') {
+  if (actionKey === 'castdev_transcription' || actionKey === 'cases_voice_transcription') {
     return CASTDEV_TRANSCRIPTION_PRICING_POLICY as unknown as Prisma.InputJsonValue;
   }
   if (actionKey === 'castdev_analysis' || actionKey === 'cases_extract_case') {

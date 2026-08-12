@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthRequest } from '../../src/middleware/auth.middleware';
 
 const transcribeMock = vi.hoisted(() => vi.fn());
+const getOwnedProjectMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/services/audio-transcription.service', async () => {
   const actual = await vi.importActual<typeof import('../../src/services/audio-transcription.service')>(
@@ -16,6 +17,10 @@ vi.mock('../../src/services/audio-transcription.service', async () => {
     audioTranscriptionService: { transcribe: transcribeMock },
   };
 });
+
+vi.mock('../../src/services/project.service', () => ({
+  projectService: { getOwned: getOwnedProjectMock },
+}));
 
 import { audioController } from '../../src/controllers/audio.controller';
 import { AudioTranscriptionError } from '../../src/services/audio-transcription.service';
@@ -55,6 +60,7 @@ afterEach(async () => {
 describe('audioController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getOwnedProjectMock.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' });
   });
 
   it('returns transcription accounting metadata and cleans the upload', async () => {
@@ -100,6 +106,96 @@ describe('audioController', () => {
       error: 'Транскрибация временно недоступна',
       requestId: 'request-controller-1',
     });
+  });
+
+  it('checks case project ownership before starting OpenAI transcription', async () => {
+    const file = await uploadedFile();
+    const res = response();
+    transcribeMock.mockResolvedValue({
+      text: 'История клиента',
+      durationSec: 30,
+      format: 'wav',
+      generationId: 'generation-cases',
+      aiPointsCharged: 10,
+      aiBalanceRemaining: 40,
+    });
+
+    await audioController.transcribe({
+      userId: 'user-1',
+      file,
+      body: { purpose: 'cases', projectId: '11111111-1111-4111-8111-111111111111' },
+    } as AuthRequest, res);
+
+    expect(getOwnedProjectMock).toHaveBeenCalledWith('user-1', '11111111-1111-4111-8111-111111111111');
+    expect(transcribeMock).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: 'cases',
+      projectId: '11111111-1111-4111-8111-111111111111',
+    }));
+  });
+
+  it('rejects a foreign case project and cleans the upload before OpenAI', async () => {
+    const file = await uploadedFile();
+    const res = response();
+    getOwnedProjectMock.mockResolvedValue(null);
+
+    await audioController.transcribe({
+      userId: 'user-1',
+      file,
+      body: { purpose: 'cases', projectId: '22222222-2222-4222-8222-222222222222' },
+    } as AuthRequest, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      code: 'PROJECT_NOT_FOUND',
+      error: 'Проект не найден',
+      requestId: 'request-controller-1',
+    });
+    expect(transcribeMock).not.toHaveBeenCalled();
+    await expect(fs.promises.access(file.path)).rejects.toThrow();
+  });
+
+  it('rejects a case transcription without a project before OpenAI', async () => {
+    const file = await uploadedFile();
+    const res = response();
+
+    await audioController.transcribe({
+      userId: 'user-1',
+      file,
+      body: { purpose: 'cases' },
+    } as AuthRequest, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      code: 'AUDIO_CONTEXT_INVALID',
+      error: 'Для голосового кейса выберите проект',
+      requestId: 'request-controller-1',
+    });
+    expect(getOwnedProjectMock).not.toHaveBeenCalled();
+    expect(transcribeMock).not.toHaveBeenCalled();
+    await expect(fs.promises.access(file.path)).rejects.toThrow();
+  });
+
+  it('preserves a balance-exhausted response for the voice UI', async () => {
+    const file = await uploadedFile();
+    const res = response();
+    transcribeMock.mockRejectedValue(Object.assign(new Error('Недостаточно AI-баллов'), {
+      status: 402,
+      code: 'AI_BALANCE_EXHAUSTED',
+    }));
+
+    await audioController.transcribe({
+      userId: 'user-1',
+      file,
+      body: { purpose: 'cases', projectId: '11111111-1111-4111-8111-111111111111' },
+    } as AuthRequest, res);
+
+    expect(res.status).toHaveBeenCalledWith(402);
+    expect(res.json).toHaveBeenCalledWith({
+      code: 'AI_BALANCE_EXHAUSTED',
+      error: 'Недостаточно AI-баллов',
+      requestId: 'request-controller-1',
+    });
+    await expect(fs.promises.access(file.path)).rejects.toThrow();
   });
 
   it('rejects a missing upload before calling OpenAI', async () => {

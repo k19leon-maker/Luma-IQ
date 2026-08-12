@@ -7,6 +7,20 @@ import {
   audioTranscriptionService,
   AudioTranscriptionError,
 } from '../services/audio-transcription.service';
+import { projectService } from '../services/project.service';
+import { z } from 'zod';
+
+const contextSchema = z.object({
+  purpose: z.enum(['cases']).optional(),
+  projectId: z.string().uuid().optional(),
+}).superRefine((value, ctx) => {
+  if (value.purpose === 'cases' && !value.projectId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Для голосового кейса выберите проект' });
+  }
+  if (!value.purpose && value.projectId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Неизвестный контекст голосовой записи' });
+  }
+});
 
 function cleanup(filePath?: string): void {
   if (!filePath) return;
@@ -90,6 +104,20 @@ export const audioController = {
     }
 
     try {
+      const context = contextSchema.safeParse(req.body ?? {});
+      if (!context.success) {
+        sendAudioError(res, 400, 'AUDIO_CONTEXT_INVALID', context.error.issues[0]?.message ?? 'Некорректный контекст записи', requestId);
+        return;
+      }
+
+      if (context.data.purpose === 'cases') {
+        const project = await projectService.getOwned(req.userId, context.data.projectId!);
+        if (!project) {
+          sendAudioError(res, 404, 'PROJECT_NOT_FOUND', 'Проект не найден', requestId);
+          return;
+        }
+      }
+
       if (!file.size) {
         sendAudioError(res, 400, 'AUDIO_FILE_EMPTY', 'Аудиофайл пустой', requestId);
         return;
@@ -101,6 +129,8 @@ export const audioController = {
         fileSize: file.size,
         claimedMimeType: file.mimetype,
         requestId,
+        purpose: context.data.purpose,
+        projectId: context.data.projectId,
       });
 
       res.json({

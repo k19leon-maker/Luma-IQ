@@ -42,7 +42,7 @@ export default function CaseList({
         <p>Собирайте истории клиентов в формате «Было → Что сделали → Стало» и используйте их в контенте.</p>
         <div className={s.introActions}>
           <button type="button" className={s.primaryButton} onClick={onImport}>
-            Создать из текста
+            Наговорить кейсы
           </button>
           <button type="button" className={s.secondaryButton} onClick={onAdd}>
             <span aria-hidden="true">+</span>

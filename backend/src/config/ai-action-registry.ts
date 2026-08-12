@@ -210,6 +210,16 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
     outputLimit: 0,
     fallbackPolicy: { aliases: [], allowDowngrade: false },
   }),
+  cases_voice_transcription: one(
+    'cases_voice_transcription',
+    'TRANSCRIBE_MINI',
+    AI_ACTION_COSTS.cases_voice_transcription,
+    {
+      contextBudget: 0,
+      outputLimit: 0,
+      fallbackPolicy: { aliases: [], allowDowngrade: false },
+    },
+  ),
   castdev_analysis: multi('castdev_analysis', [
     { stage: 'normalize', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 8_000 },
     { stage: 'analysis', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 12_000 },
@@ -308,6 +318,7 @@ export const LEGACY_FEATURE_TO_ACTION: Record<string, AIActionKey> = {
   castdev_transcription: 'castdev_transcription',
   castdev_analysis: 'castdev_analysis',
   castdev_synthesis: 'castdev_synthesis',
+  cases_voice_transcription: 'cases_voice_transcription',
   cases_extract_case: 'cases_extract_case',
   cases_generate_marketing_insights: 'cases_generate_marketing_insights',
 };

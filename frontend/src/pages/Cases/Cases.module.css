@@ -374,6 +374,11 @@
 
 .importDialog { width: min(820px, 100%); }
 .importSource { min-height: 190px !important; }
+.voiceCostHint {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
 .importEmpty {
   padding: 16px 18px;
   border: 1px solid rgba(212, 168, 71, 0.35);

@@ -6,6 +6,8 @@ import { aiGenerationService } from './ai-generation.service';
 import { aiActionRegistryService } from './ai-action-registry.service';
 import { audioFileInspectionService } from './audio-file-inspection.service';
 import { modelRouterService } from './model-router.service';
+import type { AIActionKey } from '../config/ai-action-registry';
+import type { FeatureCode } from '../config/ai-economy';
 
 const MAX_VOICE_DURATION_SECONDS = 5 * 60;
 
@@ -42,6 +44,8 @@ export const audioTranscriptionService = {
     fileSize: number;
     claimedMimeType: string;
     requestId: string;
+    projectId?: string;
+    purpose?: 'voice-input' | 'cases';
   }): Promise<{
     text: string;
     durationSec: number;
@@ -71,7 +75,10 @@ export const audioTranscriptionService = {
     await fs.promises.rename(input.filePath, normalizedPath);
 
     try {
-      const definition = await aiActionRegistryService.resolve('audio_transcription');
+      const isCases = input.purpose === 'cases';
+      const featureCode: FeatureCode = isCases ? 'cases_voice_transcription' : 'audio_transcription';
+      const actionKey: AIActionKey = isCases ? 'cases_voice_transcription' : 'audio_transcription';
+      const definition = await aiActionRegistryService.resolve(actionKey);
       const stage = definition.pipeline[0];
       if (!stage) {
         throw new AudioTranscriptionError(
@@ -90,7 +97,7 @@ export const audioTranscriptionService = {
       }
 
       const metadata = {
-        source: 'voice-input',
+        source: isCases ? 'cases' : 'voice-input',
         operation: 'transcription',
         durationSec: Math.round(inspected.durationSec),
         sizeBytes: input.fileSize,
@@ -99,12 +106,15 @@ export const audioTranscriptionService = {
         requestId: input.requestId,
         modelAlias: initialRoute.selectedAlias,
         modelId: initialRoute.actualModelId,
+        purpose: input.purpose ?? 'voice-input',
+        ...(input.projectId ? { projectId: input.projectId } : {}),
       } satisfies Prisma.InputJsonObject;
 
       const generation = await aiGenerationService.run({
         userId: input.userId,
-        featureCode: 'audio_transcription',
-        actionKey: 'audio_transcription',
+        projectId: input.projectId,
+        featureCode,
+        actionKey,
         provider: 'OPENAI',
         model: initialRoute.actualModelId,
         promptVersion: 'not-applicable',
@@ -135,8 +145,8 @@ export const audioTranscriptionService = {
                     generationId,
                     userId: input.userId,
                     correlationId: input.requestId,
-                    actionKey: 'audio_transcription',
-                    pipeline: 'voice-input',
+                    actionKey,
+                    pipeline: isCases ? 'cases' : 'voice-input',
                     stage: 'transcription',
                     promptVersion: 'not-applicable',
                     modelAlias: route.selectedAlias,

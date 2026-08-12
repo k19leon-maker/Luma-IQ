@@ -36,8 +36,8 @@ async function pointsForGeneration(input: {
   if (!(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) {
     return aiPointsForGeneration(input.featureCode, input.metadata);
   }
-  if (input.featureCode === 'castdev_transcription' || input.featureCode === 'castdev_analysis' || input.featureCode === 'cases_extract_case') {
-    const actionKey = input.featureCode as 'castdev_transcription' | 'castdev_analysis' | 'cases_extract_case';
+  if (input.featureCode === 'castdev_transcription' || input.featureCode === 'cases_voice_transcription' || input.featureCode === 'castdev_analysis' || input.featureCode === 'cases_extract_case') {
+    const actionKey = input.featureCode as 'castdev_transcription' | 'cases_voice_transcription' | 'castdev_analysis' | 'cases_extract_case';
     const pricing = await aiActionRegistryService.resolve(actionKey, input.createdAt ?? new Date());
     const pricingMetadata = pricing.pricingMetadata
       && typeof pricing.pricingMetadata === 'object'
@@ -45,7 +45,7 @@ async function pointsForGeneration(input: {
       ? pricing.pricingMetadata as Record<string, unknown>
       : {};
     const policyValue = pricingMetadata.pricingPolicy;
-    const fallbackPolicy = actionKey === 'castdev_transcription'
+    const fallbackPolicy = actionKey === 'castdev_transcription' || actionKey === 'cases_voice_transcription'
       ? CASTDEV_TRANSCRIPTION_PRICING_POLICY
       : CASTDEV_ANALYSIS_PRICING_POLICY;
     const policy = policyValue
@@ -55,7 +55,7 @@ async function pointsForGeneration(input: {
       && Array.isArray((policyValue as Record<string, unknown>).tiers)
       ? policyValue as typeof fallbackPolicy
       : fallbackPolicy;
-    const metricValue = actionKey === 'castdev_transcription'
+    const metricValue = actionKey === 'castdev_transcription' || actionKey === 'cases_voice_transcription'
       ? metadataNumber(input.metadata, 'durationSec')
       : metadataNumber(input.metadata, 'transcriptChars');
     return pointsFromTierPolicy(metricValue, policy);
