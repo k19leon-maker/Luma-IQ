@@ -17,7 +17,7 @@ function pricingPolicyFor(actionKey: string): Prisma.InputJsonValue | undefined 
   if (actionKey === 'castdev_transcription') {
     return CASTDEV_TRANSCRIPTION_PRICING_POLICY as unknown as Prisma.InputJsonValue;
   }
-  if (actionKey === 'castdev_analysis') {
+  if (actionKey === 'castdev_analysis' || actionKey === 'cases_extract_case') {
     return CASTDEV_ANALYSIS_PRICING_POLICY as unknown as Prisma.InputJsonValue;
   }
   return undefined;

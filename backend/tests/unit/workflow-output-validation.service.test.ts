@@ -115,4 +115,64 @@ describe('workflow output validation', () => {
     expect(result.ok).toBe(false);
     expect(result.errors.join(' ')).toMatch(/highlights|Unrecognized key/);
   });
+
+  it('accepts zero and partial extracted cases without inventing missing facts', () => {
+    expect(workflowOutputValidationService.validate(
+      'cases',
+      'extract',
+      JSON.stringify({ cases: [] }),
+    )).toEqual({ ok: true, errors: [] });
+
+    expect(workflowOutputValidationService.validate(
+      'cases',
+      'final',
+      JSON.stringify({ cases: [{
+        title: 'Клиент получил результат',
+        beforeText: 'Была задача',
+        actionsText: '',
+        afterText: '',
+        clientTask: '',
+        clientProblem: '',
+        desiredResult: '',
+        marketingInsight: '',
+      }] }),
+    )).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rejects malformed and oversized case extraction results', () => {
+    expect(workflowOutputValidationService.validate('cases', 'extract', '{not-json').ok).toBe(false);
+    const result = workflowOutputValidationService.validate(
+      'cases',
+      'extract',
+      JSON.stringify({
+        cases: Array.from({ length: 11 }, (_, index) => ({
+          title: `Кейс ${index + 1}`,
+          beforeText: '', actionsText: '', afterText: '',
+          clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+        })),
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(' ')).toContain('10');
+  });
+
+  it('validates strict marketing insights output separately from extraction', () => {
+    expect(workflowOutputValidationService.validate(
+      'cases',
+      'final',
+      JSON.stringify({
+        clientTask: 'Привлечь клиентов',
+        clientProblem: 'Нет системы',
+        desiredResult: 'Стабильные заявки',
+        marketingInsight: 'Важен понятный следующий шаг',
+      }),
+      { title: 'Сохранённый кейс' },
+    )).toEqual({ ok: true, errors: [] });
+
+    expect(workflowOutputValidationService.validate(
+      'cases',
+      'insights',
+      JSON.stringify({ clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '', extra: true }),
+    ).ok).toBe(false);
+  });
 });

@@ -1,5 +1,6 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import type { CaseStudyStatus, CreateCaseStudyInput, UpdateCaseStudyInput } from '../schemas/case-study.schema';
+import type { BatchCreateCasesInput, CaseStudyStatus, CreateCaseStudyInput, UpdateCaseStudyInput } from '../schemas/case-study.schema';
 
 export class CaseStudyNotFoundError extends Error {
   status = 404;
@@ -48,6 +49,7 @@ async function getOwnedCase(userId: string, projectId: string, caseId: string) {
 }
 
 export const caseStudyService = {
+  assertOwnedProject,
   async list(userId: string, projectId: string, status?: CaseStudyStatus) {
     await assertOwnedProject(userId, projectId);
     return prisma.caseStudy.findMany({
@@ -101,5 +103,48 @@ export const caseStudyService = {
     const existing = await getOwnedCase(userId, projectId, caseId);
     if (!existing) throw new CaseStudyNotFoundError();
     await prisma.caseStudy.delete({ where: { id: existing.id } });
+  },
+
+  async createBatch(userId: string, projectId: string, input: BatchCreateCasesInput) {
+    await assertOwnedProject(userId, projectId);
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const existing = await tx.caseStudy.findMany({
+          where: {
+            userId,
+            projectId,
+            importBatchKey: input.idempotencyKey,
+          },
+          orderBy: { importPosition: 'asc' },
+        });
+        if (existing.length > 0) return { cases: existing, replayed: true };
+
+        const created = [];
+        for (const [position, candidate] of input.candidates.entries()) {
+          created.push(await tx.caseStudy.create({
+            data: {
+              userId,
+              projectId,
+              ...candidate,
+              status: 'draft',
+              sourceType: input.sourceType,
+              sourceText: input.sourceText,
+              importBatchKey: input.idempotencyKey,
+              importPosition: position,
+            },
+          }));
+        }
+        return { cases: created, replayed: false };
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await prisma.caseStudy.findMany({
+          where: { userId, projectId, importBatchKey: input.idempotencyKey },
+          orderBy: { importPosition: 'asc' },
+        });
+        if (existing.length > 0) return { cases: existing, replayed: true };
+      }
+      throw error;
+    }
   },
 };

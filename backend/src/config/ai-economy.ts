@@ -32,6 +32,8 @@ export type FeatureCode =
   | 'castdev_transcription'
   | 'castdev_analysis'
   | 'castdev_synthesis'
+  | 'cases_extract_case'
+  | 'cases_generate_marketing_insights'
   | 'content_plan'
   | 'jtbd';
 
@@ -305,6 +307,22 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 10,
     includedTokens: 24000,
     maxContextTokens: 80000,
+  },
+  cases_extract_case: {
+    featureCode: 'cases_extract_case',
+    featureGroup: 'strategy',
+    generationClass: 'MEDIUM',
+    creditPrice: 4,
+    includedTokens: 12000,
+    maxContextTokens: 24000,
+  },
+  cases_generate_marketing_insights: {
+    featureCode: 'cases_generate_marketing_insights',
+    featureGroup: 'strategy',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 6000,
+    maxContextTokens: 12000,
   },
   content_plan: {
     featureCode: 'content_plan',

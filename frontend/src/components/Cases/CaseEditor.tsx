@@ -1,4 +1,5 @@
 import type { CaseStudy, UpdateCaseStudyInput } from '../../api/cases';
+import AiWorkflowCost from '../AiWorkflowCost/AiWorkflowCost';
 import s from '../../pages/Cases/Cases.module.css';
 import CaseStatusBadge from './CaseStatusBadge';
 
@@ -19,11 +20,14 @@ interface CaseEditorProps {
   draft: CaseDraft;
   saving: boolean;
   dirty: boolean;
+  projectId: string;
+  generatingInsights: boolean;
   onChange: (patch: UpdateCaseStudyInput) => void;
   onSave: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
   onBack: () => void;
+  onGenerateInsights: () => void;
 }
 
 const insightFields: Array<{
@@ -42,11 +46,14 @@ export default function CaseEditor({
   draft,
   saving,
   dirty,
+  projectId,
+  generatingInsights,
   onChange,
   onSave,
   onToggleStatus,
   onDelete,
   onBack,
+  onGenerateInsights,
 }: CaseEditorProps) {
   return (
     <article className={s.detailCard}>
@@ -101,6 +108,15 @@ export default function CaseEditor({
       <section className={s.insightsSection} aria-labelledby="case-insights-title">
         <div className={s.sectionHeading}>
           <h2 id="case-insights-title">Маркетинговые тезисы</h2>
+          <button
+            type="button"
+            className={s.insightsButton}
+            disabled={saving || generatingInsights || dirty}
+            title={dirty ? 'Сначала сохраните изменения кейса' : undefined}
+            onClick={onGenerateInsights}
+          >
+            {generatingInsights ? 'Обновляем...' : <>Обновить тезисы<AiWorkflowCost workflow="cases.insights" projectId={projectId} inputs={{ title: record.title }} /></>}
+          </button>
         </div>
         <div className={s.insightGrid}>
           {insightFields.map((field) => (

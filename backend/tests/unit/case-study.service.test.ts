@@ -10,6 +10,7 @@ const { prismaMock } = vi.hoisted(() => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -44,6 +45,7 @@ describe('caseStudyService ownership and readiness', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.project.findFirst.mockResolvedValue({ id: 'project-1' });
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock));
   });
 
   it('scopes list by authenticated user and project', async () => {
@@ -129,5 +131,57 @@ describe('caseStudyService ownership and readiness', () => {
     await expect(caseStudyService.remove('user-2', 'project-1', 'case-1'))
       .rejects.toBeInstanceOf(CaseStudyNotFoundError);
     expect(prismaMock.caseStudy.delete).not.toHaveBeenCalled();
+  });
+
+  it('creates an imported batch atomically and assigns stable positions', async () => {
+    prismaMock.caseStudy.findMany.mockResolvedValue([]);
+    prismaMock.caseStudy.create
+      .mockResolvedValueOnce({ ...baseCase, id: 'case-1', importPosition: 0 })
+      .mockResolvedValueOnce({ ...baseCase, id: 'case-2', importPosition: 1 });
+
+    const result = await caseStudyService.createBatch('user-1', 'project-1', {
+      candidates: [
+        {
+          title: 'Кейс 1', beforeText: 'Было', actionsText: 'Сделали', afterText: 'Стало',
+          clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+        },
+        {
+          title: 'Кейс 2', beforeText: '', actionsText: '', afterText: '',
+          clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+        },
+      ],
+      sourceText: 'Две клиентские истории с достаточным объёмом исходного текста.',
+      sourceType: 'document',
+      idempotencyKey: 'batch-key-123',
+    });
+
+    expect(result.replayed).toBe(false);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.caseStudy.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        userId: 'user-1', projectId: 'project-1', status: 'draft',
+        importBatchKey: 'batch-key-123', importPosition: 0,
+      }),
+    });
+    expect(prismaMock.caseStudy.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({ importBatchKey: 'batch-key-123', importPosition: 1 }),
+    });
+  });
+
+  it('replays an existing imported batch without duplicate writes', async () => {
+    prismaMock.caseStudy.findMany.mockResolvedValue([{ ...baseCase, importBatchKey: 'batch-key-123', importPosition: 0 }]);
+
+    const result = await caseStudyService.createBatch('user-1', 'project-1', {
+      candidates: [{
+        title: 'Кейс', beforeText: '', actionsText: '', afterText: '',
+        clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+      }],
+      sourceText: 'Клиентская история с достаточным объёмом исходного текста.',
+      sourceType: 'document',
+      idempotencyKey: 'batch-key-123',
+    });
+
+    expect(result.replayed).toBe(true);
+    expect(prismaMock.caseStudy.create).not.toHaveBeenCalled();
   });
 });

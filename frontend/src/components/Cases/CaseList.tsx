@@ -12,6 +12,7 @@ interface CaseListProps {
   onFilterChange: (filter: Filter) => void;
   onSelect: (record: CaseStudy) => void;
   onAdd: () => void;
+  onImport: () => void;
 }
 
 const filters: Array<{ value: Filter; label: string }> = [
@@ -32,16 +33,22 @@ export default function CaseList({
   onFilterChange,
   onSelect,
   onAdd,
+  onImport,
 }: CaseListProps) {
   return (
     <section className={s.listColumn} aria-label="Список кейсов">
       <div className={s.intro}>
         <h1>Кейсы</h1>
         <p>Собирайте истории клиентов в формате «Было → Что сделали → Стало» и используйте их в контенте.</p>
-        <button type="button" className={s.primaryButton} onClick={onAdd}>
-          <span aria-hidden="true">+</span>
-          Добавить кейс
-        </button>
+        <div className={s.introActions}>
+          <button type="button" className={s.primaryButton} onClick={onImport}>
+            Создать из текста
+          </button>
+          <button type="button" className={s.secondaryButton} onClick={onAdd}>
+            <span aria-hidden="true">+</span>
+            Вручную
+          </button>
+        </div>
       </div>
 
       <div className={s.tabs} role="tablist" aria-label="Фильтр кейсов">

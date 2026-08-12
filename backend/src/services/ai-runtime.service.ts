@@ -13,6 +13,16 @@ import { aiBalanceService } from './ai-balance.service';
 import { aiPointLedgerService } from './ai-point-ledger.service';
 import { aiPilotAccessService } from './ai-pilot-access.service';
 import { promptCmsService } from './prompt-cms.service';
+import { getCastDevAnalysisCost } from '../config/ai-actions';
+
+function dynamicAiPoints(actionKey: AIActionKey, inputs: Record<string, unknown>): number | undefined {
+  if (actionKey !== 'cases_extract_case') return undefined;
+  const sourceText = typeof inputs.sourceText === 'string' ? inputs.sourceText : '';
+  const transcriptChars = typeof inputs.transcriptChars === 'number' && Number.isFinite(inputs.transcriptChars)
+    ? inputs.transcriptChars
+    : sourceText.length;
+  return getCastDevAnalysisCost(transcriptChars);
+}
 
 function enabledActions(): Set<string> {
   return new Set(
@@ -59,6 +69,7 @@ export const aiRuntimeService = {
     const useV2 = await aiRuntimeService.shouldUseV2(selectedActionKey, input.userId);
     const actionKey = useV2 ? selectedActionKey : actionKeyForFeature(config.feature);
     const definition = await aiActionRegistryService.resolve(actionKey);
+    const aiPoints = dynamicAiPoints(actionKey, input.inputs) ?? definition.aiPoints;
     const access = await accessPolicyService.getUserAccess(input.userId);
     const remaining = useV2
       ? (await aiPointLedgerService.getState(input.userId, access.billingPeriod.id)).available
@@ -68,10 +79,10 @@ export const aiRuntimeService = {
       }));
     return {
       actionKey,
-      aiPoints: definition.aiPoints,
+      aiPoints,
       aiBalanceRemaining: remaining,
-      aiBalanceAfter: Math.max(0, remaining - definition.aiPoints),
-      affordable: remaining >= definition.aiPoints,
+      aiBalanceAfter: Math.max(0, remaining - aiPoints),
+      affordable: remaining >= aiPoints,
       runtime: useV2 ? 'v2' as const : 'legacy' as const,
     };
   },
@@ -106,6 +117,7 @@ export const aiRuntimeService = {
       validationRules: config.validationRules,
       title: String(input.inputs.topic ?? input.inputs.title ?? config.artifactType),
       idempotencyKey: input.idempotencyKey,
+      aiPointsOverride: dynamicAiPoints(actionKey, input.inputs),
       buildStagePrompt: async ({ context, stage, payload }) => {
         const baseSystemPrompt = withGlobalAiBehaviorPrompt(config.systemPrompt(context));
         const baseUserPrompt = config.userPromptBuilder({ inputs: input.inputs, context });

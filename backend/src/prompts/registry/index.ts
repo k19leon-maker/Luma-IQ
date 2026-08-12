@@ -1,7 +1,8 @@
 import { CONTENT_WORKFLOW_PROMPTS } from './content-workflows';
+import { CASE_STUDY_WORKFLOW_PROMPTS } from './case-study-workflows';
 import { PromptConfig } from './types';
 
-const PROMPTS = CONTENT_WORKFLOW_PROMPTS;
+const PROMPTS = [...CONTENT_WORKFLOW_PROMPTS, ...CASE_STUDY_WORKFLOW_PROMPTS];
 
 function key(workflow: string, step: string): string {
   return `${workflow}.${step}`;

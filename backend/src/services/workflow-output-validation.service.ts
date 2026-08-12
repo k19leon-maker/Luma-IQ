@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { caseExtractionResultSchema, caseInsightsResultSchema } from '../schemas/case-study.schema';
 import {
   instagramHighlightImproveAiResultSchema,
   instagramHighlightScenarioAiResultSchema,
@@ -40,7 +41,12 @@ export const workflowOutputValidationService = {
     content: string,
     inputs: Record<string, unknown> = {},
   ): ValidationResult {
-    const instagramSchema = schemaFor(workflow, step);
+    const caseSchema = workflow === 'cases'
+      ? ((step === 'insights' || (step === 'final' && typeof inputs.title === 'string'))
+        ? caseInsightsResultSchema
+        : caseExtractionResultSchema)
+      : null;
+    const instagramSchema = caseSchema ?? schemaFor(workflow, step);
     const profileWorkflow = workflow === 'instagram.profile' && ['generate', 'improve'].includes(step);
     if (!instagramSchema && !profileWorkflow) {
       return { ok: true, errors: [] };
@@ -70,7 +76,7 @@ export const workflowOutputValidationService = {
         )),
       };
     } catch {
-      return { ok: false, errors: ['Expected valid Instagram JSON'] };
+      return { ok: false, errors: [workflow === 'cases' ? 'Expected valid case JSON' : 'Expected valid Instagram JSON'] };
     }
   },
 };

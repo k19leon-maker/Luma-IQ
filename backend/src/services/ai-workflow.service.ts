@@ -149,6 +149,14 @@ function buildGenerationMetadata(input: RunWorkflowInput, context: Awaited<Retur
       : getCastDevAnalysisCost(transcriptChars);
   }
 
+  if (input.workflow === 'cases' && input.step === 'extract') {
+    const sourceText = typeof input.inputs.sourceText === 'string' ? input.inputs.sourceText : '';
+    metadata.source = 'cases';
+    metadata.operation = 'extraction';
+    metadata.transcriptChars = sourceText.length;
+    metadata.castdevAiPoints = getCastDevAnalysisCost(sourceText.length);
+  }
+
   if (input.workflow === 'strategy.audience' && input.step === 'generate') {
     metadata.audienceStepId = typeof input.inputs.stepId === 'number' ? input.inputs.stepId : null;
     metadata.audienceMode = typeof input.inputs.mode === 'string' ? input.inputs.mode : null;
@@ -496,6 +504,9 @@ export const aiWorkflowService = {
           }
           if (input.workflow === 'instagram.profile' && !validation.ok) {
             throw new Error(`Instagram profile validation failed: ${validation.errors.join('; ')}`);
+          }
+          if (input.workflow === 'cases' && !validation.ok) {
+            throw new Error(`Case workflow validation failed: ${validation.errors.join('; ')}`);
           }
 
           return {

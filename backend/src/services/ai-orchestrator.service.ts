@@ -17,6 +17,7 @@ import {
 import { structuredOutputService } from './structured-output.service';
 import { aiValidationService } from './ai-validation.service';
 import type { ValidationRules } from '../prompts/registry';
+import { workflowOutputValidationService } from './workflow-output-validation.service';
 
 function toRuntimeProvider(provider: DbAIProvider): AIProvider {
   if (provider === 'ANTHROPIC') return 'anthropic';
@@ -89,6 +90,7 @@ export const aiOrchestratorService = {
     validationRules?: ValidationRules;
     title?: string;
     idempotencyKey?: string;
+    aiPointsOverride?: number;
     buildStagePrompt: (stageInput: OrchestratorStagePromptInput) => OrchestratorStagePrompt | Promise<OrchestratorStagePrompt>;
   }): Promise<AiOrchestratorResult> {
     const project = await prisma.project.findFirst({
@@ -143,7 +145,10 @@ export const aiOrchestratorService = {
       });
     }
 
-    const definition = await aiActionRegistryService.resolve(input.actionKey);
+    const resolvedDefinition = await aiActionRegistryService.resolve(input.actionKey);
+    const definition = input.aiPointsOverride === undefined
+      ? resolvedDefinition
+      : { ...resolvedDefinition, aiPoints: input.aiPointsOverride };
     const context = await contextBuilderService.build({
       userId: input.userId,
       projectId: input.projectId,
@@ -214,6 +219,9 @@ export const aiOrchestratorService = {
           contextCacheHit: context.cacheHit,
           promptCacheKey: context.promptCacheKey,
           outputLimit: definition.outputLimit,
+          transcriptChars: input.actionKey === 'cases_extract_case'
+            ? String(input.inputs.sourceText ?? '').length
+            : undefined,
           initialRoute,
         } as unknown as Prisma.InputJsonValue,
         execute: async ({ generationId: activeGenerationId }) => {
@@ -284,9 +292,19 @@ export const aiOrchestratorService = {
       });
       generationId = executed.generationId;
       pointsPending = executed.aiPointsPending;
-      const validation: { ok: boolean; errors: string[] } = input.validationRules
+      const baseValidation: { ok: boolean; errors: string[] } = input.validationRules
         ? aiValidationService.validate(executed.result.finalContent, input.validationRules)
         : { ok: true, errors: [] };
+      const domainValidation = workflowOutputValidationService.validate(
+        input.workflow,
+        'final',
+        executed.result.finalContent,
+        input.inputs,
+      );
+      const validation = {
+        ok: baseValidation.ok && domainValidation.ok,
+        errors: [...baseValidation.errors, ...domainValidation.errors],
+      };
       if (!validation.ok) {
         throw Object.assign(
           new Error(`FINAL_VALIDATION_FAILED: ${validation.errors.join('; ')}`),

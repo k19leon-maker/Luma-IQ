@@ -218,6 +218,17 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
     outputLimit: 12_000,
     fallbackPolicy: { aliases: [], allowDowngrade: false },
   }),
+  cases_extract_case: one('cases_extract_case', 'LUNA', AI_ACTION_COSTS.cases_extract_case, {
+    contextBudget: 24_000,
+    outputLimit: 10_000,
+    fallbackPolicy: { aliases: [], allowDowngrade: false },
+  }),
+  cases_generate_marketing_insights: one(
+    'cases_generate_marketing_insights',
+    'LUNA',
+    AI_ACTION_COSTS.cases_generate_marketing_insights,
+    { contextBudget: 12_000, outputLimit: 3_000, fallbackPolicy: { aliases: [], allowDowngrade: false } },
+  ),
   strategy_rebuild: multi('strategy_rebuild', [
     { stage: 'analysis', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 8_000 },
     { stage: 'decision', modelAlias: 'SOL', reasoning: 'medium', outputLimit: 4_000 },
@@ -297,6 +308,8 @@ export const LEGACY_FEATURE_TO_ACTION: Record<string, AIActionKey> = {
   castdev_transcription: 'castdev_transcription',
   castdev_analysis: 'castdev_analysis',
   castdev_synthesis: 'castdev_synthesis',
+  cases_extract_case: 'cases_extract_case',
+  cases_generate_marketing_insights: 'cases_generate_marketing_insights',
 };
 
 export function actionKeyForFeature(featureCode: string): AIActionKey {

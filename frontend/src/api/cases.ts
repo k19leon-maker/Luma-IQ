@@ -1,5 +1,12 @@
 import { apiClient } from './client';
 
+function notifyBalanceChanged<T>(response: T): T {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('lumaiq:ai-balance-changed'));
+  }
+  return response;
+}
+
 export type CaseStudyStatus = 'draft' | 'ready';
 export type CaseStudySourceType = 'manual' | 'voice' | 'screenshot' | 'document';
 
@@ -20,6 +27,17 @@ export interface CaseStudy {
   sourceText: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CaseExtractionCandidate {
+  title: string;
+  beforeText: string;
+  actionsText: string;
+  afterText: string;
+  clientTask: string;
+  clientProblem: string;
+  desiredResult: string;
+  marketingInsight: string;
 }
 
 export type CreateCaseStudyInput = Pick<CaseStudy, 'title'> & Partial<Pick<CaseStudy,
@@ -70,4 +88,43 @@ export const casesApi = {
     apiClient
       .delete<{ ok: boolean }>(`/projects/${projectId}/cases/${caseId}`)
       .then((response) => response.data),
+
+  extract: (projectId: string, input: {
+    sourceText: string;
+    sourceType: CaseStudySourceType;
+    idempotencyKey: string;
+  }) => apiClient
+    .post<{
+      candidates: CaseExtractionCandidate[];
+      generationId: string;
+      aiPointsCharged: number;
+      aiBalanceRemaining: number;
+    }>(`/projects/${projectId}/cases/extract`, input, {
+      timeout: 180_000,
+      headers: { 'Idempotency-Key': input.idempotencyKey },
+    })
+    .then((response) => notifyBalanceChanged(response.data)),
+
+  createBatch: (projectId: string, input: {
+    candidates: CaseExtractionCandidate[];
+    sourceText: string;
+    sourceType: CaseStudySourceType;
+    idempotencyKey: string;
+  }) => apiClient
+    .post<{ cases: CaseStudy[]; replayed: boolean }>(`/projects/${projectId}/cases/batch`, input, {
+      headers: { 'Idempotency-Key': input.idempotencyKey },
+    })
+    .then((response) => response.data),
+
+  generateInsights: (projectId: string, caseId: string, idempotencyKey: string) => apiClient
+    .post<{
+      case: CaseStudy;
+      generationId: string;
+      aiPointsCharged: number;
+      aiBalanceRemaining: number;
+    }>(`/projects/${projectId}/cases/${caseId}/generate-insights`, { idempotencyKey }, {
+      timeout: 180_000,
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })
+    .then((response) => notifyBalanceChanged(response.data)),
 };

@@ -36,8 +36,8 @@ async function pointsForGeneration(input: {
   if (!(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) {
     return aiPointsForGeneration(input.featureCode, input.metadata);
   }
-  if (input.featureCode === 'castdev_transcription' || input.featureCode === 'castdev_analysis') {
-    const actionKey = input.featureCode as 'castdev_transcription' | 'castdev_analysis';
+  if (input.featureCode === 'castdev_transcription' || input.featureCode === 'castdev_analysis' || input.featureCode === 'cases_extract_case') {
+    const actionKey = input.featureCode as 'castdev_transcription' | 'castdev_analysis' | 'cases_extract_case';
     const pricing = await aiActionRegistryService.resolve(actionKey, input.createdAt ?? new Date());
     const pricingMetadata = pricing.pricingMetadata
       && typeof pricing.pricingMetadata === 'object'

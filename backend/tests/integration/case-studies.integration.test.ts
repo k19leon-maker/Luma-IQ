@@ -15,9 +15,17 @@ vi.mock('../../src/services/case-study.service', async () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
+      createBatch: vi.fn(),
     },
   };
 });
+
+vi.mock('../../src/services/case-study-ai.service', () => ({
+  caseStudyAiService: {
+    extract: vi.fn(),
+    generateInsights: vi.fn(),
+  },
+}));
 
 import { createApp } from '../../src/app';
 import {
@@ -25,8 +33,10 @@ import {
   CaseStudyValidationError,
   caseStudyService,
 } from '../../src/services/case-study.service';
+import { caseStudyAiService } from '../../src/services/case-study-ai.service';
 
 const mockedService = vi.mocked(caseStudyService, true);
+const mockedAiService = vi.mocked(caseStudyAiService, true);
 const projectId = '11111111-1111-4111-8111-111111111111';
 const caseId = '22222222-2222-4222-8222-222222222222';
 
@@ -171,5 +181,88 @@ describe('Case studies API', () => {
 
     expect(mockedService.list).not.toHaveBeenCalled();
     expect(mockedService.get).not.toHaveBeenCalled();
+  });
+
+  it('returns extraction preview without creating database records', async () => {
+    const candidate = {
+      title: 'Первые заявки', beforeText: 'Было', actionsText: 'Сделали', afterText: 'Стало',
+      clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+    };
+    mockedAiService.extract.mockResolvedValue({
+      candidates: [candidate], generationId: 'generation-1', aiPointsCharged: 20, aiBalanceRemaining: 980,
+    });
+
+    const response = await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/extract`)
+      .set('Authorization', authHeader())
+      .set('Idempotency-Key', 'extract-key-123')
+      .send({
+        sourceText: 'Достаточно длинная история клиента для безопасного AI-анализа.',
+        sourceType: 'document',
+      })
+      .expect(200);
+
+    expect(response.body.candidates).toHaveLength(1);
+    expect(mockedAiService.extract).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1', projectId, idempotencyKey: 'extract-key-123',
+    }));
+    expect(mockedService.createBatch).not.toHaveBeenCalled();
+  });
+
+  it('creates only confirmed candidates through the batch endpoint', async () => {
+    mockedService.createBatch.mockResolvedValue({ cases: [manualCase()], replayed: false } as never);
+
+    await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/batch`)
+      .set('Authorization', authHeader('user-2'))
+      .send({
+        candidates: [{
+          title: 'Подтверждённый кейс', beforeText: '', actionsText: '', afterText: '',
+          clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+        }],
+        sourceText: 'Достаточно длинная история клиента для создания черновика.',
+        sourceType: 'document',
+        idempotencyKey: 'batch-key-123',
+      })
+      .expect(201);
+
+    expect(mockedService.createBatch).toHaveBeenCalledWith('user-2', projectId, expect.objectContaining({
+      idempotencyKey: 'batch-key-123',
+      candidates: [expect.objectContaining({ title: 'Подтверждённый кейс' })],
+    }));
+  });
+
+  it('generates insights for the authenticated user case', async () => {
+    mockedAiService.generateInsights.mockResolvedValue({
+      case: { ...manualCase(), clientTask: 'Получить заявки' },
+      generationId: 'generation-2', aiPointsCharged: 5, aiBalanceRemaining: 975,
+    } as never);
+
+    await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/${caseId}/generate-insights`)
+      .set('Authorization', authHeader('user-2'))
+      .set('Idempotency-Key', 'insights-key-123')
+      .send({})
+      .expect(200);
+
+    expect(mockedAiService.generateInsights).toHaveBeenCalledWith({
+      userId: 'user-2', projectId, caseId, idempotencyKey: 'insights-key-123',
+    });
+  });
+
+  it('returns the standard no-charge message for insufficient AI balance', async () => {
+    mockedAiService.extract.mockRejectedValue(Object.assign(new Error('AI-баланс закончился'), {
+      status: 402,
+      code: 'AI_BALANCE_EXHAUSTED',
+    }));
+
+    const response = await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/extract`)
+      .set('Authorization', authHeader())
+      .send({ sourceText: 'Достаточно длинная история клиента для AI-анализа и проверки.' })
+      .expect(402);
+
+    expect(response.body.error).toContain('баллов');
+    expect(response.body.error).toContain('не списаны');
   });
 });

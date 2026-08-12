@@ -39,4 +39,11 @@ describe('ai action point costs', () => {
     expect(aiPointsForGeneration('castdev_transcription', { durationSec: 75 * 60 })).toBe(50);
     expect(aiPointsForGeneration('castdev_analysis', { castdevAiPoints: 33 })).toBe(33);
   });
+
+  it('prices case extraction by confirmed source text length', () => {
+    expect(aiPointsForGeneration('cases_extract_case', { transcriptChars: 8_000 })).toBe(20);
+    expect(aiPointsForGeneration('cases_extract_case', { transcriptChars: 40_000 })).toBe(70);
+    expect(aiPointsForGeneration('cases_extract_case', { castdevAiPoints: 40 })).toBe(40);
+    expect(AI_ACTION_COSTS.cases_generate_marketing_insights).toBe(5);
+  });
 });

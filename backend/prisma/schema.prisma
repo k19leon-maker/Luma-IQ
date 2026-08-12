@@ -1033,6 +1033,8 @@ model CaseStudy {
   status           String   @default("draft")
   sourceType       String   @default("manual")
   sourceText       String?  @db.Text
+  importBatchKey   String?
+  importPosition   Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1041,6 +1043,7 @@ model CaseStudy {
 
   @@index([projectId, status, updatedAt])
   @@index([userId, updatedAt])
+  @@unique([projectId, userId, importBatchKey, importPosition])
   @@map("case_studies")
 }
 

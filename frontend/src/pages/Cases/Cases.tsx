@@ -5,11 +5,13 @@ import {
   casesApi,
   type CaseStudy,
   type CaseStudyStatus,
+  type CaseExtractionCandidate,
   type CreateCaseStudyInput,
   type UpdateCaseStudyInput,
 } from '../../api/cases';
 import CaseCreateDialog from '../../components/Cases/CaseCreateDialog';
 import CaseEditor, { type CaseDraft } from '../../components/Cases/CaseEditor';
+import CaseImportDialog from '../../components/Cases/CaseImportDialog';
 import CaseList from '../../components/Cases/CaseList';
 import { useProjectsStore } from '../../store/projects.store';
 import { appPath } from '../../utils/appRoutes';
@@ -36,6 +38,13 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return responseError.response?.data?.error || responseError.message || fallback;
 }
 
+function idempotencyKey(prefix: string): string {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${random}`;
+}
+
 export default function Cases() {
   const { caseId } = useParams<{ caseId?: string }>();
   const navigate = useNavigate();
@@ -46,6 +55,14 @@ export default function Cases() {
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [creatingBatch, setCreatingBatch] = useState(false);
+  const [generatingInsights, setGeneratingInsights] = useState(false);
+  const [importAnalyzed, setImportAnalyzed] = useState(false);
+  const [importCandidates, setImportCandidates] = useState<CaseExtractionCandidate[]>([]);
+  const [importSourceText, setImportSourceText] = useState('');
+  const [importBatchKey, setImportBatchKey] = useState('');
   const [selected, setSelected] = useState<CaseStudy | null>(null);
   const [draft, setDraft] = useState<CaseDraft | null>(null);
 
@@ -66,6 +83,16 @@ export default function Cases() {
   }, [navigate]);
 
   const closeCreateDialog = useCallback(() => setCreateDialogOpen(false), []);
+  const resetImport = useCallback(() => {
+    setImportCandidates([]);
+    setImportAnalyzed(false);
+    setImportSourceText('');
+    setImportBatchKey('');
+  }, []);
+  const closeImportDialog = useCallback(() => {
+    if (extracting || creatingBatch) return;
+    setImportDialogOpen(false);
+  }, [creatingBatch, extracting]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -138,6 +165,61 @@ export default function Cases() {
     setCreateDialogOpen(true);
   }
 
+  function handleImport() {
+    if (!activeProjectId || !confirmDiscard()) return;
+    setImportDialogOpen(true);
+  }
+
+  async function handleExtract(sourceText: string) {
+    if (!activeProjectId || extracting) return;
+    setExtracting(true);
+    try {
+      const result = await casesApi.extract(activeProjectId, {
+        sourceText,
+        sourceType: 'document',
+        idempotencyKey: idempotencyKey('cases-extract'),
+      });
+      setImportSourceText(sourceText);
+      setImportCandidates(result.candidates);
+      setImportBatchKey(`cases-batch-${result.generationId}`);
+      setImportAnalyzed(true);
+      if (result.candidates.length === 0) {
+        toast('Клиентские истории в тексте не найдены');
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Не удалось найти кейсы в тексте'));
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleCreateBatch(candidates: CaseExtractionCandidate[]) {
+    if (!activeProjectId || creatingBatch || !importBatchKey || !importSourceText) return;
+    setCreatingBatch(true);
+    try {
+      const result = await casesApi.createBatch(activeProjectId, {
+        candidates,
+        sourceText: importSourceText,
+        sourceType: 'document',
+        idempotencyKey: importBatchKey,
+      });
+      setCases((current) => {
+        const createdIds = new Set(result.cases.map((record) => record.id));
+        return [...result.cases, ...current.filter((record) => !createdIds.has(record.id))];
+      });
+      setFilter('all');
+      setImportDialogOpen(false);
+      resetImport();
+      const first = result.cases[0];
+      if (first) chooseRecord(first);
+      toast.success(result.replayed ? 'Черновики уже были созданы' : `Создано черновиков: ${result.cases.length}`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Не удалось создать черновики'));
+    } finally {
+      setCreatingBatch(false);
+    }
+  }
+
   async function handleCreate(input: CreateCaseStudyInput) {
     if (!activeProjectId || creating) return;
     setCreating(true);
@@ -179,6 +261,26 @@ export default function Cases() {
   async function handleToggleStatus() {
     if (!draft) return;
     await persist({ ...draft, status: draft.status === 'ready' ? 'draft' : 'ready' });
+  }
+
+  async function handleGenerateInsights() {
+    if (!activeProjectId || !selected || dirty || generatingInsights) return;
+    setGeneratingInsights(true);
+    try {
+      const result = await casesApi.generateInsights(
+        activeProjectId,
+        selected.id,
+        idempotencyKey('cases-insights'),
+      );
+      setCases((current) => current.map((record) => record.id === result.case.id ? result.case : record));
+      setSelected(result.case);
+      setDraft(toDraft(result.case));
+      toast.success('Маркетинговые тезисы обновлены');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Не удалось обновить тезисы'));
+    } finally {
+      setGeneratingInsights(false);
+    }
   }
 
   async function handleDelete() {
@@ -223,6 +325,7 @@ export default function Cases() {
         onFilterChange={setFilter}
         onSelect={handleSelect}
         onAdd={handleAdd}
+        onImport={handleImport}
       />
 
       <section className={s.detailColumn} aria-label="Карточка кейса">
@@ -232,11 +335,14 @@ export default function Cases() {
             draft={draft}
             saving={saving}
             dirty={dirty}
+            projectId={activeProjectId}
+            generatingInsights={generatingInsights}
             onChange={handleDraftChange}
             onSave={() => void persist()}
             onToggleStatus={() => void handleToggleStatus()}
             onDelete={() => void handleDelete()}
             onBack={handleBack}
+            onGenerateInsights={() => void handleGenerateInsights()}
           />
         ) : (
           <div className={s.detailEmpty}>
@@ -255,6 +361,18 @@ export default function Cases() {
         saving={creating}
         onClose={closeCreateDialog}
         onCreate={(input) => void handleCreate(input)}
+      />
+      <CaseImportDialog
+        open={importDialogOpen}
+        projectId={activeProjectId}
+        extracting={extracting}
+        creating={creatingBatch}
+        analyzed={importAnalyzed}
+        candidates={importCandidates}
+        onClose={closeImportDialog}
+        onExtract={(sourceText) => void handleExtract(sourceText)}
+        onCreate={(candidates) => void handleCreateBatch(candidates)}
+        onReset={resetImport}
       />
     </div>
   );

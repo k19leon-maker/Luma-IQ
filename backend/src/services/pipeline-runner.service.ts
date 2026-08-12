@@ -76,7 +76,8 @@ export const pipelineRunnerService = {
     initialPayload: Record<string, unknown>;
     executeStage: (stageInput: PipelineStageExecutionInput) => Promise<PipelineStageExecutionResult>;
   }): Promise<PipelineRunResult> {
-    let payload = compactValue(input.initialPayload) as Record<string, unknown>;
+    const initialStringLimit = input.workflow === 'cases' ? 50_000 : 4_000;
+    let payload = compactValue(input.initialPayload, 0, initialStringLimit) as Record<string, unknown>;
     let finalContent = '';
     let finalStructured: Record<string, unknown> = {};
     let finalRoute: ModelRouteDecision | null = null;
