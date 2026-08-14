@@ -37,6 +37,47 @@ function addDays(value: Date, days: number): Date {
   return result;
 }
 
+type YooKassaWebhookEvent = {
+  type?: string;
+  event?: string;
+  object?: { id?: string };
+};
+
+function storedPlan(payment: { metadata: Prisma.JsonValue | null }): PublicPaidPlanId | null {
+  const metadata = payment.metadata as Record<string, unknown> | null;
+  const plan = metadata?.plan;
+  return typeof plan === 'string' && isPurchasablePlanId(plan)
+    ? resolvePlanId(plan) as PublicPaidPlanId
+    : null;
+}
+
+function sameMoney(left: Prisma.Decimal | string | number, right: string): boolean {
+  try {
+    return new Prisma.Decimal(left).equals(new Prisma.Decimal(right));
+  } catch {
+    return false;
+  }
+}
+
+async function recordRejectedWebhook(input: {
+  paymentId?: string;
+  userId?: string | null;
+  eventType?: string;
+  reason: string;
+}): Promise<void> {
+  await prisma.userEvent.create({
+    data: {
+      userId: input.userId ?? null,
+      type: 'payment_webhook_rejected',
+      metadata: {
+        paymentId: input.paymentId ?? null,
+        eventType: input.eventType ?? null,
+        reason: input.reason,
+      },
+    },
+  }).catch(() => undefined);
+}
+
 export const paymentService = {
   async createPayment(userId: string, requestedPlan: string): Promise<{ confirmationUrl: string; paymentId: string }> {
     if (!isPurchasablePlanId(requestedPlan)) {
@@ -99,7 +140,7 @@ export const paymentService = {
           yookassaId: ykPayment.id,
           amount: planDef.amount,
           status: 'PENDING',
-          metadata: { plan, ...metadata } as Prisma.InputJsonValue,
+          metadata: { userId, plan, ...metadata } as Prisma.InputJsonValue,
         },
       }),
       prisma.userEvent.create({
@@ -117,48 +158,80 @@ export const paymentService = {
     return { paymentId: ykPayment.id, confirmationUrl: ykPayment.confirmation.confirmation_url };
   },
 
-  async handleWebhook(event: {
-    type?: string;
-    event?: string;
-    object: { id: string; status: string; metadata?: { userId?: string; plan?: string } };
-  }): Promise<void> {
+  async handleWebhook(event: YooKassaWebhookEvent): Promise<void> {
     if (!env.YOOKASSA_ENABLED) {
       throw Object.assign(new Error('YooKassa webhook disabled'), { status: 404 });
     }
     const eventType = event.type ?? event.event;
-    if (eventType === 'payment.canceled') {
-      const payment = await prisma.payment.findUnique({ where: { yookassaId: event.object.id } });
-      if (payment && payment.status === 'PENDING') {
-        await prisma.$transaction([
-          prisma.payment.update({ where: { yookassaId: event.object.id }, data: { status: 'CANCELLED' } }),
-          prisma.userEvent.create({
-            data: {
-              userId: payment.userId,
-              type: 'payment_cancelled',
-              metadata: {
-                paymentId: event.object.id,
-                ...((payment.metadata as Record<string, unknown> | null) ?? {}),
-              } as Prisma.InputJsonValue,
-            },
-          }),
-        ]);
-      }
+    const rawPaymentId = event.object?.id?.trim();
+    const yookassaId = rawPaymentId && /^[A-Za-z0-9_-]{1,128}$/.test(rawPaymentId)
+      ? rawPaymentId
+      : undefined;
+    if (!yookassaId || (eventType !== 'payment.succeeded' && eventType !== 'payment.canceled')) {
+      await recordRejectedWebhook({ paymentId: yookassaId, eventType, reason: 'unsupported_event' });
       return;
     }
-    if (eventType !== 'payment.succeeded') return;
 
-    const { id: yookassaId, metadata } = event.object;
-    if (!metadata?.userId || !metadata.plan || !isPurchasablePlanId(metadata.plan)) return;
-    const plan = resolvePlanId(metadata.plan) as PublicPaidPlanId;
+    const localPayment = await prisma.payment.findUnique({ where: { yookassaId } });
+    if (!localPayment) {
+      await recordRejectedWebhook({ paymentId: yookassaId, eventType, reason: 'payment_not_found' });
+      return;
+    }
+    const plan = storedPlan(localPayment);
+    if (!plan) {
+      await recordRejectedWebhook({ paymentId: yookassaId, userId: localPayment.userId, eventType, reason: 'invalid_stored_plan' });
+      return;
+    }
+
+    const providerPayment = await yookassaService.getPayment(yookassaId);
+    const providerMetadata = providerPayment.metadata ?? {};
+    const paymentMatches = providerPayment.id === yookassaId
+      && providerPayment.amount?.currency === localPayment.currency
+      && sameMoney(localPayment.amount, providerPayment.amount?.value ?? '')
+      && providerMetadata.userId === localPayment.userId
+      && providerMetadata.plan === plan;
+    if (!paymentMatches) {
+      await recordRejectedWebhook({ paymentId: yookassaId, userId: localPayment.userId, eventType, reason: 'provider_payment_mismatch' });
+      return;
+    }
+
+    if (providerPayment.status === 'canceled') {
+      await prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findUnique({ where: { yookassaId } });
+        if (!payment || payment.status !== 'PENDING') return;
+        const updated = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'PENDING' },
+          data: { status: 'CANCELLED' },
+        });
+        if (!updated.count) return;
+        await tx.userEvent.create({
+          data: {
+            userId: payment.userId,
+            type: 'payment_cancelled',
+            metadata: {
+              paymentId: yookassaId,
+              ...((payment.metadata as Record<string, unknown> | null) ?? {}),
+            } as Prisma.InputJsonValue,
+          },
+        });
+      });
+      return;
+    }
+
+    if (providerPayment.status !== 'succeeded' || providerPayment.paid !== true) {
+      await recordRejectedWebhook({ paymentId: yookassaId, userId: localPayment.userId, eventType, reason: 'provider_not_succeeded' });
+      return;
+    }
+
     const planDef = PLANS[plan];
 
-    await prisma.$transaction(async (tx) => {
+    const activated = await prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({ where: { yookassaId } });
-      if (!payment || payment.status === 'SUCCEEDED') return;
+      if (!payment || payment.status !== 'PENDING') return false;
 
       const now = new Date();
       const expiresAt = addDays(now, planDef.periodDays);
-      const previousSubscription = await tx.subscription.findUnique({ where: { userId: metadata.userId! } });
+      const previousSubscription = await tx.subscription.findUnique({ where: { userId: payment.userId } });
       const previousPlan = previousSubscription
         ? getPlanBySubscriptionPlan(previousSubscription.plan)
         : null;
@@ -169,8 +242,8 @@ export const paymentService = {
           ? previousPlan.priceMonthlyRub < nextPlan.priceMonthlyRub ? 'plan_upgraded' : 'plan_downgraded'
           : null;
 
-      await tx.payment.update({
-        where: { yookassaId },
+      const updated = await tx.payment.updateMany({
+        where: { id: payment.id, status: 'PENDING' },
         data: {
           status: 'SUCCEEDED',
           metadata: {
@@ -182,10 +255,11 @@ export const paymentService = {
           },
         },
       });
+      if (!updated.count) return false;
       await tx.subscription.upsert({
-        where: { userId: metadata.userId! },
+        where: { userId: payment.userId },
         create: {
-          userId: metadata.userId!,
+          userId: payment.userId,
           plan: toSubscriptionPlan(plan),
           status: 'ACTIVE',
           expiresAt,
@@ -201,12 +275,12 @@ export const paymentService = {
         },
       });
       await tx.billingPeriod.updateMany({
-        where: { userId: metadata.userId!, status: 'OPEN' },
+        where: { userId: payment.userId, status: 'OPEN' },
         data: { status: 'CLOSED' },
       });
       await tx.userEvent.create({
         data: {
-          userId: metadata.userId!,
+          userId: payment.userId,
           type: 'payment_succeeded',
           metadata: {
             paymentId: yookassaId,
@@ -221,7 +295,7 @@ export const paymentService = {
       if (transitionEvent) {
         await tx.userEvent.create({
           data: {
-            userId: metadata.userId!,
+            userId: payment.userId,
             type: transitionEvent,
             metadata: {
               paymentId: yookassaId,
@@ -235,11 +309,14 @@ export const paymentService = {
           },
         });
       }
+      return true;
     });
 
+    if (!activated) return;
+
     // The existing period/ledger layer owns idempotent PLAN_ACCRUAL creation.
-    const subscription = await prisma.subscription.findUnique({ where: { userId: metadata.userId } });
-    await billingPeriodService.getOrCreateCurrent(metadata.userId, subscription);
+    const subscription = await prisma.subscription.findUnique({ where: { userId: localPayment.userId } });
+    await billingPeriodService.getOrCreateCurrent(localPayment.userId, subscription);
   },
 
   async getSubscription(userId: string) {

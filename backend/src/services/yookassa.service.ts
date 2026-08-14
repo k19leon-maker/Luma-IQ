@@ -20,6 +20,12 @@ export type CreateYooKassaPaymentInput = {
 export type YooKassaPayment = {
   id: string;
   status: string;
+  paid?: boolean;
+  amount: {
+    value: string;
+    currency: string;
+  };
+  metadata?: Record<string, string | number>;
   confirmation: {
     confirmation_url: string;
   };
@@ -28,7 +34,7 @@ export type YooKassaPayment = {
 async function request(
   method: string,
   path: string,
-  idempotencyKey: string,
+  idempotencyKey?: string,
   body?: unknown,
 ): Promise<unknown> {
   if (!env.YOOKASSA_ENABLED) {
@@ -50,7 +56,7 @@ async function request(
     headers: {
       Authorization: `Basic ${credentials}`,
       'Content-Type': 'application/json',
-      'Idempotence-Key': idempotencyKey,
+      ...(idempotencyKey ? { 'Idempotence-Key': idempotencyKey } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -89,5 +95,9 @@ export const yookassaService = {
       description: input.description,
       metadata: input.metadata,
     }) as Promise<YooKassaPayment>;
+  },
+
+  async getPayment(paymentId: string): Promise<YooKassaPayment> {
+    return request('GET', `/payments/${encodeURIComponent(paymentId)}`) as Promise<YooKassaPayment>;
   },
 };
