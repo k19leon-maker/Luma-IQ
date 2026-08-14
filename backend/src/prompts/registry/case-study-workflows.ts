@@ -18,11 +18,11 @@ export const CASE_STUDY_WORKFLOW_PROMPTS: PromptConfig[] = [
 Выделяй самостоятельные истории и структурируй их в формате «Что было / Что сделали / Что стало».
 ${FACT_RULES}`,
     userPromptBuilder: ({ inputs }) => `Проанализируй подтверждённый пользователем текст. Если в нём несколько независимых историй, раздели их.
-Верни от 0 до 10 кейсов. Если историй нет, верни {"cases":[]}.
+Верни все самостоятельные кейсы из текста. Если историй нет, верни {"cases":[]}.
 Название формулируй тезисно, без имени клиента.
 Схема: {"cases":[{"title":"","beforeText":"","actionsText":"","afterText":"","clientTask":"","clientProblem":"","desiredResult":"","marketingInsight":""}]}
 Исходный текст:\n${text(inputs, 'sourceText')}`,
-    validationRules: { structuredOutput: 'json', maxLength: 50_000 },
+    validationRules: { structuredOutput: 'json', maxLength: 180_000 },
   },
   {
     id: 'cases.insights.v1', version: 'v1', feature: 'cases_generate_marketing_insights', workflow: 'cases', step: 'insights',

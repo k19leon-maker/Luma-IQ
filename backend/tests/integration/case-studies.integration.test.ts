@@ -16,6 +16,7 @@ vi.mock('../../src/services/case-study.service', async () => {
       update: vi.fn(),
       remove: vi.fn(),
       createBatch: vi.fn(),
+      assertOwnedProject: vi.fn(),
     },
   };
 });
@@ -27,6 +28,17 @@ vi.mock('../../src/services/case-study-ai.service', () => ({
   },
 }));
 
+vi.mock('../../src/services/case-study-import-record.service', () => ({
+  caseStudyImportRecordService: {
+    create: vi.fn(),
+    get: vi.fn(),
+  },
+}));
+
+vi.mock('../../src/services/case-study-ocr.service', () => ({
+  caseStudyOcrService: { recognize: vi.fn() },
+}));
+
 import { createApp } from '../../src/app';
 import {
   CaseStudyNotFoundError,
@@ -34,6 +46,7 @@ import {
   caseStudyService,
 } from '../../src/services/case-study.service';
 import { caseStudyAiService } from '../../src/services/case-study-ai.service';
+import { caseStudyImportRecordService } from '../../src/services/case-study-import-record.service';
 
 const mockedService = vi.mocked(caseStudyService, true);
 const mockedAiService = vi.mocked(caseStudyAiService, true);
@@ -214,6 +227,54 @@ describe('Case studies API', () => {
     expect(mockedService.createBatch).not.toHaveBeenCalled();
   });
 
+  it('uses an owned, short-lived import record instead of accepting another project source', async () => {
+    vi.mocked(caseStudyImportRecordService.get).mockResolvedValue({
+      id: '33333333-3333-4333-8333-333333333333',
+      sourceText: 'Достаточно длинная история из импортированного документа для анализа кейса.',
+      sourceType: 'document',
+    } as never);
+    mockedAiService.extract.mockResolvedValue({ candidates: [], generationId: 'generation-import', aiPointsCharged: 20, aiBalanceRemaining: 980 });
+
+    await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/extract`)
+      .set('Authorization', authHeader('user-1'))
+      .send({ importId: '33333333-3333-4333-8333-333333333333', sourceType: 'document' })
+      .expect(200);
+
+    expect(caseStudyImportRecordService.get).toHaveBeenCalledWith({
+      userId: 'user-1', projectId, importId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(mockedAiService.extract).toHaveBeenCalledWith(expect.objectContaining({
+      sourceText: 'Достаточно длинная история из импортированного документа для анализа кейса.',
+    }));
+  });
+
+  it('creates a short-lived import record from an owned text document before AI analysis', async () => {
+    mockedService.assertOwnedProject.mockResolvedValue(undefined);
+    vi.mocked(caseStudyImportRecordService.create).mockResolvedValue({
+      importId: '44444444-4444-4444-8444-444444444444',
+      sourceText: 'История клиента из документа, которую пользователь сможет проверить перед анализом.',
+      sourceType: 'document',
+      fileName: 'cases.txt',
+      textLength: 74,
+      previewOnly: false,
+    } as never);
+
+    const response = await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/import/document`)
+      .set('Authorization', authHeader('user-1'))
+      .attach('file', Buffer.from('История клиента из документа, которую пользователь сможет проверить перед анализом.'), {
+        filename: 'cases.txt', contentType: 'text/plain',
+      })
+      .expect(200);
+
+    expect(mockedService.assertOwnedProject).toHaveBeenCalledWith('user-1', projectId);
+    expect(caseStudyImportRecordService.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1', projectId, sourceType: 'document', fileName: 'cases.txt',
+    }));
+    expect(response.body.importId).toBe('44444444-4444-4444-8444-444444444444');
+  });
+
   it('creates only confirmed candidates through the batch endpoint', async () => {
     mockedService.createBatch.mockResolvedValue({ cases: [manualCase()], replayed: false } as never);
 
@@ -235,6 +296,20 @@ describe('Case studies API', () => {
       idempotencyKey: 'batch-key-123',
       candidates: [expect.objectContaining({ title: 'Подтверждённый кейс' })],
     }));
+  });
+
+  it('does not impose a product limit of ten selected case candidates', async () => {
+    mockedService.createBatch.mockResolvedValue({ cases: [manualCase()], replayed: false } as never);
+    const candidates = Array.from({ length: 12 }, (_, index) => ({
+      title: `Кейс ${index + 1}`, beforeText: '', actionsText: '', afterText: '',
+      clientTask: '', clientProblem: '', desiredResult: '', marketingInsight: '',
+    }));
+    await request(createApp())
+      .post(`/api/v1/projects/${projectId}/cases/batch`)
+      .set('Authorization', authHeader())
+      .send({ candidates, sourceType: 'document', idempotencyKey: 'batch-with-more-than-ten-candidates' })
+      .expect(201);
+    expect(mockedService.createBatch).toHaveBeenCalledWith('user-1', projectId, expect.objectContaining({ candidates }));
   });
 
   it('generates insights for the authenticated user case', async () => {

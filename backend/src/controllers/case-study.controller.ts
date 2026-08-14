@@ -16,9 +16,19 @@ import {
   caseStudyService,
 } from '../services/case-study.service';
 import { caseStudyAiService } from '../services/case-study-ai.service';
+import { caseStudyOcrService } from '../services/case-study-ocr.service';
+import {
+  assertScreenshotBatch,
+  assertScannedPdf,
+  CaseStudyImportError,
+  downloadGoogleCaseDocument,
+  extractCaseDocumentText,
+} from '../services/case-study-import.service';
+import * as fs from 'fs';
+import { caseStudyImportRecordService } from '../services/case-study-import-record.service';
 
 function sendError(res: Response, error: unknown, fallback: string): void {
-  if (error instanceof CaseStudyNotFoundError || error instanceof CaseStudyValidationError) {
+  if (error instanceof CaseStudyNotFoundError || error instanceof CaseStudyValidationError || error instanceof CaseStudyImportError) {
     res.status(error.status).json({ error: error.message });
     return;
   }
@@ -41,8 +51,19 @@ function sendError(res: Response, error: unknown, fallback: string): void {
     res.status(409).json({ error: message || 'Это действие уже выполняется' });
     return;
   }
+  if ([400, 413, 422, 429, 502, 503].includes(status)) {
+    res.status(status).json({ error: message || fallback, ...(code ? { code } : {}) });
+    return;
+  }
   console.error('[CaseStudies]', error);
   res.status(500).json({ error: fallback });
+}
+
+function cleanup(files: Express.Multer.File[]) {
+  for (const file of files) {
+    if (!file.path) continue;
+    fs.promises.unlink(file.path).catch(() => undefined);
+  }
 }
 
 function firstIssue(error: unknown): string {
@@ -138,10 +159,21 @@ export const caseStudyController = {
       return;
     }
     try {
+      const imported = body.data.importId
+        ? await caseStudyImportRecordService.get({
+          userId: req.userId!, projectId: params.data.projectId, importId: body.data.importId,
+        })
+        : null;
+      const sourceText = body.data.sourceText?.trim() || imported?.sourceText;
+      if (!sourceText) {
+        res.status(400).json({ error: 'Добавьте текст или импортированный материал' });
+        return;
+      }
       const result = await caseStudyAiService.extract({
         userId: req.userId!,
         projectId: params.data.projectId,
-        ...body.data,
+        sourceText,
+        sourceType: imported?.sourceType === 'screenshot' ? 'screenshot' : body.data.sourceType,
         idempotencyKey: body.data.idempotencyKey
           ?? req.header('idempotency-key')
           ?? req.header('x-idempotency-key')
@@ -150,6 +182,100 @@ export const caseStudyController = {
       res.json(result);
     } catch (error) {
       sendError(res, error, 'Не удалось собрать кейсы');
+    }
+  },
+
+  async importDocument(req: AuthRequest, res: Response): Promise<void> {
+    const params = caseProjectParamsSchema.safeParse(req.params);
+    const file = req.file;
+    if (!params.success || !file) {
+      res.status(400).json({ error: !params.success ? firstIssue(params.error) : 'Документ не загружен' });
+      return;
+    }
+    try {
+      await caseStudyService.assertOwnedProject(req.userId!, params.data.projectId);
+      const document = { buffer: fs.readFileSync(file.path), fileName: file.originalname, mimeType: file.mimetype };
+      const sourceText = await extractCaseDocumentText(document).catch(async (error: unknown) => {
+        if (!(error instanceof CaseStudyImportError) || error.code !== 'CASE_DOCUMENT_REQUIRES_OCR') throw error;
+        assertScannedPdf(document);
+        const ocr = await caseStudyOcrService.recognize({
+          userId: req.userId!, projectId: params.data.projectId,
+          sources: [{ fileName: file.originalname, mimeType: 'application/pdf', buffer: document.buffer }],
+          kind: 'pdf_scan',
+          idempotencyKey: req.header('idempotency-key') ?? req.header('x-idempotency-key') ?? undefined,
+        });
+        return ocr.text;
+      });
+      res.json(await caseStudyImportRecordService.create({
+        userId: req.userId!, projectId: params.data.projectId, sourceType: 'document', fileName: file.originalname, sourceText,
+      }));
+    } catch (error) {
+      sendError(res, error, 'Не удалось прочитать документ');
+    } finally {
+      cleanup([file]);
+    }
+  },
+
+  async importGoogleDocument(req: AuthRequest, res: Response): Promise<void> {
+    const params = caseProjectParamsSchema.safeParse(req.params);
+    const body = req.body && typeof req.body === 'object' ? req.body as { url?: unknown } : {};
+    if (!params.success || typeof body.url !== 'string') {
+      res.status(400).json({ error: !params.success ? firstIssue(params.error) : 'Добавьте ссылку на Google-файл' });
+      return;
+    }
+    try {
+      await caseStudyService.assertOwnedProject(req.userId!, params.data.projectId);
+      const downloaded = await downloadGoogleCaseDocument(body.url);
+      const sourceText = await extractCaseDocumentText(downloaded).catch(async (error: unknown) => {
+        if (!(error instanceof CaseStudyImportError) || error.code !== 'CASE_DOCUMENT_REQUIRES_OCR') throw error;
+        assertScannedPdf(downloaded);
+        const ocr = await caseStudyOcrService.recognize({
+          userId: req.userId!, projectId: params.data.projectId,
+          sources: [{ fileName: downloaded.fileName, mimeType: 'application/pdf', buffer: downloaded.buffer }],
+          kind: 'pdf_scan',
+          idempotencyKey: req.header('idempotency-key') ?? req.header('x-idempotency-key') ?? undefined,
+        });
+        return ocr.text;
+      });
+      res.json(await caseStudyImportRecordService.create({
+        userId: req.userId!, projectId: params.data.projectId, sourceType: 'document', fileName: downloaded.fileName, sourceText,
+      }));
+    } catch (error) {
+      sendError(res, error, 'Не удалось прочитать Google-файл');
+    }
+  },
+
+  async recognizeScreenshots(req: AuthRequest, res: Response): Promise<void> {
+    const params = caseProjectParamsSchema.safeParse(req.params);
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!params.success) {
+      cleanup(files);
+      res.status(400).json({ error: firstIssue(params.error) });
+      return;
+    }
+    try {
+      await caseStudyService.assertOwnedProject(req.userId!, params.data.projectId);
+      assertScreenshotBatch(files);
+      const result = await caseStudyOcrService.recognize({
+        userId: req.userId!,
+        projectId: params.data.projectId,
+        sources: files.map((file) => ({
+          fileName: file.originalname,
+          mimeType: file.mimetype,
+          buffer: fs.readFileSync(file.path),
+        })),
+        kind: 'screenshots',
+        idempotencyKey: req.header('idempotency-key') ?? req.header('x-idempotency-key') ?? undefined,
+      });
+      const imported = await caseStudyImportRecordService.create({
+        userId: req.userId!, projectId: params.data.projectId, sourceType: 'screenshot', fileName: `${files.length} скриншотов`, sourceText: result.text,
+      });
+      const { text: _text, ...ocrResult } = result;
+      res.json({ ...ocrResult, ...imported, filesCount: files.length });
+    } catch (error) {
+      sendError(res, error, 'Не удалось распознать текст на скриншотах');
+    } finally {
+      cleanup(files);
     }
   },
 

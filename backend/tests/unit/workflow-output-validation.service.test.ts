@@ -139,7 +139,7 @@ describe('workflow output validation', () => {
     )).toEqual({ ok: true, errors: [] });
   });
 
-  it('rejects malformed and oversized case extraction results', () => {
+  it('rejects malformed case extraction results without limiting the number of detected cases', () => {
     expect(workflowOutputValidationService.validate('cases', 'extract', '{not-json').ok).toBe(false);
     const result = workflowOutputValidationService.validate(
       'cases',
@@ -152,8 +152,7 @@ describe('workflow output validation', () => {
         })),
       }),
     );
-    expect(result.ok).toBe(false);
-    expect(result.errors.join(' ')).toContain('10');
+    expect(result).toEqual({ ok: true, errors: [] });
   });
 
   it('validates strict marketing insights output separately from extraction', () => {

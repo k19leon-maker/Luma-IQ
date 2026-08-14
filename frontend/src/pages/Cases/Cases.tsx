@@ -198,17 +198,18 @@ export default function Cases() {
     setImportDialogOpen(true);
   }
 
-  async function handleExtract(sourceText: string, sourceType: CaseStudy['sourceType']) {
+  async function handleExtract(input: { sourceText: string; sourceType: CaseStudy['sourceType']; importId?: string }) {
     if (!activeProjectId || extracting) return;
     setExtracting(true);
     try {
       const result = await casesApi.extract(activeProjectId, {
-        sourceText,
-        sourceType,
+        sourceText: input.sourceText,
+        sourceType: input.sourceType,
+        ...(input.importId ? { importId: input.importId } : {}),
         idempotencyKey: idempotencyKey('cases-extract'),
       });
-      setImportSourceText(sourceText);
-      setImportSourceType(sourceType);
+      setImportSourceText(input.sourceText);
+      setImportSourceType(input.sourceType);
       setImportCandidates(result.candidates);
       setImportBatchKey(`cases-batch-${result.generationId}`);
       setImportAnalyzed(true);
@@ -223,7 +224,7 @@ export default function Cases() {
   }
 
   async function handleCreateBatch(candidates: CaseExtractionCandidate[]) {
-    if (!activeProjectId || creatingBatch || !importBatchKey || !importSourceText) return;
+    if (!activeProjectId || creatingBatch || !importBatchKey) return;
     setCreatingBatch(true);
     try {
       const result = await casesApi.createBatch(activeProjectId, {
@@ -403,7 +404,7 @@ export default function Cases() {
         analyzed={importAnalyzed}
         candidates={importCandidates}
         onClose={closeImportDialog}
-        onExtract={(sourceText, sourceType) => void handleExtract(sourceText, sourceType)}
+        onExtract={(input) => void handleExtract(input)}
         onCreate={(candidates) => void handleCreateBatch(candidates)}
         onReset={resetImport}
       />

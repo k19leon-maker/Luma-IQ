@@ -128,7 +128,9 @@ export const caseStudyService = {
               ...candidate,
               status: 'draft',
               sourceType: input.sourceType,
-              sourceText: input.sourceText,
+              // Imported documents can be large. They are kept in a short-lived,
+              // project-scoped import record instead of being copied into every case.
+              sourceText: input.sourceType === 'voice' ? input.sourceText : null,
               importBatchKey: input.idempotencyKey,
               importPosition: position,
             },

@@ -54,6 +54,7 @@ model User {
   projectTasks             ProjectTask[]
   castDevRecords           CastDevRecord[]
   caseStudies              CaseStudy[]
+  caseStudyImports         CaseStudyImport[]
   promptVersions           PromptVersion[]
   promptExperiments        PromptExperiment[]
   consentLogs              ConsentLog[]
@@ -1013,6 +1014,7 @@ model Project {
   tasks               ProjectTask[]
   castDevRecords      CastDevRecord[]
   caseStudies         CaseStudy[]
+  caseStudyImports    CaseStudyImport[]
 
   @@index([userId, createdAt])
   @@map("projects")
@@ -1045,6 +1047,23 @@ model CaseStudy {
   @@index([userId, updatedAt])
   @@unique([projectId, userId, importBatchKey, importPosition])
   @@map("case_studies")
+}
+
+model CaseStudyImport {
+  id         String   @id @default(uuid())
+  projectId  String
+  userId     String
+  sourceType String
+  fileName   String?
+  sourceText String   @db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, expiresAt])
+  @@map("case_study_imports")
 }
 
 model ProjectTask {

@@ -40,6 +40,15 @@ export interface CaseExtractionCandidate {
   marketingInsight: string;
 }
 
+export interface CaseImportPreview {
+  importId: string;
+  sourceText: string;
+  sourceType: 'document' | 'screenshot';
+  fileName: string | null;
+  textLength: number;
+  previewOnly: boolean;
+}
+
 export type CreateCaseStudyInput = Pick<CaseStudy, 'title'> & Partial<Pick<CaseStudy,
   | 'beforeText'
   | 'actionsText'
@@ -93,6 +102,7 @@ export const casesApi = {
     sourceText: string;
     sourceType: CaseStudySourceType;
     idempotencyKey: string;
+    importId?: string;
   }) => apiClient
     .post<{
       candidates: CaseExtractionCandidate[];
@@ -104,6 +114,38 @@ export const casesApi = {
       headers: { 'Idempotency-Key': input.idempotencyKey },
     })
     .then((response) => notifyBalanceChanged(response.data)),
+
+  importDocument: (projectId: string, file: File) => {
+    const data = new FormData();
+    data.append('file', file);
+    return apiClient.post<CaseImportPreview>(
+      `/projects/${projectId}/cases/import/document`,
+      data,
+      { timeout: 180_000 },
+    ).then((response) => response.data);
+  },
+
+  importGoogleDocument: (projectId: string, url: string) => apiClient
+    .post<CaseImportPreview>(
+      `/projects/${projectId}/cases/import/google`,
+      { url },
+      { timeout: 180_000 },
+    )
+    .then((response) => response.data),
+
+  recognizeScreenshots: (projectId: string, files: File[], idempotencyKey: string) => {
+    const data = new FormData();
+    files.forEach((file) => data.append('files', file));
+    return apiClient.post<CaseImportPreview & {
+      filesCount: number;
+      generationId: string;
+      aiPointsCharged: number;
+      aiBalanceRemaining: number;
+    }>(`/projects/${projectId}/cases/import/screenshots`, data, {
+      timeout: 300_000,
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }).then((response) => notifyBalanceChanged(response.data));
+  },
 
   createBatch: (projectId: string, input: {
     candidates: CaseExtractionCandidate[];
