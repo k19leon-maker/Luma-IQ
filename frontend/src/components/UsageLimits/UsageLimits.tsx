@@ -40,28 +40,37 @@ const hintActionKeys = [
   'lead_magnet',
 ] as const;
 
-export function useBillingMe() {
+export function useBillingMe(enabled = true, identityKey = '') {
   const [billing, setBilling] = useState<BillingMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setBilling(null);
+      setLoading(false);
+      setError(false);
+      return undefined;
+    }
+
     let cancelled = false;
+    let requestVersion = 0;
     const refresh = () => {
+      const version = ++requestVersion;
       setLoading(true);
       setError(false);
       billingApi.getMe()
         .then((next) => {
-          if (!cancelled) setBilling(next);
+          if (!cancelled && version === requestVersion) setBilling(next);
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!cancelled && version === requestVersion) {
             setBilling(null);
             setError(true);
           }
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!cancelled && version === requestVersion) setLoading(false);
         });
     };
     refresh();
@@ -71,13 +80,24 @@ export function useBillingMe() {
       cancelled = true;
       window.removeEventListener('lumaiq:ai-balance-changed', refresh);
     };
-  }, []);
+  }, [enabled, identityKey]);
 
   return { billing, loading, error };
 }
 
-export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSection }) {
-  const { billing, loading, error } = useBillingMe();
+interface SectionUsageLimitsViewProps {
+  section: SectionUsageLimitsSection;
+  billing: BillingMe | null;
+  loading: boolean;
+  error: boolean;
+}
+
+export function SectionUsageLimitsView({
+  section,
+  billing,
+  loading,
+  error,
+}: SectionUsageLimitsViewProps) {
 
   if (loading) {
     return (
@@ -167,4 +187,9 @@ export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSec
       </div>
     </div>
   );
+}
+
+export function SectionUsageLimits({ section }: { section: SectionUsageLimitsSection }) {
+  const billingState = useBillingMe();
+  return <SectionUsageLimitsView section={section} {...billingState} />;
 }

@@ -9,6 +9,7 @@ import { appPath } from './utils/appRoutes';
 
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import CookieConsent from './components/CookieConsent/CookieConsent';
+import NavigationPlaceholder from './components/NavigationPlaceholder/NavigationPlaceholder';
 import B2BLegalPage from './pages/B2BLegal/B2BLegalPage';
 import GoLongread from './pages/GoLongread/GoLongread';
 
@@ -167,6 +168,8 @@ export default function App() {
           <Route path="files/products" element={page(<FileProducts />)} />
           <Route path="projects/:id" element={page(<ProjectPage />)} />
           <Route path="tasks" element={page(<Tasks />)} />
+          <Route path="analytics" element={page(<NavigationPlaceholder title="Аналитика" />)} />
+          <Route path="education" element={page(<NavigationPlaceholder title="Обучение" />)} />
           <Route path="history" element={page(<History />)} />
           <Route path="settings" element={page(<Settings />)} />
           <Route path="limits" element={page(<Limits />)} />
@@ -200,6 +203,8 @@ export default function App() {
         <Route path="/files/*" element={<Navigate to={appPath(window.location.pathname)} replace />} />
         <Route path="/projects/*" element={<Navigate to={appPath(window.location.pathname)} replace />} />
         <Route path="/tasks" element={<Navigate to={appPath('/tasks')} replace />} />
+        <Route path="/analytics" element={<Navigate to={appPath('/analytics')} replace />} />
+        <Route path="/education" element={<Navigate to={appPath('/education')} replace />} />
         <Route path="/history" element={<Navigate to={appPath('/history')} replace />} />
         <Route path="/settings" element={<Navigate to={appPath('/settings')} replace />} />
         <Route path="/limits" element={<Navigate to={appPath('/limits')} replace />} />
