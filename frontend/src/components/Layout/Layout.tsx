@@ -17,6 +17,7 @@ import { getGlobalNavigationSection } from '../../config/app-navigation';
 import GlobalSidebar from './GlobalSidebar';
 import SectionSidebar from './SectionSidebar';
 import { resolveNavigation } from './navigation-resolver';
+import type { GlobalNavigationSectionId } from './navigation.types';
 import s from './Layout.module.css';
 
 const pageTitles: Record<string, string> = {
@@ -110,7 +111,7 @@ export default function Layout({ children }: LayoutProps) {
   const activeNavigationSection = navigationState.globalSectionId
     ? getGlobalNavigationSection(navigationState.globalSectionId)
     : undefined;
-  const showSectionSidebar = navigationState.mode === 'app'
+  const activeSectionHasSubNavigation = navigationState.mode === 'app'
     && navigationState.hasSubNavigation
     && Boolean(activeNavigationSection);
   const user      = useAuthStore((st) => st.user);
@@ -123,8 +124,10 @@ export default function Layout({ children }: LayoutProps) {
     error: billingError,
   } = useBillingMe(Boolean(user?.id), user?.id);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [menuSectionId, setMenuSectionId] = useState<GlobalNavigationSectionId | null>(null);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
   const sectionDrawerTriggerRef = useRef<HTMLButtonElement>(null);
+  const sectionDrawerInvokerRef = useRef<HTMLElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -227,12 +230,23 @@ export default function Layout({ children }: LayoutProps) {
   const closeSectionDrawer = useCallback((restoreFocus = true) => {
     setSectionDrawerOpen(false);
     if (restoreFocus) {
-      window.requestAnimationFrame(() => sectionDrawerTriggerRef.current?.focus());
+      const trigger = sectionDrawerInvokerRef.current;
+      window.requestAnimationFrame(() => trigger?.focus());
     }
+  }, []);
+
+  const openSectionDrawer = useCallback((
+    sectionId: GlobalNavigationSectionId,
+    trigger: HTMLElement,
+  ) => {
+    sectionDrawerInvokerRef.current = trigger;
+    setMenuSectionId(sectionId);
+    setSectionDrawerOpen(true);
   }, []);
 
   useEffect(() => {
     setSectionDrawerOpen(false);
+    setMenuSectionId(null);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -376,6 +390,10 @@ export default function Layout({ children }: LayoutProps) {
     ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'П';
   const userPlanLabel = billing?.plan.name ?? (user as { tariff?: string })?.tariff ?? 'Бесплатный';
+  const menuNavigationSection = menuSectionId
+    ? getGlobalNavigationSection(menuSectionId)
+    : undefined;
+  const showSectionSidebar = Boolean(menuNavigationSection?.hasSubNavigation);
 
   const goToAccountSection = (path: string) => {
     setAccountMenuOpen(false);
@@ -386,8 +404,20 @@ export default function Layout({ children }: LayoutProps) {
     <div className={s.root}>
       <GlobalSidebar
         activeSectionId={navigationState.globalSectionId}
+        openSectionId={sectionDrawerOpen ? menuSectionId : null}
         unfinishedTasksCount={unfinishedTasksCount}
-        onLogoClick={() => navigate(appPath('/dashboard'))}
+        onLogoClick={() => {
+          closeSectionDrawer(false);
+          navigate(appPath('/dashboard'));
+        }}
+        onOpenSection={(sectionId, trigger) => {
+          if (sectionDrawerOpen && menuSectionId === sectionId) {
+            closeSectionDrawer();
+            return;
+          }
+          openSectionDrawer(sectionId, trigger);
+        }}
+        onNavigate={() => closeSectionDrawer(false)}
       >
         {hasAdminBackup ? (
           <button
@@ -459,14 +489,19 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </GlobalSidebar>
 
-      {showSectionSidebar && activeNavigationSection ? (
+      {showSectionSidebar && menuNavigationSection ? (
         <SectionSidebar
-          section={activeNavigationSection}
-          activeSubsectionId={navigationState.subsectionId}
+          section={menuNavigationSection}
+          activeSubsectionId={menuNavigationSection.id === navigationState.globalSectionId
+            ? navigationState.subsectionId
+            : null}
           projects={projects}
           activeProjectId={activeProjectId}
           onSelectProject={handleSelectProject}
-          onCreateProject={() => setShowModal(true)}
+          onCreateProject={() => {
+            closeSectionDrawer(false);
+            setShowModal(true);
+          }}
           onRenameProject={handleRenameProject}
           onArchiveProject={handleArchiveProject}
           onDeleteProject={handleDeleteProject}
@@ -479,26 +514,27 @@ export default function Layout({ children }: LayoutProps) {
         />
       ) : null}
 
-      {showSectionSidebar && activeNavigationSection ? (
+      {showSectionSidebar && menuNavigationSection ? (
         <button
           type="button"
           className={`${s.sectionSidebarBackdrop}${sectionDrawerOpen ? ` ${s.sectionSidebarBackdropVisible}` : ''}`}
           onClick={() => closeSectionDrawer()}
-          aria-label={`Закрыть меню раздела ${activeNavigationSection.label}`}
+          aria-label={`Закрыть меню раздела ${menuNavigationSection.label}`}
           tabIndex={sectionDrawerOpen ? 0 : -1}
         />
       ) : null}
 
       {/* ── Main ─────────────────────────────────────────────────── */}
       <div className={s.main}>
-        {showSectionSidebar && activeNavigationSection ? (
+        {activeSectionHasSubNavigation && activeNavigationSection ? (
           <button
             ref={sectionDrawerTriggerRef}
             type="button"
             className={s.sectionSidebarTrigger}
-            onClick={() => setSectionDrawerOpen(true)}
+            onClick={(event) => openSectionDrawer(activeNavigationSection.id, event.currentTarget)}
             aria-label={`Открыть меню раздела ${activeNavigationSection.label}`}
-            aria-expanded={sectionDrawerOpen}
+            aria-controls="section-sidebar"
+            aria-expanded={sectionDrawerOpen && menuSectionId === activeNavigationSection.id}
           >
             <Menu aria-hidden="true" size={18} strokeWidth={1.9} />
             <span>{activeNavigationSection.label}</span>

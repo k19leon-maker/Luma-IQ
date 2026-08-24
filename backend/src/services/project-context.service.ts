@@ -126,6 +126,9 @@ function selectBlocks(blocks: ContextBlock[], tokenBudget: number): ContextBlock
 }
 
 function contextBudgetFor(workflow: string, step?: string): number {
+  if (workflow === 'tg-channel.description') {
+    return step === 'improve' ? 4200 : 5200;
+  }
   if (workflow === 'product.main') {
     if (step === 'modules' || step === 'edit') return 7000;
     if (step === 'names' || step === 'promise') return 4200;
@@ -166,6 +169,7 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
   if (common.has(blockKey)) return true;
 
   if (blockKey === 'cases_summary') {
+    if (workflow === 'tg-channel.description') return false;
     return workflow === 'strategy.utp'
       || workflow === 'strategy.offer'
       || ['product', 'leadmagnet', 'posts', 'reels', 'articles', 'threads', 'tg-channel', 'chatbot', 'video', 'content-plan', 'content_plan'].includes(group);
@@ -177,6 +181,10 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
 
   if (workflow.startsWith('positioning.')) {
     return ['strategy_summary', 'audience_summary', 'products_summary', 'castdev_summary'].includes(blockKey);
+  }
+
+  if (workflow === 'tg-channel.description') {
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary'].includes(blockKey);
   }
 
   if (group === 'posts') {

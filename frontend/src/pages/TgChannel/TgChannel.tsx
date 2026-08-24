@@ -1,86 +1,61 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { aiApi, AiBatchJob, AiGenerationMode } from '../../api/ai';
-import { ContentItem } from '../../api/content.api';
+import { aiApi, AiBatchJob, WorkflowResponse } from '../../api/ai';
 import { projectsApi } from '../../api/projects.api';
-import { useContentApi } from '../../hooks/useContentApi';
 import { AI_ACTION_COSTS } from '../../config/ai-balance';
 import { useContentPlanStore } from '../../store/contentPlan.store';
 import { useModelStore } from '../../store/model.store';
 import { useProjectsStore } from '../../store/projects.store';
-import { isDemoContentText } from '../../utils/demoDataCleanup';
 import { makeAiIdempotencyKey } from '../../utils/aiIdempotency';
-import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
-import { VoiceComposer } from '../../components/VoiceComposer/VoiceComposer';
-import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
+import {
+  TgChannelResult,
+  TgChannelSettings,
+  TgPlanItem,
+  TgPostDraft,
+  tgChannelWorkspaceMetadata,
+  validateTgChannelDescription,
+  workspaceFromLegacyView,
+  workspaceToLegacyView,
+} from './tgChannelWorkspace';
+import { TgChannelContentPlanTab } from './TgChannelContentPlanTab';
+import { TgChannelDescriptionTab } from './TgChannelDescriptionTab';
+import {
+  appendTgPlanItem,
+  createManualTgPlanItem,
+  deleteTgPlanItem,
+  replaceTgPlanItem,
+} from './tgChannelPlanEditing';
+import {
+  parseTgChannelDescriptionProposal,
+  TgChannelDescriptionAiProposal,
+} from './tgChannelDescriptionAi';
+import { readTgChannelTab, TgChannelTab, writeTgChannelTab } from './tgChannelTabs';
+import { useTgChannelWorkspaceStorage } from './useTgChannelWorkspaceStorage';
 import s from './TgChannel.module.css';
-
-type TgPostStatus = 'idea' | 'ready' | 'planned';
-type ConversionPoint = 'PDF-гайд' | 'лонгрид' | 'видеоурок' | 'чеклист' | 'бесплатная Zoom-диагностика' | 'разбор ситуации' | 'консультация' | 'другой первый шаг';
-
-interface TgChannelSettings {
-  channelName: string;
-  channelFor: string;
-  conversionPoint: ConversionPoint;
-  conversionDetails: string;
-}
-
-interface TgPostDraft {
-  title: string;
-  text: string;
-  callToAction: string;
-  authorComment: string;
-  status: 'ready';
-}
-
-interface TgPlanItem {
-  id: string;
-  number: number;
-  role: string;
-  clientTask: string;
-  topic: string;
-  callToAction: string;
-  status: TgPostStatus;
-  post?: TgPostDraft;
-  plannedDate?: string;
-}
-
-interface TgChannelResult {
-  title: string;
-  strategySummary: string;
-  items: TgPlanItem[];
-  settings: TgChannelSettings;
-  sourceSnapshot?: Record<string, unknown>;
-  aiPromptVersion?: string;
-  generatedAt?: string;
-}
 
 interface StrategyStatus {
   key: string;
   label: string;
+  href: string;
   filled: boolean;
 }
 
-const CONVERSION_OPTIONS: ConversionPoint[] = [
-  'PDF-гайд',
-  'лонгрид',
-  'видеоурок',
-  'чеклист',
-  'бесплатная Zoom-диагностика',
-  'разбор ситуации',
-  'консультация',
-  'другой первый шаг',
-];
+type DescriptionAiAction = 'generate' | 'improve';
 
-const EDIT_ACTIONS = [
-  { label: 'Сделать мягче', step: 'edit', cost: AI_ACTION_COSTS.tg_channel_post_edit },
-  { label: 'Добавить историю', step: 'edit', cost: AI_ACTION_COSTS.tg_channel_post_edit },
-  { label: 'Усилить призыв к действию', step: 'edit', cost: AI_ACTION_COSTS.tg_channel_post_edit },
-  { label: 'Сократить', step: 'edit', cost: AI_ACTION_COSTS.tg_channel_post_edit },
-  { label: 'Сделать более экспертно', step: 'edit', cost: AI_ACTION_COSTS.tg_channel_post_edit },
-  { label: 'Адаптировать под аудио', step: 'audio', cost: AI_ACTION_COSTS.tg_channel_post_audio_adapt },
-  { label: 'Сделать сценарий видео', step: 'video', cost: AI_ACTION_COSTS.tg_channel_post_video_script },
-] as const;
+interface DescriptionAiRequest {
+  action: DescriptionAiAction;
+  workflow: string;
+  inputs: Record<string, unknown>;
+  idempotencyKey: string;
+}
+
+interface DescriptionAiProposalState {
+  current: TgChannelDescriptionAiProposal;
+  proposed: TgChannelDescriptionAiProposal;
+  action: DescriptionAiAction;
+  response: Pick<WorkflowResponse, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'>;
+}
 
 const LIMIT_MESSAGE = 'AI-баланс закончился. Уже созданные материалы можно открыть и отправить в контент-план, но новое AI-действие будет доступно после обновления лимитов или смены тарифа.';
 
@@ -133,6 +108,7 @@ function normalizePlanItem(value: unknown, index: number): TgPlanItem {
     role: String(data.role ?? 'Пост'),
     clientTask: String(data.clientTask ?? ''),
     topic: String(data.topic ?? ''),
+    keyMessage: String(data.keyMessage ?? ''),
     callToAction: String(data.callToAction ?? ''),
     status,
     post,
@@ -144,20 +120,12 @@ function normalizeResult(value: Partial<TgChannelResult>, fallbackSettings: TgCh
   return {
     title: value.title || 'План ТГ-канала',
     strategySummary: value.strategySummary || '',
-    items: Array.isArray(value.items) ? value.items.slice(0, 15).map(normalizePlanItem) : [],
+    items: Array.isArray(value.items) ? value.items.map(normalizePlanItem) : [],
     settings: value.settings ?? fallbackSettings,
     sourceSnapshot: value.sourceSnapshot,
     aiPromptVersion: value.aiPromptVersion || 'tg-channel.plan.v1',
     generatedAt: value.generatedAt,
   };
-}
-
-function resultFromDb(item: ContentItem, fallbackSettings: TgChannelSettings): TgChannelResult | null {
-  try {
-    return normalizeResult(JSON.parse(item.content) as Partial<TgChannelResult>, fallbackSettings);
-  } catch {
-    return null;
-  }
 }
 
 function isLimitError(error: unknown): boolean {
@@ -181,11 +149,6 @@ function hasAnyStrategyValue(source: Record<string, unknown> | null, keys: strin
   return keys.some((key) => hasMeaningfulValue(source[key]));
 }
 
-function formatDate(iso?: string): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function postFullText(item: TgPlanItem): string {
   const post = item.post;
   if (!post) return '';
@@ -193,13 +156,15 @@ function postFullText(item: TgPlanItem): string {
 }
 
 export default function TgChannel() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = readTgChannelTab(searchParams);
   const activeProjectId = useProjectsStore((state) => state.activeProjectId);
   const projectName = useProjectsStore((state) => state.projects.find((project) => project.id === state.activeProjectId)?.name ?? 'Проект');
   const hasActiveProject = Boolean(activeProjectId && activeProjectId !== 'default');
   const getModelSettings = useModelStore((state) => state.getSettings);
   const modelSettings = useMemo(() => getModelSettings('tg-channel'), [getModelSettings]);
   const { openAddModal } = useContentPlanStore();
-  const { dbItems, loaded, saveItem, updateItem } = useContentApi({ projectId: hasActiveProject ? activeProjectId! : '', type: 'TG_CHANNEL' });
+  const storage = useTgChannelWorkspaceStorage(hasActiveProject ? activeProjectId! : '');
 
   const [strategyData, setStrategyData] = useState<Record<string, unknown> | null>(null);
   const [strategyLoading, setStrategyLoading] = useState(false);
@@ -209,17 +174,26 @@ export default function TgChannel() {
     conversionPoint: 'бесплатная Zoom-диагностика',
     conversionDetails: '',
   });
+  const [channelDescription, setChannelDescription] = useState('');
   const [result, setResult] = useState<TgChannelResult | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatingPlan, setGeneratingPlan] = useState(false);
-  const [generatingFor, setGeneratingFor] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState('');
-  const [generationMode, setGenerationMode] = useState<AiGenerationMode>('now');
   const [batchJob, setBatchJob] = useState<AiBatchJob | null>(null);
   const [error, setError] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
+  const [descriptionAiInstruction, setDescriptionAiInstruction] = useState('');
+  const [descriptionAiAction, setDescriptionAiAction] = useState<DescriptionAiAction | null>(null);
+  const [descriptionVoiceBusy, setDescriptionVoiceBusy] = useState(false);
+  const [descriptionAiError, setDescriptionAiError] = useState('');
+  const [descriptionAiProposal, setDescriptionAiProposal] = useState<DescriptionAiProposalState | null>(null);
+  const [descriptionLastRequest, setDescriptionLastRequest] = useState<DescriptionAiRequest | null>(null);
+
+  function selectTab(nextTab: TgChannelTab) {
+    if (nextTab === tab) return;
+    setSearchParams(writeTgChannelTab(searchParams, nextTab));
+  }
 
   useEffect(() => {
     let alive = true;
@@ -260,16 +234,37 @@ export default function TgChannel() {
   }, [activeProjectId, hasActiveProject]);
 
   useEffect(() => {
-    if (!loaded || dbItems.length === 0) return;
-    const latest = dbItems.find((item) => !isDemoContentText(item));
-    if (!latest) return;
-    const parsed = resultFromDb(latest, settings);
-    if (!parsed) return;
-    setResult(parsed);
-    setSettings(parsed.settings);
-    setSavedId(latest.id);
-    setSelectedId(parsed.items[0]?.id ?? null);
-  }, [dbItems, loaded]);
+    setSettings({
+      channelName: '',
+      channelFor: '',
+      conversionPoint: 'бесплатная Zoom-диагностика',
+      conversionDetails: '',
+    });
+    setChannelDescription('');
+    setResult(null);
+    setSelectedId(null);
+    setBatchJob(null);
+    setCustomInstruction('');
+    setDescriptionAiInstruction('');
+    setDescriptionAiAction(null);
+    setDescriptionVoiceBusy(false);
+    setDescriptionAiError('');
+    setDescriptionAiProposal(null);
+    setDescriptionLastRequest(null);
+    setError('');
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!storage.loaded || !storage.workspace) return;
+    const view = workspaceToLegacyView(storage.workspace);
+    setSettings(view.settings);
+    setChannelDescription(storage.workspace.channel.description);
+    setResult(view.result);
+    setSelectedId((current) => {
+      if (current && view.result?.items.some((item) => item.id === current)) return current;
+      return view.result?.items[0]?.id ?? null;
+    });
+  }, [storage.loaded, storage.workspace]);
 
   const sourceSnapshot = useMemo(() => ({
     projectName,
@@ -280,14 +275,15 @@ export default function TgChannel() {
   const strategyStatus = useMemo<StrategyStatus[]>(() => {
     const strategyText = compactText(strategyData, 8000);
     return [
-      { key: 'positioning', label: 'Позиционирование', filled: hasAnyStrategyValue(strategyData, ['positioningData', 'positioning', 'finalPositioning', 'selectedPositioning']) },
-      { key: 'audience', label: 'Целевая аудитория', filled: hasAnyStrategyValue(strategyData, ['answers', 'audience', 'audienceData', 'chosenSegment', 'targetAudience']) },
-      { key: 'utp', label: 'УТП', filled: hasAnyStrategyValue(strategyData, ['utpData', 'utp', 'finalUtp']) || /утп|уникаль|оффер|offer/i.test(strategyText) },
-      { key: 'products', label: 'Продукты / лид-магнит', filled: /основной продукт|мини-продукт|лид-магнит|product|productsAndPrices/i.test(strategyText) },
+      { key: 'positioning', label: 'Позиционирование', href: '/app/strategy/positioning', filled: hasAnyStrategyValue(strategyData, ['positioningData', 'positioning', 'finalPositioning', 'selectedPositioning']) },
+      { key: 'audience', label: 'Целевая аудитория', href: '/app/strategy/audience', filled: hasAnyStrategyValue(strategyData, ['answers', 'audience', 'audienceData', 'chosenSegment', 'targetAudience']) },
+      { key: 'utp', label: 'УТП', href: '/app/strategy/utp', filled: hasAnyStrategyValue(strategyData, ['utpData', 'utp', 'finalUtp']) || /утп|уникаль|оффер|offer/i.test(strategyText) },
+      { key: 'products', label: 'Продукты / лид-магнит', href: '/app/products/main', filled: /основной продукт|мини-продукт|лид-магнит|product|productsAndPrices/i.test(strategyText) },
     ];
   }, [strategyData]);
 
   const missingSections = strategyStatus.filter((item) => !item.filled).map((item) => item.label);
+  const descriptionValidation = validateTgChannelDescription(channelDescription);
   const selectedItem = result?.items.find((item) => item.id === selectedId) ?? result?.items[0] ?? null;
   const readyCount = result?.items.filter((item) => item.post).length ?? 0;
   const plannedCount = result?.items.filter((item) => item.plannedDate).length ?? 0;
@@ -339,47 +335,160 @@ export default function TgChannel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batchJob?.id, batchJob?.status]);
 
-  async function persistResult(nextResult: TgChannelResult, metadata: Record<string, unknown>, forceCreate = false) {
-    const content = JSON.stringify(nextResult, null, 2);
-    if (savedId && !forceCreate) {
-      await updateItem(savedId, { title: nextResult.title, content, metadata });
-      return;
-    }
-    const saved = await saveItem({
-      title: nextResult.title,
-      content,
-      platform: 'Telegram',
-      metadata,
+  function buildWorkspace(
+    nextSettings: TgChannelSettings,
+    nextResult: TgChannelResult | null,
+    nextChannelDescription = storage.workspaceRef.current?.channel.description ?? '',
+  ) {
+    const workspace = workspaceFromLegacyView({
+      settings: nextSettings,
+      result: nextResult,
+      base: storage.workspaceRef.current,
+      channelDescription: nextChannelDescription,
     });
-    if (saved) setSavedId(saved.id);
+    return {
+      ...workspace,
+      channel: {
+        ...workspace.channel,
+        updatedAt: new Date().toISOString(),
+      },
+    };
   }
 
-  async function handleFormulateChannelFor() {
-    if (!hasActiveProject || !activeProjectId) return;
-    setGeneratingFor(true);
-    setError('');
+  function scheduleSettingsSave(nextSettings: TgChannelSettings) {
+    const workspace = buildWorkspace(nextSettings, result);
+    storage.scheduleSave(workspace, tgChannelWorkspaceMetadata(workspace, 'draft', storage.metadata ?? {}));
+  }
+
+  function changeSetting<K extends keyof TgChannelSettings>(key: K, value: TgChannelSettings[K]) {
+    const nextSettings = { ...settings, [key]: value };
+    setSettings(nextSettings);
+    scheduleSettingsSave(nextSettings);
+  }
+
+  function changeChannelDescription(value: string) {
+    setChannelDescription(value);
+    if (!validateTgChannelDescription(value).valid) return;
+    const workspace = buildWorkspace(settings, result, value);
+    storage.scheduleSave(workspace, tgChannelWorkspaceMetadata(workspace, 'draft', storage.metadata ?? {}));
+  }
+
+  async function persistResult(nextResult: TgChannelResult, metadata: Record<string, unknown>, forceCreate = false) {
+    const resultWithCurrentSettings = { ...nextResult, settings };
+    const workspace = buildWorkspace(settings, resultWithCurrentSettings);
+    const nextMetadata = tgChannelWorkspaceMetadata(
+      workspace,
+      typeof metadata.status === 'string' ? metadata.status : 'saved',
+      { ...(storage.metadata ?? {}), ...metadata },
+    );
+    await storage.saveNow(workspace, nextMetadata, { createNew: forceCreate });
+  }
+
+  async function executeDescriptionAi(request: DescriptionAiRequest) {
+    if (!activeProjectId || descriptionAiAction || descriptionVoiceBusy) return;
+    setDescriptionAiAction(request.action);
+    setDescriptionAiError('');
     try {
-      const workflow = 'tg-channel.setup.channelFor';
-      const inputs = { ...settings, sourceSnapshot };
-      const response = await aiApi.startWorkflow(workflow, {
+      const response = await aiApi.startWorkflow(request.workflow, {
         projectId: activeProjectId,
-        provider: modelSettings.provider,
-        openaiModel: modelSettings.openaiModel,
-        claudeModel: modelSettings.claudeModel,
-        inputs,
-        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+        inputs: request.inputs,
+        idempotencyKey: request.idempotencyKey,
       });
-      const parsed = JSON.parse(stripJsonFence(response.content)) as { channelFor?: string };
-      if (parsed.channelFor) {
-        setSettings((current) => ({ ...current, channelFor: parsed.channelFor!.trim() }));
-        toast.success('Описание канала сформулировано');
-      }
+      const proposed = parseTgChannelDescriptionProposal(response);
+      setDescriptionAiProposal({
+        current: {
+          channelName: String(request.inputs.currentChannelName ?? ''),
+          channelDescription: String(request.inputs.currentChannelDescription ?? ''),
+        },
+        proposed,
+        action: request.action,
+        response,
+      });
+      toast.success(response.aiPointsCharged !== undefined
+        ? `Вариант готов. Списано ${response.aiPointsCharged} AI-баллов.`
+        : 'Вариант готов. Сравните его с текущей версией.');
     } catch (err) {
-      const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось сформулировать описание канала.';
-      setError(message);
+      const message = isLimitError(err)
+        ? LIMIT_MESSAGE
+        : err instanceof Error
+          ? err.message
+          : 'Не удалось подготовить описание канала.';
+      setDescriptionAiError(message);
       toast.error(message);
     } finally {
-      setGeneratingFor(false);
+      setDescriptionAiAction(null);
+    }
+  }
+
+  function handleRunDescriptionAi(action: DescriptionAiAction) {
+    if (!activeProjectId || descriptionAiAction || descriptionVoiceBusy) return;
+    const workflow = `tg-channel.description.${action}`;
+    const inputs = {
+      currentChannelName: settings.channelName,
+      currentChannelDescription: channelDescription,
+      instruction: descriptionAiInstruction.trim(),
+    };
+    const requestScope = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}:${Math.random().toString(16).slice(2)}`;
+    const request: DescriptionAiRequest = {
+      action,
+      workflow,
+      inputs,
+      idempotencyKey: makeAiIdempotencyKey({
+        projectId: activeProjectId,
+        workflow,
+        inputs,
+        scope: requestScope,
+      }),
+    };
+    setDescriptionLastRequest(request);
+    void executeDescriptionAi(request);
+  }
+
+  function handleRetryDescriptionAi() {
+    if (!descriptionLastRequest || !activeProjectId) return;
+    const retryScope = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}:${Math.random().toString(16).slice(2)}`;
+    const retryRequest = {
+      ...descriptionLastRequest,
+      idempotencyKey: makeAiIdempotencyKey({
+        projectId: activeProjectId,
+        workflow: descriptionLastRequest.workflow,
+        inputs: descriptionLastRequest.inputs,
+        scope: `retry:${retryScope}`,
+      }),
+    };
+    setDescriptionLastRequest(retryRequest);
+    void executeDescriptionAi(retryRequest);
+  }
+
+  async function handleApplyDescriptionProposal() {
+    if (!descriptionAiProposal || descriptionAiAction) return;
+    const nextSettings = {
+      ...settings,
+      channelName: descriptionAiProposal.proposed.channelName,
+    };
+    const nextDescription = descriptionAiProposal.proposed.channelDescription;
+    const workspace = buildWorkspace(nextSettings, result, nextDescription);
+    const nextMetadata = tgChannelWorkspaceMetadata(workspace, 'draft', {
+      ...(storage.metadata ?? {}),
+      lastDescriptionAiAction: {
+        action: descriptionAiProposal.action,
+        ...descriptionAiProposal.response,
+        appliedAt: new Date().toISOString(),
+      },
+    });
+
+    setSettings(nextSettings);
+    setChannelDescription(nextDescription);
+    setDescriptionAiProposal(null);
+    try {
+      await storage.saveNow(workspace, nextMetadata);
+      toast.success('AI-вариант применён и сохранён.');
+    } catch {
+      toast.error('Вариант применён локально, но сохранить его не удалось. Повторите сохранение.');
     }
   }
 
@@ -392,8 +501,12 @@ export default function TgChannel() {
       setError('Укажите название канала.');
       return;
     }
-    if (!settings.channelFor.trim()) {
-      setError('Заполните поле “Для кого канал” или сформулируйте его с ИИ.');
+    if (!channelDescription.trim()) {
+      setError('Добавьте описание канала.');
+      return;
+    }
+    if (!descriptionValidation.valid) {
+      setError('Сократите описание канала до 250 символов.');
       return;
     }
     if (result) {
@@ -407,6 +520,7 @@ export default function TgChannel() {
       const workflow = 'tg-channel.plan';
       const inputs = {
         ...settings,
+        channelDescription,
         missingSections: missingSections.length ? missingSections.join(', ') : 'Нет',
         sourceSnapshot,
         customInstruction: customInstruction.trim() || null,
@@ -440,7 +554,8 @@ export default function TgChannel() {
       };
       setResult(next);
       setSelectedId(next.items[0]?.id ?? null);
-      await persistResult(next, metadata, Boolean(savedId));
+      await persistResult(next, metadata, Boolean(storage.savedId));
+      selectTab('content-plan');
       toast.success(`План ТГ-канала собран. Списано ${response.aiPointsCharged ?? AI_ACTION_COSTS.tg_channel_plan} AI-баллов.`);
     } catch (err) {
       const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось собрать план ТГ-канала.';
@@ -460,6 +575,7 @@ export default function TgChannel() {
       const workflow = `tg-channel.${step}`;
       const inputs = {
         ...settings,
+        channelDescription: storage.workspaceRef.current?.channel.description ?? '',
         planItem: JSON.stringify(item, null, 2),
         existingPost: item.post ? JSON.stringify(item.post, null, 2) : '',
         editAction,
@@ -519,6 +635,7 @@ export default function TgChannel() {
         title: item.topic,
         inputs: {
           ...settings,
+          channelDescription: storage.workspaceRef.current?.channel.description ?? '',
           planItem: JSON.stringify(item, null, 2),
           existingPost: '',
           sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
@@ -550,6 +667,41 @@ export default function TgChannel() {
     toast.success('Скопировано');
   }
 
+  function scheduleManualResultSave(next: TgChannelResult, status = 'draft') {
+    setResult(next);
+    const workspace = buildWorkspace(settings, next);
+    storage.scheduleSave(
+      workspace,
+      tgChannelWorkspaceMetadata(workspace, status, {
+        ...(storage.metadata ?? {}),
+        lastManualPlanEditAt: new Date().toISOString(),
+      }),
+    );
+  }
+
+  function handleUpdatePlanItem(nextItem: TgPlanItem) {
+    if (!result) return;
+    scheduleManualResultSave(replaceTgPlanItem(result, nextItem));
+  }
+
+  function handleAddIdea() {
+    if (!result) return;
+    const id = typeof crypto.randomUUID === 'function'
+      ? `tg-manual-${crypto.randomUUID()}`
+      : `tg-manual-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const item = createManualTgPlanItem(result.items, id);
+    scheduleManualResultSave(appendTgPlanItem(result, item));
+    setSelectedId(id);
+  }
+
+  function handleDeletePlanItem(id: string) {
+    if (!result) return;
+    const next = deleteTgPlanItem(result, id);
+    scheduleManualResultSave(next.result);
+    setSelectedId(next.selectedId);
+    toast.success('Идея удалена. Изменение сохранится автоматически.');
+  }
+
   function handleAddToPlan(item: TgPlanItem) {
     if (!item.post || !result) return;
     openAddModal({
@@ -559,7 +711,7 @@ export default function TgChannel() {
       preview: item.post.text.split('\n').filter(Boolean).slice(0, 2).join('\n'),
       platform: 'Telegram',
       projectId: activeProjectId ?? undefined,
-      sourceId: savedId ?? item.id,
+      sourceId: storage.savedId ?? item.id,
       onAdded: (date) => {
         const next: TgChannelResult = {
           ...result,
@@ -582,6 +734,29 @@ export default function TgChannel() {
     );
   }
 
+  if (!storage.loaded || storage.loading) {
+    return (
+      <div className={s.root}>
+        <div className={s.emptyState}>
+          <h2>Загружаем ТГ-канал</h2>
+          <p>Проверяем сохранённое описание, план и готовые посты проекта.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (storage.loadError) {
+    return (
+      <div className={s.root}>
+        <div className={s.emptyState} role="alert">
+          <h2>Не удалось загрузить ТГ-канал</h2>
+          <p>{storage.loadError}</p>
+          <button className={s.button} type="button" onClick={storage.retryLoad}>Повторить загрузку</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={s.root}>
       <section className={s.hero}>
@@ -596,224 +771,109 @@ export default function TgChannel() {
           <div className={s.metric}><span>План</span><b>{result?.items.length ?? 0} постов</b></div>
           <div className={s.metric}><span>Готово</span><b>{readyCount}</b></div>
           <div className={s.metric}><span>В контент-плане</span><b>{plannedCount}</b></div>
-          <div className={s.metric}><span>Точка конверсии</span><b>{settings.conversionPoint}</b></div>
+          <div className={s.metric}><span>Описание</span><b>{channelDescription.trim() ? 'готово' : 'не заполнено'}</b></div>
         </aside>
       </section>
 
-      {missingSections.length > 0 && (
-        <div className={s.warning}>
-          Luma IQ может собрать базовый план, но качество будет выше после заполнения разделов: {missingSections.join(', ')}.
+      {error && <div className={s.error}>{error}</div>}
+      {storage.saveStatus !== 'idle'
+        && (descriptionValidation.valid || storage.saveStatus === 'error') && (
+        <div className={`${s.saveNotice} ${storage.saveStatus === 'error' ? s.saveNoticeError : ''}`} role="status">
+          <span>
+            {storage.saveStatus === 'pending' && 'Изменения ожидают автосохранения…'}
+            {storage.saveStatus === 'saving' && 'Сохраняем изменения…'}
+            {storage.saveStatus === 'saved' && 'Изменения сохранены'}
+            {storage.saveStatus === 'error' && (storage.saveError || 'Не удалось сохранить изменения.')}
+          </span>
+          {storage.saveStatus === 'error' && (
+            <button className={s.inlineRetry} type="button" onClick={storage.retrySave}>Повторить</button>
+          )}
         </div>
       )}
-      {error && <div className={s.error}>{error}</div>}
 
-      <section className={s.grid}>
-        <div className={s.card}>
-          <h2>Настройки канала</h2>
-          <div className={s.formGrid}>
-            <label className={s.field}>
-              <span className={s.label}>Название канала</span>
-              <input className={s.input} value={settings.channelName} onChange={(e) => setSettings((current) => ({ ...current, channelName: e.target.value }))} placeholder="Имя эксперта / тема канала" />
-            </label>
-            <label className={s.field}>
-              <span className={s.label}>Куда вести аудиторию из постов?</span>
-              <select className={s.select} value={settings.conversionPoint} onChange={(e) => setSettings((current) => ({ ...current, conversionPoint: e.target.value as ConversionPoint }))}>
-                {CONVERSION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-            <label className={`${s.field} ${s.fieldWide}`}>
-              <span className={s.label}>Для кого канал</span>
-              <textarea className={s.textarea} value={settings.channelFor} onChange={(e) => setSettings((current) => ({ ...current, channelFor: e.target.value }))} placeholder="Короткое описание аудитории и офера канала" />
-              <div className={s.inlineActions}>
-                <button className={s.ghostButton} type="button" onClick={() => void handleFormulateChannelFor()} disabled={generatingFor}>
-                  {generatingFor ? 'Формулирую...' : <>Сформулировать с ИИ<AiWorkflowCost workflow="tg-channel.setup.channelFor" projectId={activeProjectId} /></>}
-                </button>
-                <span className={s.fieldHint}>AI использует «Целевую аудиторию», «Позиционирование» и «УТП».</span>
-              </div>
-            </label>
-            <div className={`${s.field} ${s.fieldWide}`}>
-              <span className={s.label}>Свободная инструкция и идеи</span>
-              <VoiceComposer
-                value={customInstruction}
-                onChange={setCustomInstruction}
-                placeholder="Наговорите темы, истории, ограничения или пожелания к плану..."
-                textareaClassName={s.textarea}
-                rows={4}
-              />
-              <span className={s.fieldHint}>Инструкция учитывается при создании плана и не запускает публикацию.</span>
-            </div>
-            <label className={`${s.field} ${s.fieldWide}`}>
-              <span className={s.label}>Кратко опишите первый шаг</span>
-              <textarea className={s.textarea} value={settings.conversionDetails} onChange={(e) => setSettings((current) => ({ ...current, conversionDetails: e.target.value }))} placeholder="Например: бесплатная Zoom-диагностика на 30 минут..." />
-              <span className={s.fieldHint}>Если нет PDF-гайда, видеоурока или лонгрида, первым шагом может быть бесплатная диагностика, консультация или разбор ситуации.</span>
-            </label>
-          </div>
-          <div className={s.actions} style={{ marginTop: 16 }}>
-            <button className={s.primaryButton} onClick={() => void handleGeneratePlan()} disabled={generatingPlan}>
-              {generatingPlan ? 'Собираю...' : <>Собрать план ТГ-канала<AiWorkflowCost workflow="tg-channel.plan" projectId={activeProjectId} /></>}
-            </button>
-          </div>
-        </div>
+      <div className={s.tabs} role="tablist" aria-label="Разделы ТГ-канала">
+        <button
+          id="tg-channel-description-tab"
+          type="button"
+          role="tab"
+          aria-selected={tab === 'description'}
+          aria-controls="tg-channel-description-panel"
+          className={tab === 'description' ? s.tabActive : s.tab}
+          onClick={() => selectTab('description')}
+        >
+          Описание канала
+        </button>
+        <button
+          id="tg-channel-content-plan-tab"
+          type="button"
+          role="tab"
+          aria-selected={tab === 'content-plan'}
+          aria-controls="tg-channel-content-plan-panel"
+          className={tab === 'content-plan' ? s.tabActive : s.tab}
+          onClick={() => selectTab('content-plan')}
+        >
+          Контент-план
+          {result?.items.length ? <span className={s.tabCount}>{result.items.length}</span> : null}
+        </button>
+      </div>
 
-        <div className={s.card}>
-          <h2>Данные проекта</h2>
-          <div className={s.statusList}>
-            {strategyStatus.map((item) => (
-              <div key={item.key} className={s.statusRow}>
-                <span>{item.label}</span>
-                <b className={item.filled ? s.statusOk : s.statusMiss}>{item.filled ? 'заполнено' : 'не заполнено'}</b>
-              </div>
-            ))}
-          </div>
-          <div className={s.info} style={{ margin: '14px 0 0' }}>
-            {strategyLoading ? 'Загружаю стратегию...' : `Проект: ${projectName}`}
-          </div>
-        </div>
-      </section>
-
-      {result ? (
-        <section className={s.result}>
-          <div className={s.resultTop}>
-            <div>
-              <h2>{result.title}</h2>
-              {result.strategySummary && <p>{result.strategySummary}</p>}
-            </div>
-            <span className={s.statusBadge}>{savedId ? 'Сохранено автоматически' : 'Сохранится автоматически'}</span>
-          </div>
-
-          {pendingItems.length > 0 && (
-            <div className={s.batchPanel}>
-              <div>
-                <h3>Создание постов</h3>
-                <p>
-                  {generationMode === 'now'
-                    ? 'Откройте нужную тему ниже и создайте один пост сразу.'
-                    : `Все еще не созданные посты (${pendingItems.length}) будут подготовлены в фоне.`}
-                </p>
-              </div>
-              <div className={s.batchControls}>
-                <div className={s.modeControl} aria-label="Режим генерации">
-                  <button
-                    type="button"
-                    className={generationMode === 'now' ? s.modeActive : ''}
-                    onClick={() => setGenerationMode('now')}
-                  >
-                    Сейчас
-                  </button>
-                  <button
-                    type="button"
-                    className={generationMode === 'background' ? s.modeActive : ''}
-                    onClick={() => setGenerationMode('background')}
-                  >
-                    Фоновая генерация
-                  </button>
-                </div>
-                {generationMode === 'background' && (
-                  <button
-                    className={s.primaryButton}
-                    type="button"
-                    disabled={pendingItems.length < 2 || Boolean(batchJob && !['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status))}
-                    onClick={() => void handleGeneratePostsInBackground()}
-                  >
-                    {batchJob && !['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status)
-                      ? `Выполняется: ${batchJob.completedItems} из ${batchJob.totalItems}`
-                      : `Создать ${pendingItems.length} постов фоном`}
-                  </button>
-                )}
-              </div>
-              {batchJob && (
-                <div className={s.batchStatus}>
-                  Статус: {batchJob.status}. Готово: {batchJob.completedItems}, с ошибкой: {batchJob.failedItems}.
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className={s.tableWrap}>
-            <table className={s.planTable}>
-              <thead>
-                <tr>
-                  <th>№</th>
-                  <th>Роль поста</th>
-                  <th>Задача клиента</th>
-                  <th>Тема</th>
-                  <th>Призыв к действию</th>
-                  <th>Статус</th>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.number}</td>
-                    <td>{item.role}</td>
-                    <td>{item.clientTask}</td>
-                    <td>{item.topic}</td>
-                    <td>{item.callToAction}</td>
-                    <td><span className={s.statusBadge}>{item.plannedDate ? `В контент-плане · ${formatDate(item.plannedDate)}` : item.post ? 'Готов' : 'Идея'}</span></td>
-                    <td>
-                      <button className={s.button} onClick={() => setSelectedId(item.id)}>
-                        Открыть
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {selectedItem && (
-            <article className={s.postCard}>
-              <h3>{selectedItem.number}. {selectedItem.topic}</h3>
-              <div className={s.info}>Задача клиента: {selectedItem.clientTask}</div>
-              {selectedItem.post ? (
-                <>
-                  <h3>{selectedItem.post.title}</h3>
-                  <div className={s.postText}>{selectedItem.post.text}</div>
-                  {selectedItem.post.callToAction && <div className={s.comment}>Призыв к действию: {selectedItem.post.callToAction}</div>}
-                  {selectedItem.post.authorComment && <div className={s.comment}>{selectedItem.post.authorComment}</div>}
-                  <div className={s.postActions}>
-                    <button className={s.button} onClick={() => void handleCopy(postFullText(selectedItem))}>Скопировать</button>
-                    <button className={s.button} onClick={() => handleAddToPlan(selectedItem)}>В контент-план</button>
-                  </div>
-                  <div className={s.quickActions} style={{ marginTop: 12 }}>
-                    {EDIT_ACTIONS.map((action) => (
-                      <button
-                        key={action.label}
-                        className={s.ghostButton}
-                        onClick={() => void runPostWorkflow(selectedItem, action.step, action.label)}
-                        disabled={busyPostId === selectedItem.id}
-                      >
-                        {busyPostId === selectedItem.id && busyAction === action.label
-                          ? 'Дорабатываю...'
-                          : <>{action.label}<AiWorkflowCost workflow={`tg-channel.${action.step}`} projectId={activeProjectId} /></>}
-                      </button>
-                    ))}
-                  </div>
-                  <ContentRevisionComposer
-                    key={selectedItem.id}
-                    projectId={activeProjectId}
-                    workflow="tg-channel.edit"
-                    isLoading={busyPostId === selectedItem.id && busyAction !== ''}
-                    onSubmit={(instruction) => runPostWorkflow(selectedItem, 'edit', instruction)}
-                    placeholder="Например: добавьте мою историю, уберите давление и сделайте призыв конкретнее"
-                  />
-                </>
-              ) : (
-                <div className={s.postActions}>
-                  <button className={s.primaryButton} onClick={() => void runPostWorkflow(selectedItem, 'post')} disabled={busyPostId === selectedItem.id}>
-                    {busyPostId === selectedItem.id ? 'Пишу...' : <>Написать пост<AiWorkflowCost workflow="tg-channel.post" projectId={activeProjectId} /></>}
-                  </button>
-                </div>
-              )}
-            </article>
-          )}
+      {tab === 'description' ? (
+        <section
+          id="tg-channel-description-panel"
+          role="tabpanel"
+          aria-labelledby="tg-channel-description-tab"
+        >
+          <TgChannelDescriptionTab
+            activeProjectId={activeProjectId!}
+            settings={settings}
+            channelDescription={channelDescription}
+            descriptionValidation={descriptionValidation}
+            strategyStatus={strategyStatus}
+            strategyLoading={strategyLoading}
+            aiInstruction={descriptionAiInstruction}
+            aiAction={descriptionAiAction}
+            voiceBusy={descriptionVoiceBusy}
+            aiError={descriptionAiError}
+            proposal={descriptionAiProposal}
+            onChannelNameChange={(value) => changeSetting('channelName', value)}
+            onChannelDescriptionChange={changeChannelDescription}
+            onAiInstructionChange={setDescriptionAiInstruction}
+            onVoiceBusyChange={setDescriptionVoiceBusy}
+            onRunAi={handleRunDescriptionAi}
+            onRetryAi={handleRetryDescriptionAi}
+            onApplyProposal={() => void handleApplyDescriptionProposal()}
+            onDismissProposal={() => setDescriptionAiProposal(null)}
+            onCopy={(value) => void handleCopy(value)}
+          />
         </section>
       ) : (
-        <div className={s.emptyState}>
-          <h2>Соберите первые 10-15 постов для упаковки ТГ-канала</h2>
-          <p>Они помогут объяснить вашу экспертность, закрыть ключевые страхи аудитории и мягко привести людей к первому шагу.</p>
-        </div>
+        <section
+          id="tg-channel-content-plan-panel"
+          role="tabpanel"
+          aria-labelledby="tg-channel-content-plan-tab"
+        >
+          <TgChannelContentPlanTab
+            activeProjectId={activeProjectId!}
+            result={result}
+            selectedItem={selectedItem}
+            pendingItems={pendingItems}
+            saved={Boolean(storage.savedId)}
+            batchJob={batchJob}
+            busyPostId={busyPostId}
+            busyAction={busyAction}
+            generatingPlan={generatingPlan}
+            onSelectItem={setSelectedId}
+            onUpdateItem={handleUpdatePlanItem}
+            onAddIdea={handleAddIdea}
+            onDeleteItem={handleDeletePlanItem}
+            onGeneratePostsInBackground={() => void handleGeneratePostsInBackground()}
+            onRunPostWorkflow={runPostWorkflow}
+            onCopyPost={(item) => void handleCopy(postFullText(item))}
+            onAddToPlan={handleAddToPlan}
+            onOpenDescription={() => selectTab('description')}
+            onGeneratePlan={() => void handleGeneratePlan()}
+          />
+        </section>
       )}
     </div>
   );

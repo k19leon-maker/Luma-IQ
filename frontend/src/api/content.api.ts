@@ -16,9 +16,9 @@ export interface ContentItem {
 }
 
 export const contentApi = {
-  list: (projectId: string, type?: ContentType) =>
+  list: (projectId: string, type?: ContentType, signal?: AbortSignal) =>
     apiClient
-      .get<{ items: ContentItem[] }>('/content', { params: { projectId, type } })
+      .get<{ items: ContentItem[] }>('/content', { params: { projectId, type }, signal })
       .then((r) => r.data.items),
 
   create: (data: {
@@ -29,11 +29,11 @@ export const contentApi = {
     platform?: string;
     isMock?:   boolean;
     metadata?: Record<string, unknown>;
-  }) =>
-    apiClient.post<{ item: ContentItem }>('/content', data).then((r) => r.data.item),
+  }, signal?: AbortSignal) =>
+    apiClient.post<{ item: ContentItem }>('/content', data, { signal }).then((r) => r.data.item),
 
-  update: (id: string, data: { title?: string; content?: string; metadata?: Record<string, unknown> }) =>
-    apiClient.patch<{ item: ContentItem }>(`/content/${id}`, data).then((r) => r.data.item),
+  update: (id: string, data: { title?: string; content?: string; metadata?: Record<string, unknown> }, signal?: AbortSignal) =>
+    apiClient.patch<{ item: ContentItem }>(`/content/${id}`, data, { signal }).then((r) => r.data.item),
 
   remove: (id: string) =>
     apiClient.delete<{ ok: boolean }>(`/content/${id}`).then((r) => r.data),

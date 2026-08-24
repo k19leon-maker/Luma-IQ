@@ -61,6 +61,29 @@ describe('workflow output validation', () => {
       .toEqual({ ok: true, errors: [] });
   });
 
+  it('validates Telegram channel description output with strict limits', () => {
+    expect(workflowOutputValidationService.validate(
+      'tg-channel.description',
+      'generate',
+      JSON.stringify({
+        channelName: 'Психология без мифов',
+        channelDescription: 'Понятно о психике, отношениях и практических шагах без универсальных советов.',
+      }),
+    )).toEqual({ ok: true, errors: [] });
+
+    const invalid = workflowOutputValidationService.validate(
+      'tg-channel.description',
+      'improve',
+      JSON.stringify({
+        channelName: 'Название',
+        channelDescription: 'а'.repeat(251),
+        inventedFact: '1000 клиентов',
+      }),
+    );
+    expect(invalid.ok).toBe(false);
+    expect(invalid.errors.join(' ')).toMatch(/channelDescription|Unrecognized key/);
+  });
+
   it('rejects invented username and link values', () => {
     const result = workflowOutputValidationService.validate(
       'instagram.profile',

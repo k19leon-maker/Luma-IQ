@@ -45,6 +45,8 @@ export type AiActionType =
   | 'chatbot_scenario'
   | 'chatbot_scenario_edit'
   | 'content_plan'
+  | 'tg_channel_description_generate'
+  | 'tg_channel_description_improve'
   | 'tg_channel_plan'
   | 'tg_channel_post'
   | 'tg_channel_post_edit'
@@ -103,6 +105,8 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   chatbot_scenario: 30,
   chatbot_scenario_edit: 3,
   content_plan: 40,
+  tg_channel_description_generate: 5,
+  tg_channel_description_improve: 2,
   tg_channel_plan: 40,
   tg_channel_post: 5,
   tg_channel_post_edit: 2,
@@ -162,6 +166,8 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   chatbot_scenario: 'Сценарий чат-бота',
   chatbot_scenario_edit: 'Доработка сообщения чат-бота',
   content_plan: 'Контент-план',
+  tg_channel_description_generate: 'Описание ТГ-канала',
+  tg_channel_description_improve: 'Доработка описания ТГ-канала',
   tg_channel_plan: 'План ТГ-канала',
   tg_channel_post: 'Пост для ТГ-канала',
   tg_channel_post_edit: 'Доработка поста ТГ-канала',
@@ -222,6 +228,8 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   chatbot_scenario: 'Упаковка',
   chatbot_scenario_edit: 'Упаковка',
   content_plan: 'Контент',
+  tg_channel_description_generate: 'ТГ-канал',
+  tg_channel_description_improve: 'ТГ-канал',
   tg_channel_plan: 'Контент',
   tg_channel_post: 'Контент',
   tg_channel_post_edit: 'Контент',
@@ -263,6 +271,8 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'article': return 'content_article';
     case 'video_script': return 'youtube_script';
     case 'content_plan': return 'content_plan';
+    case 'tg_channel_description_generate': return 'tg_channel_description_generate';
+    case 'tg_channel_description_improve': return 'tg_channel_description_improve';
     case 'tg_channel_plan': return 'tg_channel_plan';
     case 'tg_channel_post': return 'tg_channel_post';
     case 'tg_channel_post_edit': return 'tg_channel_post_edit';

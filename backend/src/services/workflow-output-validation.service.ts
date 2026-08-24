@@ -7,6 +7,7 @@ import {
   instagramProfileAiResultSchema,
   instagramStoryImproveAiResultSchema,
 } from '../schemas/instagram-packaging.schema';
+import { tgChannelDescriptionAiResultSchema } from '../schemas/tg-channel-description.schema';
 import type { ValidationResult } from './ai-validation.service';
 
 function parseJson(content: string): unknown {
@@ -19,6 +20,9 @@ function parseJson(content: string): unknown {
 }
 
 function schemaFor(workflow: string, step: string): z.ZodTypeAny | null {
+  if (workflow === 'tg-channel.description' && ['generate', 'improve'].includes(step)) {
+    return tgChannelDescriptionAiResultSchema;
+  }
   if (workflow === 'instagram.highlights' && step === 'generate') {
     return instagramHighlightsAiResultSchema;
   }
@@ -46,15 +50,15 @@ export const workflowOutputValidationService = {
         ? caseInsightsResultSchema
         : caseExtractionResultSchema)
       : null;
-    const instagramSchema = caseSchema ?? schemaFor(workflow, step);
+    const domainSchema = caseSchema ?? schemaFor(workflow, step);
     const profileWorkflow = workflow === 'instagram.profile' && ['generate', 'improve'].includes(step);
-    if (!instagramSchema && !profileWorkflow) {
+    if (!domainSchema && !profileWorkflow) {
       return { ok: true, errors: [] };
     }
 
     try {
       const parsed = parseJson(content);
-      const result = (instagramSchema ?? instagramProfileAiResultSchema).safeParse(parsed);
+      const result = (domainSchema ?? instagramProfileAiResultSchema).safeParse(parsed);
       if (result.success) {
         if (!profileWorkflow) return { ok: true, errors: [] };
         const current = inputs.currentProfile && typeof inputs.currentProfile === 'object'
@@ -76,7 +80,12 @@ export const workflowOutputValidationService = {
         )),
       };
     } catch {
-      return { ok: false, errors: [workflow === 'cases' ? 'Expected valid case JSON' : 'Expected valid Instagram JSON'] };
+      const message = workflow === 'cases'
+        ? 'Expected valid case JSON'
+        : workflow === 'tg-channel.description'
+          ? 'Expected valid Telegram channel description JSON'
+          : 'Expected valid Instagram JSON';
+      return { ok: false, errors: [message] };
     }
   },
 };

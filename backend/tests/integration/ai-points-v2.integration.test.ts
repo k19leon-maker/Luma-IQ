@@ -53,6 +53,8 @@ vi.mock('../../src/services/ai-balance.service', () => ({
       instagram_highlight_scenario_generate: 20,
       instagram_highlight_improve: 10,
       instagram_story_improve: 3,
+      tg_channel_description_generate: 5,
+      tg_channel_description_improve: 2,
     } as Record<string, number>)[input.featureCode] ?? 20)),
   },
 }));
@@ -310,7 +312,31 @@ describe('AI points V2 generation lifecycle', () => {
       expect(execute).not.toHaveBeenCalled();
     });
 
+    it('does not charge a repeated completed Telegram description request', async () => {
+      prismaMock.aIGeneration.findUnique.mockResolvedValueOnce({
+        id: 'tg-description-existing',
+        status: 'SUCCEEDED',
+      });
+      const execute = vi.fn();
+
+      await expect(aiGenerationService.run({
+        userId: 'user-1',
+        projectId: 'project-1',
+        featureCode: 'tg_channel_description_generate',
+        actionKey: 'tg_channel_description_generate',
+        provider: 'OPENAI',
+        model: 'gpt-5.6-luna',
+        idempotencyKey: 'tg-description-repeat',
+        execute,
+      })).rejects.toMatchObject({ code: 'IDEMPOTENCY_REPLAY' });
+
+      expect(pointLedgerMock.reserve).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+    });
+
     it.each([
+      ['tg_channel_description_generate', 5],
+      ['tg_channel_description_improve', 2],
       ['instagram_highlights_generate', 40],
       ['instagram_highlight_scenario_generate', 20],
       ['instagram_highlight_improve', 10],

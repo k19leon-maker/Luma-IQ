@@ -2012,6 +2012,85 @@ ${value(inputs, 'sourceSnapshot', 'Не передан')}
     },
   },
   {
+    id: 'tg-channel.description.generate.v1',
+    version: 'v1',
+    feature: 'tg_channel_description_generate',
+    workflow: 'tg-channel.description',
+    step: 'generate',
+    model: 'gpt-5.5',
+    temperature: 0.5,
+    maxTokens: 1000,
+    artifactType: 'tg_channel_description',
+    systemPrompt: (context) => `Ты — редактор упаковки Telegram-каналов экспертов.
+
+Собери название и короткое описание канала на основе только подтверждённого контекста текущего проекта.
+
+Правила:
+- Название должно быть ясным, запоминающимся и не длиннее 128 символов.
+- Описание должно объяснять тему и пользу подписчику, не длиннее 250 символов.
+- Не выдумывай опыт, результаты, кейсы, цифры, продукты и обещания.
+- Не добавляй markdown, комментарии и альтернативы.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Подготовь название и описание Telegram-канала.
+
+Текущий вариант названия: ${value(inputs, 'currentChannelName', 'Не заполнен')}
+Текущий вариант описания: ${value(inputs, 'currentChannelDescription', 'Не заполнен')}
+Пожелание пользователя: ${value(inputs, 'instruction', 'Нет')}
+
+Верни строго JSON без markdown и дополнительных полей:
+{
+  "channelName": "Название канала",
+  "channelDescription": "Описание канала до 250 символов"
+}`,
+    validationRules: {
+      minLength: 40,
+      maxLength: 900,
+      requiredIncludes: ['"channelName"', '"channelDescription"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.description.improve.v1',
+    version: 'v1',
+    feature: 'tg_channel_description_improve',
+    workflow: 'tg-channel.description',
+    step: 'improve',
+    model: 'gpt-5.5',
+    temperature: 0.45,
+    maxTokens: 1000,
+    artifactType: 'tg_channel_description',
+    systemPrompt: (context) => `Ты — редактор упаковки Telegram-каналов экспертов.
+
+Доработай существующие название и описание по инструкции пользователя, сохраняя подтверждённые факты проекта.
+
+Правила:
+- Не меняй смысл без прямой просьбы пользователя.
+- Название должно быть не длиннее 128 символов.
+- Описание должно быть не длиннее 250 символов.
+- Не выдумывай опыт, результаты, кейсы, цифры, продукты и обещания.
+- Не добавляй markdown, комментарии и альтернативы.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Доработай упаковку Telegram-канала.
+
+Текущее название: ${value(inputs, 'currentChannelName', 'Не заполнено')}
+Текущее описание: ${value(inputs, 'currentChannelDescription', 'Не заполнено')}
+Инструкция пользователя: ${value(inputs, 'instruction', 'Сделай яснее и конкретнее')}
+
+Верни строго JSON без markdown и дополнительных полей:
+{
+  "channelName": "Полная обновлённая версия названия",
+  "channelDescription": "Полная обновлённая версия описания до 250 символов"
+}`,
+    validationRules: {
+      minLength: 40,
+      maxLength: 900,
+      requiredIncludes: ['"channelName"', '"channelDescription"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
     id: 'tg-channel.channel-for.v1',
     version: 'v1',
     feature: 'tg_channel_post_edit',

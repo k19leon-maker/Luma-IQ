@@ -24,6 +24,8 @@ export type FeatureCode =
   | 'article'
   | 'chatbot_chain'
   | 'threads'
+  | 'tg_channel_description_generate'
+  | 'tg_channel_description_improve'
   | 'tg_channel_plan'
   | 'tg_channel_post'
   | 'tg_channel_post_edit'
@@ -244,6 +246,22 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 3,
     includedTokens: 10000,
     maxContextTokens: 24000,
+  },
+  tg_channel_description_generate: {
+    featureCode: 'tg_channel_description_generate',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 3500,
+    maxContextTokens: 7000,
+  },
+  tg_channel_description_improve: {
+    featureCode: 'tg_channel_description_improve',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 3000,
+    maxContextTokens: 6000,
   },
   tg_channel_plan: {
     featureCode: 'tg_channel_plan',

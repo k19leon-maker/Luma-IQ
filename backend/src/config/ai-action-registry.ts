@@ -196,6 +196,18 @@ export const AI_ACTION_DEFINITIONS: Record<AIActionKey, AIActionDefinition> = {
     { stage: 'strategy', modelAlias: 'TERRA', reasoning: 'medium' },
     { stage: 'items', modelAlias: 'LUNA', reasoning: 'low' },
   ], AI_ACTION_COSTS.content_plan, { batchEligible: true, contextBudget: 30_000, outputLimit: 12_000 }),
+  tg_channel_description_generate: one(
+    'tg_channel_description_generate',
+    'LUNA',
+    AI_ACTION_COSTS.tg_channel_description_generate,
+    { contextBudget: 5_200, outputLimit: 1_000 },
+  ),
+  tg_channel_description_improve: one(
+    'tg_channel_description_improve',
+    'LUNA',
+    AI_ACTION_COSTS.tg_channel_description_improve,
+    { contextBudget: 4_200, outputLimit: 1_000 },
+  ),
   tg_channel_plan: multi('tg_channel_plan', [
     { stage: 'strategy', modelAlias: 'TERRA', reasoning: 'medium', outputLimit: 2_000 },
     { stage: 'items', modelAlias: 'LUNA', reasoning: 'low', outputLimit: 8_000 },
@@ -310,6 +322,8 @@ export const LEGACY_FEATURE_TO_ACTION: Record<string, AIActionKey> = {
   article: 'content_article',
   video_script: 'youtube_script',
   content_plan: 'content_plan',
+  tg_channel_description_generate: 'tg_channel_description_generate',
+  tg_channel_description_improve: 'tg_channel_description_improve',
   tg_channel_plan: 'tg_channel_plan',
   tg_channel_post: 'tg_channel_post',
   tg_channel_post_edit: 'tg_channel_post_edit',

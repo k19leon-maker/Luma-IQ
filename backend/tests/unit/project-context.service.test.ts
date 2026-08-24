@@ -153,4 +153,29 @@ describe('projectContextService CustDev context', () => {
     expect(context.rendered).not.toContain('Готовые кейсы проекта');
     expect(mockedPrisma.caseStudy.findMany).not.toHaveBeenCalled();
   });
+
+  it('builds compact Telegram description context without content history or case records', async () => {
+    mockedPrisma.caseStudy.findMany.mockResolvedValue([{
+      id: 'case-ready',
+      title: 'Не должен попасть в контекст',
+      updatedAt: new Date(),
+    }] as never);
+
+    const context = await projectContextService.build({
+      userId: 'user-1',
+      projectId: 'project-1',
+      workflow: 'tg-channel.description',
+      step: 'generate',
+      inputs: {
+        currentChannelName: 'Канал эксперта',
+        currentChannelDescription: 'Описание',
+        instruction: 'Сделай конкретнее',
+      },
+    });
+
+    expect(context.blocks.map((block) => block.key)).not.toContain('content_history');
+    expect(context.blocks.map((block) => block.key)).not.toContain('cases_summary');
+    expect(context.approxTokens).toBeLessThanOrEqual(5_200);
+    expect(mockedPrisma.caseStudy.findMany).not.toHaveBeenCalled();
+  });
 });

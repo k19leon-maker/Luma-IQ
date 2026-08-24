@@ -65,6 +65,7 @@ export default function SectionSidebar({
 
   return (
     <aside
+      id="section-sidebar"
       className={`${s.sectionSidebar}${drawerOpen ? ` ${s.sectionSidebarDrawerOpen}` : ''}`}
       aria-label={`Навигация раздела ${section.label}`}
     >
