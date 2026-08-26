@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -12,7 +13,7 @@ const createSchema = z.object({
   platform:  z.string().max(100).optional(),
   status:    z.enum(['draft', 'ready', 'published']).default('draft'),
   date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  sourceId:  z.string().optional(),
+  sourceId:  z.string().max(600).optional(),
 });
 
 const updateSchema = z.object({
@@ -56,9 +57,59 @@ export const contentPlanController = {
       return;
     }
     try {
+      if (parsed.data.sourceId?.startsWith('tg-channel:')) {
+        const existing = await prisma.contentPlanItem.findFirst({
+          where: { projectId: parsed.data.projectId, sourceId: parsed.data.sourceId },
+        });
+        if (existing) {
+          const item = await prisma.contentPlanItem.update({
+            where: { id: existing.id },
+            data: {
+              type: parsed.data.type,
+              title: parsed.data.title,
+              content: parsed.data.content,
+              platform: parsed.data.platform,
+              status: parsed.data.status,
+              date: parsed.data.date,
+            },
+          });
+          res.json({ item, created: false });
+          return;
+        }
+      }
       const item = await prisma.contentPlanItem.create({ data: parsed.data });
-      res.status(201).json({ item });
+      res.status(201).json({ item, created: true });
     } catch (err) {
+      if (
+        parsed.data.sourceId?.startsWith('tg-channel:')
+        && err instanceof Prisma.PrismaClientKnownRequestError
+        && err.code === 'P2002'
+      ) {
+        try {
+          const existing = await prisma.contentPlanItem.findFirst({
+            where: { projectId: parsed.data.projectId, sourceId: parsed.data.sourceId },
+          });
+          if (existing) {
+            const item = await prisma.contentPlanItem.update({
+              where: { id: existing.id },
+              data: {
+                type: parsed.data.type,
+                title: parsed.data.title,
+                content: parsed.data.content,
+                platform: parsed.data.platform,
+                status: parsed.data.status,
+                date: parsed.data.date,
+              },
+            });
+            res.json({ item, created: false });
+            return;
+          }
+        } catch (recoveryError) {
+          console.error('[ContentPlan] create recovery:', recoveryError);
+          res.status(500).json({ error: 'Ошибка при добавлении в план' });
+          return;
+        }
+      }
       console.error('[ContentPlan] create:', err);
       res.status(500).json({ error: 'Ошибка при добавлении в план' });
     }

@@ -1,8 +1,27 @@
 .root {
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
   padding: 32px 40px 56px;
   background: #f7f6f2;
   color: #202020;
+}
+
+.root,
+.root * {
+  box-sizing: border-box;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .hero {
@@ -566,6 +585,17 @@
   opacity: 0.62;
 }
 
+.button:focus-visible,
+.primaryButton:focus-visible,
+.ghostButton:focus-visible,
+.dangerButton:focus-visible,
+.textButton:focus-visible,
+.quickAction:focus-visible,
+.contextLinks a:focus-visible {
+  outline: 2px solid #c8a04b;
+  outline-offset: 2px;
+}
+
 .warning,
 .error,
 .info {
@@ -955,12 +985,18 @@
   border-bottom: 1px solid #e7e2d8;
 }
 
+.planHeader > div:first-child,
+.detailHeader > div:first-child {
+  min-width: 0;
+}
+
 .planHeader h2,
 .planHeader p,
 .detailHeader h3,
 .detailEmpty h3,
 .detailEmpty p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .planHeader p {
@@ -1085,6 +1121,11 @@
 .actionMenuPopover button:hover,
 .actionMenuPopover button:focus-visible {
   background: #f7f3e9;
+}
+
+.actionMenuPopover button:focus-visible {
+  outline: 2px solid #c8a04b;
+  outline-offset: -2px;
 }
 
 .actionMenuPopover button:disabled {
@@ -1348,6 +1389,104 @@
   padding-top: 22px;
 }
 
+.aiProposal {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #dcc078;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.aiProposalHeader h4 {
+  margin: 3px 0 0;
+  color: #24211c;
+  font-size: 17px;
+}
+
+.aiProposalEyebrow {
+  color: #9a6e18;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aiComparisonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #e5dfd3;
+  border-radius: 8px;
+  background: #e5dfd3;
+}
+
+.aiComparisonColumn {
+  min-width: 0;
+  padding: 15px;
+  background: #fff;
+}
+
+.aiComparisonProposed {
+  background: #fff8e8;
+}
+
+.aiComparisonColumn > strong {
+  color: #786f60;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.aiComparisonColumn h5 {
+  margin: 10px 0 8px;
+  font-size: 15px;
+}
+
+.aiComparisonColumn p {
+  max-height: 340px;
+  margin: 10px 0 0;
+  overflow: auto;
+  color: #4f4a42;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.aiComparisonColumn dl {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 0;
+}
+
+.aiComparisonColumn dt {
+  color: #81796e;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.aiComparisonColumn dd {
+  margin: 0 0 7px;
+  color: #37332d;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.aiProposalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.aiProposalActions .primaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detailForm {
   max-width: 820px;
 }
@@ -1446,6 +1585,7 @@
   }
 
   .planHeaderActions {
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 
@@ -1486,6 +1626,50 @@
 }
 
 @media (max-width: 640px) {
+  .root {
+    padding: 16px;
+  }
+
+  .hero {
+    gap: 18px;
+  }
+
+  .sideCard {
+    padding: 16px;
+  }
+
+  .tabs {
+    gap: 8px;
+    margin-inline: -2px;
+    padding-inline: 2px;
+  }
+
+  .tab,
+  .tabActive {
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .tabCount {
+    min-width: 22px;
+    padding-inline: 6px;
+  }
+
+  .aiComparisonGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .aiProposalActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .aiProposalActions .button,
+  .aiProposalActions .primaryButton {
+    justify-content: center;
+    width: 100%;
+  }
+
   .planSection {
     margin-inline: -2px;
   }
@@ -1525,6 +1709,10 @@
 
   .detailHeader h3 {
     font-size: 20px;
+  }
+
+  .detailHeader {
+    gap: 12px;
   }
 
   .deleteConfirmation,

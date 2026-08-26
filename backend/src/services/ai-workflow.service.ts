@@ -508,6 +508,9 @@ export const aiWorkflowService = {
           if (input.workflow === 'tg-channel.description' && !validation.ok) {
             throw new Error(`Telegram channel description validation failed: ${validation.errors.join('; ')}`);
           }
+          if (input.workflow === 'tg-channel' && ['plan', 'idea-improve', 'post', 'edit'].includes(input.step) && !validation.ok) {
+            throw new Error(`Telegram channel workflow validation failed: ${validation.errors.join('; ')}`);
+          }
           if (input.workflow === 'cases' && !validation.ok) {
             throw new Error(`Case workflow validation failed: ${validation.errors.join('; ')}`);
           }

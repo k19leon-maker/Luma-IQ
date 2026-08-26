@@ -211,6 +211,17 @@
   border-top: 1px solid var(--border);
 }
 
+.error {
+  margin: 0 20px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 56, 56, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(180, 56, 56, 0.08);
+  color: #b43838;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .cancelBtn {
   padding: 9px 20px;
   background: var(--bg-elevated);
@@ -236,3 +247,9 @@
   transition: background var(--transition);
 }
 .addBtn:hover { background: var(--accent-hover); }
+.addBtn:disabled,
+.cancelBtn:disabled,
+.closeBtn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

@@ -8,6 +8,11 @@ import {
   instagramStoryImproveAiResultSchema,
 } from '../schemas/instagram-packaging.schema';
 import { tgChannelDescriptionAiResultSchema } from '../schemas/tg-channel-description.schema';
+import {
+  tgChannelIdeaImproveAiResultSchema,
+  tgChannelPlanAiResultSchema,
+  tgChannelPostAiResultSchema,
+} from '../schemas/tg-channel-ai.schema';
 import type { ValidationResult } from './ai-validation.service';
 
 function parseJson(content: string): unknown {
@@ -23,6 +28,9 @@ function schemaFor(workflow: string, step: string): z.ZodTypeAny | null {
   if (workflow === 'tg-channel.description' && ['generate', 'improve'].includes(step)) {
     return tgChannelDescriptionAiResultSchema;
   }
+  if (workflow === 'tg-channel' && step === 'plan') return tgChannelPlanAiResultSchema;
+  if (workflow === 'tg-channel' && step === 'idea-improve') return tgChannelIdeaImproveAiResultSchema;
+  if (workflow === 'tg-channel' && ['post', 'edit'].includes(step)) return tgChannelPostAiResultSchema;
   if (workflow === 'instagram.highlights' && step === 'generate') {
     return instagramHighlightsAiResultSchema;
   }
@@ -82,8 +90,8 @@ export const workflowOutputValidationService = {
     } catch {
       const message = workflow === 'cases'
         ? 'Expected valid case JSON'
-        : workflow === 'tg-channel.description'
-          ? 'Expected valid Telegram channel description JSON'
+        : workflow === 'tg-channel.description' || workflow === 'tg-channel'
+          ? 'Expected valid Telegram channel JSON'
           : 'Expected valid Instagram JSON';
       return { ok: false, errors: [message] };
     }

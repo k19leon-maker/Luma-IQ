@@ -13,8 +13,10 @@ export const tgChannelPostV2Schema = z.object({
   status: z.enum(['draft', 'ready']).default('ready'),
   updatedAt: optionalText,
   previousAiVersion: z.object({
+    title: optionalText,
     content: z.string(),
     cta: optionalText,
+    authorComment: optionalText,
     createdAt: z.string(),
   }).passthrough().optional(),
 }).passthrough();

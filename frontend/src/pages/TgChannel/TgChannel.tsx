@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { aiApi, AiBatchJob, WorkflowResponse } from '../../api/ai';
@@ -19,6 +19,7 @@ import {
   workspaceToLegacyView,
 } from './tgChannelWorkspace';
 import { TgChannelContentPlanTab } from './TgChannelContentPlanTab';
+import { buildTgContentPlanSourceId } from './tgChannelContentPlan';
 import { TgChannelDescriptionTab } from './TgChannelDescriptionTab';
 import {
   appendTgPlanItem,
@@ -30,8 +31,21 @@ import {
   parseTgChannelDescriptionProposal,
   TgChannelDescriptionAiProposal,
 } from './tgChannelDescriptionAi';
-import { readTgChannelTab, TgChannelTab, writeTgChannelTab } from './tgChannelTabs';
+import {
+  getNextTgChannelTab,
+  readTgChannelTab,
+  TgChannelTab,
+  writeTgChannelTab,
+} from './tgChannelTabs';
 import { useTgChannelWorkspaceStorage } from './useTgChannelWorkspaceStorage';
+import {
+  applyTgChannelIdeaProposal,
+  applyTgChannelPostProposal,
+  buildTgChannelGenerationContext,
+  parseTgChannelIdeaProposal,
+  parseTgChannelPostProposal,
+  TgChannelIdeaProposal,
+} from './tgChannelContentAi';
 import s from './TgChannel.module.css';
 
 interface StrategyStatus {
@@ -54,6 +68,20 @@ interface DescriptionAiProposalState {
   current: TgChannelDescriptionAiProposal;
   proposed: TgChannelDescriptionAiProposal;
   action: DescriptionAiAction;
+  response: Pick<WorkflowResponse, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'>;
+}
+
+interface IdeaAiProposalState {
+  itemId: string;
+  current: TgPlanItem;
+  proposed: TgChannelIdeaProposal;
+  response: Pick<WorkflowResponse, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'>;
+}
+
+interface PostAiProposalState {
+  itemId: string;
+  current: TgPostDraft;
+  proposed: TgPostDraft;
   response: Pick<WorkflowResponse, 'workflowRunId' | 'workflowStepId' | 'artifactId' | 'generationId'>;
 }
 
@@ -96,6 +124,14 @@ function normalizePost(value: unknown): TgPostDraft {
   };
 }
 
+function parseBatchPost(content: string): TgPostDraft | null {
+  try {
+    return normalizePost(JSON.parse(stripJsonFence(content)));
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlanItem(value: unknown, index: number): TgPlanItem {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const post = data.post && typeof data.post === 'object' ? normalizePost(data.post) : undefined;
@@ -104,15 +140,17 @@ function normalizePlanItem(value: unknown, index: number): TgPlanItem {
 
   return {
     id: String(data.id ?? `tg-${index + 1}`),
-    number: Number(data.number) || index + 1,
+    number: Number(data.position ?? data.number) || index + 1,
     role: String(data.role ?? 'Пост'),
-    clientTask: String(data.clientTask ?? ''),
+    clientTask: String(data.readerTask ?? data.clientTask ?? ''),
     topic: String(data.topic ?? ''),
     keyMessage: String(data.keyMessage ?? ''),
-    callToAction: String(data.callToAction ?? ''),
+    callToAction: String(data.cta ?? data.callToAction ?? ''),
     status,
     post,
     plannedDate,
+    contentPlanItemId: typeof data.contentPlanItemId === 'string' ? data.contentPlanItemId : undefined,
+    contentPlanSourceId: typeof data.contentPlanSourceId === 'string' ? data.contentPlanSourceId : undefined,
   };
 }
 
@@ -189,10 +227,26 @@ export default function TgChannel() {
   const [descriptionAiError, setDescriptionAiError] = useState('');
   const [descriptionAiProposal, setDescriptionAiProposal] = useState<DescriptionAiProposalState | null>(null);
   const [descriptionLastRequest, setDescriptionLastRequest] = useState<DescriptionAiRequest | null>(null);
+  const [ideaAiProposal, setIdeaAiProposal] = useState<IdeaAiProposalState | null>(null);
+  const [postAiProposal, setPostAiProposal] = useState<PostAiProposalState | null>(null);
+  const recoveredBatchIdRef = useRef<string | null>(null);
+  const appliedBatchIdRef = useRef<string | null>(null);
+  const tabRefs = useRef<Record<TgChannelTab, HTMLButtonElement | null>>({
+    description: null,
+    'content-plan': null,
+  });
 
   function selectTab(nextTab: TgChannelTab) {
     if (nextTab === tab) return;
     setSearchParams(writeTgChannelTab(searchParams, nextTab));
+  }
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const nextTab = getNextTgChannelTab(tab, event.key);
+    if (!nextTab) return;
+    event.preventDefault();
+    selectTab(nextTab);
+    requestAnimationFrame(() => tabRefs.current[nextTab]?.focus());
   }
 
   useEffect(() => {
@@ -251,6 +305,10 @@ export default function TgChannel() {
     setDescriptionAiError('');
     setDescriptionAiProposal(null);
     setDescriptionLastRequest(null);
+    setIdeaAiProposal(null);
+    setPostAiProposal(null);
+    recoveredBatchIdRef.current = null;
+    appliedBatchIdRef.current = null;
     setError('');
   }, [activeProjectId]);
 
@@ -290,6 +348,23 @@ export default function TgChannel() {
   const pendingItems = result?.items.filter((item) => !item.post) ?? [];
 
   useEffect(() => {
+    setIdeaAiProposal((proposal) => proposal?.itemId === selectedId ? proposal : null);
+    setPostAiProposal((proposal) => proposal?.itemId === selectedId ? proposal : null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    const activeBatchJobId = storage.workspace?.plan?.activeBatchJobId;
+    if (!activeBatchJobId || recoveredBatchIdRef.current === activeBatchJobId || batchJob?.id === activeBatchJobId) return;
+    recoveredBatchIdRef.current = activeBatchJobId;
+    aiApi.getBatch(activeBatchJobId)
+      .then(setBatchJob)
+      .catch(() => {
+        recoveredBatchIdRef.current = null;
+        setError('Не удалось восстановить статус фоновой генерации. Обновите страницу или повторите позже.');
+      });
+  }, [batchJob?.id, storage.workspace?.plan?.activeBatchJobId]);
+
+  useEffect(() => {
     if (!batchJob || ['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status)) return;
     const timer = window.setInterval(async () => {
       try {
@@ -303,13 +378,17 @@ export default function TgChannel() {
   }, [batchJob]);
 
   useEffect(() => {
-    if (!batchJob || !result || !['completed', 'partially_failed'].includes(batchJob.status)) return;
-    const completed = new Map(
-      (batchJob.items ?? [])
-        .filter((item) => item.status === 'completed' && typeof item.output?.content === 'string')
-        .map((item) => [item.customId, normalizePost(JSON.parse(stripJsonFence(String(item.output!.content))))]),
-    );
-    if (!completed.size) return;
+    if (!batchJob || !result || !['completed', 'partially_failed', 'failed', 'cancelled', 'expired'].includes(batchJob.status)) return;
+    if (appliedBatchIdRef.current === batchJob.id) return;
+    appliedBatchIdRef.current = batchJob.id;
+    const completed = new Map<string, TgPostDraft>();
+    let invalidOutputCount = 0;
+    for (const item of batchJob.items ?? []) {
+      if (item.status !== 'completed' || typeof item.output?.content !== 'string') continue;
+      const post = parseBatchPost(item.output.content);
+      if (post) completed.set(item.customId, post);
+      else invalidOutputCount += 1;
+    }
     const next: TgChannelResult = {
       ...result,
       items: result.items.map((item) => {
@@ -318,19 +397,27 @@ export default function TgChannel() {
       }),
     };
     setResult(next);
-    void persistResult(next, {
+    const workspace = buildWorkspace(settings, next);
+    const workspaceWithoutActiveBatch = workspace.plan
+      ? { ...workspace, plan: { ...workspace.plan, activeBatchJobId: undefined } }
+      : workspace;
+    void storage.saveNow(workspaceWithoutActiveBatch, tgChannelWorkspaceMetadata(workspaceWithoutActiveBatch, batchJob.status, {
+      ...(storage.metadata ?? {}),
       kind: 'tg_channel',
       contentType: 'tg_channel',
       status: batchJob.status,
       settings,
       sourceSnapshot: next.sourceSnapshot,
       batchJobId: batchJob.id,
-    });
-    toast.success(
+    }));
+    if (completed.size) toast.success(
       batchJob.status === 'completed'
         ? `Фоновая генерация завершена: готово ${batchJob.completedItems} постов.`
         : `Готово ${batchJob.completedItems} постов, с ошибкой: ${batchJob.failedItems}.`,
     );
+    if (invalidOutputCount) {
+      toast.error(`Не удалось прочитать ${invalidOutputCount} ${invalidOutputCount === 1 ? 'пост' : 'поста'}. Остальные результаты сохранены.`);
+    }
   // The terminal batch is applied once per job update.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batchJob?.id, batchJob?.status]);
@@ -566,19 +653,20 @@ export default function TgChannel() {
     }
   }
 
-  async function runPostWorkflow(item: TgPlanItem, step: 'post' | 'edit' | 'audio' | 'video', editAction?: string): Promise<boolean> {
-    if (!hasActiveProject || !activeProjectId || !result) return false;
+  async function runIdeaImproveWorkflow(item: TgPlanItem, instruction: string): Promise<boolean> {
+    if (!hasActiveProject || !activeProjectId || !result || busyPostId) return false;
     setBusyPostId(item.id);
-    setBusyAction(editAction || step);
+    setBusyAction('idea-improve');
     setError('');
     try {
-      const workflow = `tg-channel.${step}`;
+      const workflow = 'tg-channel.idea-improve';
+      const context = buildTgChannelGenerationContext(result, item);
       const inputs = {
         ...settings,
         channelDescription: storage.workspaceRef.current?.channel.description ?? '',
         planItem: JSON.stringify(item, null, 2),
-        existingPost: item.post ? JSON.stringify(item.post, null, 2) : '',
-        editAction,
+        instruction,
+        ...context,
         sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
       };
       const response = await aiApi.startWorkflow(workflow, {
@@ -589,7 +677,71 @@ export default function TgChannel() {
         inputs,
         idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
       });
-      const post = normalizePost(JSON.parse(stripJsonFence(response.content)));
+      setIdeaAiProposal({
+        itemId: item.id,
+        current: item,
+        proposed: parseTgChannelIdeaProposal(response.content),
+        response,
+      });
+      toast.success(`Вариант идеи готов. Списано ${response.aiPointsCharged ?? AI_ACTION_COSTS.tg_channel_idea_improve} AI-баллов.`);
+      return true;
+    } catch (err) {
+      const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось улучшить идею. Повторите запрос.';
+      setError(message);
+      toast.error(message);
+      return false;
+    } finally {
+      setBusyPostId(null);
+      setBusyAction('');
+    }
+  }
+
+  async function handleApplyIdeaProposal() {
+    if (!ideaAiProposal || !result) return;
+    const current = result.items.find((item) => item.id === ideaAiProposal.itemId);
+    if (!current) return;
+    const next = replaceTgPlanItem(result, applyTgChannelIdeaProposal(current, ideaAiProposal.proposed));
+    setIdeaAiProposal(null);
+    setResult(next);
+    await persistResult(next, {
+      status: 'draft',
+      lastIdeaAiAction: { itemId: current.id, ...ideaAiProposal.response, appliedAt: new Date().toISOString() },
+    });
+    toast.success('AI-вариант идеи применён.');
+  }
+
+  async function runPostWorkflow(item: TgPlanItem, step: 'post' | 'edit' | 'audio' | 'video', editAction?: string): Promise<boolean> {
+    if (!hasActiveProject || !activeProjectId || !result || busyPostId) return false;
+    setBusyPostId(item.id);
+    setBusyAction(editAction || step);
+    setError('');
+    try {
+      const workflow = `tg-channel.${step}`;
+      const generationContext = buildTgChannelGenerationContext(result, item);
+      const inputs = {
+        ...settings,
+        channelDescription: storage.workspaceRef.current?.channel.description ?? '',
+        planItem: JSON.stringify(item, null, 2),
+        existingPost: item.post ? JSON.stringify(item.post, null, 2) : '',
+        editAction,
+        ...generationContext,
+        sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
+      };
+      const response = await aiApi.startWorkflow(workflow, {
+        projectId: activeProjectId,
+        provider: modelSettings.provider,
+        openaiModel: modelSettings.openaiModel,
+        claudeModel: modelSettings.claudeModel,
+        inputs,
+        idempotencyKey: makeAiIdempotencyKey({ projectId: activeProjectId, workflow, inputs }),
+      });
+      const post = parseTgChannelPostProposal(response.content);
+      if (step === 'edit') {
+        if (!item.post) throw new Error('Нельзя доработать пост, который ещё не создан.');
+        setPostAiProposal({ itemId: item.id, current: item.post, proposed: post, response });
+        toast.success(`Вариант доработки готов. Списано ${response.aiPointsCharged ?? AI_ACTION_COSTS.tg_channel_post_edit} AI-баллов.`);
+        return true;
+      }
       const next: TgChannelResult = {
         ...result,
         items: result.items.map((row) => row.id === item.id ? { ...row, post, status: row.plannedDate ? 'planned' : 'ready' } : row),
@@ -626,6 +778,23 @@ export default function TgChannel() {
     }
   }
 
+  async function handleApplyPostProposal() {
+    if (!postAiProposal || !result) return;
+    const item = result.items.find((row) => row.id === postAiProposal.itemId);
+    if (!item) return;
+    const currentPost = item.post ?? postAiProposal.current;
+    const proposed = applyTgChannelPostProposal(currentPost, postAiProposal.proposed);
+    const nextItem = { ...item, post: proposed, status: item.plannedDate ? 'planned' as const : proposed.status };
+    const next = replaceTgPlanItem(result, nextItem);
+    setPostAiProposal(null);
+    setResult(next);
+    await persistResult(next, {
+      status: 'generated',
+      lastPostAction: { itemId: item.id, step: 'edit', ...postAiProposal.response, appliedAt: new Date().toISOString() },
+    });
+    toast.success('AI-доработка применена к посту.');
+  }
+
   async function handleGeneratePostsInBackground() {
     if (!activeProjectId || !result || pendingItems.length < 2) return;
     setError('');
@@ -638,6 +807,7 @@ export default function TgChannel() {
           channelDescription: storage.workspaceRef.current?.channel.description ?? '',
           planItem: JSON.stringify(item, null, 2),
           existingPost: '',
+          ...buildTgChannelGenerationContext(result, item),
           sourceSnapshot: result.sourceSnapshot ?? sourceSnapshot,
         },
       }));
@@ -654,6 +824,14 @@ export default function TgChannel() {
         idempotencyKey,
       });
       setBatchJob(job);
+      const workspace = buildWorkspace(settings, result);
+      if (workspace.plan) {
+        const workspaceWithBatch = { ...workspace, plan: { ...workspace.plan, activeBatchJobId: job.id } };
+        await storage.saveNow(workspaceWithBatch, tgChannelWorkspaceMetadata(workspaceWithBatch, 'batch_in_progress', {
+          ...(storage.metadata ?? {}),
+          batchJobId: job.id,
+        }));
+      }
       toast.success(`Пакет из ${items.length} постов поставлен в фоновую генерацию.`);
     } catch (err) {
       const message = isLimitError(err) ? LIMIT_MESSAGE : 'Не удалось запустить фоновую генерацию постов.';
@@ -704,6 +882,8 @@ export default function TgChannel() {
 
   function handleAddToPlan(item: TgPlanItem) {
     if (!item.post || !result) return;
+    const planId = storage.workspaceRef.current?.plan?.id ?? `tg-plan-${item.id}`;
+    const sourceId = item.contentPlanSourceId ?? buildTgContentPlanSourceId(planId, item.id);
     openAddModal({
       type: 'post',
       title: item.post.title || item.topic,
@@ -711,14 +891,21 @@ export default function TgChannel() {
       preview: item.post.text.split('\n').filter(Boolean).slice(0, 2).join('\n'),
       platform: 'Telegram',
       projectId: activeProjectId ?? undefined,
-      sourceId: storage.savedId ?? item.id,
-      onAdded: (date) => {
+      sourceId,
+      onAdded: ({ item: contentPlanItem, created }) => {
         const next: TgChannelResult = {
           ...result,
-          items: result.items.map((row) => row.id === item.id ? { ...row, plannedDate: date, status: 'planned' } : row),
+          items: result.items.map((row) => row.id === item.id ? {
+            ...row,
+            plannedDate: contentPlanItem.date,
+            status: 'planned',
+            contentPlanItemId: contentPlanItem.id,
+            contentPlanSourceId: sourceId,
+          } : row),
         };
         setResult(next);
         void persistResult(next, { kind: 'tg_channel', contentType: 'tg_channel', status: 'planned', settings, sourceSnapshot: next.sourceSnapshot });
+        toast.success(created ? 'Пост добавлен в Контент-план.' : 'Связанный пост в Контент-плане обновлён.');
       },
     });
   }
@@ -775,7 +962,7 @@ export default function TgChannel() {
         </aside>
       </section>
 
-      {error && <div className={s.error}>{error}</div>}
+      {error && <div className={s.error} role="alert">{error}</div>}
       {storage.saveStatus !== 'idle'
         && (descriptionValidation.valid || storage.saveStatus === 'error') && (
         <div className={`${s.saveNotice} ${storage.saveStatus === 'error' ? s.saveNoticeError : ''}`} role="status">
@@ -793,24 +980,30 @@ export default function TgChannel() {
 
       <div className={s.tabs} role="tablist" aria-label="Разделы ТГ-канала">
         <button
+          ref={(node) => { tabRefs.current.description = node; }}
           id="tg-channel-description-tab"
           type="button"
           role="tab"
           aria-selected={tab === 'description'}
           aria-controls="tg-channel-description-panel"
+          tabIndex={tab === 'description' ? 0 : -1}
           className={tab === 'description' ? s.tabActive : s.tab}
           onClick={() => selectTab('description')}
+          onKeyDown={handleTabKeyDown}
         >
           Описание канала
         </button>
         <button
+          ref={(node) => { tabRefs.current['content-plan'] = node; }}
           id="tg-channel-content-plan-tab"
           type="button"
           role="tab"
           aria-selected={tab === 'content-plan'}
           aria-controls="tg-channel-content-plan-panel"
+          tabIndex={tab === 'content-plan' ? 0 : -1}
           className={tab === 'content-plan' ? s.tabActive : s.tab}
           onClick={() => selectTab('content-plan')}
+          onKeyDown={handleTabKeyDown}
         >
           Контент-план
           {result?.items.length ? <span className={s.tabCount}>{result.items.length}</span> : null}
@@ -822,6 +1015,8 @@ export default function TgChannel() {
           id="tg-channel-description-panel"
           role="tabpanel"
           aria-labelledby="tg-channel-description-tab"
+          aria-busy={Boolean(descriptionAiAction)}
+          tabIndex={0}
         >
           <TgChannelDescriptionTab
             activeProjectId={activeProjectId!}
@@ -851,6 +1046,8 @@ export default function TgChannel() {
           id="tg-channel-content-plan-panel"
           role="tabpanel"
           aria-labelledby="tg-channel-content-plan-tab"
+          aria-busy={generatingPlan || Boolean(busyPostId)}
+          tabIndex={0}
         >
           <TgChannelContentPlanTab
             activeProjectId={activeProjectId!}
@@ -861,13 +1058,20 @@ export default function TgChannel() {
             batchJob={batchJob}
             busyPostId={busyPostId}
             busyAction={busyAction}
+            ideaAiProposal={ideaAiProposal}
+            postAiProposal={postAiProposal}
             generatingPlan={generatingPlan}
             onSelectItem={setSelectedId}
             onUpdateItem={handleUpdatePlanItem}
             onAddIdea={handleAddIdea}
             onDeleteItem={handleDeletePlanItem}
             onGeneratePostsInBackground={() => void handleGeneratePostsInBackground()}
+            onImproveIdea={runIdeaImproveWorkflow}
+            onApplyIdeaProposal={() => void handleApplyIdeaProposal()}
+            onDismissIdeaProposal={() => setIdeaAiProposal(null)}
             onRunPostWorkflow={runPostWorkflow}
+            onApplyPostProposal={() => void handleApplyPostProposal()}
+            onDismissPostProposal={() => setPostAiProposal(null)}
             onCopyPost={(item) => void handleCopy(postFullText(item))}
             onAddToPlan={handleAddToPlan}
             onOpenDescription={() => selectTab('description')}

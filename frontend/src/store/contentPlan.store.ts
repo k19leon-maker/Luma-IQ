@@ -28,7 +28,12 @@ export interface PendingAddItem {
   platform?:  string;
   sourceId?:  string;
   projectId?: string;
-  onAdded?:   (date: string) => void;
+  onAdded?:   (result: ContentPlanAddResult) => void;
+}
+
+export interface ContentPlanAddResult {
+  item: ContentPlanItem;
+  created: boolean;
 }
 
 interface ContentPlanState {
@@ -38,7 +43,7 @@ interface ContentPlanState {
 
   loadItems:  (projectId: string) => Promise<void>;
   addItem:    (item: ContentPlanItem) => void;
-  addItemApi: (item: ContentPlanItem) => Promise<void>;
+  addItemApi: (item: ContentPlanItem) => Promise<ContentPlanAddResult>;
   removeItem: (id: string) => Promise<void>;
   updateItem: (id: string, patch: Partial<ContentPlanItem>) => Promise<void>;
   moveItem:   (id: string, newDate: string) => Promise<void>;
@@ -79,29 +84,44 @@ export const useContentPlanStore = create<ContentPlanState>()((set, get) => ({
   addItem: (item) => set((s) => ({ items: [...s.items, item] })),
 
   addItemApi: async (item) => {
-    // Оптимистичное добавление
-    set((s) => ({ items: [...s.items, item] }));
-    if (!item.projectId) return;
-    try {
-      const dbItem = await contentPlanApi.create({
-        projectId: item.projectId,
-        type:      item.type,
-        title:     item.title,
-        content:   item.content,
-        platform:  item.platform,
-        status:    item.status,
-        date:      item.date,
-        sourceId:  item.sourceId,
-      });
-      // Обновляем локальный item с dbId
-      set((s) => ({
-        items: s.items.map((i) =>
-          i.id === item.id ? { ...i, id: dbItem.id, dbId: dbItem.id } : i,
-        ),
-      }));
-    } catch {
-      // fire-and-forget: остаётся только локально
+    if (!item.projectId) {
+      set((s) => ({ items: [...s.items, item] }));
+      return { item, created: true };
     }
+
+    const result = await contentPlanApi.create({
+      projectId: item.projectId,
+      type:      item.type,
+      title:     item.title,
+      content:   item.content,
+      platform:  item.platform,
+      status:    item.status,
+      date:      item.date,
+      sourceId:  item.sourceId,
+    });
+    const savedItem: ContentPlanItem = {
+      id: result.item.id,
+      dbId: result.item.id,
+      date: result.item.date,
+      type: result.item.type as ContentType,
+      title: result.item.title,
+      content: result.item.content ?? undefined,
+      platform: result.item.platform ?? undefined,
+      status: result.item.status as ContentStatus,
+      projectId: result.item.projectId,
+      sourceId: result.item.sourceId ?? undefined,
+    };
+    set((state) => {
+      const existingIndex = state.items.findIndex((current) =>
+        current.id === savedItem.id
+        || Boolean(savedItem.sourceId && current.projectId === savedItem.projectId && current.sourceId === savedItem.sourceId),
+      );
+      if (existingIndex < 0) return { items: [...state.items, savedItem] };
+      return {
+        items: state.items.map((current, index) => index === existingIndex ? savedItem : current),
+      };
+    });
+    return { item: savedItem, created: result.created };
   },
 
   removeItem: async (id) => {

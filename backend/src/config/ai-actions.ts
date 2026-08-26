@@ -48,6 +48,7 @@ export type AiActionType =
   | 'tg_channel_description_generate'
   | 'tg_channel_description_improve'
   | 'tg_channel_plan'
+  | 'tg_channel_idea_improve'
   | 'tg_channel_post'
   | 'tg_channel_post_edit'
   | 'tg_channel_post_audio_adapt'
@@ -108,6 +109,7 @@ export const AI_ACTION_COSTS: Record<AiActionType, number> = {
   tg_channel_description_generate: 5,
   tg_channel_description_improve: 2,
   tg_channel_plan: 40,
+  tg_channel_idea_improve: 2,
   tg_channel_post: 5,
   tg_channel_post_edit: 2,
   tg_channel_post_audio_adapt: 3,
@@ -169,6 +171,7 @@ export const AI_ACTION_LABELS: Record<AiActionType, string> = {
   tg_channel_description_generate: 'Описание ТГ-канала',
   tg_channel_description_improve: 'Доработка описания ТГ-канала',
   tg_channel_plan: 'План ТГ-канала',
+  tg_channel_idea_improve: 'Доработка идеи ТГ-канала',
   tg_channel_post: 'Пост для ТГ-канала',
   tg_channel_post_edit: 'Доработка поста ТГ-канала',
   tg_channel_post_audio_adapt: 'Адаптация поста под аудио',
@@ -231,6 +234,7 @@ export const AI_ACTION_SECTIONS: Record<AiActionType, string> = {
   tg_channel_description_generate: 'ТГ-канал',
   tg_channel_description_improve: 'ТГ-канал',
   tg_channel_plan: 'Контент',
+  tg_channel_idea_improve: 'Контент',
   tg_channel_post: 'Контент',
   tg_channel_post_edit: 'Контент',
   tg_channel_post_audio_adapt: 'Контент',
@@ -274,6 +278,7 @@ export function featureCodeToAiAction(featureCode: string): AiActionType {
     case 'tg_channel_description_generate': return 'tg_channel_description_generate';
     case 'tg_channel_description_improve': return 'tg_channel_description_improve';
     case 'tg_channel_plan': return 'tg_channel_plan';
+    case 'tg_channel_idea_improve': return 'tg_channel_idea_improve';
     case 'tg_channel_post': return 'tg_channel_post';
     case 'tg_channel_post_edit': return 'tg_channel_post_edit';
     case 'tg_channel_post_audio_adapt': return 'tg_channel_post_audio_adapt';

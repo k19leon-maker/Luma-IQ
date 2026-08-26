@@ -27,6 +27,7 @@ export type FeatureCode =
   | 'tg_channel_description_generate'
   | 'tg_channel_description_improve'
   | 'tg_channel_plan'
+  | 'tg_channel_idea_improve'
   | 'tg_channel_post'
   | 'tg_channel_post_edit'
   | 'tg_channel_post_audio_adapt'
@@ -270,6 +271,14 @@ export const FEATURE_PRICING: Record<FeatureCode, FeaturePricingConfig> = {
     creditPrice: 4,
     includedTokens: 12000,
     maxContextTokens: 26000,
+  },
+  tg_channel_idea_improve: {
+    featureCode: 'tg_channel_idea_improve',
+    featureGroup: 'content',
+    generationClass: 'LIGHT',
+    creditPrice: 1,
+    includedTokens: 2500,
+    maxContextTokens: 8000,
   },
   tg_channel_post: {
     featureCode: 'tg_channel_post',

@@ -54,14 +54,18 @@ export default function AddToPlanModal() {
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [platform, setPlatform] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (modalOpen && pendingItem) {
       setSelectedDate(todayISO());
       setShowDatePicker(false);
       setPlatform(pendingItem.platform ?? '');
+      setSaving(false);
+      setError('');
     }
-  }, [modalOpen]);
+  }, [modalOpen, pendingItem]);
 
   if (!modalOpen || !pendingItem) return null;
 
@@ -71,31 +75,39 @@ export default function AddToPlanModal() {
     ?? pendingItem.content?.split('\n').filter(Boolean).slice(0, 2).join('\n')
     ?? '';
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!pendingItem) return;
-    void addItemApi({
-      id:        crypto.randomUUID(),
-      date:      selectedDate,
-      type:      pendingItem.type,
-      title:     pendingItem.title,
-      content:   pendingItem.content,
-      platform:  (hasPlatform ? pendingItem.platform : platform) || undefined,
-      status:    'draft',
-      projectId: pendingItem.projectId,
-      sourceId:  pendingItem.sourceId,
-    });
-    pendingItem.onAdded?.(selectedDate);
-    closeAddModal();
+    setSaving(true);
+    setError('');
+    try {
+      const result = await addItemApi({
+        id:        crypto.randomUUID(),
+        date:      selectedDate,
+        type:      pendingItem.type,
+        title:     pendingItem.title,
+        content:   pendingItem.content,
+        platform:  (hasPlatform ? pendingItem.platform : platform) || undefined,
+        status:    'draft',
+        projectId: pendingItem.projectId,
+        sourceId:  pendingItem.sourceId,
+      });
+      pendingItem.onAdded?.(result);
+      closeAddModal();
+    } catch {
+      setError('Не удалось сохранить материал. Проверьте соединение и повторите.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className={s.overlay} onClick={closeAddModal}>
+    <div className={s.overlay} onClick={() => { if (!saving) closeAddModal(); }}>
       <div className={s.modal} onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className={s.header}>
           <span className={s.headerTitle}>Добавить в контент-план</span>
-          <button className={s.closeBtn} onClick={closeAddModal}>✕</button>
+          <button className={s.closeBtn} onClick={closeAddModal} disabled={saving}>✕</button>
         </div>
 
         <div className={s.body}>
@@ -169,10 +181,12 @@ export default function AddToPlanModal() {
           )}
         </div>
 
+        {error && <div className={s.error} role="alert">{error}</div>}
+
         <div className={s.footer}>
-          <button className={s.cancelBtn} onClick={closeAddModal}>Отмена</button>
-          <button className={s.addBtn} onClick={handleAdd}>
-            Добавить в план
+          <button className={s.cancelBtn} onClick={closeAddModal} disabled={saving}>Отмена</button>
+          <button className={s.addBtn} onClick={() => void handleAdd()} disabled={saving}>
+            {saving ? 'Сохраняю…' : 'Добавить в план'}
           </button>
         </div>
       </div>

@@ -55,6 +55,7 @@ vi.mock('../../src/services/ai-balance.service', () => ({
       instagram_story_improve: 3,
       tg_channel_description_generate: 5,
       tg_channel_description_improve: 2,
+      tg_channel_idea_improve: 2,
     } as Record<string, number>)[input.featureCode] ?? 20)),
   },
 }));
@@ -337,6 +338,7 @@ describe('AI points V2 generation lifecycle', () => {
     it.each([
       ['tg_channel_description_generate', 5],
       ['tg_channel_description_improve', 2],
+      ['tg_channel_idea_improve', 2],
       ['instagram_highlights_generate', 40],
       ['instagram_highlight_scenario_generate', 20],
       ['instagram_highlight_improve', 10],

@@ -16,6 +16,10 @@ describe('ai action point costs', () => {
     expect(AI_ACTION_COSTS.instagram_story_improve).toBe(3);
   });
 
+  it('charges Telegram idea improvement separately from manual editing', () => {
+    expect(AI_ACTION_COSTS.tg_channel_idea_improve).toBe(2);
+  });
+
   it('calculates flexible CustDev transcription costs by duration', () => {
     expect(getCastDevTranscriptionCost(null)).toBe(20);
     expect(getCastDevTranscriptionCost(10 * 60)).toBe(10);

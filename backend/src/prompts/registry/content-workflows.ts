@@ -2168,7 +2168,7 @@ ${value(inputs, 'sourceSnapshot', 'Не передан')}
 - Приглашение на лид-магнит / диагностику.
 
 ${contextAppendix(context)}`,
-    userPromptBuilder: ({ inputs }) => `Собери план упаковки Telegram-канала на 10-15 evergreen-постов.
+    userPromptBuilder: ({ inputs }) => `Собери план упаковки Telegram-канала на 12-15 evergreen-постов.
 
 Настройки канала:
 - Название канала: ${value(inputs, 'channelName', 'Не указано')}
@@ -2190,26 +2190,71 @@ ${value(inputs, 'sourceSnapshot', 'Не передан')}
   "items": [
     {
       "id": "tg-1",
-      "number": 1,
+      "position": 1,
       "role": "Пост знакомства",
-      "clientTask": "понять, подходит ли мне этот эксперт",
+      "readerTask": "понять, подходит ли мне этот эксперт",
       "topic": "Тема поста",
-      "callToAction": "Мягкий призыв к действию",
+      "keyMessage": "Одна главная мысль поста",
+      "cta": "Мягкий призыв к действию",
       "status": "idea"
     }
   ]
 }
 
 Требования:
-- items: от 10 до 15 элементов.
-- number: последовательность от 1.
+- items: от 12 до 15 элементов.
+- position: строгая последовательность от 1 без пропусков.
 - status всегда "idea".
+- keyMessage обязателен и содержит одну конкретную мысль.
 - Поля должны быть на русском.
-- В поле callToAction пиши не "CTA", а готовый понятный призыв.`,
+- В поле cta пиши не "CTA", а готовый понятный призыв.`,
     validationRules: {
       minLength: 1000,
       maxLength: 50000,
-      requiredIncludes: ['"items"', '"clientTask"', '"callToAction"'],
+      requiredIncludes: ['"items"', '"position"', '"readerTask"', '"keyMessage"', '"cta"'],
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'tg-channel.idea.improve.v1',
+    version: 'v1',
+    feature: 'tg_channel_idea_improve',
+    workflow: 'tg-channel',
+    step: 'idea-improve',
+    model: 'gpt-5.5',
+    temperature: 0.58,
+    maxTokens: 1800,
+    artifactType: 'tg_channel_idea_proposal',
+    systemPrompt: (context) => `Ты — контент-стратег Telegram-канала эксперта.
+
+Улучши одну идею внутри уже существующей цепочки. Сохрани её роль в общей логике плана, не дублируй соседние темы и не выдумывай факты о проекте. Верни только предложенную версию: пользователь сам решит, применять её или нет.
+
+${contextAppendix(context)}`,
+    userPromptBuilder: ({ inputs }) => `Улучши выбранную идею Telegram-поста по инструкции пользователя.
+
+Инструкция: ${value(inputs, 'instruction', 'Сделать идею яснее и конкретнее')}
+
+Текущая идея:
+${value(inputs, 'planItem', 'Не передана')}
+
+Краткая цепочка плана:
+${value(inputs, 'planSummary', 'Не передана')}
+
+Соседние идеи:
+${value(inputs, 'neighboringIdeas', 'Не переданы')}
+
+Верни строго JSON без markdown:
+{
+  "role": "Роль поста",
+  "readerTask": "Задача читателя",
+  "topic": "Тема поста",
+  "keyMessage": "Одна ключевая мысль",
+  "cta": "Мягкий призыв к действию"
+}`,
+    validationRules: {
+      minLength: 180,
+      maxLength: 6000,
+      requiredIncludes: ['"role"', '"readerTask"', '"topic"', '"keyMessage"', '"cta"'],
       structuredOutput: 'json',
     },
   },
@@ -2246,6 +2291,15 @@ ${contextAppendix(context)}`,
 
 Строка плана:
 ${value(inputs, 'planItem', 'Не передана')}
+
+Краткая последовательность всех идей:
+${value(inputs, 'planSummary', 'Не передана')}
+
+Соседние идеи:
+${value(inputs, 'neighboringIdeas', 'Не переданы')}
+
+Кратко о уже готовых постах (без полных текстов):
+${value(inputs, 'completedPostsSummary', 'Готовых постов пока нет')}
 
 Верни строго JSON без markdown:
 {
@@ -2289,6 +2343,15 @@ ${value(inputs, 'planItem', 'Не передана')}
 
 Текущий пост:
 ${value(inputs, 'existingPost', 'Не передан')}
+
+Краткая последовательность плана:
+${value(inputs, 'planSummary', 'Не передана')}
+
+Соседние идеи:
+${value(inputs, 'neighboringIdeas', 'Не переданы')}
+
+Кратко о уже готовых постах:
+${value(inputs, 'completedPostsSummary', 'Не переданы')}
 
 Верни строго JSON без markdown:
 {

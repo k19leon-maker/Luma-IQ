@@ -14,6 +14,11 @@ export interface ApiContentPlanItem {
   updatedAt: string;
 }
 
+export interface ApiContentPlanCreateResult {
+  item: ApiContentPlanItem;
+  created: boolean;
+}
+
 export const contentPlanApi = {
   list: (projectId: string) =>
     apiClient
@@ -30,7 +35,7 @@ export const contentPlanApi = {
     date:      string;
     sourceId?: string;
   }) =>
-    apiClient.post<{ item: ApiContentPlanItem }>('/content-plan', data).then((r) => r.data.item),
+    apiClient.post<ApiContentPlanCreateResult>('/content-plan', data).then((r) => r.data),
 
   update: (id: string, data: { title?: string; content?: string; status?: string; date?: string; platform?: string }) =>
     apiClient.patch<{ item: ApiContentPlanItem }>(`/content-plan/${id}`, data).then((r) => r.data.item),

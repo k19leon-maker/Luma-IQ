@@ -30,6 +30,13 @@ export interface TgPostDraft {
   callToAction: string;
   authorComment: string;
   status: 'draft' | 'ready';
+  previousAiVersion?: {
+    title: string;
+    text: string;
+    callToAction: string;
+    authorComment: string;
+    createdAt: string;
+  };
 }
 
 export interface TgPlanItem {
@@ -43,6 +50,8 @@ export interface TgPlanItem {
   status: TgPostStatus;
   post?: TgPostDraft;
   plannedDate?: string;
+  contentPlanItemId?: string;
+  contentPlanSourceId?: string;
 }
 
 export interface TgChannelResult {
@@ -63,8 +72,10 @@ export interface TgChannelPostV2 extends Record<string, unknown> {
   status: 'draft' | 'ready';
   updatedAt?: string;
   previousAiVersion?: {
+    title?: string;
     content: string;
     cta?: string;
+    authorComment?: string;
     createdAt: string;
     [key: string]: unknown;
   };
@@ -186,6 +197,8 @@ function normalizeLegacyItem(value: unknown, index: number): TgPlanItem {
     status: itemStatus(data.status, Boolean(post), plannedDate),
     ...(post ? { post } : {}),
     ...(plannedDate ? { plannedDate } : {}),
+    ...(text(data.contentPlanItemId) ? { contentPlanItemId: text(data.contentPlanItemId) } : {}),
+    ...(text(data.contentPlanSourceId) ? { contentPlanSourceId: text(data.contentPlanSourceId) } : {}),
   };
 }
 
@@ -307,10 +320,21 @@ export function adaptLegacyTgChannelWorkspace(value: unknown): TgChannelWorkspac
         cta: item.post.callToAction,
         authorComment: item.post.authorComment,
         status: item.post.status,
+        ...(item.post.previousAiVersion ? {
+          previousAiVersion: {
+            title: item.post.previousAiVersion.title,
+            content: item.post.previousAiVersion.text,
+            cta: item.post.previousAiVersion.callToAction,
+            authorComment: item.post.previousAiVersion.authorComment,
+            createdAt: item.post.previousAiVersion.createdAt,
+          },
+        } : {}),
         ...(generatedAt ? { updatedAt: generatedAt } : {}),
       },
     } : {}),
     ...(item.plannedDate ? { plannedDate: item.plannedDate } : {}),
+    ...(item.contentPlanItemId ? { contentPlanItemId: item.contentPlanItemId } : {}),
+    ...(item.contentPlanSourceId ? { contentPlanSourceId: item.contentPlanSourceId } : {}),
   }));
 
   return {
@@ -378,9 +402,20 @@ export function workspaceToLegacyView(workspace: TgChannelWorkspaceV2): {
         callToAction: item.post.cta,
         authorComment: item.post.authorComment,
         status: item.post.status,
+        ...(item.post.previousAiVersion ? {
+          previousAiVersion: {
+            title: item.post.previousAiVersion.title ?? '',
+            text: item.post.previousAiVersion.content,
+            callToAction: item.post.previousAiVersion.cta ?? '',
+            authorComment: item.post.previousAiVersion.authorComment ?? '',
+            createdAt: item.post.previousAiVersion.createdAt,
+          },
+        } : {}),
       },
     } : {}),
     ...(item.plannedDate ? { plannedDate: item.plannedDate } : {}),
+    ...(item.contentPlanItemId ? { contentPlanItemId: item.contentPlanItemId } : {}),
+    ...(item.contentPlanSourceId ? { contentPlanSourceId: item.contentPlanSourceId } : {}),
   }));
 
   return {
@@ -428,6 +463,8 @@ export function workspaceFromLegacyView(input: {
         },
       } : { post: undefined }),
       ...(item.plannedDate ? { plannedDate: item.plannedDate } : { plannedDate: undefined }),
+      contentPlanItemId: item.contentPlanItemId ?? previous?.contentPlanItemId,
+      contentPlanSourceId: item.contentPlanSourceId ?? previous?.contentPlanSourceId,
     } satisfies TgChannelPlanItemV2;
   });
 

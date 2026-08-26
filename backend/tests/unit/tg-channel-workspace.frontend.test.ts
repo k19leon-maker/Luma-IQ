@@ -86,6 +86,62 @@ describe('TG channel frontend runtime compatibility', () => {
     expect(reloaded.items[0].post?.status).toBe('draft');
   });
 
+  it('preserves active batch recovery and the previous AI version', () => {
+    const workspace = adaptLegacyTgChannelWorkspace(legacyTgChannelWorkspaceV1);
+    workspace.plan!.activeBatchJobId = 'batch-tg-123';
+    workspace.plan!.items[0] = {
+      ...workspace.plan!.items[0],
+      post: {
+        title: 'Новая версия',
+        content: 'Новый текст',
+        cta: 'Ответить',
+        authorComment: 'Комментарий',
+        status: 'ready',
+        previousAiVersion: {
+          title: 'Старая версия',
+          content: 'Старый текст',
+          cta: 'Старый CTA',
+          authorComment: 'До правки',
+          createdAt: '2026-08-24T12:00:00.000Z',
+        },
+      },
+    };
+
+    const reloaded = parseTgChannelWorkspaceContent(JSON.stringify(serializeTgChannelWorkspace(workspace)));
+    expect(reloaded.plan?.activeBatchJobId).toBe('batch-tg-123');
+    expect(reloaded.plan?.items[0].post?.previousAiVersion?.content).toBe('Старый текст');
+  });
+
+  it('preserves the linked Content Plan item through save and reload', () => {
+    const workspace = adaptLegacyTgChannelWorkspace(legacyTgChannelWorkspaceV1);
+    workspace.plan!.items[0] = {
+      ...workspace.plan!.items[0],
+      status: 'planned',
+      plannedDate: '2026-08-29',
+      contentPlanItemId: 'content-plan-item-1',
+      contentPlanSourceId: 'tg-channel:plan-1:post-1',
+    };
+
+    const legacy = workspaceToLegacyView(workspace);
+    const rebuilt = workspaceFromLegacyView({
+      settings: legacy.settings,
+      result: legacy.result,
+      base: workspace,
+      channelDescription: workspace.channel.description,
+    });
+    const reloaded = parseTgChannelWorkspaceContent(JSON.stringify(serializeTgChannelWorkspace(rebuilt)));
+
+    expect(reloaded.plan?.items[0]).toMatchObject({
+      plannedDate: '2026-08-29',
+      contentPlanItemId: 'content-plan-item-1',
+      contentPlanSourceId: 'tg-channel:plan-1:post-1',
+    });
+    expect(reloaded.items[0]).toMatchObject({
+      contentPlanItemId: 'content-plan-item-1',
+      contentPlanSourceId: 'tg-channel:plan-1:post-1',
+    });
+  });
+
   it('validates the 250 character description without truncating user input', () => {
     const valid = 'а'.repeat(250);
     const invalid = `${valid}б`;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getNextTgChannelTab,
   readTgChannelTab,
   writeTgChannelTab,
 } from '../../../frontend/src/pages/TgChannel/tgChannelTabs';
@@ -35,6 +36,15 @@ describe('TG channel tabs URL contract', () => {
     expect(next.get('source')).toBe('sidebar');
   });
 
+  it('supports roving keyboard navigation between tabs', () => {
+    expect(getNextTgChannelTab('description', 'ArrowRight')).toBe('content-plan');
+    expect(getNextTgChannelTab('content-plan', 'ArrowRight')).toBe('description');
+    expect(getNextTgChannelTab('description', 'ArrowLeft')).toBe('content-plan');
+    expect(getNextTgChannelTab('content-plan', 'Home')).toBe('description');
+    expect(getNextTgChannelTab('description', 'End')).toBe('content-plan');
+    expect(getNextTgChannelTab('description', 'Enter')).toBeNull();
+  });
+
   it('renders content plan as list/detail without the legacy table', () => {
     const source = readFileSync(
       resolve(process.cwd(), '../frontend/src/pages/TgChannel/TgChannelContentPlanTab.tsx'),
@@ -47,5 +57,25 @@ describe('TG channel tabs URL contract', () => {
     expect(source).toContain('Текст поста');
     expect(source).not.toContain('<table');
     expect(source).not.toContain('EDIT_ACTIONS');
+  });
+
+  it('keeps the content plan keyboard accessible and announces background work', () => {
+    const contentSource = readFileSync(
+      resolve(process.cwd(), '../frontend/src/pages/TgChannel/TgChannelContentPlanTab.tsx'),
+      'utf8',
+    );
+    const pageSource = readFileSync(
+      resolve(process.cwd(), '../frontend/src/pages/TgChannel/TgChannel.tsx'),
+      'utf8',
+    );
+
+    expect(contentSource).toContain('aria-haspopup="menu"');
+    expect(contentSource).toContain('role="alertdialog"');
+    expect(contentSource).toContain('aria-live="polite"');
+    expect(contentSource).toContain("event.key === 'Escape'");
+    expect(contentSource).toContain("event.key === 'Home'");
+    expect(contentSource).toContain("event.key === 'End'");
+    expect(pageSource).toContain('aria-busy');
+    expect(pageSource).toContain('role="alert"');
   });
 });

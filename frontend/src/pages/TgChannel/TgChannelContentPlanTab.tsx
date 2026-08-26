@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CalendarPlus,
@@ -6,6 +6,7 @@ import {
   Ellipsis,
   Plus,
   RefreshCw,
+  Check,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { AiBatchJob } from '../../api/ai';
 import AiWorkflowCost from '../../components/AiWorkflowCost/AiWorkflowCost';
 import { ContentRevisionComposer } from '../../components/ContentRevisionComposer/ContentRevisionComposer';
 import { TgChannelResult, TgPlanItem, TgPostStatus } from './tgChannelWorkspace';
+import { TgChannelIdeaProposal } from './tgChannelContentAi';
 import s from './TgChannel.module.css';
 
 interface Props {
@@ -24,13 +26,28 @@ interface Props {
   batchJob: AiBatchJob | null;
   busyPostId: string | null;
   busyAction: string;
+  ideaAiProposal: {
+    itemId: string;
+    current: TgPlanItem;
+    proposed: TgChannelIdeaProposal;
+  } | null;
+  postAiProposal: {
+    itemId: string;
+    current: NonNullable<TgPlanItem['post']>;
+    proposed: NonNullable<TgPlanItem['post']>;
+  } | null;
   generatingPlan: boolean;
   onSelectItem: (id: string) => void;
   onUpdateItem: (item: TgPlanItem) => void;
   onAddIdea: () => void;
   onDeleteItem: (id: string) => void;
   onGeneratePostsInBackground: () => void;
+  onImproveIdea: (item: TgPlanItem, instruction: string) => Promise<boolean>;
+  onApplyIdeaProposal: () => void;
+  onDismissIdeaProposal: () => void;
   onRunPostWorkflow: (item: TgPlanItem, step: 'post' | 'edit' | 'audio' | 'video', instruction?: string) => Promise<boolean>;
+  onApplyPostProposal: () => void;
+  onDismissPostProposal: () => void;
   onCopyPost: (item: TgPlanItem) => void;
   onAddToPlan: (item: TgPlanItem) => void;
   onOpenDescription: () => void;
@@ -43,6 +60,22 @@ const STATUS_LABELS: Record<TgPostStatus, string> = {
   ready: 'Готов',
   planned: 'В плане',
 };
+
+const BATCH_STATUS_LABELS: Record<string, string> = {
+  pending: 'ожидает запуска',
+  queued: 'в очереди',
+  processing: 'создаёт посты',
+  running: 'создаёт посты',
+  completed: 'завершена',
+  partially_failed: 'завершена частично',
+  failed: 'завершилась с ошибкой',
+  cancelled: 'отменена',
+  expired: 'истекла',
+};
+
+function batchStatusLabel(status: string): string {
+  return BATCH_STATUS_LABELS[status] ?? 'обновляется';
+}
 
 function formatDate(iso?: string): string {
   if (!iso) return '';
@@ -72,13 +105,20 @@ export function TgChannelContentPlanTab({
   batchJob,
   busyPostId,
   busyAction,
+  ideaAiProposal,
+  postAiProposal,
   generatingPlan,
   onSelectItem,
   onUpdateItem,
   onAddIdea,
   onDeleteItem,
   onGeneratePostsInBackground,
+  onImproveIdea,
+  onApplyIdeaProposal,
+  onDismissIdeaProposal,
   onRunPostWorkflow,
+  onApplyPostProposal,
+  onDismissPostProposal,
   onCopyPost,
   onAddToPlan,
   onOpenDescription,
@@ -90,6 +130,12 @@ export function TgChannelContentPlanTab({
   const [deleteConfirmation, setDeleteConfirmation] = useState(false);
   const planMenuRef = useRef<HTMLDivElement>(null);
   const itemMenuRef = useRef<HTMLDivElement>(null);
+  const planMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const itemMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const backToListRef = useRef<HTMLButtonElement>(null);
+  const selectedListItemRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const pendingCompactFocusRef = useRef<'detail' | 'list' | null>(null);
 
   useEffect(() => {
     setItemMenuOpen(false);
@@ -105,6 +151,33 @@ export function TgChannelContentPlanTab({
     document.addEventListener('pointerdown', closeMenus);
     return () => document.removeEventListener('pointerdown', closeMenus);
   }, []);
+
+  useEffect(() => {
+    const openMenu = planMenuOpen ? planMenuRef.current : itemMenuOpen ? itemMenuRef.current : null;
+    if (!openMenu) return;
+    requestAnimationFrame(() => {
+      openMenu.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    });
+  }, [itemMenuOpen, planMenuOpen]);
+
+  useEffect(() => {
+    if (!deleteConfirmation) return;
+    requestAnimationFrame(() => cancelDeleteRef.current?.focus());
+  }, [deleteConfirmation]);
+
+  useEffect(() => {
+    const target = pendingCompactFocusRef.current;
+    if (!target) return;
+    if (typeof window === 'undefined' || !window.matchMedia('(max-width: 1099px)').matches) {
+      pendingCompactFocusRef.current = null;
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (target === 'detail') backToListRef.current?.focus();
+      else selectedListItemRef.current?.focus();
+      pendingCompactFocusRef.current = null;
+    });
+  }, [mobileDetailOpen, selectedItem?.id]);
 
   if (!result) {
     return (
@@ -125,13 +198,50 @@ export function TgChannelContentPlanTab({
   const isBusy = Boolean(selectedItem && busyPostId === selectedItem.id);
 
   function selectItem(id: string) {
+    pendingCompactFocusRef.current = 'detail';
     onSelectItem(id);
     setMobileDetailOpen(true);
   }
 
   function addIdea() {
+    pendingCompactFocusRef.current = 'detail';
     onAddIdea();
     setMobileDetailOpen(true);
+  }
+
+  function returnToList() {
+    pendingCompactFocusRef.current = 'list';
+    setMobileDetailOpen(false);
+  }
+
+  function closeMenu(
+    setOpen: (open: boolean) => void,
+    triggerRef: RefObject<HTMLButtonElement>,
+  ) {
+    setOpen(false);
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  function handleMenuKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    setOpen: (open: boolean) => void,
+    triggerRef: RefObject<HTMLButtonElement>,
+  ) {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'));
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu(setOpen, triggerRef);
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || items.length === 0) return;
+    event.preventDefault();
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = items.length - 1;
+    else if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1 + items.length) % items.length;
+    else nextIndex = (currentIndex - 1 + items.length) % items.length;
+    items[nextIndex]?.focus();
   }
 
   function confirmDelete() {
@@ -159,9 +269,11 @@ export function TgChannelContentPlanTab({
           </button>
           <div className={s.actionMenu} ref={planMenuRef}>
             <button
+              ref={planMenuTriggerRef}
               className={s.iconButton}
               type="button"
               aria-label="Действия с контент-планом"
+              aria-haspopup="menu"
               aria-expanded={planMenuOpen}
               title="Действия с контент-планом"
               onClick={() => setPlanMenuOpen((open) => !open)}
@@ -169,7 +281,12 @@ export function TgChannelContentPlanTab({
               <Ellipsis aria-hidden="true" size={20} />
             </button>
             {planMenuOpen && (
-              <div className={s.actionMenuPopover} role="menu">
+              <div
+                className={s.actionMenuPopover}
+                role="menu"
+                aria-label="Действия с контент-планом"
+                onKeyDown={(event) => handleMenuKeyDown(event, setPlanMenuOpen, planMenuTriggerRef)}
+              >
                 <button type="button" role="menuitem" onClick={() => { setPlanMenuOpen(false); onGeneratePlan(); }} disabled={generatingPlan}>
                   <RefreshCw aria-hidden="true" size={16} />
                   {generatingPlan ? 'Собираю план…' : 'Собрать план заново'}
@@ -192,8 +309,8 @@ export function TgChannelContentPlanTab({
       </header>
 
       {batchJob && (
-        <div className={s.batchStatus} role="status">
-          Фоновая генерация: {batchJob.status}. Готово {batchJob.completedItems} из {batchJob.totalItems}, ошибок {batchJob.failedItems}.
+        <div className={s.batchStatus} role="status" aria-live="polite">
+          Фоновая генерация: {batchStatusLabel(batchJob.status)}. Готово {batchJob.completedItems} из {batchJob.totalItems}, ошибок {batchJob.failedItems}.
         </div>
       )}
 
@@ -207,9 +324,11 @@ export function TgChannelContentPlanTab({
             {result.items.map((item) => (
               <li key={item.id}>
                 <button
+                  ref={selectedItem?.id === item.id ? selectedListItemRef : undefined}
                   type="button"
                   className={`${s.planItem} ${selectedItem?.id === item.id ? s.planItemActive : ''}`}
                   aria-current={selectedItem?.id === item.id ? 'true' : undefined}
+                  aria-controls="tg-channel-selected-post"
                   onClick={() => selectItem(item.id)}
                 >
                   <span className={s.planItemNumber}>{String(item.number).padStart(2, '0')}</span>
@@ -228,11 +347,11 @@ export function TgChannelContentPlanTab({
           </button>
         </aside>
 
-        <main className={s.planDetail} aria-live="polite">
+        <main id="tg-channel-selected-post" className={s.planDetail} aria-live="polite" tabIndex={-1}>
           {selectedItem ? (
             <>
               <div className={s.mobileDetailHeader}>
-                <button className={s.backToList} type="button" onClick={() => setMobileDetailOpen(false)}>
+                <button ref={backToListRef} className={s.backToList} type="button" onClick={returnToList}>
                   <ArrowLeft aria-hidden="true" size={18} />
                   К плану
                 </button>
@@ -248,9 +367,11 @@ export function TgChannelContentPlanTab({
                 </div>
                 <div className={s.actionMenu} ref={itemMenuRef}>
                   <button
+                    ref={itemMenuTriggerRef}
                     className={s.iconButton}
                     type="button"
                     aria-label="Действия с выбранным постом"
+                    aria-haspopup="menu"
                     aria-expanded={itemMenuOpen}
                     title="Действия с выбранным постом"
                     onClick={() => setItemMenuOpen((open) => !open)}
@@ -258,7 +379,12 @@ export function TgChannelContentPlanTab({
                     <Ellipsis aria-hidden="true" size={20} />
                   </button>
                   {itemMenuOpen && (
-                    <div className={`${s.actionMenuPopover} ${s.itemMenuPopover}`} role="menu">
+                    <div
+                      className={`${s.actionMenuPopover} ${s.itemMenuPopover}`}
+                      role="menu"
+                      aria-label="Действия с выбранным постом"
+                      onKeyDown={(event) => handleMenuKeyDown(event, setItemMenuOpen, itemMenuTriggerRef)}
+                    >
                       {selectedItem.post && (
                         <button type="button" role="menuitem" onClick={() => { setItemMenuOpen(false); onCopyPost(selectedItem); }}>
                           <Copy aria-hidden="true" size={16} />
@@ -275,10 +401,26 @@ export function TgChannelContentPlanTab({
               </header>
 
               {deleteConfirmation && (
-                <div className={s.deleteConfirmation} role="alertdialog" aria-label="Удалить идею">
-                  <span>Удалить эту идею и сохранённый в ней пост?</span>
+                <div
+                  className={s.deleteConfirmation}
+                  role="alertdialog"
+                  aria-labelledby="tg-delete-title"
+                  aria-describedby="tg-delete-description"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setDeleteConfirmation(false);
+                      requestAnimationFrame(() => itemMenuTriggerRef.current?.focus());
+                    }
+                  }}
+                >
+                  <span id="tg-delete-description">
+                    <b id="tg-delete-title" className={s.visuallyHidden}>Удаление идеи</b>
+                    Удалить эту идею и сохранённый в ней пост?
+                    {selectedItem.contentPlanItemId && ' Связанный материал в Контент-плане останется.'}
+                  </span>
                   <div>
-                    <button className={s.button} type="button" onClick={() => setDeleteConfirmation(false)}>Отмена</button>
+                    <button ref={cancelDeleteRef} className={s.button} type="button" onClick={() => setDeleteConfirmation(false)}>Отмена</button>
                     <button className={s.dangerButton} type="button" onClick={confirmDelete}>Удалить</button>
                   </div>
                 </div>
@@ -306,6 +448,50 @@ export function TgChannelContentPlanTab({
                     <span>Призыв к действию (CTA)</span>
                     <textarea rows={2} value={selectedItem.callToAction} onChange={(event) => onUpdateItem({ ...selectedItem, callToAction: event.target.value })} />
                   </label>
+                  <ContentRevisionComposer
+                    key={`idea-${selectedItem.id}`}
+                    projectId={activeProjectId}
+                    workflow="tg-channel.idea-improve"
+                    isLoading={isBusy && busyAction === 'idea-improve'}
+                    onSubmit={(instruction) => onImproveIdea(selectedItem, instruction)}
+                    title="Улучшить идею с AI"
+                    placeholder="Например: сделайте тему конкретнее и свяжите её с главным возражением аудитории"
+                  />
+                  {ideaAiProposal?.itemId === selectedItem.id && (
+                    <section className={s.aiProposal} aria-label="Предложенная версия идеи">
+                      <div className={s.aiProposalHeader}>
+                        <div>
+                          <span className={s.aiProposalEyebrow}>Вариант AI</span>
+                          <h4>Сравните идею перед применением</h4>
+                        </div>
+                      </div>
+                      <div className={s.aiComparisonGrid}>
+                        <div className={s.aiComparisonColumn}>
+                          <strong>Текущая версия</strong>
+                          <dl>
+                            <dt>Роль</dt><dd>{ideaAiProposal.current.role || '—'}</dd>
+                            <dt>Тема</dt><dd>{ideaAiProposal.current.topic || '—'}</dd>
+                            <dt>Ключевая мысль</dt><dd>{ideaAiProposal.current.keyMessage || '—'}</dd>
+                          </dl>
+                        </div>
+                        <div className={`${s.aiComparisonColumn} ${s.aiComparisonProposed}`}>
+                          <strong>Предложение AI</strong>
+                          <dl>
+                            <dt>Роль</dt><dd>{ideaAiProposal.proposed.role}</dd>
+                            <dt>Тема</dt><dd>{ideaAiProposal.proposed.topic}</dd>
+                            <dt>Ключевая мысль</dt><dd>{ideaAiProposal.proposed.keyMessage}</dd>
+                          </dl>
+                        </div>
+                      </div>
+                      <div className={s.aiProposalActions}>
+                        <button className={s.button} type="button" onClick={onDismissIdeaProposal}>Оставить текущую</button>
+                        <button className={s.primaryButton} type="button" onClick={onApplyIdeaProposal}>
+                          <Check aria-hidden="true" size={17} />
+                          Применить вариант
+                        </button>
+                      </div>
+                    </section>
+                  )}
                   <div className={s.detailFooter}>
                     <button
                       className={s.primaryButton}
@@ -341,7 +527,7 @@ export function TgChannelContentPlanTab({
                     </button>
                     <button className={s.button} type="button" onClick={() => onAddToPlan(selectedItem)}>
                       <CalendarPlus aria-hidden="true" size={17} />
-                      {selectedItem.plannedDate ? 'Изменить дату' : 'В Контент-план'}
+                      {selectedItem.contentPlanItemId ? 'Обновить в Контент-плане' : 'В Контент-план'}
                     </button>
                   </div>
                   <label className={s.editorField}>
@@ -368,6 +554,40 @@ export function TgChannelContentPlanTab({
                     onSubmit={(instruction) => onRunPostWorkflow(selectedItem, 'edit', instruction)}
                     placeholder="Например: добавьте мою историю, уберите давление и сделайте призыв конкретнее"
                   />
+                  {postAiProposal?.itemId === selectedItem.id && (
+                    <section className={s.aiProposal} aria-label="Предложенная версия поста">
+                      <div className={s.aiProposalHeader}>
+                        <div>
+                          <span className={s.aiProposalEyebrow}>Вариант AI</span>
+                          <h4>Текущий пост пока не изменён</h4>
+                        </div>
+                      </div>
+                      <div className={s.aiComparisonGrid}>
+                        <div className={s.aiComparisonColumn}>
+                          <strong>Текущая версия</strong>
+                          <h5>{postAiProposal.current.title}</h5>
+                          <p>{postAiProposal.current.text}</p>
+                        </div>
+                        <div className={`${s.aiComparisonColumn} ${s.aiComparisonProposed}`}>
+                          <strong>Предложение AI</strong>
+                          <h5>{postAiProposal.proposed.title}</h5>
+                          <p>{postAiProposal.proposed.text}</p>
+                        </div>
+                      </div>
+                      <div className={s.aiProposalActions}>
+                        <button className={s.button} type="button" onClick={onDismissPostProposal}>Оставить текущую</button>
+                        <button
+                          className={s.primaryButton}
+                          type="button"
+                          data-testid="tg-apply-post-proposal"
+                          onClick={onApplyPostProposal}
+                        >
+                          <Check aria-hidden="true" size={17} />
+                          Применить вариант
+                        </button>
+                      </div>
+                    </section>
+                  )}
                 </div>
               )}
             </>
