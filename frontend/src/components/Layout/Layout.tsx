@@ -533,7 +533,7 @@ export default function Layout({ children }: LayoutProps) {
             className={s.sectionSidebarTrigger}
             onClick={(event) => openSectionDrawer(activeNavigationSection.id, event.currentTarget)}
             aria-label={`Открыть меню раздела ${activeNavigationSection.label}`}
-            aria-controls="section-sidebar"
+            aria-controls={sectionDrawerOpen ? 'section-sidebar' : undefined}
             aria-expanded={sectionDrawerOpen && menuSectionId === activeNavigationSection.id}
           >
             <Menu aria-hidden="true" size={18} strokeWidth={1.9} />

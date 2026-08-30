@@ -43,6 +43,41 @@ function aboutSummarySource(inputs: Record<string, unknown>): string {
     .join('\n\n');
 }
 
+const UTP_SYSTEM_PROMPT = `Ты senior-маркетолог Luma IQ и формулируешь доказуемое УТП проекта.
+
+Перед ответом внутренне проверь семь вопросов:
+1. Кто эксперт или проект и в какой нише работает.
+2. Для какого явно выбранного сегмента создаётся УТП.
+3. Какую JTBD-задачу и какие 3–6 болей клиента оно учитывает.
+4. Какой желаемый результат подтверждён контекстом.
+5. Какой реальный продукт предлагается.
+6. За счёт какого механизма и отличия достигается результат.
+7. Какие доказательства и ограничения обещания есть в данных.
+
+Используй только UtpFoundation. Missing-поля не заполняй догадками. Не смешивай
+сегменты, не придумывай цифры, сроки, кейсы, гарантии, образование или опыт.
+УТП должно быть естественным связным текстом длиной 500–1200 символов, а не
+жёстким шаблоном или списком. Верни только один валидный JSON-объект.`;
+
+const UTP_JSON_CONTRACT = `Верни строго JSON без markdown и дополнительных ключей:
+{
+  "usp": "связный текст УТП длиной 500–1200 символов",
+  "usedEvidence": [
+    { "key": "audience", "label": "Аудитория", "source": "точный source ref из UtpFoundation" }
+  ],
+  "missingData": [
+    { "key": "proofs", "label": "Доказательства", "editPath": "/app/strategy/cases" }
+  ]
+}
+
+Допустимые key/label:
+niche/Ниша; audience/Аудитория; jtbd/Задача клиента; pains/Боли;
+desiredOutcome/Желаемый результат; product/Продукт; mechanism/Механизм;
+differentiation/Отличие; proofs/Доказательства; constraints/Ограничения.
+
+В usedEvidence перечисли только реально использованные source refs. В missingData
+перечисли все и только секции со status=missing, сохранив их точный editPath.`;
+
 const MAIN_PRODUCT_STEPS: Array<{ step: string; label: string; maxTokens: number; minLength: number; task: string }> = [
   {
     step: 'names',
@@ -1343,38 +1378,61 @@ ${contextAppendix(context)}
     },
   },
   {
-    id: 'strategy.utp.generate.v1',
-    version: 'v1',
+    id: 'strategy.utp.generate.v2',
+    version: 'v2',
     feature: 'utp',
     workflow: 'strategy.utp',
     step: 'generate',
     model: 'gpt-5.5',
     temperature: 0.65,
-    maxTokens: 2600,
+    maxTokens: 3500,
     artifactType: 'utp',
-    systemPrompt: (context) => buildUTPPrompt(context.base),
-    userPromptBuilder: ({ inputs, context }) => `${value(inputs, 'mode') === 'improve' ? 'Улучши текущее УТП проекта.' : 'Создай УТП (уникальное торговое предложение) для проекта.'}
-
-Текущее УТП:
-${value(inputs, 'currentUtp', 'Пока нет.')}
+    systemPrompt: () => UTP_SYSTEM_PROMPT,
+    userPromptBuilder: ({ inputs, context }) => `Создай новое УТП проекта на основе переданного UtpFoundation.
 
 Дополнительные пожелания пользователя:
 ${value(inputs, 'inputText', 'не указаны')}
 
-Требования:
-- Работай строго по selective project context.
-- Не меняй нишу и не подставляй психологию, если ее нет в контексте.
-- Структура смысла: кому помогаем + какую проблему решаем + какой результат получает клиент + за счет чего.
-- Длина: 2-3 предложения.
+${UTP_JSON_CONTRACT}
 
 ${contextAppendix(context)}
-
-Ответь только готовым текстом без пояснений.`,
+`,
     validationRules: {
-      minLength: 80,
-      maxLength: 1600,
+      minLength: 500,
+      maxLength: 8000,
       forbiddenIncludes: ['Не могу выполнить', 'как искусственный интеллект'],
-      structuredOutput: 'text',
+      structuredOutput: 'json',
+    },
+  },
+  {
+    id: 'strategy.utp.improve.v1',
+    version: 'v1',
+    feature: 'utp',
+    workflow: 'strategy.utp',
+    step: 'improve',
+    model: 'gpt-5.5',
+    temperature: 0.55,
+    maxTokens: 3500,
+    artifactType: 'utp',
+    systemPrompt: () => UTP_SYSTEM_PROMPT,
+    userPromptBuilder: ({ inputs, context }) => `Доработай текущее УТП по инструкции пользователя.
+Сохрани сильные подтверждённые смыслы, но удали неподтверждённые утверждения.
+
+Текущее УТП:
+${value(inputs, 'currentUtp', 'не заполнено')}
+
+Инструкция пользователя:
+${value(inputs, 'inputText', 'Усиль ясность и конкретику без добавления новых фактов.')}
+
+${UTP_JSON_CONTRACT}
+
+${contextAppendix(context)}
+`,
+    validationRules: {
+      minLength: 500,
+      maxLength: 8000,
+      forbiddenIncludes: ['Не могу выполнить', 'как искусственный интеллект'],
+      structuredOutput: 'json',
     },
   },
   {

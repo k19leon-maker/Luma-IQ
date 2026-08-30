@@ -1,8 +1,11 @@
 import { GeneratedTextType, Prisma } from '@prisma/client';
+import { resolvePersistedUtp } from '../contracts/utp-workspace.contract';
 import { prisma } from '../lib/prisma';
 import { ProjectContext, buildProjectContext } from '../utils/buildProjectContext';
 import { isDemoProductText, isDemoContentText, sanitizeProjectStrategyData } from '../utils/demo-products';
 import { caseStudyContextService } from './case-study-context.service';
+import { renderUtpFoundationForPrompt, utpFoundationService } from './utp-foundation.service';
+import type { UtpFoundation } from '../contracts/utp-foundation.contract';
 
 export type ContextPriority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -24,6 +27,7 @@ export interface ProjectContextBundle {
   blocks: ContextBlock[];
   rendered: string;
   approxTokens: number;
+  utpFoundation?: UtpFoundation;
 }
 
 interface BuildContextInput {
@@ -204,11 +208,11 @@ function shouldInclude(blockKey: string, workflow: string): boolean {
   }
 
   if (group === 'reels') {
-    return ['positioning_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'articles') {
-    return ['positioning_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
+    return ['positioning_summary', 'utp_summary', 'audience_summary', 'castdev_summary', 'products_summary', 'content_history'].includes(blockKey);
   }
 
   if (group === 'chatbot' || group === 'video') {
@@ -281,16 +285,9 @@ function summarizeStrategy(strategyData: Record<string, unknown>, projectSummary
   ], 2200);
 }
 
-function summarizeUtp(value: unknown): string {
-  const data = asRecord(value);
-  if (!Object.keys(data).length) return EMPTY;
-  return lines([
-    ['Главное УТП', field(data, ['finalUtp', 'utp', 'statement', 'formula'])],
-    ['Ключевая выгода', field(data, ['benefit', 'keyBenefit', 'result'])],
-    ['Механизм', field(data, ['mechanism', 'approach'])],
-    ['Доказательства', field(data, ['proof', 'reasonsToBelieve'])],
-    ['Возражения', field(data, ['objections', 'barriers'])],
-  ], 1600);
+function summarizePersistedUtp(utpData: unknown, strategyData: Record<string, unknown>): string {
+  const resolved = resolvePersistedUtp({ strategyData, utpData });
+  return resolved.text ? compact(`- Главное УТП: ${resolved.text}`, 1600) : EMPTY;
 }
 
 function summarizeAudience(avatars: unknown[], jtbdSessions: unknown[]): string {
@@ -423,6 +420,49 @@ export const projectContextService = {
     const workflowGroupName = workflowGroup(input.workflow);
     const tokenBudget = input.tokenBudget ?? contextBudgetFor(input.workflow, input.step);
 
+    if (input.workflow === 'strategy.utp') {
+      const { foundation, projectName } = await utpFoundationService.buildOwned(input.userId, input.projectId);
+      const foundationContent = renderUtpFoundationForPrompt(foundation);
+      const workflowInputSummary = summarizeWorkflowInputs(input.inputs, input.workflow);
+      const allBlocks: ContextBlock[] = [
+        {
+          key: 'utp_foundation',
+          title: 'Основа для УТП',
+          priority: 'critical',
+          content: foundationContent,
+        },
+        {
+          key: 'workflow_inputs',
+          title: 'Входные параметры текущего workflow',
+          priority: 'critical',
+          content: workflowInputSummary,
+        },
+      ];
+      const blocks = selectBlocks(allBlocks, tokenBudget);
+      const rendered = renderBlocks(blocks);
+      const base = buildProjectContext({
+        niche: foundation.niche.value,
+        specialization: foundation.niche.value,
+        typicalClient: foundation.audience.value,
+        uniqueApproach: foundation.mechanism.value,
+        keyResult: foundation.desiredOutcome.value,
+        positioning: foundation.differentiation.value,
+      }, projectName);
+
+      return {
+        projectId: foundation.projectId,
+        projectName,
+        workflow: input.workflow,
+        step: input.step,
+        contextVersion: 'utp-foundation-v1',
+        base,
+        blocks,
+        rendered,
+        approxTokens: estimateTokens(rendered),
+        utpFoundation: foundation,
+      };
+    }
+
     const project = await prisma.project.findFirst({
       where: { id: input.projectId, userId: input.userId },
       include: {
@@ -537,8 +577,8 @@ export const projectContextService = {
       {
         key: 'utp_summary',
         title: 'УТП',
-        priority: workflowGroupName === 'posts' || workflowGroupName === 'reels' || workflowGroupName === 'product' || workflowGroupName === 'leadmagnet' ? 'high' : 'medium',
-        content: summarizeUtp(project.utpData),
+        priority: ['product', 'leadmagnet', 'posts', 'reels', 'articles', 'threads', 'tg-channel', 'instagram', 'chatbot', 'video', 'content-plan', 'content_plan'].includes(workflowGroupName) ? 'high' : 'medium',
+        content: summarizePersistedUtp(project.utpData, strategyData),
       },
       {
         key: 'audience_summary',

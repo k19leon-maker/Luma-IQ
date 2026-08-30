@@ -190,4 +190,86 @@ describe('aiOrchestratorService', () => {
       data: expect.objectContaining({ status: 'FAILED' }),
     }));
   });
+
+  it('releases one reserved UTP charge when grounding validation rejects the final JSON', async () => {
+    const section = (value: string, source: string) => ({
+      status: 'ready', value, source, editPath: '/app/strategy/about',
+    });
+    const foundation = {
+      version: 1,
+      projectId: 'project-1',
+      niche: section('Консалтинг', 'project.niche'),
+      audience: section('Эксперты', 'strategy.answers.chosenSegment'),
+      jtbd: section('Собрать систему', 'strategy.answers.chosenRequest'),
+      pains: { status: 'ready', values: [{ value: 'Нет системы', source: 'strategy.answers.corePains[0]' }], editPath: '/app/strategy/audience' },
+      desiredOutcome: section('Понятный процесс', 'strategy.answers.finalResult'),
+      product: section('Программа', 'product:product-1'),
+      mechanism: section('Методика', 'strategy.positioningData.mechanism'),
+      differentiation: section('Связанные решения', 'strategy.positioningData.differentiation'),
+      proofs: { status: 'ready', values: [{ value: 'Клиент наладил процесс', source: 'caseStudy:case-1.afterText' }], editPath: '/app/strategy/cases' },
+      constraints: { status: 'ready', values: [{ value: 'Без гарантий', source: 'strategy.expertProfileData.antiPreferences[0]' }], editPath: '/app/strategy/about' },
+    };
+    const usp = 'Программа помогает экспертам собрать систему за 30 дней. '
+      + 'Она связывает задачу клиента, продукт и последовательную методику в один понятный процесс. '.repeat(7);
+    const finalStructured = {
+      usp,
+      usedEvidence: [{ key: 'niche', label: 'Ниша', source: 'project.niche' }],
+      missingData: [],
+    };
+    contextBuild.mockResolvedValueOnce({
+      bundle: { contextVersion: 'utp-foundation-v1', utpFoundation: foundation },
+      compactJson: { contextVersion: 'utp-foundation-v1', blocks: [] },
+      summaryId: 'summary-utp',
+      summaryVersion: 1,
+      sourceHash: 'source-utp',
+      promptCacheKey: 'prompt:utp',
+      cacheHit: false,
+      compressed: false,
+      sourceTokens: 100,
+      approxTokens: 100,
+      droppedBlockKeys: [],
+    });
+    pipelineRun.mockResolvedValueOnce({
+      finalContent: JSON.stringify(finalStructured),
+      finalStructured,
+      stageArtifacts: ['stage-artifact'],
+      stageSteps: ['stage-step'],
+      routeDecisions: [],
+      finalRoute: {
+        stage: 'generate',
+        requestedAlias: 'LUNA',
+        selectedAlias: 'LUNA',
+        provider: 'OPENAI',
+        actualModelId: 'model-luna',
+        profileVersionId: 'model-version',
+        profileSource: 'database',
+        fallback: false,
+        downgrade: false,
+        reason: 'primary',
+        candidateIndex: 0,
+      },
+      mock: false,
+    });
+
+    await expect(aiOrchestratorService.run({
+      userId: 'user-1',
+      projectId: 'project-1',
+      actionKey: 'utp',
+      featureCode: 'utp',
+      workflow: 'strategy.utp',
+      inputs: {},
+      promptVersion: 'v2',
+      artifactType: 'utp',
+      validationRules: { minLength: 500, maxLength: 8_000, structuredOutput: 'json' },
+      buildStagePrompt: () => ({ systemPrompt: 'System', userPrompt: 'User' }),
+    })).rejects.toThrow('number "30" is not grounded');
+
+    expect(prismaMock.aIArtifact.create).not.toHaveBeenCalled();
+    expect(finalize).not.toHaveBeenCalled();
+    expect(failDeferred).toHaveBeenCalledTimes(1);
+    expect(failDeferred).toHaveBeenCalledWith(expect.objectContaining({
+      generationId: 'generation-1',
+      userId: 'user-1',
+    }));
+  });
 });

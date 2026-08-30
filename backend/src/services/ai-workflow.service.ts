@@ -25,9 +25,16 @@ function validateWorkflowOutput(
   content: string,
   rules: Parameters<typeof aiValidationService.validate>[1],
   inputs: Record<string, unknown>,
+  context?: Awaited<ReturnType<typeof projectContextService.build>>,
 ) {
   const base = aiValidationService.validate(content, rules);
-  const domain = workflowOutputValidationService.validate(workflow, step, content, inputs);
+  const domain = workflowOutputValidationService.validate(
+    workflow,
+    step,
+    content,
+    inputs,
+    context?.utpFoundation,
+  );
   return {
     ok: base.ok && domain.ok,
     errors: [...base.errors, ...domain.errors],
@@ -76,7 +83,7 @@ function workflowStageType(workflow: string, step: string): 'analysis' | 'option
   return 'final';
 }
 
-function buildRepairPrompt(content: string, errors: string[]): string {
+function buildRepairPrompt(content: string, errors: string[], groundingContext = ''): string {
   return `Исправь результат под ожидаемый формат.
 
 Ошибки валидации:
@@ -84,6 +91,8 @@ ${errors.map((error) => `- ${error}`).join('\n')}
 
 Текущий результат:
 ${content}
+
+${groundingContext ? `Разрешённый grounding context:\n${groundingContext}\n` : ''}
 
 Верни только исправленную финальную версию без комментариев.`;
 }
@@ -459,6 +468,7 @@ export const aiWorkflowService = {
             response.content,
             config.validationRules,
             input.inputs,
+            context,
           );
           let retryCount = 0;
           let usage = response.usage;
@@ -467,7 +477,14 @@ export const aiWorkflowService = {
             retryCount = 1;
             const repair = await chat({
               provider,
-              messages: [{ role: 'user', content: buildRepairPrompt(response.content, validation.errors) }],
+              messages: [{
+                role: 'user',
+                content: buildRepairPrompt(
+                  response.content,
+                  validation.errors,
+                  input.workflow === 'strategy.utp' ? context.rendered : '',
+                ),
+              }],
               systemPrompt,
               section: workflowGroup(input.workflow),
               openaiModel: provider === 'openai' ? model : undefined,
@@ -496,6 +513,7 @@ export const aiWorkflowService = {
               response.content,
               config.validationRules,
               input.inputs,
+              context,
             );
           }
 
@@ -513,6 +531,9 @@ export const aiWorkflowService = {
           }
           if (input.workflow === 'cases' && !validation.ok) {
             throw new Error(`Case workflow validation failed: ${validation.errors.join('; ')}`);
+          }
+          if (input.workflow === 'strategy.utp' && !validation.ok) {
+            throw new Error(`UTP workflow validation failed: ${validation.errors.join('; ')}`);
           }
 
           return {

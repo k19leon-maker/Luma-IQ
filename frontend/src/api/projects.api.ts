@@ -27,6 +27,7 @@ export type ProjectStrategyField =
 export type ProjectGeneratedDataField =
   | 'utp'
   | 'utpHistory'
+  | 'utpMeta'
   | 'social'
   | 'productMain'
   | 'productMini'
@@ -127,6 +128,80 @@ export interface InstagramProfileReadiness {
   }>;
 }
 
+export interface UtpFoundationOption {
+  id: string;
+  label: string;
+}
+
+export interface UtpFoundationSection {
+  status: 'ready' | 'missing';
+  value: string;
+  source: string | null;
+  editPath: string | null;
+  missingReason?: 'not_provided' | 'ambiguous';
+  options?: UtpFoundationOption[];
+}
+
+export interface UtpFoundationListSection {
+  status: 'ready' | 'missing';
+  values: Array<{ value: string; source: string }>;
+  editPath: string | null;
+  missingReason?: 'not_provided' | 'ambiguous';
+}
+
+export interface UtpFoundation {
+  version: 1;
+  projectId: string;
+  niche: UtpFoundationSection;
+  audience: UtpFoundationSection;
+  jtbd: UtpFoundationSection;
+  pains: UtpFoundationListSection;
+  desiredOutcome: UtpFoundationSection;
+  product: UtpFoundationSection;
+  mechanism: UtpFoundationSection;
+  differentiation: UtpFoundationSection;
+  proofs: UtpFoundationListSection;
+  constraints: UtpFoundationListSection;
+}
+
+export interface UtpWorkspaceHistoryEntry {
+  id: string;
+  title: string;
+  createdAt: string;
+  source: 'ai' | 'manual' | 'restore';
+  workflowRunId?: string;
+  workflowStepId?: string;
+  artifactId?: string;
+  generationId?: string;
+  value: string;
+}
+
+export interface UtpWorkspaceMeta {
+  version: 1;
+  usedEvidence: Array<{ key: string; label: string; source: string }>;
+  missingData: Array<{ key: string; label: string; editPath: string | null }>;
+  updatedAt?: string;
+}
+
+export interface UtpWorkspaceState {
+  version: 1;
+  projectId: string;
+  text: string;
+  history: UtpWorkspaceHistoryEntry[];
+  meta: UtpWorkspaceMeta | null;
+  source: 'generatedData.utp' | 'materialsData.utp.md' | 'legacy.utpData' | 'none';
+  revision: number;
+  savedAt: string;
+}
+
+export interface SaveUtpWorkspaceInput {
+  text: string;
+  history: UtpWorkspaceHistoryEntry[];
+  meta: UtpWorkspaceMeta | null;
+  expectedRevision: number;
+  reason: 'manual' | 'ai' | 'restore';
+}
+
 export const projectsApi = {
   list: () =>
     apiClient.get<{ projects: Project[] }>('/projects').then((r) => r.data.projects),
@@ -186,6 +261,21 @@ export const projectsApi = {
         params: { fields: 'unpackingData' },
       })
       .then((r) => (r.data.strategyData as Record<string, unknown> | null)?.['unpackingData'] as Record<string, unknown> | null ?? null),
+
+  getUtpFoundation: (id: string) =>
+    apiClient
+      .get<{ foundation: UtpFoundation }>(`/projects/${id}/utp/foundation`)
+      .then((r) => r.data.foundation),
+
+  getUtpWorkspace: (id: string) =>
+    apiClient
+      .get<{ workspace: UtpWorkspaceState }>(`/projects/${id}/utp/workspace`)
+      .then((r) => r.data.workspace),
+
+  saveUtpWorkspace: (id: string, data: SaveUtpWorkspaceInput) =>
+    apiClient
+      .put<{ workspace: UtpWorkspaceState }>(`/projects/${id}/utp/workspace`, data)
+      .then((r) => r.data.workspace),
 
   getInstagramPackaging: (id: string) =>
     apiClient

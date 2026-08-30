@@ -12,6 +12,13 @@ import {
   pickProjectGeneratedDataFields,
   pickProjectStrategyFields,
 } from '../utils/project-strategy-fields';
+import { UtpFoundationNotFoundError, utpFoundationService } from '../services/utp-foundation.service';
+import { saveUtpWorkspaceSchema } from '../contracts/utp-workspace.contract';
+import {
+  UtpWorkspaceConflictError,
+  UtpWorkspaceNotFoundError,
+  utpWorkspaceService,
+} from '../services/utp-workspace.service';
 
 function sendAccessPolicyError(res: Response, err: AccessPolicyError) {
   res.status(err.status).json({
@@ -361,6 +368,78 @@ export const projectController = {
     } catch (err) {
       console.error('[Projects] getUtpData:', err);
       res.status(500).json({ error: 'Ошибка загрузки' });
+    }
+  },
+
+  /** GET /api/v1/projects/:id/utp/foundation — compact project-owned UTP context */
+  async getUtpFoundation(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { foundation } = await utpFoundationService.buildOwned(req.userId!, req.params.id as string);
+      res.set('Cache-Control', 'private, no-store');
+      res.json({ foundation });
+    } catch (err) {
+      if (err instanceof UtpFoundationNotFoundError) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      console.error('[Projects] getUtpFoundation:', err);
+      res.status(500).json({ error: 'Ошибка при загрузке основы для УТП' });
+    }
+  },
+
+  /** GET /api/v1/projects/:id/utp/workspace — compatible current UTP state */
+  async getUtpWorkspace(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const workspace = await utpWorkspaceService.getOwned(req.userId!, req.params.id as string);
+      res.set('Cache-Control', 'private, no-store');
+      res.json({ workspace });
+    } catch (err) {
+      if (err instanceof UtpWorkspaceNotFoundError) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      console.error('[Projects] getUtpWorkspace:', err);
+      res.status(500).json({ error: 'Ошибка при загрузке УТП' });
+    }
+  },
+
+  /** PUT /api/v1/projects/:id/utp/workspace — atomic UTP + material autosave */
+  async saveUtpWorkspace(req: AuthRequest, res: Response): Promise<void> {
+    const parsed = saveUtpWorkspaceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    try {
+      const workspace = await utpWorkspaceService.saveOwned(
+        req.userId!,
+        req.params.id as string,
+        parsed.data,
+      );
+      void eventService.track('utp_workspace_saved', {
+        userId: req.userId!,
+        metadata: {
+          projectId: req.params.id,
+          reason: parsed.data.reason,
+          revision: workspace.revision,
+        },
+      }).catch(() => {});
+      res.set('Cache-Control', 'private, no-store');
+      res.json({ workspace });
+    } catch (err) {
+      if (err instanceof UtpWorkspaceNotFoundError) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      if (err instanceof UtpWorkspaceConflictError) {
+        res.status(409).json({
+          error: 'UTP_WORKSPACE_CONFLICT',
+          message: 'УТП изменилось в другой вкладке. Обновите данные перед повторным сохранением.',
+        });
+        return;
+      }
+      console.error('[Projects] saveUtpWorkspace:', err);
+      res.status(500).json({ error: 'Ошибка при сохранении УТП' });
     }
   },
 

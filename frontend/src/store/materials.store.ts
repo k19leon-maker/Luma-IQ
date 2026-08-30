@@ -35,6 +35,7 @@ interface MaterialsState {
   projects: Record<string, ProjectMaterial[]>;
   loadFromDb: (projectId: string) => Promise<void>;
   upsertMaterial: (projectId: string, material: Omit<ProjectMaterial, 'updatedAt'> & { updatedAt?: string }) => void;
+  hydrateMaterial: (projectId: string, material: Omit<ProjectMaterial, 'updatedAt'> & { updatedAt?: string }) => void;
   refreshSummary: (projectId: string, materialId: string) => Promise<void>;
   removeMaterial: (projectId: string, id: string) => void;
   getProjectMaterials: (projectId: string) => ProjectMaterial[];
@@ -166,6 +167,24 @@ export const useMaterialsStore = create<MaterialsState>()(
             }, 900);
           }
 
+          return { projects: { ...s.projects, [projectId]: next } };
+        });
+      },
+
+      hydrateMaterial: (projectId, material) => {
+        if (!projectId) return;
+        set((s) => {
+          const current = s.projects[projectId] ?? [];
+          const existing = current.find((item) => item.id === material.id);
+          const nextMaterial = normalizeMaterial({
+            ...(existing ?? {}),
+            ...material,
+            versions: existing?.versions ?? material.versions ?? [],
+            updatedAt: material.updatedAt ?? new Date().toISOString(),
+          } as ProjectMaterial);
+          const next = existing
+            ? current.map((item) => item.id === material.id ? nextMaterial : item)
+            : [nextMaterial, ...current];
           return { projects: { ...s.projects, [projectId]: next } };
         });
       },

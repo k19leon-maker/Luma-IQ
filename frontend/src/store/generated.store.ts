@@ -38,9 +38,17 @@ export interface AiResultVersion<T = unknown> {
   value: T;
 }
 
+export interface UtpMeta {
+  version: 1;
+  usedEvidence: Array<{ key: string; label: string; source: string }>;
+  missingData: Array<{ key: string; label: string; editPath: string | null }>;
+  updatedAt?: string;
+}
+
 interface ProjectGeneratedData {
   utp?: string;
   utpHistory?: AiResultVersion<string>[];
+  utpMeta?: UtpMeta;
   social?: Partial<SocialDraft>;
   productMain?: ProductDraft;
   productMini?: ProductDraft;
@@ -52,7 +60,18 @@ interface GeneratedState {
   projects: Record<string, ProjectGeneratedData>;
   loadedProjectFields: Record<string, Partial<Record<ProjectGeneratedDataField, boolean>>>;
   loadFromDb: (projectId: string, fields?: ProjectGeneratedDataField[]) => Promise<void>;
-  setUtp: (projectId: string, value: string, history?: AiResultVersion<string>[]) => void;
+  setUtp: (
+    projectId: string,
+    value: string,
+    history?: AiResultVersion<string>[],
+    meta?: UtpMeta | null,
+  ) => void;
+  hydrateUtpWorkspace: (
+    projectId: string,
+    value: string,
+    history: AiResultVersion<string>[],
+    meta: UtpMeta | null,
+  ) => void;
   setSocial: (projectId: string, platform: keyof SocialDraft, value: string) => void;
   setProductMain: (projectId: string, value: ProductDraft) => void;
   setProductMini: (projectId: string, value: ProductDraft) => void;
@@ -65,6 +84,7 @@ const EMPTY: ProjectGeneratedData = {};
 const ALL_GENERATED_FIELDS: ProjectGeneratedDataField[] = [
   'utp',
   'utpHistory',
+  'utpMeta',
   'social',
   'productMain',
   'productMini',
@@ -117,11 +137,40 @@ export const useGeneratedStore = create<GeneratedState>()((set, get) => ({
     });
   },
 
-  setUtp: (projectId, utp, utpHistory) =>
+  setUtp: (projectId, utp, utpHistory, utpMeta) =>
     set((s) => {
-      const next = { ...s.projects[projectId], utp, ...(utpHistory ? { utpHistory } : {}) };
+      const next: ProjectGeneratedData = {
+        ...s.projects[projectId],
+        utp,
+        ...(utpHistory ? { utpHistory } : {}),
+        ...(utpMeta ? { utpMeta } : {}),
+      };
+      if (utpMeta === null) delete next.utpMeta;
       syncGenerated(projectId, next);
       return { projects: { ...s.projects, [projectId]: next } };
+    }),
+
+  hydrateUtpWorkspace: (projectId, utp, utpHistory, utpMeta) =>
+    set((s) => {
+      const next: ProjectGeneratedData = {
+        ...s.projects[projectId],
+        utp,
+        utpHistory,
+        ...(utpMeta ? { utpMeta } : {}),
+      };
+      if (!utpMeta) delete next.utpMeta;
+      return {
+        projects: { ...s.projects, [projectId]: next },
+        loadedProjectFields: {
+          ...s.loadedProjectFields,
+          [projectId]: {
+            ...(s.loadedProjectFields[projectId] ?? {}),
+            utp: true,
+            utpHistory: true,
+            utpMeta: true,
+          },
+        },
+      };
     }),
 
   setSocial: (projectId, platform, value) =>

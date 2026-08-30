@@ -64,6 +64,7 @@ export const GLOBAL_NAVIGATION: readonly GlobalNavigationSection[] = [
       item('audience', 'Целевая аудитория', '/strategy/audience'),
       item('castdev', 'CustDev', '/strategy/castdev'),
       item('cases', 'Кейсы', '/strategy/cases', [prefix('/strategy/cases')]),
+      item('utp', 'УТП', '/strategy/utp'),
     ],
   },
   {
@@ -96,11 +97,10 @@ export const GLOBAL_NAVIGATION: readonly GlobalNavigationSection[] = [
     id: 'packaging',
     label: 'Упаковка',
     icon: 'packaging',
-    path: '/strategy/utp',
+    path: '/strategy/social',
     hasSubNavigation: true,
     projectScoped: true,
     children: [
-      item('utp', 'Создание УТП', '/strategy/utp'),
       item('instagram', 'Инста', '/strategy/social'),
       item('telegram', 'ТГ-канал', '/tg-channel'),
       item('threads', 'Тредс', '/threads'),

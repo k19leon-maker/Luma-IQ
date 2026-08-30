@@ -14,6 +14,7 @@ const cases: Array<{
   { workflow: 'strategy.audience', step: 'generate', actionKey: 'audience', aliases: ['LUNA', 'TERRA', 'SOL', 'LUNA'], points: 25, inputs: { stepId: 1 } },
   { workflow: 'positioning.variants', step: 'generate', actionKey: 'positioning', aliases: ['TERRA', 'SOL', 'LUNA'], points: 20 },
   { workflow: 'strategy.utp', step: 'generate', actionKey: 'utp', aliases: ['TERRA', 'LUNA'], points: 20 },
+  { workflow: 'strategy.utp', step: 'improve', actionKey: 'utp', aliases: ['TERRA', 'LUNA'], points: 20 },
   { workflow: 'strategy.offer', step: 'generate', actionKey: 'offer', aliases: ['TERRA', 'SOL', 'LUNA'], points: 30 },
   { workflow: 'strategy.social', step: 'generate', actionKey: 'social', aliases: ['TERRA', 'LUNA', 'TERRA'], points: 15 },
   { workflow: 'strategy.rebuild', step: 'generate', actionKey: 'strategy_rebuild', aliases: ['TERRA', 'SOL', 'LUNA'], points: 100 },

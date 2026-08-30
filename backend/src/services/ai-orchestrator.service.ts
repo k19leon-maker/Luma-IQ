@@ -300,6 +300,7 @@ export const aiOrchestratorService = {
         'final',
         executed.result.finalContent,
         input.inputs,
+        context.bundle.utpFoundation,
       );
       const validation = {
         ok: baseValidation.ok && domainValidation.ok,

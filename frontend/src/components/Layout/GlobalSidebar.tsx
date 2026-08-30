@@ -98,7 +98,7 @@ export default function GlobalSidebar({
                   data-navigation-section={section.id}
                   aria-label={`Открыть меню раздела ${section.label}`}
                   aria-haspopup="menu"
-                  aria-controls="section-sidebar"
+                  aria-controls={menuOpen ? 'section-sidebar' : undefined}
                   aria-expanded={menuOpen}
                   onMouseEnter={(event) => showNavTooltip(event.currentTarget, tooltipLabel)}
                   onMouseLeave={() => setNavTooltip(null)}

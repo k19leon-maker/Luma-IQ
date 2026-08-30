@@ -38,14 +38,19 @@ describe('project strategy field selection', () => {
   });
 
   it('selects only requested generated data fields', () => {
-    const parsed = parseProjectGeneratedDataFields('utp,productMain,utp');
+    const parsed = parseProjectGeneratedDataFields('utp,utpMeta,productMain,utp');
     const selected = pickProjectGeneratedDataFields({
       utp: 'УТП',
+      utpMeta: { version: 1 },
       productMain: { name: 'Продукт' },
       productMini: { name: 'Мини-продукт' },
     }, parsed.fields);
 
-    expect(parsed).toEqual({ fields: ['utp', 'productMain'], invalid: [] });
-    expect(selected).toEqual({ utp: 'УТП', productMain: { name: 'Продукт' } });
+    expect(parsed).toEqual({ fields: ['utp', 'utpMeta', 'productMain'], invalid: [] });
+    expect(selected).toEqual({
+      utp: 'УТП',
+      utpMeta: { version: 1 },
+      productMain: { name: 'Продукт' },
+    });
   });
 });

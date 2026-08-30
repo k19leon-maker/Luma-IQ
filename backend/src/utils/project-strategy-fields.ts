@@ -16,6 +16,7 @@ export type ProjectStrategyField = typeof PROJECT_STRATEGY_FIELDS[number];
 export const PROJECT_GENERATED_DATA_FIELDS = [
   'utp',
   'utpHistory',
+  'utpMeta',
   'social',
   'productMain',
   'productMini',

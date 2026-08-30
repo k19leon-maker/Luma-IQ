@@ -80,7 +80,6 @@ describe('projectContextService CustDev context', () => {
   it.each([
     'product.main',
     'leadmagnet',
-    'strategy.utp',
     'posts.post',
     'reels.script',
     'articles.article',
@@ -97,6 +96,79 @@ describe('projectContextService CustDev context', () => {
     expect(context.rendered).not.toContain('ОТФОРМАТИРОВАННАЯ ТРАНСКРИБАЦИЯ');
   });
 
+  it('uses the compact UTP foundation for UI and AI without full CustDev transcripts', async () => {
+    const context = await build('strategy.utp');
+
+    expect(context.contextVersion).toBe('utp-foundation-v1');
+    expect(context.utpFoundation).toMatchObject({
+      version: 1,
+      projectId: 'project-1',
+      audience: { status: 'ready', value: 'Эксперты' },
+    });
+    expect(context.blocks.map((block) => block.key)).toEqual(['utp_foundation', 'workflow_inputs']);
+    expect(context.rendered).toContain('Основа для УТП');
+    expect(context.rendered).toContain('Боюсь снова делать контент без результата');
+    expect(context.rendered).toContain('source: castdev:castdev-1.analysis.fearsProblemsObjections[0]');
+    expect(context.rendered).not.toContain('ПОЛНАЯ ТРАНСКРИБАЦИЯ');
+    expect(context.rendered).not.toContain('ОТФОРМАТИРОВАННАЯ ТРАНСКРИБАЦИЯ');
+  });
+
+  it.each([
+    'product.main.build',
+    'product.mini.build',
+    'leadmagnet.build',
+    'posts.topic.generate',
+    'posts.post.write',
+    'posts.post.edit',
+    'reels.hooks.generate',
+    'reels.script.write',
+    'reels.script.edit',
+    'articles.topic.generate',
+    'articles.article.write',
+    'articles.article.edit',
+    'threads.plan.generate',
+    'threads.post.edit',
+    'tg-channel.description',
+    'tg-channel.plan',
+    'instagram.profile',
+    'instagram.story.improve',
+    'chatbot.chain.generate',
+    'chatbot.chain.edit',
+    'video.topic.generate',
+    'video.script.write',
+    'video.script.edit',
+    'content-plan',
+  ])('uses UTP as a high-priority foundation for %s', async (workflow) => {
+    const context = await build(workflow);
+    const utpBlock = context.blocks.find((block) => block.key === 'utp_summary');
+
+    expect(utpBlock?.priority).toBe('high');
+    expect(utpBlock?.content).toContain('УТП проекта');
+    expect(context.rendered).toContain('## УТП');
+  });
+
+  it('falls back to the current generated UTP stored in strategy data', async () => {
+    mockedPrisma.project.findFirst.mockResolvedValue({
+      ...projectFixture,
+      utpData: { finalUtp: 'Устаревшее УТП' },
+      strategyData: {
+        ...projectFixture.strategyData,
+        generatedData: { utp: 'УТП из актуального раздела стратегии' },
+      },
+    } as never);
+
+    const context = await projectContextService.build({
+      userId: 'user-1',
+      projectId: 'project-1',
+      workflow: 'product.main',
+      step: 'generate',
+    });
+
+    expect(context.blocks.find((block) => block.key === 'utp_summary')?.content)
+      .toContain('УТП из актуального раздела стратегии');
+    expect(context.rendered).not.toContain('Устаревшее УТП');
+  });
+
   it('does not include CustDev summary into castdev.analysis itself', async () => {
     const context = await build('castdev');
 
@@ -106,7 +178,6 @@ describe('projectContextService CustDev context', () => {
   });
 
   it.each([
-    'strategy.utp',
     'strategy.offer',
     'product.main',
     'leadmagnet',

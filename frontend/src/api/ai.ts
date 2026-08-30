@@ -41,13 +41,27 @@ export interface WorkflowRequest {
   idempotencyKey?: string;
 }
 
-export interface WorkflowResponse {
+export interface UtpAiResult {
+  usp: string;
+  usedEvidence: Array<{
+    key: 'niche' | 'audience' | 'jtbd' | 'pains' | 'desiredOutcome' | 'product' | 'mechanism' | 'differentiation' | 'proofs' | 'constraints';
+    label: string;
+    source: string;
+  }>;
+  missingData: Array<{
+    key: 'niche' | 'audience' | 'jtbd' | 'pains' | 'desiredOutcome' | 'product' | 'mechanism' | 'differentiation' | 'proofs' | 'constraints';
+    label: string;
+    editPath: string | null;
+  }>;
+}
+
+export interface WorkflowResponse<TStructured extends object = Record<string, unknown>> {
   workflowRunId:  string;
   workflowStepId: string;
   artifactId:     string;
   generationId:   string;
   content:        string;
-  structured?:     Record<string, unknown> | null;
+  structured?:     TStructured | null;
   validation:     { ok: boolean; errors: string[] };
   mock:           boolean;
   aiPointsCharged?: number;
@@ -139,14 +153,20 @@ export const aiApi = {
       .post<ChatResponse>('/ai/chat', serverRoutedRequest(req), { timeout: 180_000 })
       .then((r) => notifyBalanceChanged(r.data)),
 
-  startWorkflow: (workflow: string, req: WorkflowRequest) =>
+  startWorkflow: <TStructured extends object = Record<string, unknown>>(
+    workflow: string,
+    req: WorkflowRequest,
+  ) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/start`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
+      .post<WorkflowResponse<TStructured>>(`/ai/workflows/${workflow}/start`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
       .then((r) => notifyBalanceChanged(r.data)),
 
-  runWorkflowStep: (workflow: string, req: WorkflowRequest) =>
+  runWorkflowStep: <TStructured extends object = Record<string, unknown>>(
+    workflow: string,
+    req: WorkflowRequest,
+  ) =>
     apiClient
-      .post<WorkflowResponse>(`/ai/workflows/${workflow}/step`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
+      .post<WorkflowResponse<TStructured>>(`/ai/workflows/${workflow}/step`, serverRoutedWorkflowRequest(req), { timeout: 180_000 })
       .then((r) => notifyBalanceChanged(r.data)),
 
   quoteWorkflow: (workflow: string, req: WorkflowRequest) =>
