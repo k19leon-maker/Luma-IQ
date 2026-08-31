@@ -22,6 +22,7 @@ import {
   type UtpSaveStatus,
   type UtpWorkspaceDraft,
 } from './utpAutosave';
+import { formatUtpText } from './utpTextFormatting';
 import s from './UTP.module.css';
 
 const FOUNDATION_LABELS = {
@@ -207,14 +208,15 @@ export default function UTP() {
         await autosave.flush(projectId).catch(() => null);
         const workspace = await projectsApi.getUtpWorkspace(projectId);
         if (!active || activeProjectRef.current !== projectId) return;
+        const formattedText = formatUtpText(workspace.text);
         autosave.setRevision(projectId, workspace.revision);
-        setUtpText(workspace.text);
-        draftTextRef.current = workspace.text;
+        setUtpText(formattedText);
+        draftTextRef.current = formattedText;
         lastSavedTextRef.current = workspace.text;
         historyRef.current = workspace.history;
         metaRef.current = workspace.meta;
-        hydrateUtpWorkspace(projectId, workspace.text, workspace.history, workspace.meta);
-        hydrateMaterial(projectId, materialWithTimestamp(workspace.text, workspace.savedAt));
+        hydrateUtpWorkspace(projectId, formattedText, workspace.history, workspace.meta);
+        hydrateMaterial(projectId, materialWithTimestamp(formattedText, workspace.savedAt));
         setSaveStatus('saved');
       } catch {
         if (!active || activeProjectRef.current !== projectId) return;
@@ -434,7 +436,7 @@ export default function UTP() {
         || action.currentText !== draftTextRef.current) return;
 
       const result = requireUtpResult(response);
-      const proposedText = result.usp.trim();
+      const proposedText = formatUtpText(result.usp);
       retryAiActionRef.current = null;
 
       if (!action.currentText.trim()) {
