@@ -1,7 +1,7 @@
 # Luma IQ — пакет G «Создание УТП»: regression QA и rollout
 
 Дата: 30 августа 2026 года  
-Статус: rollout выполняется
+Статус: завершён
 
 ## Защита данных и rollback
 
@@ -67,7 +67,42 @@ ARIA-связь плавающего глобального меню.
 
 ## Production rollout
 
-Будет заполнено после controlled rollout и production smoke-test.
+- Основной release commit:
+  `0926abf348e7030393623a1bafa173adf80668df`.
+- Production guardrail hotfix:
+  `83b550a256f3e019a9e372e5c6daeb5e7acca04c`.
+- Backend обновлён на сервере `/app`, production build выполнен успешно,
+  `lumaiq-backend` имеет статус `online`.
+- Prisma подтвердил 36 миграций и отсутствие pending migrations.
+- Frontend опубликован Git-интеграцией Vercel; deployment release commit имеет
+  статус `READY`, маршрут `/app/strategy/utp` и UTP chunk отвечают HTTP 200.
+- Public health: HTTP 200. Deep health: DB, OpenAI, Anthropic и model pricing
+  `ok`; только необязательный SMTP имеет статус `warn`.
+- Неавторизованный маршрут корректно переводит на
+  `/auth?next=%2Fapp%2Fstrategy%2Futp`, overflow равен 0, browser console пуст.
+
+Для авторизованного production smoke был создан отдельный временный пользователь
+и изолированный проект без реальных пользовательских данных.
+
+- Foundation endpoint вернул правильный `projectId` и ready-секции niche,
+  audience, JTBD, pains, desired outcome, mechanism и differentiation.
+- Quote `strategy.utp.generate`: 20 AI-баллов.
+- Первая попытка выявила два слишком строгих edge case: prompt не передавал
+  точные `editPath`, а отрицание «без гарантии» считалось обещанием. Результат
+  не был сохранён; ledger зафиксировал `RESERVE → RELEASE`, capture равен 0.
+- После hotfix `83b550a` реальная OpenAI-генерация успешно прошла строгий JSON и
+  grounding validation; итоговая длина УТП — 635 символов.
+- Повтор с тем же idempotency key вернул тот же artifact и generation.
+- Баланс изменился ровно с 2000 до 1980; одна запись `CAPTURE -20`, двойного
+  списания нет.
+- Workspace сохранился и перечитался с revision 1.
+- После проверки временный пользователь удалён каскадно; контрольный запрос
+  подтвердил `remainingQaUsers: 0`.
+
+Product/content context regression подтверждает, что основные продукты,
+лид-магниты, посты, Reels, статьи, Threads, TG-канал, Instagram, чатботы,
+видео и Контент-план получают применённое `generatedData.utp` как
+high-priority context и не читают непринятое AI-предложение.
 
 ## Неблокирующие наблюдения
 
