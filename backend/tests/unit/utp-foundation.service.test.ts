@@ -189,7 +189,9 @@ describe('utpFoundationService', () => {
       missingReason: 'not_provided',
       values: [{ value: 'Одна подтверждённая боль', source: 'strategy.answers.corePains[0]' }],
     });
-    expect(renderUtpFoundationForPrompt(foundation)).toContain('Одна подтверждённая боль');
+    const rendered = renderUtpFoundationForPrompt(foundation);
+    expect(rendered).toContain('Одна подтверждённая боль');
+    expect(rendered).toContain('editPath: /app/strategy/audience');
   });
 
   it('keeps source refs accurate for a supported legacy profile location', async () => {

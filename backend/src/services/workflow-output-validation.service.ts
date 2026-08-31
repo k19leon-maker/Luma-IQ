@@ -96,6 +96,14 @@ const STRONG_CLAIMS: Array<{ label: string; output: RegExp; evidence: RegExp }> 
   { label: 'лидерство или исключительность', output: /(?:№\s*1|номер\s+один|единственн\w*|лучш\w*)/iu, evidence: /(?:№\s*1|номер\s+один|единственн\w*|лучш\w*)/iu },
 ];
 
+function strongClaimInput(value: string, label: string): string {
+  if (label !== 'гарантия результата') return value;
+  return value.replace(
+    /(?:без\s+гарант\w*|не\s+(?:да[её]м|обеща[её]м|предоставля[её]м)\s+гарант\w*)/giu,
+    '',
+  );
+}
+
 function validateUtpGrounding(result: UtpAiResult, foundation?: UtpFoundation): ValidationResult {
   if (!foundation) return { ok: false, errors: ['UTP foundation is required for grounding validation'] };
   const errors: string[] = [];
@@ -165,7 +173,7 @@ function validateUtpGrounding(result: UtpAiResult, foundation?: UtpFoundation): 
     }
   }
   for (const claim of STRONG_CLAIMS) {
-    if (claim.output.test(result.usp) && !claim.evidence.test(proofCorpus)) {
+    if (claim.output.test(strongClaimInput(result.usp, claim.label)) && !claim.evidence.test(proofCorpus)) {
       errors.push(`usp: unsupported strong claim (${claim.label})`);
     }
   }

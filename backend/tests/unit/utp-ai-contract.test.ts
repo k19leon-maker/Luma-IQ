@@ -218,6 +218,18 @@ describe('strict UTP AI contract and grounding', () => {
     expect(validation.errors.join(' ')).toContain('unsupported strong claim');
   });
 
+  it('accepts an explicit disclaimer that no result guarantee is provided', () => {
+    const current = foundation({ niche: 'Консалтинг', audience: 'Эксперты', product: 'Программа' });
+    const result = validResult(
+      current,
+      longUsp('Программа без гарантии коммерческого результата', 'системная работа'),
+    );
+
+    expect(workflowOutputValidationService.validate(
+      'strategy.utp', 'generate', JSON.stringify(result), {}, current,
+    )).toEqual({ ok: true, errors: [] });
+  });
+
   it('rejects malformed JSON, extra keys and a result without foundation', () => {
     const current = foundation({ niche: 'Консалтинг', audience: 'Эксперты', product: 'Программа', proof: 'Клиент наладил процесс' });
     const result = validResult(current, longUsp('Программа', 'системная работа'));

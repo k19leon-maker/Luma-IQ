@@ -261,7 +261,7 @@ function generatedProduct(generated: RecordValue): TextCandidate | null {
 
 function renderFoundationSection(label: string, section: UtpFoundationSection): string {
   if (section.status === 'missing') {
-    return `- ${label}: [missing:${section.missingReason ?? 'not_provided'}]`;
+    return `- ${label}: [missing:${section.missingReason ?? 'not_provided'}]\n  editPath: ${section.editPath ?? 'null'}`;
   }
   return `- ${label}: ${section.value}\n  source: ${section.source}`;
 }
@@ -269,7 +269,11 @@ function renderFoundationSection(label: string, section: UtpFoundationSection): 
 function renderFoundationList(label: string, section: UtpFoundationListSection): string {
   if (section.status === 'missing') {
     const existing = section.values.map((item) => `  - ${item.value} [source: ${item.source}]`);
-    return [`- ${label}: [missing:${section.missingReason ?? 'not_provided'}]`, ...existing].join('\n');
+    return [
+      `- ${label}: [missing:${section.missingReason ?? 'not_provided'}]`,
+      `  editPath: ${section.editPath ?? 'null'}`,
+      ...existing,
+    ].join('\n');
   }
   return [`- ${label}:`, ...section.values.map((item) => `  - ${item.value} [source: ${item.source}]`)].join('\n');
 }
