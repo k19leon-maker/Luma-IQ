@@ -1,4 +1,4 @@
-import { Subscription, SubscriptionPlan } from '@prisma/client';
+import { Prisma, Subscription, SubscriptionPlan } from '@prisma/client';
 import { PLAN_LIMITS } from '../config/ai-economy';
 import { prisma } from '../lib/prisma';
 import { creditLedgerService } from './credit-ledger.service';
@@ -11,6 +11,56 @@ function startOfUtcMonth(date: Date): Date {
 
 function startOfNextUtcMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+}
+
+const SUBSCRIPTION_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function subscriptionPeriodBounds(expiresAt: Date, now: Date): {
+  periodStart: Date;
+  periodEnd: Date;
+} {
+  let periodEnd = new Date(expiresAt);
+  let periodStart = new Date(periodEnd.getTime() - SUBSCRIPTION_PERIOD_MS);
+
+  while (periodStart > now) {
+    periodEnd = periodStart;
+    periodStart = new Date(periodEnd.getTime() - SUBSCRIPTION_PERIOD_MS);
+  }
+
+  return { periodStart, periodEnd };
+}
+
+async function findOrCreatePeriod(input: {
+  userId: string;
+  subscription?: Subscription | null;
+  planCode: SubscriptionPlan;
+  periodStart: Date;
+  periodEnd: Date;
+  now: Date;
+}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(816272, hashtext(${`${input.userId}:billing-period`}))`;
+    const existing = await tx.billingPeriod.findFirst({
+      where: {
+        userId: input.userId,
+        status: 'OPEN',
+        periodStart: { lte: input.now },
+        periodEnd: { gt: input.now },
+      },
+      orderBy: [{ periodStart: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (existing) return existing;
+
+    return tx.billingPeriod.create({
+      data: {
+        userId: input.userId,
+        subscriptionId: input.subscription?.id ?? null,
+        planCode: input.planCode,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
 async function ensureAiPointAccrual(period: {
@@ -49,81 +99,49 @@ export const billingPeriodService = {
       ? subscription.expiresAt
       : null;
     const { periodStart, periodEnd } = subscriptionPeriodEnd
-      ? {
-        periodStart: new Date(subscriptionPeriodEnd.getTime() - (30 * 24 * 60 * 60 * 1000)),
-        periodEnd: subscriptionPeriodEnd,
-      }
+      ? subscriptionPeriodBounds(subscriptionPeriodEnd, now)
       : billingPeriodService.getPeriodBounds(now);
     const planCode = (subscription?.plan ?? 'FREE') as SubscriptionPlan;
-
-    const existing = await prisma.billingPeriod.findFirst({
-      where: {
-        userId,
-        status: 'OPEN',
-        periodStart: { lte: now },
-        periodEnd: { gt: now },
-      },
-      orderBy: { periodStart: 'desc' },
-    });
-
-    if (existing) {
-      if (existing.creditsGranted <= 0) {
-        const existingPlanCode = existing.planCode as SubscriptionPlan;
-        const amount = PLAN_LIMITS[existingPlanCode].monthlyCredits;
-        if (amount > 0) {
-          await creditLedgerService.grant({
-            userId,
-            amount,
-            billingPeriodId: existing.id,
-            reason: `Monthly credits ${existing.planCode}`,
-            source: 'PLAN',
-          });
-          const updated = await prisma.billingPeriod.update({
-            where: { id: existing.id },
-            data: {
-              creditsGranted: amount,
-              creditsRemainingSnapshot: amount,
-            },
-          });
-          await ensureAiPointAccrual(updated);
-          return updated;
-        }
-      }
-      await ensureAiPointAccrual(existing);
-      return existing;
-    }
-
-    const created = await prisma.billingPeriod.create({
-      data: {
-        userId,
-        subscriptionId: subscription?.id ?? null,
-        planCode,
-        periodStart,
-        periodEnd,
-      },
-    });
-
-    const amount = PLAN_LIMITS[planCode].monthlyCredits;
-    if (amount <= 0) {
-      await ensureAiPointAccrual(created);
-      return created;
-    }
-
-    await creditLedgerService.grant({
+    const period = await findOrCreatePeriod({
       userId,
-      amount,
-      billingPeriodId: created.id,
-      reason: `Monthly credits ${planCode}`,
-      source: 'PLAN',
+      subscription,
+      planCode,
+      periodStart,
+      periodEnd,
+      now,
     });
 
-    const updated = await prisma.billingPeriod.update({
-      where: { id: created.id },
+    if (period.creditsGranted > 0) {
+      await ensureAiPointAccrual(period);
+      return period;
+    }
+
+    const periodPlanCode = period.planCode as SubscriptionPlan;
+    const amount = PLAN_LIMITS[periodPlanCode].monthlyCredits;
+    if (amount <= 0) {
+      await ensureAiPointAccrual(period);
+      return period;
+    }
+
+    const claimed = await prisma.billingPeriod.updateMany({
+      where: { id: period.id, creditsGranted: { lte: 0 } },
       data: {
         creditsGranted: amount,
         creditsRemainingSnapshot: amount,
       },
     });
+
+    if (claimed.count && !(await aiFeatureFlagsService.isEnabled('AI_POINTS_V2'))) {
+      await creditLedgerService.grant({
+        userId,
+        amount,
+        billingPeriodId: period.id,
+        reason: `Monthly credits ${periodPlanCode}`,
+        source: 'PLAN',
+      });
+    }
+
+    const updated = await prisma.billingPeriod.findUniqueOrThrow({ where: { id: period.id } });
     await ensureAiPointAccrual(updated);
     return updated;
   },
