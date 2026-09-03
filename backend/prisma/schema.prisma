@@ -59,6 +59,14 @@ model User {
   promptExperiments        PromptExperiment[]
   consentLogs              ConsentLog[]
   activatedCheckoutIntents CheckoutIntent[]
+  telegramBots             TelegramBot[]
+  botScenarios             BotScenario[]
+  botScenarioVersions      BotScenarioVersion[]
+  botSubscribers           BotSubscriber[]
+  botTags                  BotTag[]
+  botScenarioEnrollments   BotScenarioEnrollment[]
+  botMessageDeliveries     BotMessageDelivery[]
+  botInboundUpdates        BotInboundUpdate[]
 
   @@index([archivedAt])
   @@map("users")
@@ -717,11 +725,12 @@ model AIWorkflowRun {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  steps       AIWorkflowStep[]
-  artifacts   AIArtifact[]
-  generations AIGeneration[]
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps               AIWorkflowStep[]
+  artifacts           AIArtifact[]
+  generations         AIGeneration[]
+  botScenarioVersions BotScenarioVersion[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -771,11 +780,12 @@ model AIArtifact {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workflowRun       AIWorkflowRun?            @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
-  workflowStep      AIWorkflowStep?           @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
-  structuredOutputs ProjectStructuredOutput[]
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project             Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowRun         AIWorkflowRun?            @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  workflowStep        AIWorkflowStep?           @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+  structuredOutputs   ProjectStructuredOutput[]
+  botScenarioVersions BotScenarioVersion[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -995,29 +1005,303 @@ model Project {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jtbdSessions        JTBDSession[]
-  audienceAvatars     AudienceAvatar[]
-  products            Product[]
-  generatedTexts      GeneratedText[]
-  contentPlanItems    ContentPlanItem[]
-  creditLedgerEntries CreditLedgerEntry[]
-  aiGenerations       AIGeneration[]
-  aiUsageEvents       AIUsageEvent[]
-  featureUsageDaily   FeatureUsageDaily[]
-  aiWorkflowRuns      AIWorkflowRun[]
-  aiArtifacts         AIArtifact[]
-  aiContextSummaries  AIContextSummary[]
-  aiBatchJobs         AIBatchJob[]
-  structuredOutputs   ProjectStructuredOutput[]
-  projectFiles        ProjectFile[]
-  tasks               ProjectTask[]
-  castDevRecords      CastDevRecord[]
-  caseStudies         CaseStudy[]
-  caseStudyImports    CaseStudyImport[]
+  user                   User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jtbdSessions           JTBDSession[]
+  audienceAvatars        AudienceAvatar[]
+  products               Product[]
+  generatedTexts         GeneratedText[]
+  contentPlanItems       ContentPlanItem[]
+  creditLedgerEntries    CreditLedgerEntry[]
+  aiGenerations          AIGeneration[]
+  aiUsageEvents          AIUsageEvent[]
+  featureUsageDaily      FeatureUsageDaily[]
+  aiWorkflowRuns         AIWorkflowRun[]
+  aiArtifacts            AIArtifact[]
+  aiContextSummaries     AIContextSummary[]
+  aiBatchJobs            AIBatchJob[]
+  structuredOutputs      ProjectStructuredOutput[]
+  projectFiles           ProjectFile[]
+  tasks                  ProjectTask[]
+  castDevRecords         CastDevRecord[]
+  caseStudies            CaseStudy[]
+  caseStudyImports       CaseStudyImport[]
+  botScenarios           BotScenario[]
+  defaultForTelegramBots TelegramBot[]             @relation("TelegramBotDefaultProject")
 
   @@index([userId, createdAt])
   @@map("projects")
+}
+
+model TelegramBot {
+  id                 String            @id @default(uuid())
+  userId             String
+  defaultProjectId   String?
+  telegramBotId      String            @unique
+  username           String
+  displayName        String
+  encryptedToken     String?
+  tokenKeyVersion    Int               @default(1)
+  tokenLast4         String?
+  publicBotKey       String            @unique
+  webhookSecretHash  String?
+  status             TelegramBotStatus @default(DRAFT)
+  lastHealthCheckAt  DateTime?
+  lastError          String?           @db.Text
+  webhookConnectedAt DateTime?
+  disconnectedAt     DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultProject    Project?                @relation("TelegramBotDefaultProject", fields: [defaultProjectId], references: [id], onDelete: SetNull)
+  scenarios         BotScenario[]
+  subscribers       BotSubscriber[]
+  tags              BotTag[]
+  messageDeliveries BotMessageDelivery[]
+  enrollments       BotScenarioEnrollment[]
+  inboundUpdates    BotInboundUpdate[]
+
+  @@index([userId, status, createdAt])
+  @@index([defaultProjectId])
+  @@index([deletedAt])
+  @@map("telegram_bots")
+}
+
+model BotScenario {
+  id                 String            @id @default(uuid())
+  userId             String
+  botId              String
+  projectId          String
+  name               String
+  description        String?           @db.Text
+  status             BotScenarioStatus @default(DRAFT)
+  draftVersionId     String?           @unique
+  publishedVersionId String?           @unique
+  archivedAt         DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot                    TelegramBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  project                Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions               BotScenarioVersion[]    @relation("BotScenarioVersions")
+  draftVersion           BotScenarioVersion?     @relation("BotScenarioDraftVersion", fields: [draftVersionId], references: [id], onDelete: SetNull)
+  publishedVersion       BotScenarioVersion?     @relation("BotScenarioPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
+  messageDeliveries      BotMessageDelivery[]
+  botScenarioEnrollments BotScenarioEnrollment[]
+
+  @@index([userId, botId, status])
+  @@index([projectId, updatedAt])
+  @@index([archivedAt])
+  @@map("bot_scenarios")
+}
+
+model BotScenarioVersion {
+  id                  String                   @id @default(uuid())
+  scenarioId          String
+  createdByUserId     String
+  version             Int
+  schemaVersion       String                   @default("1.0")
+  definition          Json
+  source              BotScenarioVersionSource @default(MANUAL)
+  sourcePrompt        String?                  @db.Text
+  validationReport    Json?
+  sourceWorkflowRunId String?
+  sourceArtifactId    String?
+  publishedAt         DateTime?
+  createdAt           DateTime                 @default(now())
+
+  scenario             BotScenario             @relation("BotScenarioVersions", fields: [scenarioId], references: [id], onDelete: Cascade)
+  createdBy            User                    @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  sourceWorkflowRun    AIWorkflowRun?          @relation(fields: [sourceWorkflowRunId], references: [id], onDelete: SetNull)
+  sourceArtifact       AIArtifact?             @relation(fields: [sourceArtifactId], references: [id], onDelete: SetNull)
+  draftForScenario     BotScenario?            @relation("BotScenarioDraftVersion")
+  publishedForScenario BotScenario?            @relation("BotScenarioPublishedVersion")
+  enrollments          BotScenarioEnrollment[]
+  messageDeliveries    BotMessageDelivery[]
+
+  @@unique([scenarioId, version])
+  @@index([createdByUserId, createdAt])
+  @@index([sourceWorkflowRunId])
+  @@index([sourceArtifactId])
+  @@map("bot_scenario_versions")
+}
+
+model BotSubscriber {
+  id             String              @id @default(uuid())
+  userId         String
+  botId          String
+  telegramUserId String
+  username       String?
+  firstName      String?
+  lastName       String?
+  languageCode   String?
+  telegramChatId String?
+  phone          String?
+  email          String?
+  status         BotSubscriberStatus @default(ACTIVE)
+  source         String?
+  startParameter String?
+  metadata       Json?
+  firstSeenAt    DateTime            @default(now())
+  lastSeenAt     DateTime            @default(now())
+  stoppedAt      DateTime?
+  blockedAt      DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot               TelegramBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  tags              BotSubscriberTag[]
+  enrollments       BotScenarioEnrollment[]
+  messageDeliveries BotMessageDelivery[]
+
+  @@unique([botId, telegramUserId])
+  @@index([userId, botId, status])
+  @@index([botId, lastSeenAt])
+  @@index([archivedAt])
+  @@map("bot_subscribers")
+}
+
+model BotScenarioEnrollment {
+  id                String                      @id @default(uuid())
+  userId            String
+  botId             String
+  subscriberId      String
+  scenarioId        String
+  scenarioVersionId String
+  triggerUpdateId   String
+  entrypointId      String
+  source            String
+  startParameter    String?
+  currentNodeId     String?
+  status            BotScenarioEnrollmentStatus @default(ACTIVE)
+  state             Json?
+  nextActionAt      DateTime?
+  startedAt         DateTime                    @default(now())
+  lastActivityAt    DateTime                    @default(now())
+  completedAt       DateTime?
+  stoppedAt         DateTime?
+  lastError         String?                     @db.Text
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot             TelegramBot          @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber      BotSubscriber        @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  scenario        BotScenario          @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenarioVersion BotScenarioVersion   @relation(fields: [scenarioVersionId], references: [id], onDelete: Restrict)
+  deliveries      BotMessageDelivery[]
+
+  @@unique([botId, scenarioId, triggerUpdateId])
+  @@index([userId, botId, status, nextActionAt])
+  @@index([subscriberId, status, startedAt])
+  @@index([scenarioId, scenarioVersionId, status])
+  @@map("bot_scenario_enrollments")
+}
+
+model BotTag {
+  id        String   @id @default(uuid())
+  userId    String
+  botId     String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot         TelegramBot        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscribers BotSubscriberTag[]
+
+  @@unique([botId, name])
+  @@index([userId, botId])
+  @@map("bot_tags")
+}
+
+model BotSubscriberTag {
+  subscriberId String
+  tagId        String
+  source       String   @default("manual")
+  assignedAt   DateTime @default(now())
+
+  subscriber BotSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  tag        BotTag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([subscriberId, tagId])
+  @@index([tagId, assignedAt])
+  @@map("bot_subscriber_tags")
+}
+
+model BotInboundUpdate {
+  id               String                 @id @default(uuid())
+  userId           String
+  botId            String
+  telegramUpdateId String
+  kind             String
+  payload          Json
+  status           BotInboundUpdateStatus @default(PENDING)
+  attempts         Int                    @default(0)
+  maxAttempts      Int                    @default(5)
+  nextAttemptAt    DateTime?
+  lockedAt         DateTime?
+  lockedBy         String?
+  processedAt      DateTime?
+  failedAt         DateTime?
+  lastError        String?                @db.Text
+  receivedAt       DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot  TelegramBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, telegramUpdateId])
+  @@index([userId, status, receivedAt])
+  @@index([botId, status, receivedAt])
+  @@map("bot_inbound_updates")
+}
+
+model BotMessageDelivery {
+  id                String                   @id @default(uuid())
+  userId            String
+  botId             String
+  subscriberId      String
+  enrollmentId      String?
+  scenarioId        String?
+  scenarioVersionId String?
+  nodeId            String
+  idempotencyKey    String
+  payload           Json
+  status            BotMessageDeliveryStatus @default(PENDING)
+  scheduledAt       DateTime
+  lockedAt          DateTime?
+  lockedBy          String?
+  attempts          Int                      @default(0)
+  maxAttempts       Int                      @default(5)
+  nextAttemptAt     DateTime?
+  telegramMessageId String?
+  sentAt            DateTime?
+  failedAt          DateTime?
+  lastErrorCode     String?
+  lastError         String?                  @db.Text
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot             TelegramBot            @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber      BotSubscriber          @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  enrollment      BotScenarioEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  scenario        BotScenario?           @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+  scenarioVersion BotScenarioVersion?    @relation(fields: [scenarioVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([botId, idempotencyKey])
+  @@index([userId, status, scheduledAt])
+  @@index([botId, status, nextAttemptAt])
+  @@index([subscriberId, createdAt])
+  @@index([enrollmentId, status, scheduledAt])
+  @@index([scenarioId, scenarioVersionId])
+  @@map("bot_message_deliveries")
 }
 
 model CaseStudy {
@@ -1043,9 +1327,9 @@ model CaseStudy {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([projectId, userId, importBatchKey, importPosition])
   @@index([projectId, status, updatedAt])
   @@index([userId, updatedAt])
-  @@unique([projectId, userId, importBatchKey, importPosition])
   @@map("case_studies")
 }
 
@@ -1318,6 +1602,59 @@ enum GeneratedTextType {
   THREADS
   TG_CHANNEL
   OTHER
+}
+
+enum TelegramBotStatus {
+  DRAFT
+  ACTIVE
+  DISCONNECTED
+  ERROR
+  ARCHIVED
+}
+
+enum BotScenarioStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+enum BotScenarioVersionSource {
+  MANUAL
+  AI
+  IMPORT
+}
+
+enum BotSubscriberStatus {
+  ACTIVE
+  STOPPED
+  BLOCKED
+  ARCHIVED
+}
+
+enum BotScenarioEnrollmentStatus {
+  ACTIVE
+  WAITING
+  COMPLETED
+  STOPPED
+  FAILED
+}
+
+enum BotMessageDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+  DEAD
+}
+
+enum BotInboundUpdateStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  DEAD
 }
 
 enum BillingPeriodStatus {

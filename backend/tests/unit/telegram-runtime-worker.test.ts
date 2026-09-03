@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest';
+import { TelegramBotApiError } from '../../src/services/telegram-bot.service';
+import { telegramRuntimeWorkerInternals } from '../../src/services/telegram-runtime-worker.service';
+
+describe('Telegram runtime worker retry policy', () => {
+  it('retries explicit Telegram rejections but not an ambiguous network outcome', () => {
+    expect(telegramRuntimeWorkerInternals.deliveryMayRetry(new TelegramBotApiError('rate', {
+      code: 'TELEGRAM_RATE_LIMITED',
+      status: 429,
+      retryAfterSeconds: 20,
+    }))).toBe(true);
+    expect(telegramRuntimeWorkerInternals.deliveryMayRetry(new TelegramBotApiError('server', {
+      code: 'TELEGRAM_API_ERROR',
+      status: 502,
+    }))).toBe(true);
+    expect(telegramRuntimeWorkerInternals.deliveryMayRetry(new TelegramBotApiError('timeout', {
+      code: 'TELEGRAM_API_TIMEOUT',
+      status: 504,
+    }))).toBe(false);
+  });
+
+  it('uses bounded exponential backoff with deterministic jitter', () => {
+    const first = telegramRuntimeWorkerInternals.retryDelayMs(1, 'job-a');
+    const fourth = telegramRuntimeWorkerInternals.retryDelayMs(4, 'job-a');
+    const capped = telegramRuntimeWorkerInternals.retryDelayMs(30, 'job-a');
+
+    expect(first).toBeGreaterThanOrEqual(5_000);
+    expect(fourth).toBeGreaterThanOrEqual(40_000);
+    expect(capped).toBeLessThan(3_601_000);
+  });
+});

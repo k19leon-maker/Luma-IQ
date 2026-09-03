@@ -125,10 +125,13 @@ export const GLOBAL_NAVIGATION: readonly GlobalNavigationSection[] = [
     id: 'chatbots',
     label: 'Конструктор чатботов',
     icon: 'chatbots',
-    path: '/chatbot-chains',
+    path: '/chatbots',
     hasSubNavigation: true,
     projectScoped: true,
-    children: [item('chatbot-chains', 'Чат бот', '/chatbot-chains')],
+    children: [
+      item('chatbot-list', 'Мои боты', '/chatbots', [prefix('/chatbots')]),
+      item('chatbot-chains', 'Цепочки (legacy)', '/chatbot-chains'),
+    ],
   },
   {
     id: 'analytics',

@@ -37,6 +37,7 @@ const pageTitles: Record<string, string> = {
   '/reels':           'Рилсы',
   '/articles':        'Статьи',
   '/video-scripts':   'Сценарии видео',
+  '/chatbots':        'Telegram-боты',
   '/chatbot-chains':  'Чат бот',
   '/threads':         'Тредс',
   '/tg-channel':      'ТГ-канал',

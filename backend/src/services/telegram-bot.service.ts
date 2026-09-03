@@ -6,6 +6,9 @@ interface TelegramApiResponse<T> {
   result?: T;
   error_code?: number;
   description?: string;
+  parameters?: {
+    retry_after?: number;
+  };
 }
 
 interface TelegramBotProfile {
@@ -53,12 +56,14 @@ export interface TelegramBotDiagnostics {
 export class TelegramBotApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, options?: { status?: number; code?: string }) {
+  constructor(message: string, options?: { status?: number; code?: string; retryAfterSeconds?: number | null }) {
     super(message);
     this.name = 'TelegramBotApiError';
     this.status = options?.status ?? 502;
     this.code = options?.code ?? 'TELEGRAM_API_ERROR';
+    this.retryAfterSeconds = options?.retryAfterSeconds ?? null;
   }
 }
 
@@ -80,25 +85,53 @@ function unixTimestampToIso(value?: number): string | null {
   return new Date(value * 1000).toISOString();
 }
 
-async function callTelegram<T>(token: string, method: string): Promise<T> {
+async function callTelegram<T>(
+  token: string,
+  method: string,
+  payload?: Record<string, unknown>,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TELEGRAM_REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(telegramEndpoint(token, method), {
-      method: 'GET',
+      method: payload ? 'POST' : 'GET',
       signal: controller.signal,
-      headers: { accept: 'application/json' },
+      headers: {
+        accept: 'application/json',
+        ...(payload ? { 'content-type': 'application/json' } : {}),
+      },
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
     const body = await response.json() as TelegramApiResponse<T>;
 
     if (!response.ok || !body.ok || body.result === undefined) {
       const invalidToken = response.status === 401 || body.error_code === 401;
+      const rateLimited = response.status === 429 || body.error_code === 429;
+      const botBlocked = response.status === 403 || body.error_code === 403;
+      const badRequest = response.status === 400 || body.error_code === 400;
       throw new TelegramBotApiError(
-        invalidToken ? 'Токен Telegram-бота недействителен' : 'Telegram API не выполнил запрос',
+        invalidToken
+          ? 'Токен Telegram-бота недействителен'
+          : rateLimited
+            ? 'Telegram временно ограничил частоту отправки'
+            : botBlocked
+              ? 'Пользователь заблокировал Telegram-бота'
+              : badRequest
+                ? 'Telegram отклонил сообщение'
+                : 'Telegram API не выполнил запрос',
         {
-          status: invalidToken ? 400 : 502,
-          code: invalidToken ? 'INVALID_TELEGRAM_BOT_TOKEN' : 'TELEGRAM_API_ERROR',
+          status: invalidToken ? 400 : rateLimited ? 429 : botBlocked ? 403 : badRequest ? 400 : 502,
+          code: invalidToken
+            ? 'INVALID_TELEGRAM_BOT_TOKEN'
+            : rateLimited
+              ? 'TELEGRAM_RATE_LIMITED'
+              : botBlocked
+                ? 'TELEGRAM_BOT_BLOCKED'
+                : badRequest
+                  ? 'TELEGRAM_BAD_REQUEST'
+                  : 'TELEGRAM_API_ERROR',
+          retryAfterSeconds: body.parameters?.retry_after ?? null,
         },
       );
     }
@@ -148,5 +181,52 @@ export const telegramBotService = {
         allowedUpdates: webhook.allowed_updates ?? [],
       },
     };
+  },
+
+  async setWebhook(input: {
+    token: string;
+    url: string;
+    secretToken: string;
+    allowedUpdates?: string[];
+    dropPendingUpdates?: boolean;
+  }): Promise<void> {
+    await callTelegram<boolean>(input.token, 'setWebhook', {
+      url: input.url,
+      secret_token: input.secretToken,
+      allowed_updates: input.allowedUpdates ?? ['message', 'callback_query', 'my_chat_member'],
+      drop_pending_updates: input.dropPendingUpdates ?? false,
+    });
+  },
+
+  async deleteWebhook(input: { token: string; dropPendingUpdates?: boolean }): Promise<void> {
+    await callTelegram<boolean>(input.token, 'deleteWebhook', {
+      drop_pending_updates: input.dropPendingUpdates ?? false,
+    });
+  },
+
+  async sendMessage(input: {
+    token: string;
+    chatId: string;
+    text: string;
+    parseMode?: 'HTML' | 'MarkdownV2';
+    disableWebPreview?: boolean;
+    buttons?: Array<
+      | { type: 'url'; label: string; url: string }
+      | { type: 'callback'; label: string; callbackData: string }
+    >;
+  }): Promise<{ messageId: string }> {
+    const inlineKeyboard = input.buttons?.length
+      ? [input.buttons.map((button) => button.type === 'url'
+        ? { text: button.label, url: button.url }
+        : { text: button.label, callback_data: button.callbackData })]
+      : undefined;
+    const result = await callTelegram<{ message_id: number }>(input.token, 'sendMessage', {
+      chat_id: input.chatId,
+      text: input.text,
+      ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
+      disable_web_page_preview: input.disableWebPreview ?? false,
+      ...(inlineKeyboard ? { reply_markup: { inline_keyboard: inlineKeyboard } } : {}),
+    });
+    return { messageId: String(result.message_id) };
   },
 };

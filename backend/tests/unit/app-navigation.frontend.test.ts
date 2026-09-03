@@ -20,4 +20,24 @@ describe('application navigation structure', () => {
       hasSubNavigation: true,
     });
   });
+
+  it('opens the chatbot builder on the bot management screen and preserves legacy chains', () => {
+    const chatbots = GLOBAL_NAVIGATION.find((section) => section.id === 'chatbots');
+
+    expect(chatbots?.path).toBe('/chatbots');
+    expect(chatbots?.children?.map((item) => [item.id, item.path])).toEqual([
+      ['chatbot-list', '/chatbots'],
+      ['chatbot-chains', '/chatbot-chains'],
+    ]);
+    expect(resolveNavigation('/app/chatbots')).toMatchObject({
+      globalSectionId: 'chatbots',
+      subsectionId: 'chatbot-list',
+      hasSubNavigation: true,
+    });
+    expect(resolveNavigation('/app/chatbot-chains')).toMatchObject({
+      globalSectionId: 'chatbots',
+      subsectionId: 'chatbot-chains',
+      hasSubNavigation: true,
+    });
+  });
 });
