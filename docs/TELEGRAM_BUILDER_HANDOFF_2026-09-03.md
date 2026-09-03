@@ -1,7 +1,7 @@
 # Telegram-конструктор: handoff этапов 0–4
 
 Дата: 2026-09-03
-Статус: локальный foundation готов к изолированной staging-проверке
+Статус: локальный foundation принят; изолированная migration/worker-проверка пройдена
 Production: не изменён
 
 ## Граница результата
@@ -33,6 +33,10 @@ Production: не изменён
 - frontend `npm run lint -- --quiet` — passed;
 - frontend `npm run build` — passed;
 - полный backend suite — 509 passed, 1 skipped, 1 unrelated failure.
+- clean PostgreSQL migration — 38/38 migrations applied;
+- `prisma migrate status` на изолированной БД — schema up to date;
+- Runtime с `TELEGRAM_RUNTIME_V2_ENABLED=false` — безопасно завершился;
+- Runtime с включённым flag на пустой очереди — worker started, recovered 0/0/0.
 
 Единственное падение полного suite:
 
@@ -53,11 +57,13 @@ Telegram-этапов и вынесена в общий P0 backlog.
 
 ## Следующий безопасный шаг
 
-1. Применить обе миграции к одноразовой/изолированной PostgreSQL базе.
-2. Проверить rollback envelope без destructive rollback production-данных.
-3. Задать тестовый keyring и webhook base URL.
-4. Запустить runtime только с feature flag на тестовом боте.
-5. Пройти E2E `token -> webhook -> /start -> subscriber -> enrollment -> delivery`.
+Изолированная migration/worker-проверка выполнена. Для завершения A1 осталось:
+
+1. Получить отдельный тестовый Telegram-бот, не используемый в production.
+2. Задать тестовый keyring и webhook base URL через secrets.
+3. Запустить runtime только с feature flag на этом тестовом боте.
+4. Пройти live E2E `token -> webhook -> /start -> subscriber -> enrollment -> delivery`.
+5. Проверить webhook rollback через `deleteWebhook`, не удаляя записи БД.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
