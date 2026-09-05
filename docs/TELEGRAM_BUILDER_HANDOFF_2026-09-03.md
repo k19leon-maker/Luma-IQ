@@ -51,6 +51,13 @@ Production: не изменён
 - live E2E `token -> webhook -> /start -> subscriber -> enrollment -> delivery`
   пройден: inbound `PROCESSED`, subscriber `ACTIVE`, enrollment `COMPLETED`,
   delivery `SENT` с первой попытки и без runtime errors;
+- live E2E `start -> callback -> collect_input(email) -> completion` пройден
+  2026-09-05 на `@lumaiq_dev_bot`: четыре inbound updates обработаны с первой
+  попытки, callback подтверждён, email провалидирован и сохранён, три delivery
+  получили `SENT` с первой попытки, создано 10 runtime events, дублей нет;
+- из-за сетевой блокировки исходящего Cloudflare/localtunnel трафика повторный
+  тест входящих updates использовал временный `getUpdates` poller до того же
+  локального webhook; публичный webhook был отдельно доказан предыдущим E2E;
 - webhook после проверки удалён через `deleteWebhook`, очередь пуста, tunnel,
   worker, backend и одноразовая PostgreSQL-база остановлены;
 - production token, production DB, PM2 и production webhook не изменялись.
@@ -81,12 +88,12 @@ admin recovery из пакета A2 реализованы локально. В�
 
 1. добавить защищённое бинарное storage и только после этого включить
    `send_media`; текущий `ProjectFile` хранит извлечённый текст, а не файл;
-2. повторить live E2E с callback и `collect_input`;
-3. провести отдельную cross-tenant live-проверку двух владельцев и двух
+2. провести отдельную cross-tenant live-проверку двух владельцев и двух
    ботов.
 
-Локальные ownership-тесты двух владельцев проходят. Live-проверка остаётся
-release gate и не заменяется моками.
+Локальные ownership-тесты двух владельцев проходят. Live callback/collect_input
+E2E также пройден. Для cross-tenant live-проверки нужен второй отдельный
+тестовый бот; она остаётся release gate и не заменяется моками.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
