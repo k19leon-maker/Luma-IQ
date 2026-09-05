@@ -1,7 +1,7 @@
-# Telegram-конструктор: handoff этапов 0–4
+# Telegram-конструктор: handoff этапов 0–4 и live E2E
 
-Дата: 2026-09-03
-Статус: локальный foundation принят; изолированная migration/worker-проверка пройдена
+Дата: 2026-09-05
+Статус: локальный foundation принят; live E2E и первая часть Runtime A2 пройдены
 Production: не изменён
 
 ## Граница результата
@@ -9,7 +9,7 @@ Production: не изменён
 В handoff входят:
 
 - `ScenarioDefinitionV1` и его backend-валидация;
-- additive Prisma-модели и две миграции;
+- additive Prisma-модели и четыре миграции;
 - tenant-scoped management API нескольких пользовательских Telegram-ботов;
 - AES-256-GCM keyring для bot tokens и redaction;
 - per-bot webhook identity, secret verification и update deduplication;
@@ -17,8 +17,13 @@ Production: не изменён
 - deterministic Runtime v1, PostgreSQL jobs и отдельный worker;
 - `/start`, deep link, keyword, `/stop`, block/unblock;
 - text, wait, tags, fields, simple conditions, goals, handoff,
-  `collect_input` prompt и end;
+  `collect_input`, callback-переходы и end;
 - lease, optimistic locking, retries/backoff, `retry_after` и dead status.
+- идемпотентный `answerCallbackQuery`;
+- проверка и сохранение text/email/phone/number/choice ответов;
+- persistent proactive rate limiter глобально, по bot и chat;
+- tenant-scoped `BotEvent` для запусков, шагов, кликов, ответов, целей,
+  отправок, stop/block и ошибок без хранения текста ответов.
 
 В handoff не входят изменения голосового ввода, раздела «ТГ-канал», Threads,
 лендинга и другие файлы, находящиеся в общей рабочей копии.
@@ -28,7 +33,7 @@ Production: не изменён
 - `npx prisma validate` — passed;
 - `npx prisma generate` — passed;
 - backend `npm run build` — passed;
-- профильные Telegram tests — 43 passed;
+- профильные Telegram tests — 46 passed;
 - frontend `npm run type-check` — passed;
 - frontend `npm run lint -- --quiet` — passed;
 - frontend `npm run build` — passed;
@@ -37,6 +42,16 @@ Production: не изменён
 - `prisma migrate status` на изолированной БД — schema up to date;
 - Runtime с `TELEGRAM_RUNTIME_V2_ENABLED=false` — безопасно завершился;
 - Runtime с включённым flag на пустой очереди — worker started, recovered 0/0/0.
+- отдельный тестовый бот `@lumaiq_dev_bot` прошёл `getMe` и регистрацию с
+  зашифрованным token storage;
+- временный Cloudflare Quick Tunnel открывал только точный webhook тестового
+  бота через ограниченный локальный proxy;
+- live E2E `token -> webhook -> /start -> subscriber -> enrollment -> delivery`
+  пройден: inbound `PROCESSED`, subscriber `ACTIVE`, enrollment `COMPLETED`,
+  delivery `SENT` с первой попытки и без runtime errors;
+- webhook после проверки удалён через `deleteWebhook`, очередь пуста, tunnel,
+  worker, backend и одноразовая PostgreSQL-база остановлены;
+- production token, production DB, PM2 и production webhook не изменялись.
 
 Единственное падение полного suite:
 
@@ -51,19 +66,23 @@ Telegram-этапов и вынесена в общий P0 backlog.
 - включение `TELEGRAM_RUNTIME_V2_ENABLED`;
 - запуск Telegram worker в PM2;
 - переключение webhook реального пользовательского бота;
+- новые миграции `BotEvent` и rate limiter не применялись к production;
 - scenario CRUD/publish/test API;
-- callback transitions, ответы `collect_input`, media и runtime analytics;
+- media delivery из защищённого бинарного storage и admin recovery dead jobs;
 - AI Builder и рабочее пространство сценария.
 
 ## Следующий безопасный шаг
 
-Изолированная migration/worker-проверка выполнена. Для завершения A1 осталось:
+Live E2E пакета A1 выполнен. Callback/input, rate limiting и runtime events из
+пакета A2 реализованы локально. Следующий безопасный шаг:
 
-1. Получить отдельный тестовый Telegram-бот, не используемый в production.
-2. Задать тестовый keyring и webhook base URL через secrets.
-3. Запустить runtime только с feature flag на этом тестовом боте.
-4. Пройти live E2E `token -> webhook -> /start -> subscriber -> enrollment -> delivery`.
-5. Проверить webhook rollback через `deleteWebhook`, не удаляя записи БД.
+1. добавить защищённое бинарное storage и только после этого включить
+   `send_media`; текущий `ProjectFile` хранит извлечённый текст, а не файл;
+2. добавить admin recovery для dead inbound/delivery jobs;
+3. применить две новые additive-миграции на одноразовой PostgreSQL и повторить
+   live E2E с callback и `collect_input`;
+4. провести отдельную cross-tenant integration-проверку двух владельцев и двух
+   ботов.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно

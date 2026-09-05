@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { ChatbotScenarioDefinitionV1 } from '../../src/contracts/chatbot-scenario.contract';
 import {
   calculateWaitUntil,
+  collectInputButtons,
   matchRuntimeEntrypoint,
   parseTelegramRuntimeUpdate,
+  parseCollectedInput,
   renderTelegramTemplate,
   telegramDeliveryPayloadSchema,
 } from '../../src/services/telegram-runtime-v2.logic';
@@ -65,6 +67,74 @@ describe('Telegram Runtime v2 logic', () => {
       .toMatchObject({ entrypointId: 'start', source: 'telegram_start', startParameter: 'missing' });
     expect(matchRuntimeEntrypoint(definition, { type: 'keyword', text: 'бонус' }))
       .toMatchObject({ entrypointId: 'keyword', source: 'telegram_keyword' });
+  });
+
+  it('parses private callback queries and ignores callbacks without a private chat', () => {
+    expect(parseTelegramRuntimeUpdate({
+      update_id: 503,
+      callback_query: {
+        id: 'callback-503',
+        from: { id: 42, first_name: 'Анна' },
+        data: 'offer:accept',
+        message: {
+          message_id: 7,
+          date: 1_700_000_002,
+          chat: { id: 42, type: 'private' },
+        },
+      },
+    })).toMatchObject({
+      telegramUpdateId: '503',
+      telegramUserId: '42',
+      telegramChatId: '42',
+      trigger: { type: 'callback', callbackQueryId: 'callback-503', data: 'offer:accept' },
+    });
+
+    expect(parseTelegramRuntimeUpdate({
+      update_id: 504,
+      callback_query: {
+        id: 'callback-504',
+        from: { id: 42 },
+        data: 'offer:accept',
+      },
+    })).toBeNull();
+  });
+
+  it('builds bounded choice callbacks and validates collected values', () => {
+    const choiceNode = {
+      id: 'choose_goal',
+      type: 'collect_input' as const,
+      field: 'goal',
+      inputType: 'choice' as const,
+      prompt: 'Выберите цель',
+      required: true,
+      choices: ['Продажи', 'Подписчики'],
+    };
+
+    expect(collectInputButtons(choiceNode.choices)).toEqual([
+      { type: 'callback', label: 'Продажи', callbackData: 'lqci:0' },
+      { type: 'callback', label: 'Подписчики', callbackData: 'lqci:1' },
+    ]);
+    expect(parseCollectedInput(choiceNode, {
+      type: 'callback',
+      text: '',
+      callbackQueryId: 'callback-choice',
+      data: 'lqci:1',
+    })).toEqual({ valid: true, value: 'Подписчики' });
+    expect(parseCollectedInput(choiceNode, { type: 'keyword', text: 'продажи' }))
+      .toEqual({ valid: true, value: 'Продажи' });
+
+    expect(parseCollectedInput({ ...choiceNode, inputType: 'email', choices: undefined }, {
+      type: 'keyword', text: 'Owner@Example.com',
+    })).toEqual({ valid: true, value: 'owner@example.com' });
+    expect(parseCollectedInput({ ...choiceNode, inputType: 'phone', choices: undefined }, {
+      type: 'keyword', text: '+7 (999) 123-45-67',
+    })).toEqual({ valid: true, value: '+79991234567' });
+    expect(parseCollectedInput({ ...choiceNode, inputType: 'number', choices: undefined }, {
+      type: 'keyword', text: '12,5',
+    })).toEqual({ valid: true, value: 12.5 });
+    expect(parseCollectedInput({ ...choiceNode, inputType: 'email', choices: undefined }, {
+      type: 'keyword', text: 'не email',
+    })).toMatchObject({ valid: false });
   });
 
   it('schedules the next 09:00 Moscow occurrence without a hard-coded UTC offset', () => {

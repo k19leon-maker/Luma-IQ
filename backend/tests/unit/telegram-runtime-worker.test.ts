@@ -28,4 +28,17 @@ describe('Telegram runtime worker retry policy', () => {
     expect(fourth).toBeGreaterThanOrEqual(40_000);
     expect(capped).toBeLessThan(3_601_000);
   });
+
+  it('calculates one coordinated slot for global, bot and chat limits', () => {
+    expect(telegramRuntimeWorkerInternals.rateLimitIntervalMs(25)).toBe(40);
+    expect(telegramRuntimeWorkerInternals.rateLimitIntervalMs(1)).toBe(1_000);
+    expect(telegramRuntimeWorkerInternals.latestRateLimitSlot(
+      new Date('2026-09-05T08:00:00.000Z'),
+      [
+        new Date('2026-09-05T08:00:00.040Z'),
+        new Date('2026-09-05T08:00:00.020Z'),
+        new Date('2026-09-05T08:00:01.000Z'),
+      ],
+    ).toISOString()).toBe('2026-09-05T08:00:01.000Z');
+  });
 });

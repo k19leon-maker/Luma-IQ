@@ -204,6 +204,19 @@ export const telegramBotService = {
     });
   },
 
+  async answerCallbackQuery(input: {
+    token: string;
+    callbackQueryId: string;
+    text?: string;
+    showAlert?: boolean;
+  }): Promise<void> {
+    await callTelegram<boolean>(input.token, 'answerCallbackQuery', {
+      callback_query_id: input.callbackQueryId,
+      ...(input.text ? { text: input.text.slice(0, 200) } : {}),
+      show_alert: input.showAlert ?? false,
+    });
+  },
+
   async sendMessage(input: {
     token: string;
     chatId: string;

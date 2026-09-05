@@ -67,6 +67,7 @@ model User {
   botScenarioEnrollments   BotScenarioEnrollment[]
   botMessageDeliveries     BotMessageDelivery[]
   botInboundUpdates        BotInboundUpdate[]
+  botEvents                BotEvent[]
 
   @@index([archivedAt])
   @@map("users")
@@ -1061,6 +1062,7 @@ model TelegramBot {
   messageDeliveries BotMessageDelivery[]
   enrollments       BotScenarioEnrollment[]
   inboundUpdates    BotInboundUpdate[]
+  events            BotEvent[]
 
   @@index([userId, status, createdAt])
   @@index([defaultProjectId])
@@ -1090,6 +1092,7 @@ model BotScenario {
   publishedVersion       BotScenarioVersion?     @relation("BotScenarioPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
   messageDeliveries      BotMessageDelivery[]
   botScenarioEnrollments BotScenarioEnrollment[]
+  events                 BotEvent[]
 
   @@index([userId, botId, status])
   @@index([projectId, updatedAt])
@@ -1157,6 +1160,7 @@ model BotSubscriber {
   tags              BotSubscriberTag[]
   enrollments       BotScenarioEnrollment[]
   messageDeliveries BotMessageDelivery[]
+  events            BotEvent[]
 
   @@unique([botId, telegramUserId])
   @@index([userId, botId, status])
@@ -1194,6 +1198,7 @@ model BotScenarioEnrollment {
   scenario        BotScenario          @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   scenarioVersion BotScenarioVersion   @relation(fields: [scenarioVersionId], references: [id], onDelete: Restrict)
   deliveries      BotMessageDelivery[]
+  events          BotEvent[]
 
   @@unique([botId, scenarioId, triggerUpdateId])
   @@index([userId, botId, status, nextActionAt])
@@ -1280,6 +1285,7 @@ model BotMessageDelivery {
   attempts          Int                      @default(0)
   maxAttempts       Int                      @default(5)
   nextAttemptAt     DateTime?
+  rateLimitReservedAt DateTime?
   telegramMessageId String?
   sentAt            DateTime?
   failedAt          DateTime?
@@ -1302,6 +1308,44 @@ model BotMessageDelivery {
   @@index([enrollmentId, status, scheduledAt])
   @@index([scenarioId, scenarioVersionId])
   @@map("bot_message_deliveries")
+}
+
+model BotEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  botId          String
+  subscriberId   String?
+  enrollmentId   String?
+  scenarioId     String?
+  eventType      String
+  nodeId         String?
+  sourceId       String?
+  idempotencyKey String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot        TelegramBot            @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber BotSubscriber?         @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
+  enrollment BotScenarioEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  scenario   BotScenario?           @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+
+  @@unique([botId, idempotencyKey])
+  @@index([userId, eventType, createdAt])
+  @@index([botId, eventType, createdAt])
+  @@index([subscriberId, createdAt])
+  @@index([enrollmentId, createdAt])
+  @@index([scenarioId, createdAt])
+  @@map("bot_events")
+}
+
+model TelegramRateLimitBucket {
+  scopeKey        String   @id
+  nextAvailableAt DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@index([nextAvailableAt])
+  @@map("telegram_rate_limit_buckets")
 }
 
 model CaseStudy {

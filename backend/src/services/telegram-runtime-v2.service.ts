@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import {
   ChatbotScenarioDefinitionV1,
+  ChatbotScenarioNode,
   validateChatbotScenarioDefinition,
 } from '../contracts/chatbot-scenario.contract';
 import { prisma } from '../lib/prisma';
@@ -8,8 +9,11 @@ import { telegramBotService } from './telegram-bot.service';
 import { telegramSecretService } from './telegram-secret.service';
 import {
   calculateWaitUntil,
+  collectInputButtons,
   matchRuntimeEntrypoint,
   parseTelegramRuntimeUpdate,
+  parseCollectedInput,
+  ParsedTelegramRuntimeUpdate,
   renderTelegramTemplate,
   RuntimeEntrypointMatch,
   telegramDeliveryPayloadSchema,
@@ -33,6 +37,7 @@ interface ClaimedDelivery {
   botId: string;
   subscriberId: string;
   enrollmentId: string | null;
+  nodeId: string;
   payload: unknown;
 }
 
@@ -55,7 +60,7 @@ interface EnrollmentRuntime {
 }
 
 export interface TelegramRuntimeInboundResult {
-  outcome: 'ignored' | 'subscriber_updated' | 'stopped' | 'blocked' | 'unblocked' | 'enrolled' | 'already_enrolled';
+  outcome: 'ignored' | 'subscriber_updated' | 'stopped' | 'blocked' | 'unblocked' | 'enrolled' | 'already_enrolled' | 'interaction_processed' | 'interaction_rejected';
   subscriberId?: string;
   enrollmentId?: string;
 }
@@ -91,26 +96,28 @@ async function upsertSubscriber(input: {
   languageCode: string | null;
   source: string;
   startParameter: string | null;
+  reactivate: boolean;
 }) {
   const where = {
     userId: input.userId,
     botId: input.botId,
     telegramUserId: input.telegramUserId,
   };
-  const data = {
+  const profileData = {
     telegramChatId: input.telegramChatId,
     username: input.username,
     firstName: input.firstName,
     lastName: input.lastName,
     languageCode: input.languageCode,
-    status: 'ACTIVE' as const,
     source: input.source,
     ...(input.startParameter ? { startParameter: input.startParameter } : {}),
     lastSeenAt: new Date(),
-    stoppedAt: null,
-    blockedAt: null,
     archivedAt: null,
   };
+  const lifecycleData = input.reactivate
+    ? { status: 'ACTIVE' as const, stoppedAt: null, blockedAt: null }
+    : {};
+  const data = { ...profileData, ...lifecycleData };
 
   const existing = await prisma.botSubscriber.findFirst({ where });
   if (existing) {
@@ -127,6 +134,7 @@ async function upsertSubscriber(input: {
         userId: input.userId,
         botId: input.botId,
         telegramUserId: input.telegramUserId,
+        status: 'ACTIVE',
         ...data,
       },
     });
@@ -205,6 +213,60 @@ function stateVariables(state: Record<string, unknown>): Record<string, unknown>
   return jsonObject(state.variables);
 }
 
+async function recordBotEvent(
+  tx: Tx,
+  input: {
+    userId: string;
+    botId: string;
+    subscriberId?: string;
+    enrollmentId?: string;
+    scenarioId?: string;
+    eventType: string;
+    nodeId?: string;
+    sourceId?: string;
+    idempotencyKey?: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await tx.botEvent.createMany({
+    data: [{
+      userId: input.userId,
+      botId: input.botId,
+      subscriberId: input.subscriberId,
+      enrollmentId: input.enrollmentId,
+      scenarioId: input.scenarioId,
+      eventType: input.eventType,
+      nodeId: input.nodeId,
+      sourceId: input.sourceId,
+      idempotencyKey: input.idempotencyKey,
+      metadata: input.metadata as Prisma.InputJsonValue | undefined,
+    }],
+    skipDuplicates: true,
+  });
+}
+
+async function recordEnrollmentEvent(
+  tx: Tx,
+  runtime: EnrollmentRuntime,
+  eventType: string,
+  options?: {
+    nodeId?: string;
+    sourceId?: string;
+    idempotencyKey?: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await recordBotEvent(tx, {
+    userId: runtime.userId,
+    botId: runtime.botId,
+    subscriberId: runtime.subscriberId,
+    enrollmentId: runtime.id,
+    scenarioId: runtime.scenarioId,
+    eventType,
+    ...options,
+  });
+}
+
 async function setEnrollmentPosition(
   tx: Tx,
   runtime: EnrollmentRuntime,
@@ -233,6 +295,7 @@ async function createScheduledAction(
   nodeId: string,
   scheduledAt: Date,
   payload: Prisma.InputJsonValue,
+  idempotencySuffix?: string,
 ): Promise<void> {
   await tx.botMessageDelivery.createMany({
     data: [{
@@ -243,7 +306,7 @@ async function createScheduledAction(
       scenarioId: runtime.scenarioId,
       scenarioVersionId: runtime.scenarioVersionId,
       nodeId,
-      idempotencyKey: `${runtime.id}:${nodeId}`,
+      idempotencyKey: `${runtime.id}:${nodeId}${idempotencySuffix ? `:${idempotencySuffix}` : ''}`,
       payload,
       scheduledAt,
       nextAttemptAt: scheduledAt,
@@ -292,6 +355,7 @@ async function conditionMatches(
   tx: Tx,
   runtime: EnrollmentRuntime,
   condition: NonNullable<ChatbotScenarioDefinitionV1['edges'][number]['condition']>,
+  interaction?: { answer?: string | number; callbackData?: string },
 ): Promise<boolean> {
   const variables = stateVariables(runtime.state);
   switch (condition.type) {
@@ -303,6 +367,22 @@ async function conditionMatches(
       return (await subscriberTags(tx, runtime)).has(condition.tag);
     case 'tag_absent':
       return !(await subscriberTags(tx, runtime)).has(condition.tag);
+    case 'answer_equals': {
+      if (interaction?.answer === undefined) return false;
+      const actual = String(interaction.answer);
+      return condition.caseSensitive
+        ? actual === condition.value
+        : actual.toLocaleLowerCase('ru-RU') === condition.value.toLocaleLowerCase('ru-RU');
+    }
+    case 'answer_contains': {
+      if (interaction?.answer === undefined) return false;
+      const actual = String(interaction.answer);
+      return condition.caseSensitive
+        ? actual.includes(condition.value)
+        : actual.toLocaleLowerCase('ru-RU').includes(condition.value.toLocaleLowerCase('ru-RU'));
+    }
+    case 'button_callback':
+      return interaction?.callbackData === condition.callbackData;
     default:
       return false;
   }
@@ -313,10 +393,11 @@ async function conditionNextNodeId(
   runtime: EnrollmentRuntime,
   definition: ChatbotScenarioDefinitionV1,
   nodeId: string,
+  interaction?: { answer?: string | number; callbackData?: string },
 ): Promise<string | null> {
   const outgoing = definition.edges.filter((edge) => edge.fromNodeId === nodeId);
   for (const edge of outgoing) {
-    if (edge.condition && await conditionMatches(tx, runtime, edge.condition)) return edge.toNodeId;
+    if (edge.condition && await conditionMatches(tx, runtime, edge.condition, interaction)) return edge.toNodeId;
   }
   return outgoing.find((edge) => !edge.condition)?.toNodeId ?? null;
 }
@@ -343,6 +424,11 @@ async function scheduleNode(
   }
   const node = definition.nodes.find((item) => item.id === nodeId);
   if (!node) throw new TelegramRuntimeDataError(`Узел ${nodeId} не найден`, 'SCENARIO_NODE_NOT_FOUND');
+  await recordEnrollmentEvent(tx, runtime, 'STEP_ENTERED', {
+    nodeId: node.id,
+    idempotencyKey: `${runtime.id}:step:${node.id}`,
+    metadata: { nodeType: node.type },
+  });
 
   if (node.type === 'wait') {
     const resumeAt = calculateWaitUntil(node.schedule, scheduledAt);
@@ -358,7 +444,9 @@ async function scheduleNode(
   if (node.type === 'send_message' || node.type === 'handoff' || node.type === 'collect_input') {
     const variables = stateVariables(runtime.state);
     const text = renderTelegramTemplate(node.type === 'collect_input' ? node.prompt : node.text, variables);
-    const buttons = 'buttons' in node ? node.buttons ?? [] : [];
+    const buttons = node.type === 'collect_input' && node.inputType === 'choice'
+      ? collectInputButtons(node.choices ?? [])
+      : 'buttons' in node ? node.buttons ?? [] : [];
     const waitsForInteraction = node.type === 'collect_input'
       || buttons.some((button) => button.type === 'callback');
     await createScheduledAction(tx, runtime, node.id, scheduledAt, {
@@ -427,6 +515,11 @@ async function scheduleNode(
     const goals = Array.isArray(runtime.state.goals) ? runtime.state.goals : [];
     runtime.state = { ...runtime.state, goals: [...new Set([...goals.map(String), node.goalKey])] };
     await setEnrollmentPosition(tx, runtime, { state: runtime.state as Prisma.InputJsonValue });
+    await recordEnrollmentEvent(tx, runtime, 'GOAL_REACHED', {
+      nodeId: node.id,
+      idempotencyKey: `${runtime.id}:goal:${node.goalKey}`,
+      metadata: { goalKey: node.goalKey },
+    });
     await scheduleNode(tx, runtime, definition, unconditionalNextNodeId(definition, node.id), scheduledAt, depth + 1);
     return;
   }
@@ -452,7 +545,245 @@ async function scheduleNode(
   );
 }
 
-async function stopSubscriber(userId: string, botId: string, subscriberId: string, status: 'STOPPED' | 'BLOCKED') {
+function writableSubscriberField(field: string): 'firstName' | 'lastName' | 'phone' | 'email' | undefined {
+  return {
+    first_name: 'firstName',
+    last_name: 'lastName',
+    phone: 'phone',
+    email: 'email',
+  }[field] as 'firstName' | 'lastName' | 'phone' | 'email' | undefined;
+}
+
+function isInteractionNode(
+  node: ChatbotScenarioNode,
+  parsed: ParsedTelegramRuntimeUpdate,
+  definition: ChatbotScenarioDefinitionV1,
+): boolean {
+  if (node.type === 'collect_input') {
+    return parsed.trigger.type === 'keyword'
+      || parsed.trigger.type === 'message'
+      || (parsed.trigger.type === 'callback' && node.inputType === 'choice' && parsed.trigger.data.startsWith('lqci:'));
+  }
+  if ((node.type === 'send_message' || node.type === 'handoff') && parsed.trigger.type === 'callback') {
+    const callbackData = parsed.trigger.data;
+    return definition.edges.some((edge) => (
+      edge.fromNodeId === node.id
+      && edge.condition?.type === 'button_callback'
+      && edge.condition.callbackData === callbackData
+    ));
+  }
+  return false;
+}
+
+async function continueWaitingEnrollment(input: {
+  update: ClaimedInboundUpdate;
+  parsed: ParsedTelegramRuntimeUpdate;
+  subscriberId: string;
+}): Promise<TelegramRuntimeInboundResult | null> {
+  if (!['keyword', 'message', 'callback'].includes(input.parsed.trigger.type)) return null;
+
+  const candidates = await prisma.botScenarioEnrollment.findMany({
+    where: {
+      userId: input.update.userId,
+      botId: input.update.botId,
+      subscriberId: input.subscriberId,
+      status: 'WAITING',
+      currentNodeId: { not: null },
+    },
+    select: {
+      id: true,
+      userId: true,
+      botId: true,
+      subscriberId: true,
+      scenarioId: true,
+      scenarioVersionId: true,
+      currentNodeId: true,
+      state: true,
+      scenarioVersion: { select: { definition: true } },
+    },
+    orderBy: { lastActivityAt: 'desc' },
+    take: 10,
+  });
+
+  const candidate = candidates.find((item) => {
+    if (!item.currentNodeId) return false;
+    const validation = validateChatbotScenarioDefinition(item.scenarioVersion.definition);
+    if (!validation.valid || !validation.definition) return false;
+    const node = validation.definition.nodes.find((entry) => entry.id === item.currentNodeId);
+    return Boolean(node && isInteractionNode(node, input.parsed, validation.definition));
+  });
+  if (!candidate?.currentNodeId) return null;
+
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.botScenarioEnrollment.findFirst({
+      where: {
+        id: candidate.id,
+        userId: input.update.userId,
+        botId: input.update.botId,
+        subscriberId: input.subscriberId,
+        status: 'WAITING',
+        currentNodeId: candidate.currentNodeId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        botId: true,
+        subscriberId: true,
+        scenarioId: true,
+        scenarioVersionId: true,
+        currentNodeId: true,
+        state: true,
+        subscriber: { select: { telegramChatId: true } },
+        scenarioVersion: { select: { definition: true } },
+      },
+    });
+    if (!current?.currentNodeId || !current.subscriber.telegramChatId) return null;
+
+    const state = jsonObject(current.state);
+    if (state.lastInboundUpdateId === input.update.telegramUpdateId) {
+      return {
+        outcome: 'interaction_processed',
+        subscriberId: current.subscriberId,
+        enrollmentId: current.id,
+      };
+    }
+
+    const validation = validateChatbotScenarioDefinition(current.scenarioVersion.definition);
+    if (!validation.valid || !validation.definition) {
+      throw new TelegramRuntimeDataError('Опубликованный сценарий не прошёл валидацию', 'SCENARIO_DEFINITION_INVALID');
+    }
+    const definition = validation.definition;
+    const node = definition.nodes.find((entry) => entry.id === current.currentNodeId);
+    if (!node || !isInteractionNode(node, input.parsed, definition)) return null;
+
+    const claimed = await tx.botScenarioEnrollment.updateMany({
+      where: {
+        id: current.id,
+        userId: current.userId,
+        botId: current.botId,
+        subscriberId: current.subscriberId,
+        status: 'WAITING',
+        currentNodeId: current.currentNodeId,
+      },
+      data: { status: 'ACTIVE', lastActivityAt: new Date() },
+    });
+    if (claimed.count !== 1) return null;
+
+    const runtime: EnrollmentRuntime = {
+      id: current.id,
+      userId: current.userId,
+      botId: current.botId,
+      subscriberId: current.subscriberId,
+      scenarioId: current.scenarioId,
+      scenarioVersionId: current.scenarioVersionId,
+      telegramChatId: current.subscriber.telegramChatId,
+      state,
+    };
+
+    if (node.type === 'collect_input') {
+      const collected = parseCollectedInput(node, input.parsed.trigger);
+      runtime.state = { ...state, lastInboundUpdateId: input.update.telegramUpdateId };
+      await setEnrollmentPosition(tx, runtime, { state: runtime.state as Prisma.InputJsonValue });
+
+      if (!collected.valid) {
+        await recordEnrollmentEvent(tx, runtime, 'INPUT_REJECTED', {
+          nodeId: node.id,
+          sourceId: input.update.telegramUpdateId,
+          idempotencyKey: `${runtime.id}:input-rejected:${input.update.telegramUpdateId}`,
+          metadata: { field: node.field, inputType: node.inputType },
+        });
+        const buttons = node.inputType === 'choice' ? collectInputButtons(node.choices ?? []) : [];
+        await createScheduledAction(tx, runtime, node.id, new Date(), {
+          kind: 'send_message',
+          chatId: runtime.telegramChatId,
+          text: `${collected.message}\n\n${renderTelegramTemplate(node.prompt, stateVariables(state))}`,
+          parseMode: 'plain',
+          disableWebPreview: false,
+          buttons,
+          nextNodeId: null,
+          waitsForInteraction: true,
+        }, `retry-${input.update.telegramUpdateId}`);
+        return {
+          outcome: 'interaction_rejected',
+          subscriberId: current.subscriberId,
+          enrollmentId: current.id,
+        };
+      }
+
+      const variables = stateVariables(state);
+      runtime.state = {
+        ...runtime.state,
+        variables: { ...variables, [node.field]: collected.value },
+        lastAnswer: collected.value,
+      };
+      const subscriberField = writableSubscriberField(node.field);
+      if (subscriberField) {
+        await tx.botSubscriber.updateMany({
+          where: { id: current.subscriberId, userId: current.userId, botId: current.botId },
+          data: { [subscriberField]: String(collected.value) },
+        });
+      }
+      await setEnrollmentPosition(tx, runtime, { state: runtime.state as Prisma.InputJsonValue });
+      await recordEnrollmentEvent(tx, runtime, 'INPUT_COLLECTED', {
+        nodeId: node.id,
+        sourceId: input.update.telegramUpdateId,
+        idempotencyKey: `${runtime.id}:input:${input.update.telegramUpdateId}`,
+        metadata: { field: node.field, inputType: node.inputType },
+      });
+      const nextNodeId = await conditionNextNodeId(tx, runtime, definition, node.id, { answer: collected.value });
+      await scheduleNode(tx, runtime, definition, nextNodeId, new Date());
+    } else if (input.parsed.trigger.type === 'callback') {
+      runtime.state = {
+        ...state,
+        lastInboundUpdateId: input.update.telegramUpdateId,
+        lastCallbackData: input.parsed.trigger.data,
+      };
+      await setEnrollmentPosition(tx, runtime, { state: runtime.state as Prisma.InputJsonValue });
+      await recordEnrollmentEvent(tx, runtime, 'BUTTON_CLICKED', {
+        nodeId: node.id,
+        sourceId: input.update.telegramUpdateId,
+        idempotencyKey: `${runtime.id}:callback:${input.update.telegramUpdateId}`,
+      });
+      const nextNodeId = await conditionNextNodeId(tx, runtime, definition, node.id, {
+        callbackData: input.parsed.trigger.data,
+      });
+      await scheduleNode(tx, runtime, definition, nextNodeId, new Date());
+    }
+
+    return {
+      outcome: 'interaction_processed',
+      subscriberId: current.subscriberId,
+      enrollmentId: current.id,
+    };
+  });
+}
+
+async function acknowledgeCallback(
+  encryptedToken: string | null,
+  parsed: ParsedTelegramRuntimeUpdate,
+  rejected: boolean,
+): Promise<void> {
+  if (parsed.trigger.type !== 'callback' || !encryptedToken) return;
+  try {
+    await telegramBotService.answerCallbackQuery({
+      token: telegramSecretService.decrypt(encryptedToken),
+      callbackQueryId: parsed.trigger.callbackQueryId,
+      ...(rejected ? { text: 'Кнопка больше не активна.' } : {}),
+    });
+  } catch {
+    console.warn('[TelegramRuntimeV2] callback acknowledgement failed', {
+      telegramUpdateId: parsed.telegramUpdateId,
+    });
+  }
+}
+
+async function stopSubscriber(
+  userId: string,
+  botId: string,
+  subscriberId: string,
+  status: 'STOPPED' | 'BLOCKED',
+  sourceId: string,
+) {
   const timestamp = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.botSubscriber.updateMany({
@@ -469,6 +800,40 @@ async function stopSubscriber(userId: string, botId: string, subscriberId: strin
       where: { userId, botId, subscriberId, status: 'PENDING' },
       data: { status: 'CANCELLED', failedAt: timestamp, nextAttemptAt: null },
     });
+    await recordBotEvent(tx, {
+      userId,
+      botId,
+      subscriberId,
+      eventType: status === 'BLOCKED' ? 'SUBSCRIBER_BLOCKED' : 'SUBSCRIBER_STOPPED',
+      sourceId,
+      idempotencyKey: `subscriber:${subscriberId}:${sourceId}:${status.toLocaleLowerCase('en-US')}`,
+    });
+  });
+}
+
+export async function recordTelegramRuntimeErrorEvent(input: {
+  userId: string;
+  botId: string;
+  subscriberId?: string;
+  enrollmentId?: string | null;
+  scenarioId?: string | null;
+  sourceId: string;
+  queue: 'inbound' | 'delivery';
+  code: string;
+}): Promise<void> {
+  await prisma.botEvent.createMany({
+    data: [{
+      userId: input.userId,
+      botId: input.botId,
+      subscriberId: input.subscriberId,
+      enrollmentId: input.enrollmentId ?? undefined,
+      scenarioId: input.scenarioId ?? undefined,
+      eventType: 'RUNTIME_ERROR',
+      sourceId: input.sourceId,
+      idempotencyKey: `error:${input.queue}:${input.sourceId}:${input.code}`,
+      metadata: { queue: input.queue, code: input.code },
+    }],
+    skipDuplicates: true,
   });
 }
 
@@ -476,7 +841,7 @@ export const telegramRuntimeV2Service = {
   async processInboundUpdate(update: ClaimedInboundUpdate): Promise<TelegramRuntimeInboundResult> {
     const bot = await prisma.telegramBot.findFirst({
       where: { id: update.botId, userId: update.userId, status: 'ACTIVE', deletedAt: null },
-      select: { id: true },
+      select: { id: true, encryptedToken: true },
     });
     if (!bot) return { outcome: 'ignored' };
 
@@ -488,7 +853,13 @@ export const telegramRuntimeV2Service = {
         where: { userId: update.userId, botId: update.botId, telegramUserId: parsed.telegramUserId },
         select: { id: true },
       });
-      if (subscriber) await stopSubscriber(update.userId, update.botId, subscriber.id, 'BLOCKED');
+      if (subscriber) await stopSubscriber(
+        update.userId,
+        update.botId,
+        subscriber.id,
+        'BLOCKED',
+        update.telegramUpdateId,
+      );
       return { outcome: 'blocked', subscriberId: subscriber?.id };
     }
 
@@ -501,17 +872,59 @@ export const telegramRuntimeV2Service = {
       firstName: parsed.firstName,
       lastName: parsed.lastName,
       languageCode: parsed.languageCode,
-      source: parsed.trigger.type === 'start' ? 'telegram_start' : 'telegram_message',
+      source: parsed.trigger.type === 'start'
+        ? 'telegram_start'
+        : parsed.trigger.type === 'callback'
+          ? 'telegram_callback'
+          : 'telegram_message',
       startParameter: parsed.trigger.type === 'start' ? parsed.trigger.parameter : null,
+      reactivate: parsed.trigger.type === 'start' || parsed.trigger.type === 'unblocked',
     });
 
     if (parsed.trigger.type === 'unblocked') {
+      await prisma.botEvent.createMany({
+        data: [{
+          userId: update.userId,
+          botId: update.botId,
+          subscriberId: subscriber.id,
+          eventType: 'SUBSCRIBER_UNBLOCKED',
+          sourceId: update.telegramUpdateId,
+          idempotencyKey: `subscriber:${subscriber.id}:${update.telegramUpdateId}:unblocked`,
+        }],
+        skipDuplicates: true,
+      });
       return { outcome: 'unblocked', subscriberId: subscriber.id };
     }
     if (parsed.trigger.type === 'stop') {
-      await stopSubscriber(update.userId, update.botId, subscriber.id, 'STOPPED');
+      await stopSubscriber(
+        update.userId,
+        update.botId,
+        subscriber.id,
+        'STOPPED',
+        update.telegramUpdateId,
+      );
       return { outcome: 'stopped', subscriberId: subscriber.id };
     }
+    if (subscriber.status === 'STOPPED' || subscriber.status === 'BLOCKED') {
+      if (parsed.trigger.type === 'callback') {
+        await acknowledgeCallback(bot.encryptedToken, parsed, true);
+      }
+      return { outcome: 'subscriber_updated', subscriberId: subscriber.id };
+    }
+
+    const interaction = await continueWaitingEnrollment({
+      update,
+      parsed,
+      subscriberId: subscriber.id,
+    });
+    if (parsed.trigger.type === 'callback') {
+      await acknowledgeCallback(
+        bot.encryptedToken,
+        parsed,
+        !interaction || interaction.outcome === 'interaction_rejected',
+      );
+    }
+    if (interaction) return interaction;
 
     const scenario = await findRuntimeScenario(update.userId, update.botId, parsed.trigger);
     if (!scenario) return { outcome: 'subscriber_updated', subscriberId: subscriber.id };
@@ -567,6 +980,14 @@ export const telegramRuntimeV2Service = {
         telegramChatId: parsed.telegramChatId,
         state,
       };
+      await recordEnrollmentEvent(tx, runtime, 'ENROLLMENT_STARTED', {
+        sourceId: update.telegramUpdateId,
+        idempotencyKey: `${enrollment.id}:started`,
+        metadata: {
+          entrypointId: scenario.entrypoint.entrypointId,
+          source: scenario.entrypoint.source,
+        },
+      });
       await scheduleNode(tx, runtime, scenario.definition, scenario.entrypoint.targetNodeId, new Date());
       return { id: enrollment.id, existing: false };
     });
@@ -670,6 +1091,12 @@ export const telegramRuntimeV2Service = {
       if (changed.count !== 1) {
         throw new TelegramRuntimeDataError('Результат отправки требует ручной сверки', 'DELIVERY_OUTCOME_UNKNOWN');
       }
+      await recordEnrollmentEvent(tx, runtime, 'MESSAGE_SENT', {
+        nodeId: delivery.nodeId,
+        sourceId: delivery.id,
+        idempotencyKey: `${runtime.id}:delivery:${delivery.id}:sent`,
+        metadata: { deliveryId: delivery.id, telegramMessageId: result.messageId },
+      });
       if (payload.waitsForInteraction) {
         await setEnrollmentPosition(tx, runtime, { status: 'WAITING', nextActionAt: null });
       } else {

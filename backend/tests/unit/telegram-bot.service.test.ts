@@ -142,6 +142,24 @@ describe('telegramBotService', () => {
     });
   });
 
+  it('acknowledges a callback query without exposing bot credentials', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(telegramResponse(true));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await telegramBotService.answerCallbackQuery({
+      token: '123456:abcdefghijklmnopqrstuvwxyz_ABCDE',
+      callbackQueryId: 'callback-777',
+      text: 'Готово',
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/answerCallbackQuery');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      callback_query_id: 'callback-777',
+      text: 'Готово',
+      show_alert: false,
+    });
+  });
+
   it('preserves Telegram retry_after for rate-limit scheduling', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
       ok: false,

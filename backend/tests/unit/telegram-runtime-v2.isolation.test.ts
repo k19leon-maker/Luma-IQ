@@ -6,12 +6,24 @@ const mocks = vi.hoisted(() => ({
   subscriberCreate: vi.fn(),
   subscriberUpdateMany: vi.fn(),
   scenarioFindMany: vi.fn(),
+  enrollmentFindMany: vi.fn(),
   enrollmentFindFirst: vi.fn(),
   enrollmentCreate: vi.fn(),
   enrollmentUpdateMany: vi.fn(),
   deliveryCreateMany: vi.fn(),
   deliveryUpdateMany: vi.fn(),
+  botEventCreateMany: vi.fn(),
+  answerCallbackQuery: vi.fn(),
+  decryptToken: vi.fn(),
   transaction: vi.fn(),
+}));
+
+vi.mock('../../src/services/telegram-bot.service', () => ({
+  telegramBotService: { answerCallbackQuery: mocks.answerCallbackQuery, sendMessage: vi.fn() },
+}));
+
+vi.mock('../../src/services/telegram-secret.service', () => ({
+  telegramSecretService: { decrypt: mocks.decryptToken },
 }));
 
 vi.mock('../../src/lib/prisma', () => {
@@ -26,6 +38,7 @@ vi.mock('../../src/lib/prisma', () => {
       createMany: mocks.deliveryCreateMany,
       updateMany: mocks.deliveryUpdateMany,
     },
+    botEvent: { createMany: mocks.botEventCreateMany },
   };
   return {
     prisma: {
@@ -36,7 +49,11 @@ vi.mock('../../src/lib/prisma', () => {
         updateMany: mocks.subscriberUpdateMany,
       },
       botScenario: { findMany: mocks.scenarioFindMany },
-      botScenarioEnrollment: { findFirst: mocks.enrollmentFindFirst },
+      botScenarioEnrollment: {
+        findFirst: mocks.enrollmentFindFirst,
+        findMany: mocks.enrollmentFindMany,
+      },
+      botEvent: { createMany: mocks.botEventCreateMany },
       $transaction: mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     },
   };
@@ -79,6 +96,8 @@ const update = {
 describe('telegramRuntimeV2Service ownership isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.decryptToken.mockReturnValue('decrypted-token');
+    mocks.answerCallbackQuery.mockResolvedValue(undefined);
     mocks.transaction.mockImplementation(async (callback) => callback({
       botSubscriber: { updateMany: mocks.subscriberUpdateMany },
       botScenarioEnrollment: {
@@ -90,6 +109,7 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
         createMany: mocks.deliveryCreateMany,
         updateMany: mocks.deliveryUpdateMany,
       },
+      botEvent: { createMany: mocks.botEventCreateMany },
     }));
   });
 
@@ -100,7 +120,7 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
 
     expect(mocks.telegramBotFindFirst).toHaveBeenCalledWith({
       where: { id: 'bot-a', userId: 'user-a', status: 'ACTIVE', deletedAt: null },
-      select: { id: true },
+      select: { id: true, encryptedToken: true },
     });
     expect(mocks.subscriberFindFirst).not.toHaveBeenCalled();
   });
@@ -142,6 +162,13 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
       })],
       skipDuplicates: true,
     });
+    expect(mocks.botEventCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        eventType: 'ENROLLMENT_STARTED',
+        idempotencyKey: 'enrollment-a:started',
+      })],
+      skipDuplicates: true,
+    });
   });
 
   it('scopes /stop across subscriber, enrollments and pending deliveries', async () => {
@@ -169,5 +196,189 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
     expect(mocks.deliveryUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ userId: 'user-a', botId: 'bot-a', subscriberId: 'subscriber-a', status: 'PENDING' }),
     }));
+  });
+
+  it('does not reactivate a stopped subscriber from an ordinary message', async () => {
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a', encryptedToken: 'ciphertext' });
+    mocks.subscriberFindFirst.mockResolvedValue({ id: 'subscriber-a', status: 'STOPPED' });
+    mocks.subscriberUpdateMany.mockResolvedValue({ count: 1 });
+
+    const result = await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '7011',
+      payload: {
+        ...update.payload,
+        update_id: 7011,
+        message: { ...update.payload.message, text: 'бонус' },
+      },
+    });
+
+    expect(result).toEqual({ outcome: 'subscriber_updated', subscriberId: 'subscriber-a' });
+    expect(mocks.subscriberUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ status: 'ACTIVE' }),
+    }));
+    expect(mocks.scenarioFindMany).not.toHaveBeenCalled();
+    expect(mocks.enrollmentFindMany).not.toHaveBeenCalled();
+  });
+
+  it('continues a waiting scenario through an owner-scoped callback and acknowledges it', async () => {
+    const callbackDefinition = {
+      ...validDefinition,
+      nodes: [
+        {
+          id: 'welcome',
+          type: 'send_message',
+          text: 'Продолжить?',
+          parseMode: 'plain',
+          disableWebPreview: false,
+          buttons: [{ type: 'callback', label: 'Да', callbackData: 'continue:yes' }],
+        },
+        { id: 'end', type: 'end' },
+      ],
+      edges: [{
+        id: 'to_end',
+        fromNodeId: 'welcome',
+        toNodeId: 'end',
+        condition: { type: 'button_callback', callbackData: 'continue:yes' },
+      }],
+    };
+    const waiting = {
+      id: 'enrollment-a',
+      userId: 'user-a',
+      botId: 'bot-a',
+      subscriberId: 'subscriber-a',
+      scenarioId: 'scenario-a',
+      scenarioVersionId: 'version-a',
+      currentNodeId: 'welcome',
+      state: { variables: {} },
+      subscriber: { telegramChatId: '42' },
+      scenarioVersion: { definition: callbackDefinition },
+    };
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a', encryptedToken: 'ciphertext' });
+    mocks.subscriberFindFirst.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.subscriberUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.enrollmentFindMany.mockResolvedValue([waiting]);
+    mocks.enrollmentFindFirst.mockResolvedValue(waiting);
+    mocks.enrollmentUpdateMany.mockResolvedValue({ count: 1 });
+
+    const result = await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '702',
+      payload: {
+        update_id: 702,
+        callback_query: {
+          id: 'callback-702',
+          from: { id: 42, first_name: 'Анна', username: 'anna' },
+          data: 'continue:yes',
+          message: {
+            message_id: 10,
+            date: 1_700_000_010,
+            chat: { id: 42, type: 'private' },
+          },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: 'interaction_processed',
+      subscriberId: 'subscriber-a',
+      enrollmentId: 'enrollment-a',
+    });
+    expect(mocks.answerCallbackQuery).toHaveBeenCalledWith({
+      token: 'decrypted-token',
+      callbackQueryId: 'callback-702',
+    });
+    expect(mocks.botEventCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        eventType: 'BUTTON_CLICKED',
+        sourceId: '702',
+      })],
+      skipDuplicates: true,
+    });
+    expect(mocks.enrollmentUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 'enrollment-a',
+        userId: 'user-a',
+        botId: 'bot-a',
+        subscriberId: 'subscriber-a',
+      }),
+    }));
+  });
+
+  it('stores a validated collect_input answer and schedules the next node', async () => {
+    const collectDefinition = {
+      ...validDefinition,
+      entrypoints: [{ id: 'start', type: 'start', targetNodeId: 'email' }],
+      variables: [{ name: 'contact_email', type: 'string', required: false }],
+      nodes: [
+        {
+          id: 'email',
+          type: 'collect_input',
+          field: 'contact_email',
+          inputType: 'email',
+          prompt: 'Укажите email',
+          required: true,
+        },
+        { id: 'thanks', type: 'send_message', text: 'Спасибо', parseMode: 'plain', disableWebPreview: false },
+        { id: 'end', type: 'end' },
+      ],
+      edges: [
+        { id: 'to_thanks', fromNodeId: 'email', toNodeId: 'thanks' },
+        { id: 'to_end', fromNodeId: 'thanks', toNodeId: 'end' },
+      ],
+    };
+    const waiting = {
+      id: 'enrollment-a',
+      userId: 'user-a',
+      botId: 'bot-a',
+      subscriberId: 'subscriber-a',
+      scenarioId: 'scenario-a',
+      scenarioVersionId: 'version-a',
+      currentNodeId: 'email',
+      state: { variables: {} },
+      subscriber: { telegramChatId: '42' },
+      scenarioVersion: { definition: collectDefinition },
+    };
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a', encryptedToken: 'ciphertext' });
+    mocks.subscriberFindFirst.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.subscriberUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.enrollmentFindMany.mockResolvedValue([waiting]);
+    mocks.enrollmentFindFirst.mockResolvedValue(waiting);
+    mocks.enrollmentUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.deliveryCreateMany.mockResolvedValue({ count: 1 });
+
+    const result = await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '703',
+      payload: {
+        ...update.payload,
+        update_id: 703,
+        message: { ...update.payload.message, text: 'Owner@Example.com' },
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: 'interaction_processed', enrollmentId: 'enrollment-a' });
+    expect(mocks.deliveryCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        idempotencyKey: 'enrollment-a:thanks',
+        payload: expect.objectContaining({ kind: 'send_message', text: 'Спасибо' }),
+      })],
+      skipDuplicates: true,
+    });
+    expect(mocks.enrollmentUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        state: expect.objectContaining({
+          variables: expect.objectContaining({ contact_email: 'owner@example.com' }),
+        }),
+      }),
+    }));
+    expect(mocks.botEventCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        eventType: 'INPUT_COLLECTED',
+        sourceId: '703',
+        metadata: { field: 'contact_email', inputType: 'email' },
+      })],
+      skipDuplicates: true,
+    });
   });
 });

@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../lib/prisma';
 import { TelegramBotApiError } from './telegram-bot.service';
 import { safeTelegramErrorMessage } from './telegram-secret.service';
 import {
+  recordTelegramRuntimeErrorEvent,
   TelegramRuntimeDataError,
   telegramRuntimeV2Service,
 } from './telegram-runtime-v2.service';
@@ -28,6 +30,71 @@ function errorCode(error: unknown): string {
 function deliveryMayRetry(error: unknown): boolean {
   if (!(error instanceof TelegramBotApiError)) return false;
   return error.code === 'TELEGRAM_RATE_LIMITED' || error.code === 'TELEGRAM_API_ERROR';
+}
+
+function rateLimitIntervalMs(ratePerSecond: number): number {
+  return Math.ceil(1_000 / ratePerSecond);
+}
+
+function latestRateLimitSlot(now: Date, nextAvailable: Date[]): Date {
+  return new Date(Math.max(now.getTime(), ...nextAvailable.map((value) => value.getTime())));
+}
+
+function isTransactionConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+}
+
+async function reserveDeliveryRateLimit(input: {
+  botId: string;
+  subscriberId: string;
+  now: Date;
+}): Promise<Date> {
+  const scopes = [
+    {
+      scopeKey: 'telegram:user-runtime:global',
+      intervalMs: rateLimitIntervalMs(env.TELEGRAM_RUNTIME_GLOBAL_RATE_PER_SECOND),
+    },
+    {
+      scopeKey: `telegram:user-runtime:bot:${input.botId}`,
+      intervalMs: rateLimitIntervalMs(env.TELEGRAM_RUNTIME_BOT_RATE_PER_SECOND),
+    },
+    {
+      scopeKey: `telegram:user-runtime:chat:${input.botId}:${input.subscriberId}`,
+      intervalMs: rateLimitIntervalMs(env.TELEGRAM_RUNTIME_CHAT_RATE_PER_SECOND),
+    },
+  ];
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        for (const scope of scopes) {
+          await tx.telegramRateLimitBucket.upsert({
+            where: { scopeKey: scope.scopeKey },
+            create: { scopeKey: scope.scopeKey, nextAvailableAt: input.now },
+            update: {},
+          });
+        }
+        const buckets = await tx.telegramRateLimitBucket.findMany({
+          where: { scopeKey: { in: scopes.map((scope) => scope.scopeKey) } },
+          select: { scopeKey: true, nextAvailableAt: true },
+        });
+        if (buckets.length !== scopes.length) {
+          throw new TelegramRuntimeDataError('Не удалось зарезервировать лимит Telegram', 'RATE_LIMIT_BUCKET_MISSING');
+        }
+        const slot = latestRateLimitSlot(input.now, buckets.map((bucket) => bucket.nextAvailableAt));
+        for (const scope of scopes) {
+          await tx.telegramRateLimitBucket.update({
+            where: { scopeKey: scope.scopeKey },
+            data: { nextAvailableAt: new Date(slot.getTime() + scope.intervalMs) },
+          });
+        }
+        return slot;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!isTransactionConflict(error) || attempt === 4) throw error;
+    }
+  }
+  throw new TelegramRuntimeDataError('Не удалось зарезервировать лимит Telegram', 'RATE_LIMIT_RESERVATION_FAILED');
 }
 
 async function claimInbound(workerId: string) {
@@ -75,6 +142,28 @@ async function claimDelivery(workerId: string) {
       orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
     });
     if (!candidate) return null;
+    if (!candidate.rateLimitReservedAt) {
+      const reservedAt = await reserveDeliveryRateLimit({
+        botId: candidate.botId,
+        subscriberId: candidate.subscriberId,
+        now,
+      });
+      const reserved = await prisma.botMessageDelivery.updateMany({
+        where: {
+          id: candidate.id,
+          userId: candidate.userId,
+          botId: candidate.botId,
+          subscriberId: candidate.subscriberId,
+          status: 'PENDING',
+          rateLimitReservedAt: null,
+        },
+        data: {
+          rateLimitReservedAt: reservedAt,
+          nextAttemptAt: reservedAt,
+        },
+      });
+      if (reserved.count !== 1 || reservedAt.getTime() > Date.now()) continue;
+    }
     const claimed = await prisma.botMessageDelivery.updateMany({
       where: {
         id: candidate.id,
@@ -213,6 +302,7 @@ async function failDelivery(
       lockedBy: null,
       lastErrorCode: code,
       lastError: safeTelegramErrorMessage(error).slice(0, 2_000),
+      rateLimitReservedAt: retryable ? null : delivery.rateLimitReservedAt,
     },
   });
 
@@ -313,6 +403,13 @@ export const telegramRuntimeWorkerService = {
           stats.inboundProcessed += 1;
         } catch (error) {
           await failInbound(update, error);
+          await recordTelegramRuntimeErrorEvent({
+            userId: update.userId,
+            botId: update.botId,
+            sourceId: update.id,
+            queue: 'inbound',
+            code: errorCode(error),
+          }).catch(() => undefined);
           stats.failed += 1;
           console.error('[TelegramRuntimeV2] inbound failed', {
             updateId: update.id,
@@ -330,6 +427,16 @@ export const telegramRuntimeWorkerService = {
           stats.deliveriesProcessed += 1;
         } catch (error) {
           await failDelivery(delivery, error);
+          await recordTelegramRuntimeErrorEvent({
+            userId: delivery.userId,
+            botId: delivery.botId,
+            subscriberId: delivery.subscriberId,
+            enrollmentId: delivery.enrollmentId,
+            scenarioId: delivery.scenarioId,
+            sourceId: delivery.id,
+            queue: 'delivery',
+            code: errorCode(error),
+          }).catch(() => undefined);
           stats.failed += 1;
           console.error('[TelegramRuntimeV2] delivery failed', {
             deliveryId: delivery.id,
@@ -366,4 +473,6 @@ export const telegramRuntimeWorkerService = {
 export const telegramRuntimeWorkerInternals = {
   retryDelayMs,
   deliveryMayRetry,
+  rateLimitIntervalMs,
+  latestRateLimitSlot,
 };

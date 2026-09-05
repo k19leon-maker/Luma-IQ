@@ -35,6 +35,16 @@ export interface TelegramRuntimeUpdate {
     from: TelegramRuntimeUser;
     new_chat_member: { status: string };
   };
+  callback_query?: {
+    id: string;
+    from: TelegramRuntimeUser;
+    data?: string;
+    message?: {
+      message_id: number;
+      date: number;
+      chat: TelegramRuntimeChat;
+    };
+  };
 }
 
 export type TelegramRuntimeTrigger =
@@ -43,6 +53,7 @@ export type TelegramRuntimeTrigger =
   | { type: 'stop'; text: string }
   | { type: 'blocked'; text: '' }
   | { type: 'unblocked'; text: '' }
+  | { type: 'callback'; text: ''; callbackQueryId: string; data: string }
   | { type: 'message'; text: string };
 
 export interface ParsedTelegramRuntimeUpdate {
@@ -91,11 +102,39 @@ export type TelegramDeliveryPayload = z.infer<typeof telegramDeliveryPayloadSche
 
 const START_COMMAND = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+([A-Za-z0-9_-]{1,64}))?\s*$/i;
 const STOP_COMMAND = /^\/stop(?:@[A-Za-z0-9_]+)?\s*$/i;
+const COLLECT_INPUT_CALLBACK = /^lqci:(\d{1,2})$/;
 
 export function parseTelegramRuntimeUpdate(input: unknown): ParsedTelegramRuntimeUpdate | null {
   if (!input || typeof input !== 'object') return null;
   const update = input as TelegramRuntimeUpdate;
   if (!Number.isInteger(update.update_id) || update.update_id < 0) return null;
+
+  const callback = update.callback_query;
+  if (
+    callback?.message?.chat.type === 'private'
+    && callback.from
+    && !callback.from.is_bot
+    && typeof callback.id === 'string'
+    && callback.id.length > 0
+    && typeof callback.data === 'string'
+    && Buffer.byteLength(callback.data, 'utf8') <= 64
+  ) {
+    return {
+      telegramUpdateId: String(update.update_id),
+      telegramUserId: String(callback.from.id),
+      telegramChatId: String(callback.message.chat.id),
+      username: callback.from.username ?? null,
+      firstName: callback.from.first_name ?? null,
+      lastName: callback.from.last_name ?? null,
+      languageCode: callback.from.language_code ?? null,
+      trigger: {
+        type: 'callback',
+        text: '',
+        callbackQueryId: callback.id,
+        data: callback.data,
+      },
+    };
+  }
 
   if (update.message?.chat.type === 'private' && update.message.from && !update.message.from.is_bot) {
     const text = update.message.text?.trim() ?? '';
@@ -257,4 +296,81 @@ export function unconditionalNextNodeId(
   nodeId: string,
 ): string | null {
   return definition.edges.find((edge) => edge.fromNodeId === nodeId && !edge.condition)?.toNodeId ?? null;
+}
+
+export function collectInputButtons(choices: string[]): Array<{
+  type: 'callback';
+  label: string;
+  callbackData: string;
+}> {
+  return choices.map((label, index) => ({
+    type: 'callback',
+    label,
+    callbackData: `lqci:${index}`,
+  }));
+}
+
+export type CollectedInputResult =
+  | { valid: true; value: string | number }
+  | { valid: false; message: string };
+
+export function parseCollectedInput(
+  node: Extract<ChatbotScenarioNode, { type: 'collect_input' }>,
+  trigger: TelegramRuntimeTrigger,
+): CollectedInputResult {
+  let rawValue = '';
+
+  if (trigger.type === 'callback') {
+    if (node.inputType !== 'choice' || !node.choices) {
+      return { valid: false, message: 'Эта кнопка больше не активна.' };
+    }
+    const match = trigger.data.match(COLLECT_INPUT_CALLBACK);
+    const choiceIndex = match ? Number(match[1]) : -1;
+    const choice = node.choices[choiceIndex];
+    if (!choice) return { valid: false, message: 'Выберите один из предложенных вариантов.' };
+    rawValue = choice;
+  } else if (trigger.type === 'keyword' || trigger.type === 'message') {
+    rawValue = trigger.text.trim();
+  } else {
+    return { valid: false, message: 'Отправьте ответ сообщением.' };
+  }
+
+  if (!rawValue) {
+    return node.required
+      ? { valid: false, message: 'Ответ не может быть пустым.' }
+      : { valid: true, value: '' };
+  }
+
+  if (node.inputType === 'email') {
+    const result = z.string().email().safeParse(rawValue);
+    return result.success
+      ? { valid: true, value: result.data.toLocaleLowerCase('ru-RU') }
+      : { valid: false, message: 'Укажите email в формате name@example.com.' };
+  }
+
+  if (node.inputType === 'phone') {
+    const normalized = rawValue.replace(/[\s()-]/g, '');
+    return /^\+?\d{7,15}$/.test(normalized)
+      ? { valid: true, value: normalized }
+      : { valid: false, message: 'Укажите номер телефона: от 7 до 15 цифр.' };
+  }
+
+  if (node.inputType === 'number') {
+    const normalized = rawValue.replace(',', '.');
+    const value = Number(normalized);
+    return Number.isFinite(value)
+      ? { valid: true, value }
+      : { valid: false, message: 'Отправьте число.' };
+  }
+
+  if (node.inputType === 'choice' && node.choices) {
+    const choice = node.choices.find((item) => (
+      item.toLocaleLowerCase('ru-RU') === rawValue.toLocaleLowerCase('ru-RU')
+    ));
+    return choice
+      ? { valid: true, value: choice }
+      : { valid: false, message: 'Выберите один из предложенных вариантов.' };
+  }
+
+  return { valid: true, value: rawValue };
 }
