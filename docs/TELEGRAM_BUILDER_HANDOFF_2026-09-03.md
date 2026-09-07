@@ -1,8 +1,8 @@
 # Telegram-конструктор: handoff этапов 0–4 и live E2E
 
-Дата: 2026-09-05
-Статус: локальный foundation принят; Runtime A2 и live E2E, включая media, пройдены
-Production: не изменён
+Дата: 2026-09-07
+Статус: Runtime A2 и live E2E, включая media, пройдены; additive schema/API развёрнуты
+Production: commit `9ee774e`, runtime feature flag выключен, worker не запущен
 
 ## Граница результата
 
@@ -76,7 +76,14 @@ Production: не изменён
   локального webhook; публичный webhook был отдельно доказан предыдущим E2E;
 - webhook после проверки удалён через `deleteWebhook`, очередь пуста, tunnel,
   worker, backend и одноразовая PostgreSQL-база остановлены;
-- production token, production DB, PM2 и production webhook не изменялись.
+- перед production migration создан и проверен backup
+  `/app/backups/pre-telegram-media-20260907-093158.dump`, SHA-256
+  `3a33620b9aad81c9a37e65bde60b9aa43331400bf3a39825b256cf3b74af6525`;
+- 2026-09-07 production backend обновлён до `9ee774e`, все 41 migration имеют
+  статус up to date, API health `200`, защищённый Telegram management API без
+  сессии возвращает `401`, PM2 `lumaiq-backend` online;
+- production `TELEGRAM_RUNTIME_V2_ENABLED` остаётся false; keyring и webhook
+  base URL не настроены, отдельный worker и пользовательские webhook не включались.
 
 Единственное падение полного suite:
 
@@ -86,12 +93,10 @@ Telegram-этапов и вынесена в общий P0 backlog.
 
 ## Что намеренно не включено
 
-- production migration;
 - production encryption keys;
 - включение `TELEGRAM_RUNTIME_V2_ENABLED`;
 - запуск Telegram worker в PM2;
 - переключение webhook реального пользовательского бота;
-- новые миграции `BotEvent` и rate limiter не применялись к production;
 - scenario CRUD/publish/test API;
 - AI Builder и рабочее пространство сценария.
 
@@ -101,14 +106,15 @@ Live E2E пакета A1 выполнен. Callback/input, rate limiting, runtim
 admin recovery из пакета A2 реализованы локально. Все 41 миграция применена на
 чистой одноразовой PostgreSQL. Следующий безопасный шаг:
 
-1. подготовить production rollout миграций как отдельную операцию с backup,
-   rollback и выключенным по умолчанию feature flag;
-2. после настройки production keyring отдельно запустить worker и включить
-   runtime только для контролируемого тестового бота.
+1. настроить production keyring и webhook base URL через secret storage;
+2. добавить отдельный PM2 process для worker, сохранив runtime выключенным;
+3. включить runtime только для контролируемого тестового бота и пройти короткий
+   production canary до подключения пользовательских webhook.
 
 Локальные ownership-тесты, cross-tenant live-проверка двух владельцев и двух
 отдельных ботов, закрытое бинарное storage и unit/integration media delivery
-пройдены. Временный DB-стенд после проверки остановлен; production не изменялся.
+пройдены. Временный DB-стенд после проверки остановлен; production runtime и
+пользовательские webhook остаются неактивными.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно

@@ -1,6 +1,6 @@
 # Telegram Runtime v1
 
-Статус: локальная реализация, feature flag выключен
+Статус: production schema/API развёрнуты, feature flag выключен
 Дата: 2026-09-07
 
 ## Что реализовано
@@ -77,4 +77,7 @@ TELEGRAM_ASSET_MAX_MB=20
 - live `send_media` E2E на `@lumaiq_dev_bot`: image/document/video/audio получили
   `SENT` с первой попытки, inbound `PROCESSED`, enrollment `COMPLETED`, ошибок и
   повторных delivery нет;
+- production rollout `9ee774e`: backup проверен, 41 migration up to date,
+  backend health `200`, PM2 online; keyring/webhook base URL не настроены,
+  Telegram Runtime V2 и отдельный worker не активированы;
 - полный backend suite: 533 passed, 1 skipped, 1 unrelated pre-existing failure in `provider-boundary.test.ts` из-за `semeyno-ai-relay.controller.ts`.
