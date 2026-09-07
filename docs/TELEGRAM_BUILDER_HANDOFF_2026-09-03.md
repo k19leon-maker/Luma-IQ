@@ -1,7 +1,7 @@
 # Telegram-конструктор: handoff этапов 0–4 и live E2E
 
 Дата: 2026-09-05
-Статус: локальный foundation принят; live E2E и безопасная часть Runtime A2 пройдены
+Статус: локальный foundation принят; Runtime A2 и live E2E, включая media, пройдены
 Production: не изменён
 
 ## Граница результата
@@ -67,6 +67,10 @@ Production: не изменён
   обработаны с первой попытки, шесть delivery получили `SENT` с первой попытки;
   ownership mismatches и дубли idempotency key отсутствуют, тестовые email
   сохранены только в своих subscriber-контурах;
+- live E2E `send_media` пройден 2026-09-07 на `@lumaiq_dev_bot` через
+  одноразовую PostgreSQL с 41 миграцией: image, document, video и audio
+  доставлены по одному разу, каждая delivery получила `SENT` с первой попытки,
+  inbound получил `PROCESSED`, enrollment — `COMPLETED`, runtime errors нет;
 - из-за сетевой блокировки исходящего Cloudflare/localtunnel трафика повторный
   тест входящих updates использовал временный `getUpdates` poller до того же
   локального webhook; публичный webhook был отдельно доказан предыдущим E2E;
@@ -89,18 +93,18 @@ Telegram-этапов и вынесена в общий P0 backlog.
 - переключение webhook реального пользовательского бота;
 - новые миграции `BotEvent` и rate limiter не применялись к production;
 - scenario CRUD/publish/test API;
-- live media delivery через отдельного тестового бота;
 - AI Builder и рабочее пространство сценария.
 
 ## Следующий безопасный шаг
 
 Live E2E пакета A1 выполнен. Callback/input, rate limiting, runtime events и
-admin recovery из пакета A2 реализованы локально. Все 40 миграций применены на
+admin recovery из пакета A2 реализованы локально. Все 41 миграция применена на
 чистой одноразовой PostgreSQL. Следующий безопасный шаг:
 
-1. провести live E2E `send_media` на отдельном тестовом боте;
-2. подготовить production rollout миграций и worker как отдельную операцию с
-   backup, rollback и выключенным по умолчанию feature flag.
+1. подготовить production rollout миграций как отдельную операцию с backup,
+   rollback и выключенным по умолчанию feature flag;
+2. после настройки production keyring отдельно запустить worker и включить
+   runtime только для контролируемого тестового бота.
 
 Локальные ownership-тесты, cross-tenant live-проверка двух владельцев и двух
 отдельных ботов, закрытое бинарное storage и unit/integration media delivery

@@ -74,4 +74,7 @@ TELEGRAM_ASSET_MAX_MB=20
 - чистая PostgreSQL: 41/41 миграция применена;
 - целевые Telegram/runtime tests: 73 passed;
 - binary DB smoke: roundtrip passed, cross-tenant и wrong-project доступ отклонены;
+- live `send_media` E2E на `@lumaiq_dev_bot`: image/document/video/audio получили
+  `SENT` с первой попытки, inbound `PROCESSED`, enrollment `COMPLETED`, ошибок и
+  повторных delivery нет;
 - полный backend suite: 533 passed, 1 skipped, 1 unrelated pre-existing failure in `provider-boundary.test.ts` из-за `semeyno-ai-relay.controller.ts`.
