@@ -1,0 +1,2 @@
+ALTER TABLE "bot_scenario_versions"
+  ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

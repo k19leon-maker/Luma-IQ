@@ -1,7 +1,7 @@
-# Telegram-конструктор: handoff этапов 0–4 и live E2E
+# Telegram-конструктор: handoff Runtime A2 и Scenario API A3
 
 Дата: 2026-09-07
-Статус: Runtime A2, live E2E и ограниченный production canary пройдены
+Статус: Runtime A2 развёрнут ограниченным canary; Scenario API A3 готов локально
 Production: commit `017fad6`, worker запущен только для `@lumaiq_dev_bot`
 
 ## Граница результата
@@ -9,7 +9,7 @@ Production: commit `017fad6`, worker запущен только для `@lumaiq
 В handoff входят:
 
 - `ScenarioDefinitionV1` и его backend-валидация;
-- additive Prisma-модели и четыре миграции;
+- additive Prisma-модели и миграции;
 - tenant-scoped management API нескольких пользовательских Telegram-ботов;
 - AES-256-GCM keyring для bot tokens и redaction;
 - per-bot webhook identity, secret verification и update deduplication;
@@ -30,6 +30,16 @@ Production: commit `017fad6`, worker запущен только для `@lumaiq
   guards и SHA-256 integrity check;
 - приватный asset API и runtime `send_media` для image/document/video/audio без
   публичных файловых URL и без бинарных данных в scenario/delivery JSON.
+- tenant-scoped Scenario API: list/create/read/update/archive;
+- draft autosave с optimistic locking по `versionId + updatedAt`;
+- immutable published version, новая draft version, publish, pause и rollback;
+- обязательная backend-валидация структуры, media ownership и конфликтов
+  опубликованных trigger;
+- test run только после одноразового подтверждения Telegram ID владельца через
+  private-chat deep link; recipient ID не принимается от клиента;
+- служебный namespace `luma_test_` не может провалиться в обычный `/start` даже
+  для просроченной или уже использованной ссылки;
+- точный `start_parameter` имеет приоритет над общим `/start` между сценариями.
 
 В handoff не входят изменения голосового ввода, раздела «ТГ-канал», Threads,
 лендинга и другие файлы, находящиеся в общей рабочей копии.
@@ -39,6 +49,8 @@ Production: commit `017fad6`, worker запущен только для `@lumaiq
 - `npx prisma validate` — passed;
 - `npx prisma generate` — passed;
 - backend `npm run build` — passed;
+- ESLint изменённых A3 backend-файлов — passed без ошибок;
+- профильные Telegram tests после A3 — 89 passed в 17 файлах;
 - профильные Telegram tests — 53 passed;
 - frontend `npm run type-check` — passed;
 - frontend `npm run lint -- --quiet` — passed;
@@ -95,6 +107,7 @@ Production: commit `017fad6`, worker запущен только для `@lumaiq
 - временный файл с token, canary-скрипты и тестовые media после проверки удалены;
   token сохранён только в зашифрованном поле production БД.
 
+Полный backend suite после A3: 550 passed, 1 skipped, 1 unrelated failure.
 Единственное падение полного suite:
 
 `tests/unit/provider-boundary.test.ts` обнаруживает прямой OpenAI URL в
@@ -105,16 +118,17 @@ Telegram-этапов и вынесена в общий P0 backlog.
 
 - wildcard-доступ runtime для всех пользовательских ботов;
 - подключение production-ботов реальных пользователей;
-- scenario CRUD/publish/test API;
 - AI Builder и рабочее пространство сценария.
+- production migration и rollout Scenario API A3.
 
 ## Следующий безопасный шаг
 
-Пакеты A1 и A2 приняты, production canary ограниченного runtime завершён.
-Следующий безопасный шаг — пакет A3: tenant-scoped Scenario CRUD, draft и
-immutable published versions, backend validation, rollback и безопасный test
-run только на подтверждённый Telegram ID владельца. Allowlist production до
-завершения A3 остаётся ограничен `@lumaiq_dev_bot`.
+Пакеты A1 и A2 приняты, production canary ограниченного runtime завершён. Пакет
+A3 реализован и проверен локально; production пока остаётся на `017fad6`, новая
+additive migration не применялась. Следующий продуктовый шаг — пакет A5:
+рабочее пространство конструктора поверх готового Scenario API. Перед live
+проверкой A5 нужен отдельный контролируемый rollout A3, при этом allowlist
+сохраняется только для `@lumaiq_dev_bot`.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно

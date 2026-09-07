@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   sendMedia: vi.fn(),
   getAssetForDelivery: vi.fn(),
+  isVerificationStartParameter: vi.fn(),
+  consumeVerification: vi.fn(),
   decryptToken: vi.fn(),
   transaction: vi.fn(),
 }));
@@ -35,6 +37,13 @@ vi.mock('../../src/services/telegram-bot-asset.service', () => ({
 
 vi.mock('../../src/services/telegram-secret.service', () => ({
   telegramSecretService: { decrypt: mocks.decryptToken },
+}));
+
+vi.mock('../../src/services/telegram-test-recipient.service', () => ({
+  telegramTestRecipientService: {
+    isVerificationStartParameter: mocks.isVerificationStartParameter,
+    consumeVerification: mocks.consumeVerification,
+  },
 }));
 
 vi.mock('../../src/lib/prisma', () => {
@@ -111,6 +120,8 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
     mocks.answerCallbackQuery.mockResolvedValue(undefined);
     mocks.sendMessage.mockResolvedValue({ messageId: '101' });
     mocks.sendMedia.mockResolvedValue({ messageId: '202' });
+    mocks.isVerificationStartParameter.mockImplementation((value: string | null) => Boolean(value?.startsWith('luma_test_')));
+    mocks.consumeVerification.mockResolvedValue(false);
     mocks.transaction.mockImplementation(async (callback) => callback({
       botSubscriber: { updateMany: mocks.subscriberUpdateMany },
       botScenarioEnrollment: {
@@ -181,6 +192,104 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
         idempotencyKey: 'enrollment-a:started',
       })],
       skipDuplicates: true,
+    });
+  });
+
+  it('consumes an owner test deep link before matching published scenarios', async () => {
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a' });
+    mocks.subscriberFindFirst.mockResolvedValue(null);
+    mocks.subscriberCreate.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.consumeVerification.mockResolvedValue(true);
+
+    const result = await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '704',
+      payload: {
+        ...update.payload,
+        update_id: 704,
+        message: { ...update.payload.message, text: '/start luma_test_abcdefghijklmnopqrstuvwxyz123456' },
+      },
+    });
+
+    expect(result).toEqual({ outcome: 'test_recipient_verified', subscriberId: 'subscriber-a' });
+    expect(mocks.consumeVerification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-a',
+      botId: 'bot-a',
+      subscriberId: 'subscriber-a',
+      startParameter: 'luma_test_abcdefghijklmnopqrstuvwxyz123456',
+    }));
+    expect(mocks.scenarioFindMany).not.toHaveBeenCalled();
+  });
+
+  it('never falls through a rejected verification link into a generic start scenario', async () => {
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a' });
+    mocks.subscriberFindFirst.mockResolvedValue(null);
+    mocks.subscriberCreate.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.consumeVerification.mockResolvedValue(false);
+    mocks.scenarioFindMany.mockResolvedValue([{
+      id: 'scenario-generic',
+      publishedVersionId: 'version-generic',
+      publishedVersion: { id: 'version-generic', definition: validDefinition },
+    }]);
+
+    const result = await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '7041',
+      payload: {
+        ...update.payload,
+        update_id: 7041,
+        message: { ...update.payload.message, text: '/start luma_test_expiredtoken12345678901234567890' },
+      },
+    });
+
+    expect(result).toEqual({ outcome: 'subscriber_updated', subscriberId: 'subscriber-a' });
+    expect(mocks.scenarioFindMany).not.toHaveBeenCalled();
+    expect(mocks.enrollmentCreate).not.toHaveBeenCalled();
+  });
+
+  it('prefers an exact deep-link scenario over a newer generic start scenario', async () => {
+    const deepLinkDefinition = {
+      ...validDefinition,
+      name: 'Campaign',
+      entrypoints: [{ id: 'campaign', type: 'start_parameter', value: 'campaign', targetNodeId: 'welcome' }],
+    };
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a' });
+    mocks.subscriberFindFirst.mockResolvedValue(null);
+    mocks.subscriberCreate.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.scenarioFindMany.mockResolvedValue([
+      {
+        id: 'scenario-generic',
+        publishedVersionId: 'version-generic',
+        publishedVersion: { id: 'version-generic', definition: validDefinition },
+      },
+      {
+        id: 'scenario-campaign',
+        publishedVersionId: 'version-campaign',
+        publishedVersion: { id: 'version-campaign', definition: deepLinkDefinition },
+      },
+    ]);
+    mocks.enrollmentFindFirst.mockResolvedValue(null);
+    mocks.enrollmentCreate.mockResolvedValue({ id: 'enrollment-a' });
+    mocks.deliveryCreateMany.mockResolvedValue({ count: 1 });
+    mocks.enrollmentUpdateMany.mockResolvedValue({ count: 1 });
+
+    await telegramRuntimeV2Service.processInboundUpdate({
+      ...update,
+      telegramUpdateId: '705',
+      payload: {
+        ...update.payload,
+        update_id: 705,
+        message: { ...update.payload.message, text: '/start campaign' },
+      },
+    });
+
+    expect(mocks.enrollmentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scenarioId: 'scenario-campaign',
+        scenarioVersionId: 'version-campaign',
+        entrypointId: 'campaign',
+        source: 'telegram_deep_link',
+      }),
     });
   });
 

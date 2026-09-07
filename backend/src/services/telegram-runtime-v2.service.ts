@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { BotAssetMediaType, Prisma } from '@prisma/client';
 import {
   ChatbotScenarioDefinitionV1,
@@ -8,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { telegramBotService } from './telegram-bot.service';
 import { telegramBotAssetService } from './telegram-bot-asset.service';
 import { telegramSecretService } from './telegram-secret.service';
+import { telegramTestRecipientService } from './telegram-test-recipient.service';
 import {
   calculateWaitUntil,
   collectInputButtons,
@@ -61,7 +63,7 @@ interface EnrollmentRuntime {
 }
 
 export interface TelegramRuntimeInboundResult {
-  outcome: 'ignored' | 'subscriber_updated' | 'stopped' | 'blocked' | 'unblocked' | 'enrolled' | 'already_enrolled' | 'interaction_processed' | 'interaction_rejected';
+  outcome: 'ignored' | 'subscriber_updated' | 'test_recipient_verified' | 'stopped' | 'blocked' | 'unblocked' | 'enrolled' | 'already_enrolled' | 'interaction_processed' | 'interaction_rejected';
   subscriberId?: string;
   enrollmentId?: string;
 }
@@ -174,18 +176,31 @@ async function findRuntimeScenario(
     orderBy: { updatedAt: 'desc' },
   });
 
+  const candidates: Array<Omit<RuntimeScenario, 'entrypoint'>> = [];
   for (const scenario of scenarios) {
     if (!scenario.publishedVersionId || !scenario.publishedVersion) continue;
     const validation = validateChatbotScenarioDefinition(scenario.publishedVersion.definition);
     if (!validation.valid || !validation.definition) continue;
-    const entrypoint = matchRuntimeEntrypoint(validation.definition, trigger);
+    candidates.push({
+      id: scenario.id,
+      publishedVersionId: scenario.publishedVersion.id,
+      definition: validation.definition,
+    });
+  }
+
+  // A generic /start in a recently edited scenario must not steal a deep link
+  // from another published scenario that owns the exact start parameter.
+  if (trigger.type === 'start' && trigger.parameter) {
+    for (const scenario of candidates) {
+      const entrypoint = matchRuntimeEntrypoint(scenario.definition, trigger);
+      if (entrypoint?.source === 'telegram_deep_link') return { ...scenario, entrypoint };
+    }
+  }
+
+  for (const scenario of candidates) {
+    const entrypoint = matchRuntimeEntrypoint(scenario.definition, trigger);
     if (entrypoint) {
-      return {
-        id: scenario.id,
-        publishedVersionId: scenario.publishedVersion.id,
-        definition: validation.definition,
-        entrypoint,
-      };
+      return { ...scenario, entrypoint };
     }
   }
   return null;
@@ -898,6 +913,22 @@ export const telegramRuntimeV2Service = {
       reactivate: parsed.trigger.type === 'start' || parsed.trigger.type === 'unblocked',
     });
 
+    if (parsed.trigger.type === 'start'
+      && telegramTestRecipientService.isVerificationStartParameter(parsed.trigger.parameter)) {
+      const verified = await telegramTestRecipientService.consumeVerification({
+        userId: update.userId,
+        botId: update.botId,
+        subscriberId: subscriber.id,
+        telegramUserId: parsed.telegramUserId,
+        telegramChatId: parsed.telegramChatId,
+        startParameter: parsed.trigger.parameter,
+      });
+      return {
+        outcome: verified ? 'test_recipient_verified' : 'subscriber_updated',
+        subscriberId: subscriber.id,
+      };
+    }
+
     if (parsed.trigger.type === 'unblocked') {
       await prisma.botEvent.createMany({
         data: [{
@@ -1014,6 +1045,132 @@ export const telegramRuntimeV2Service = {
       subscriberId: subscriber.id,
       enrollmentId: enrollmentResult.id,
     };
+  },
+
+  async startTestRun(input: {
+    userId: string;
+    botId: string;
+    scenarioId: string;
+    scenarioVersionId: string;
+    subscriberId: string;
+    definition: ChatbotScenarioDefinitionV1;
+    entrypointId?: string;
+  }): Promise<{ enrollmentId: string; versionId: string; entrypointId: string }> {
+    const validation = validateChatbotScenarioDefinition(input.definition);
+    if (!validation.valid || !validation.definition) {
+      throw new TelegramRuntimeDataError('Тестируемый сценарий не прошёл валидацию', 'SCENARIO_DEFINITION_INVALID');
+    }
+    const subscriber = await prisma.botSubscriber.findFirst({
+      where: {
+        id: input.subscriberId,
+        userId: input.userId,
+        botId: input.botId,
+        status: 'ACTIVE',
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        telegramUserId: true,
+        telegramChatId: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        languageCode: true,
+      },
+    });
+    if (!subscriber?.telegramChatId) {
+      throw new TelegramRuntimeDataError('Подтверждённый Telegram-получатель недоступен', 'TEST_RECIPIENT_UNAVAILABLE');
+    }
+    const entrypoint = input.entrypointId
+      ? validation.definition.entrypoints.find((item) => item.id === input.entrypointId)
+      : validation.definition.entrypoints.find((item) => item.type === 'manual')
+        ?? validation.definition.entrypoints.find((item) => item.type === 'start')
+        ?? validation.definition.entrypoints[0];
+    if (!entrypoint) {
+      throw new TelegramRuntimeDataError('Точка входа для теста не найдена', 'TEST_ENTRYPOINT_NOT_FOUND');
+    }
+
+    const triggerUpdateId = `owner-test:${randomUUID()}`;
+    const state = initialState({
+      telegramUserId: subscriber.telegramUserId,
+      username: subscriber.username,
+      firstName: subscriber.firstName,
+      lastName: subscriber.lastName,
+      languageCode: subscriber.languageCode,
+    });
+    const enrollment = await prisma.$transaction(async (tx) => {
+      const previous = await tx.botScenarioEnrollment.findMany({
+        where: {
+          userId: input.userId,
+          botId: input.botId,
+          subscriberId: subscriber.id,
+          scenarioId: input.scenarioId,
+          source: 'owner_test',
+          status: { in: ['ACTIVE', 'WAITING'] },
+        },
+        select: { id: true },
+      });
+      const previousIds = previous.map((item) => item.id);
+      if (previousIds.length > 0) {
+        const now = new Date();
+        await tx.botScenarioEnrollment.updateMany({
+          where: {
+            id: { in: previousIds },
+            userId: input.userId,
+            botId: input.botId,
+            subscriberId: subscriber.id,
+            status: { in: ['ACTIVE', 'WAITING'] },
+          },
+          data: { status: 'STOPPED', stoppedAt: now, nextActionAt: null },
+        });
+        await tx.botMessageDelivery.updateMany({
+          where: {
+            enrollmentId: { in: previousIds },
+            userId: input.userId,
+            botId: input.botId,
+            subscriberId: subscriber.id,
+            status: 'PENDING',
+          },
+          data: { status: 'CANCELLED', failedAt: now, nextAttemptAt: null },
+        });
+      }
+
+      const created = await tx.botScenarioEnrollment.create({
+        data: {
+          userId: input.userId,
+          botId: input.botId,
+          subscriberId: subscriber.id,
+          scenarioId: input.scenarioId,
+          scenarioVersionId: input.scenarioVersionId,
+          triggerUpdateId,
+          entrypointId: entrypoint.id,
+          source: 'owner_test',
+          startParameter: null,
+          currentNodeId: entrypoint.targetNodeId,
+          state: state as Prisma.InputJsonValue,
+          status: 'ACTIVE',
+        },
+      });
+      const runtime: EnrollmentRuntime = {
+        id: created.id,
+        userId: input.userId,
+        botId: input.botId,
+        subscriberId: subscriber.id,
+        scenarioId: input.scenarioId,
+        scenarioVersionId: input.scenarioVersionId,
+        telegramChatId: subscriber.telegramChatId!,
+        state,
+      };
+      await recordEnrollmentEvent(tx, runtime, 'TEST_ENROLLMENT_STARTED', {
+        sourceId: triggerUpdateId,
+        idempotencyKey: `${created.id}:test-started`,
+        metadata: { entrypointId: entrypoint.id },
+      });
+      await scheduleNode(tx, runtime, validation.definition!, entrypoint.targetNodeId, new Date());
+      return created;
+    });
+
+    return { enrollmentId: enrollment.id, versionId: input.scenarioVersionId, entrypointId: entrypoint.id };
   },
 
   async processDelivery(delivery: ClaimedDelivery): Promise<{ telegramMessageId: string | null }> {

@@ -22,10 +22,16 @@
 - Telegram `429` повторяется по `retry_after`, остальные явно временные ошибки — с exponential backoff;
 - неопределённый итог сетевой отправки не повторяется автоматически: delivery и enrollment переводятся в ошибку, чтобы не послать дубль;
 - все runtime-запросы привязаны к `userId + botId + subscriberId`.
+- Scenario API поддерживает tenant-scoped CRUD, immutable published versions,
+  pause, rollback и archive;
+- тестовый запуск использует только Telegram-получателя, подтверждённого
+  владельцем через одноразовый private-chat deep link;
+- при `/start <parameter>` точное совпадение deep link проверяется во всех
+  сценариях раньше fallback на общий `/start`.
 
 ## Что пока не входит
 
-- UI/API для ручного создания, публикации и тестового запуска сценария;
+- UI рабочего пространства для ручного создания, публикации и test run;
 - интерфейс выбора и загрузки media asset в конструкторе;
 - Google Sheets sync;
 - подключение runtime для всех пользовательских ботов.
@@ -40,6 +46,21 @@
 Допустимые `mediaType`: `image`, `document`, `video`, `audio`. Общий лимит задаёт
 `TELEGRAM_ASSET_MAX_MB` (по умолчанию 20 MB, максимум 50 MB); изображения
 дополнительно ограничены 10 MB. Проверяются расширение, MIME и сигнатура.
+
+## Scenario API
+
+- `GET /api/v1/telegram-bots/:botId/scenarios?projectId=:projectId`;
+- `POST /api/v1/telegram-bots/:botId/scenarios`;
+- `GET|PATCH /api/v1/telegram-bots/:botId/scenarios/:scenarioId`;
+- `PUT /api/v1/telegram-bots/:botId/scenarios/:scenarioId/draft`;
+- `POST .../:scenarioId/versions|publish|pause|rollback|archive|test-runs`;
+- `GET /api/v1/telegram-bots/:botId/test-recipient`;
+- `POST /api/v1/telegram-bots/:botId/test-recipient-verifications`.
+
+Publish, pause, rollback, archive, новая версия и test run требуют явного
+`confirmed: true`. Published definition не изменяется: дальнейшая работа идёт
+в новой версии. Draft autosave требует последнюю пару `expectedDraftVersionId`
+и `expectedUpdatedAt`; конфликт возвращает `409`, а не перезаписывает изменения.
 
 ## Как запускается
 
@@ -91,3 +112,6 @@ TELEGRAM_ASSET_MAX_MB=20
   pending queue пуста, webhook errors отсутствуют, backend health `200`;
 - временный token-файл и canary-артефакты удалены после шифрования token в БД;
 - полный backend suite: 533 passed, 1 skipped, 1 unrelated pre-existing failure in `provider-boundary.test.ts` из-за `semeyno-ai-relay.controller.ts`.
+- после Scenario API A3: Prisma validate и backend build passed; 89 Telegram
+  tests passed; полный backend suite — 550 passed, 1 skipped и то же единственное
+  unrelated падение `provider-boundary.test.ts`; production rollout A3 не выполнялся.
