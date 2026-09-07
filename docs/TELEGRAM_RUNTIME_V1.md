@@ -1,6 +1,6 @@
 # Telegram Runtime v1
 
-Статус: production schema/API развёрнуты, feature flag выключен
+Статус: production schema/API развёрнуты, canary runtime активен для одного тестового бота
 Дата: 2026-09-07
 
 ## Что реализовано
@@ -27,9 +27,8 @@
 
 - UI/API для ручного создания, публикации и тестового запуска сценария;
 - интерфейс выбора и загрузки media asset в конструкторе;
-- live E2E отправки media через отдельного тестового бота;
 - Google Sheets sync;
-- production activation.
+- подключение runtime для всех пользовательских ботов.
 
 ## Приватный media API
 
@@ -83,6 +82,12 @@ TELEGRAM_ASSET_MAX_MB=20
   `SENT` с первой попытки, inbound `PROCESSED`, enrollment `COMPLETED`, ошибок и
   повторных delivery нет;
 - production rollout `9ee774e`: backup проверен, 41 migration up to date,
-  backend health `200`, PM2 online; keyring/webhook base URL не настроены,
-  Telegram Runtime V2 и отдельный worker не активированы;
+  backend health `200`, PM2 online;
+- production canary на commit `017fad6`: отдельный AES keyring и webhook base
+  URL настроены, `lumaiq-telegram-worker` online без рестартов, allowlist содержит
+  только внутренний ID `@lumaiq_dev_bot` и не содержит wildcard;
+- публичный production webhook обработал `/start` за одну попытку, enrollment
+  завершился, image/document/video/audio отправлены по одному разу; Telegram
+  pending queue пуста, webhook errors отсутствуют, backend health `200`;
+- временный token-файл и canary-артефакты удалены после шифрования token в БД;
 - полный backend suite: 533 passed, 1 skipped, 1 unrelated pre-existing failure in `provider-boundary.test.ts` из-за `semeyno-ai-relay.controller.ts`.

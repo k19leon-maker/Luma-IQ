@@ -1,8 +1,8 @@
 # Telegram-конструктор: handoff этапов 0–4 и live E2E
 
 Дата: 2026-09-07
-Статус: Runtime A2 и live E2E, включая media, пройдены; additive schema/API развёрнуты
-Production: commit `9ee774e`, runtime feature flag выключен, worker не запущен
+Статус: Runtime A2, live E2E и ограниченный production canary пройдены
+Production: commit `017fad6`, worker запущен только для `@lumaiq_dev_bot`
 
 ## Граница результата
 
@@ -82,8 +82,18 @@ Production: commit `9ee774e`, runtime feature flag выключен, worker не
 - 2026-09-07 production backend обновлён до `9ee774e`, все 41 migration имеют
   статус up to date, API health `200`, защищённый Telegram management API без
   сессии возвращает `401`, PM2 `lumaiq-backend` online;
-- production `TELEGRAM_RUNTIME_V2_ENABLED` остаётся false; keyring и webhook
-  base URL не настроены, отдельный worker и пользовательские webhook не включались.
+- production backend обновлён до `017fad6`; настроены отдельный AES keyring и
+  webhook base URL, а allowlist runtime ограничен одним внутренним ID тестового
+  бота без wildcard;
+- отдельный PM2-процесс `lumaiq-telegram-worker` запущен и сохранён, startup
+  подтвердил `botScope: 1`, ошибок и рестартов нет;
+- production canary 2026-09-07 на `@lumaiq_dev_bot` пройден через публичный
+  webhook `api.lumaiq.ru`: inbound `PROCESSED` за одну попытку, enrollment
+  `COMPLETED`, image/document/video/audio получили `SENT` за одну попытку;
+- Telegram `getWebhookInfo`: очередь пуста, последней ошибки нет; чужих inbound
+  и delivery в production не создано, backend health возвращает `200`;
+- временный файл с token, canary-скрипты и тестовые media после проверки удалены;
+  token сохранён только в зашифрованном поле production БД.
 
 Единственное падение полного suite:
 
@@ -93,28 +103,18 @@ Telegram-этапов и вынесена в общий P0 backlog.
 
 ## Что намеренно не включено
 
-- production encryption keys;
-- включение `TELEGRAM_RUNTIME_V2_ENABLED`;
-- запуск Telegram worker в PM2;
-- переключение webhook реального пользовательского бота;
+- wildcard-доступ runtime для всех пользовательских ботов;
+- подключение production-ботов реальных пользователей;
 - scenario CRUD/publish/test API;
 - AI Builder и рабочее пространство сценария.
 
 ## Следующий безопасный шаг
 
-Live E2E пакета A1 выполнен. Callback/input, rate limiting, runtime events и
-admin recovery из пакета A2 реализованы локально. Все 41 миграция применена на
-чистой одноразовой PostgreSQL. Следующий безопасный шаг:
-
-1. настроить production keyring и webhook base URL через secret storage;
-2. добавить отдельный PM2 process для worker, сохранив runtime выключенным;
-3. включить runtime только для контролируемого тестового бота и пройти короткий
-   production canary до подключения пользовательских webhook.
-
-Локальные ownership-тесты, cross-tenant live-проверка двух владельцев и двух
-отдельных ботов, закрытое бинарное storage и unit/integration media delivery
-пройдены. Временный DB-стенд после проверки остановлен; production runtime и
-пользовательские webhook остаются неактивными.
+Пакеты A1 и A2 приняты, production canary ограниченного runtime завершён.
+Следующий безопасный шаг — пакет A3: tenant-scoped Scenario CRUD, draft и
+immutable published versions, backend validation, rollback и безопасный test
+run только на подтверждённый Telegram ID владельца. Allowlist production до
+завершения A3 остаётся ограничен `@lumaiq_dev_bot`.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
