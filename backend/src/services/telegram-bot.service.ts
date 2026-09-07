@@ -85,6 +85,51 @@ function unixTimestampToIso(value?: number): string | null {
   return new Date(value * 1000).toISOString();
 }
 
+async function telegramResult<T>(response: Response): Promise<T> {
+  let body: TelegramApiResponse<T>;
+  try {
+    body = await response.json() as TelegramApiResponse<T>;
+  } catch {
+    throw new TelegramBotApiError('Telegram API вернул некорректный ответ', {
+      status: 502,
+      code: 'TELEGRAM_API_ERROR',
+    });
+  }
+
+  if (!response.ok || !body.ok || body.result === undefined) {
+    const invalidToken = response.status === 401 || body.error_code === 401;
+    const rateLimited = response.status === 429 || body.error_code === 429;
+    const botBlocked = response.status === 403 || body.error_code === 403;
+    const badRequest = response.status === 400 || body.error_code === 400;
+    throw new TelegramBotApiError(
+      invalidToken
+        ? 'Токен Telegram-бота недействителен'
+        : rateLimited
+          ? 'Telegram временно ограничил частоту отправки'
+          : botBlocked
+            ? 'Пользователь заблокировал Telegram-бота'
+            : badRequest
+              ? 'Telegram отклонил сообщение'
+              : 'Telegram API не выполнил запрос',
+      {
+        status: invalidToken ? 400 : rateLimited ? 429 : botBlocked ? 403 : badRequest ? 400 : 502,
+        code: invalidToken
+          ? 'INVALID_TELEGRAM_BOT_TOKEN'
+          : rateLimited
+            ? 'TELEGRAM_RATE_LIMITED'
+            : botBlocked
+              ? 'TELEGRAM_BOT_BLOCKED'
+              : badRequest
+                ? 'TELEGRAM_BAD_REQUEST'
+                : 'TELEGRAM_API_ERROR',
+        retryAfterSeconds: body.parameters?.retry_after ?? null,
+      },
+    );
+  }
+
+  return body.result;
+}
+
 async function callTelegram<T>(
   token: string,
   method: string,
@@ -103,40 +148,7 @@ async function callTelegram<T>(
       },
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
-    const body = await response.json() as TelegramApiResponse<T>;
-
-    if (!response.ok || !body.ok || body.result === undefined) {
-      const invalidToken = response.status === 401 || body.error_code === 401;
-      const rateLimited = response.status === 429 || body.error_code === 429;
-      const botBlocked = response.status === 403 || body.error_code === 403;
-      const badRequest = response.status === 400 || body.error_code === 400;
-      throw new TelegramBotApiError(
-        invalidToken
-          ? 'Токен Telegram-бота недействителен'
-          : rateLimited
-            ? 'Telegram временно ограничил частоту отправки'
-            : botBlocked
-              ? 'Пользователь заблокировал Telegram-бота'
-              : badRequest
-                ? 'Telegram отклонил сообщение'
-                : 'Telegram API не выполнил запрос',
-        {
-          status: invalidToken ? 400 : rateLimited ? 429 : botBlocked ? 403 : badRequest ? 400 : 502,
-          code: invalidToken
-            ? 'INVALID_TELEGRAM_BOT_TOKEN'
-            : rateLimited
-              ? 'TELEGRAM_RATE_LIMITED'
-              : botBlocked
-                ? 'TELEGRAM_BOT_BLOCKED'
-                : badRequest
-                  ? 'TELEGRAM_BAD_REQUEST'
-                  : 'TELEGRAM_API_ERROR',
-          retryAfterSeconds: body.parameters?.retry_after ?? null,
-        },
-      );
-    }
-
-    return body.result;
+    return await telegramResult<T>(response);
   } catch (error) {
     if (error instanceof TelegramBotApiError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
@@ -152,6 +164,46 @@ async function callTelegram<T>(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function callTelegramMultipart<T>(token: string, method: string, payload: FormData): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TELEGRAM_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(telegramEndpoint(token, method), {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+      body: payload,
+    });
+    return await telegramResult<T>(response);
+  } catch (error) {
+    if (error instanceof TelegramBotApiError) throw error;
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new TelegramBotApiError('Telegram API не ответил вовремя', {
+        status: 504,
+        code: 'TELEGRAM_API_TIMEOUT',
+      });
+    }
+    throw new TelegramBotApiError('Не удалось связаться с Telegram API', {
+      status: 502,
+      code: 'TELEGRAM_API_UNAVAILABLE',
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+type TelegramButton =
+  | { type: 'url'; label: string; url: string }
+  | { type: 'callback'; label: string; callbackData: string };
+
+function inlineKeyboard(buttons?: TelegramButton[]) {
+  return buttons?.length
+    ? [buttons.map((button) => button.type === 'url'
+      ? { text: button.label, url: button.url }
+      : { text: button.label, callback_data: button.callbackData })]
+    : undefined;
 }
 
 export const telegramBotService = {
@@ -223,23 +275,44 @@ export const telegramBotService = {
     text: string;
     parseMode?: 'HTML' | 'MarkdownV2';
     disableWebPreview?: boolean;
-    buttons?: Array<
-      | { type: 'url'; label: string; url: string }
-      | { type: 'callback'; label: string; callbackData: string }
-    >;
+    buttons?: TelegramButton[];
   }): Promise<{ messageId: string }> {
-    const inlineKeyboard = input.buttons?.length
-      ? [input.buttons.map((button) => button.type === 'url'
-        ? { text: button.label, url: button.url }
-        : { text: button.label, callback_data: button.callbackData })]
-      : undefined;
+    const keyboard = inlineKeyboard(input.buttons);
     const result = await callTelegram<{ message_id: number }>(input.token, 'sendMessage', {
       chat_id: input.chatId,
       text: input.text,
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
       disable_web_page_preview: input.disableWebPreview ?? false,
-      ...(inlineKeyboard ? { reply_markup: { inline_keyboard: inlineKeyboard } } : {}),
+      ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
     });
+    return { messageId: String(result.message_id) };
+  },
+
+  async sendMedia(input: {
+    token: string;
+    chatId: string;
+    mediaType: 'image' | 'document' | 'video' | 'audio';
+    content: Buffer;
+    fileName: string;
+    mimeType: string;
+    caption?: string;
+    parseMode?: 'HTML' | 'MarkdownV2';
+    buttons?: TelegramButton[];
+  }): Promise<{ messageId: string }> {
+    const config = {
+      image: { method: 'sendPhoto', field: 'photo' },
+      document: { method: 'sendDocument', field: 'document' },
+      video: { method: 'sendVideo', field: 'video' },
+      audio: { method: 'sendAudio', field: 'audio' },
+    }[input.mediaType];
+    const form = new FormData();
+    form.append('chat_id', input.chatId);
+    form.append(config.field, new Blob([new Uint8Array(input.content)], { type: input.mimeType }), input.fileName);
+    if (input.caption) form.append('caption', input.caption);
+    if (input.parseMode) form.append('parse_mode', input.parseMode);
+    const keyboard = inlineKeyboard(input.buttons);
+    if (keyboard) form.append('reply_markup', JSON.stringify({ inline_keyboard: keyboard }));
+    const result = await callTelegramMultipart<{ message_id: number }>(input.token, config.method, form);
     return { messageId: String(result.message_id) };
   },
 };

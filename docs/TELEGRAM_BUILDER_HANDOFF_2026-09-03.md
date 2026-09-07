@@ -26,6 +26,10 @@ Production: не изменён
   отправок, stop/block и ошибок без хранения текста ответов.
 - admin-only recovery для `DEAD` inbound и однозначно безопасных delivery jobs;
   доставка с неизвестным исходом не может быть повторена через API.
+- закрытый PostgreSQL-backed `BotAsset` с tenant/project scope, MIME/size/signature
+  guards и SHA-256 integrity check;
+- приватный asset API и runtime `send_media` для image/document/video/audio без
+  публичных файловых URL и без бинарных данных в scenario/delivery JSON.
 
 В handoff не входят изменения голосового ввода, раздела «ТГ-канал», Threads,
 лендинга и другие файлы, находящиеся в общей рабочей копии.
@@ -40,7 +44,9 @@ Production: не изменён
 - frontend `npm run lint -- --quiet` — passed;
 - frontend `npm run build` — passed;
 - полный backend suite — 523 passed, 1 skipped, 1 unrelated failure.
-- clean PostgreSQL migration — 40/40 migrations applied;
+- clean PostgreSQL migration после media storage — 41/41 migrations applied;
+- Telegram regression после media storage — 73 passed;
+- binary DB smoke: roundtrip passed, cross-tenant и wrong-project guards passed;
 - `prisma migrate status` на изолированной БД — schema up to date;
 - Runtime с `TELEGRAM_RUNTIME_V2_ENABLED=false` — безопасно завершился;
 - Runtime с включённым flag на пустой очереди — worker started, recovered 0/0/0.
@@ -83,7 +89,7 @@ Telegram-этапов и вынесена в общий P0 backlog.
 - переключение webhook реального пользовательского бота;
 - новые миграции `BotEvent` и rate limiter не применялись к production;
 - scenario CRUD/publish/test API;
-- media delivery из защищённого бинарного storage;
+- live media delivery через отдельного тестового бота;
 - AI Builder и рабочее пространство сценария.
 
 ## Следующий безопасный шаг
@@ -92,14 +98,13 @@ Live E2E пакета A1 выполнен. Callback/input, rate limiting, runtim
 admin recovery из пакета A2 реализованы локально. Все 40 миграций применены на
 чистой одноразовой PostgreSQL. Следующий безопасный шаг:
 
-1. добавить защищённое бинарное storage и только после этого включить
-   `send_media`; текущий `ProjectFile` хранит извлечённый текст, а не файл;
+1. провести live E2E `send_media` на отдельном тестовом боте;
 2. подготовить production rollout миграций и worker как отдельную операцию с
    backup, rollback и выключенным по умолчанию feature flag.
 
-Локальные ownership-тесты и cross-tenant live-проверка двух владельцев и двух
-отдельных ботов пройдены. Временный тестовый контур после проверки остановлен;
-production не изменялся.
+Локальные ownership-тесты, cross-tenant live-проверка двух владельцев и двух
+отдельных ботов, закрытое бинарное storage и unit/integration media delivery
+пройдены. Временный DB-стенд после проверки остановлен; production не изменялся.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно

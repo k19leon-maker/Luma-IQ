@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../lib/prisma';
 import { TelegramBotApiError } from './telegram-bot.service';
+import { TelegramBotAssetError } from './telegram-bot-asset.service';
 import { safeTelegramErrorMessage } from './telegram-secret.service';
 import {
   recordTelegramRuntimeErrorEvent,
@@ -23,7 +24,7 @@ function retryDelayMs(attempt: number, key: string): number {
 }
 
 function errorCode(error: unknown): string {
-  if (error instanceof TelegramBotApiError || error instanceof TelegramRuntimeDataError) return error.code;
+  if (error instanceof TelegramBotApiError || error instanceof TelegramRuntimeDataError || error instanceof TelegramBotAssetError) return error.code;
   return 'TELEGRAM_RUNTIME_ERROR';
 }
 

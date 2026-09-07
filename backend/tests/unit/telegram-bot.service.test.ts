@@ -142,6 +142,35 @@ describe('telegramBotService', () => {
     });
   });
 
+  it('sends a private binary asset as Telegram multipart media', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(telegramResponse({ message_id: 778 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await telegramBotService.sendMedia({
+      token: '123456:abcdefghijklmnopqrstuvwxyz_ABCDE',
+      chatId: '987654321',
+      mediaType: 'document',
+      content: Buffer.from('%PDF-test'),
+      fileName: 'bonus.pdf',
+      mimeType: 'application/pdf',
+      caption: 'Ваш бонус',
+      buttons: [{ type: 'callback', label: 'Получено', callbackData: 'bonus:received' }],
+    });
+
+    expect(result).toEqual({ messageId: '778' });
+    expect(fetchMock.mock.calls[0][0]).toContain('/sendDocument');
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.method).toBe('POST');
+    expect(request.headers).toEqual({ accept: 'application/json' });
+    const form = request.body as FormData;
+    expect(form.get('chat_id')).toBe('987654321');
+    expect(form.get('caption')).toBe('Ваш бонус');
+    expect(form.get('document')).toBeInstanceOf(Blob);
+    expect(JSON.parse(String(form.get('reply_markup')))).toEqual({
+      inline_keyboard: [[{ text: 'Получено', callback_data: 'bonus:received' }]],
+    });
+  });
+
   it('acknowledges a callback query without exposing bot credentials', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(telegramResponse(true));
     vi.stubGlobal('fetch', fetchMock);

@@ -68,6 +68,7 @@ model User {
   botMessageDeliveries     BotMessageDelivery[]
   botInboundUpdates        BotInboundUpdate[]
   botEvents                BotEvent[]
+  botAssets                BotAsset[]
 
   @@index([archivedAt])
   @@map("users")
@@ -873,6 +874,29 @@ model ProjectFile {
   @@map("project_files")
 }
 
+model BotAsset {
+  id           String            @id @default(uuid())
+  userId       String
+  projectId    String
+  originalName String
+  mediaType    BotAssetMediaType
+  mimeType     String
+  sizeBytes    Int
+  sha256       String
+  content      Bytes
+  deletedAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, createdAt])
+  @@index([userId, deletedAt])
+  @@index([sha256])
+  @@map("bot_assets")
+}
+
 model PromptVersion {
   id                 String   @id @default(uuid())
   promptId           String
@@ -1027,6 +1051,7 @@ model Project {
   caseStudies            CaseStudy[]
   caseStudyImports       CaseStudyImport[]
   botScenarios           BotScenario[]
+  botAssets              BotAsset[]
   defaultForTelegramBots TelegramBot[]             @relation("TelegramBotDefaultProject")
 
   @@index([userId, createdAt])
@@ -1691,6 +1716,13 @@ enum BotMessageDeliveryStatus {
   FAILED
   CANCELLED
   DEAD
+}
+
+enum BotAssetMediaType {
+  IMAGE
+  DOCUMENT
+  VIDEO
+  AUDIO
 }
 
 enum BotInboundUpdateStatus {

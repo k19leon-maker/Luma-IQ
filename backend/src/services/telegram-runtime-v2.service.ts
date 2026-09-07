@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { BotAssetMediaType, Prisma } from '@prisma/client';
 import {
   ChatbotScenarioDefinitionV1,
   ChatbotScenarioNode,
@@ -6,6 +6,7 @@ import {
 } from '../contracts/chatbot-scenario.contract';
 import { prisma } from '../lib/prisma';
 import { telegramBotService } from './telegram-bot.service';
+import { telegramBotAssetService } from './telegram-bot-asset.service';
 import { telegramSecretService } from './telegram-secret.service';
 import {
   calculateWaitUntil,
@@ -462,6 +463,25 @@ async function scheduleNode(
     return;
   }
 
+  if (node.type === 'send_media') {
+    const variables = stateVariables(runtime.state);
+    const caption = node.caption ? renderTelegramTemplate(node.caption, variables) : '';
+    const buttons = node.buttons ?? [];
+    const waitsForInteraction = buttons.some((button) => button.type === 'callback');
+    await createScheduledAction(tx, runtime, node.id, scheduledAt, {
+      kind: 'send_media',
+      chatId: runtime.telegramChatId,
+      mediaType: node.mediaType,
+      assetId: node.assetId,
+      caption,
+      parseMode: node.parseMode,
+      buttons,
+      nextNodeId: waitsForInteraction ? null : unconditionalNextNodeId(definition, node.id),
+      waitsForInteraction,
+    });
+    return;
+  }
+
   if (node.type === 'add_tag') {
     const tagId = await ensureTag(tx, runtime, node.tag);
     await tx.botSubscriberTag.createMany({
@@ -539,10 +559,7 @@ async function scheduleNode(
     return;
   }
 
-  throw new TelegramRuntimeDataError(
-    `Тип узла ${node.type} ещё не поддерживается Runtime v1`,
-    'SCENARIO_NODE_UNSUPPORTED',
-  );
+  throw new TelegramRuntimeDataError('Тип узла не поддерживается Runtime v1', 'SCENARIO_NODE_UNSUPPORTED');
 }
 
 function writableSubscriberField(field: string): 'firstName' | 'lastName' | 'phone' | 'email' | undefined {
@@ -564,7 +581,7 @@ function isInteractionNode(
       || parsed.trigger.type === 'message'
       || (parsed.trigger.type === 'callback' && node.inputType === 'choice' && parsed.trigger.data.startsWith('lqci:'));
   }
-  if ((node.type === 'send_message' || node.type === 'handoff') && parsed.trigger.type === 'callback') {
+  if ((node.type === 'send_message' || node.type === 'send_media' || node.type === 'handoff') && parsed.trigger.type === 'callback') {
     const callbackData = parsed.trigger.data;
     return definition.edges.some((edge) => (
       edge.fromNodeId === node.id
@@ -1026,6 +1043,7 @@ export const telegramRuntimeV2Service = {
         scenarioVersionId: true,
         state: true,
         subscriber: { select: { telegramChatId: true } },
+        scenario: { select: { projectId: true } },
         scenarioVersion: { select: { definition: true } },
       },
     });
@@ -1065,14 +1083,34 @@ export const telegramRuntimeV2Service = {
     });
     if (!bot?.encryptedToken) throw new TelegramRuntimeDataError('Токен бота недоступен', 'BOT_TOKEN_UNAVAILABLE');
     const token = telegramSecretService.decrypt(bot.encryptedToken);
-    const result = await telegramBotService.sendMessage({
-      token,
-      chatId: payload.chatId,
-      text: payload.text,
-      parseMode: payload.parseMode === 'plain' ? undefined : payload.parseMode,
-      disableWebPreview: payload.disableWebPreview,
-      buttons: payload.buttons,
-    });
+    const result = payload.kind === 'send_message'
+      ? await telegramBotService.sendMessage({
+        token,
+        chatId: payload.chatId,
+        text: payload.text,
+        parseMode: payload.parseMode === 'plain' ? undefined : payload.parseMode,
+        disableWebPreview: payload.disableWebPreview,
+        buttons: payload.buttons,
+      })
+      : await (async () => {
+        const asset = await telegramBotAssetService.getForDelivery(
+          delivery.userId,
+          enrollment.scenario.projectId,
+          payload.assetId,
+          payload.mediaType.toUpperCase() as BotAssetMediaType,
+        );
+        return telegramBotService.sendMedia({
+          token,
+          chatId: payload.chatId,
+          mediaType: payload.mediaType,
+          content: asset.content,
+          fileName: asset.originalName,
+          mimeType: asset.mimeType,
+          caption: payload.caption,
+          parseMode: payload.parseMode === 'plain' ? undefined : payload.parseMode,
+          buttons: payload.buttons,
+        });
+      })();
 
     await prisma.$transaction(async (tx) => {
       const changed = await tx.botMessageDelivery.updateMany({
@@ -1095,7 +1133,7 @@ export const telegramRuntimeV2Service = {
         nodeId: delivery.nodeId,
         sourceId: delivery.id,
         idempotencyKey: `${runtime.id}:delivery:${delivery.id}:sent`,
-        metadata: { deliveryId: delivery.id, telegramMessageId: result.messageId },
+        metadata: { deliveryId: delivery.id, telegramMessageId: result.messageId, kind: payload.kind },
       });
       if (payload.waitsForInteraction) {
         await setEnrollmentPosition(tx, runtime, { status: 'WAITING', nextActionAt: null });

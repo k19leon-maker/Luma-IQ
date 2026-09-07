@@ -88,6 +88,21 @@ const sendMessageDeliveryPayloadSchema = z.object({
   waitsForInteraction: z.boolean().default(false),
 }).strict();
 
+const sendMediaDeliveryPayloadSchema = z.object({
+  kind: z.literal('send_media'),
+  chatId: z.string().min(1),
+  mediaType: z.enum(['image', 'document', 'video', 'audio']),
+  assetId: z.string().min(1).max(160),
+  caption: z.string().max(1024).default(''),
+  parseMode: z.enum(['plain', 'HTML', 'MarkdownV2']).default('plain'),
+  buttons: z.array(z.discriminatedUnion('type', [
+    z.object({ type: z.literal('url'), label: z.string(), url: z.string().url() }).strict(),
+    z.object({ type: z.literal('callback'), label: z.string(), callbackData: z.string() }).strict(),
+  ])).max(10).default([]),
+  nextNodeId: z.string().nullable(),
+  waitsForInteraction: z.boolean().default(false),
+}).strict();
+
 const resumeDeliveryPayloadSchema = z.object({
   kind: z.literal('resume'),
   targetNodeId: z.string().min(1),
@@ -95,6 +110,7 @@ const resumeDeliveryPayloadSchema = z.object({
 
 export const telegramDeliveryPayloadSchema = z.discriminatedUnion('kind', [
   sendMessageDeliveryPayloadSchema,
+  sendMediaDeliveryPayloadSchema,
   resumeDeliveryPayloadSchema,
 ]);
 

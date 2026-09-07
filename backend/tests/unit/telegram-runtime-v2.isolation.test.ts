@@ -14,12 +14,23 @@ const mocks = vi.hoisted(() => ({
   deliveryUpdateMany: vi.fn(),
   botEventCreateMany: vi.fn(),
   answerCallbackQuery: vi.fn(),
+  sendMessage: vi.fn(),
+  sendMedia: vi.fn(),
+  getAssetForDelivery: vi.fn(),
   decryptToken: vi.fn(),
   transaction: vi.fn(),
 }));
 
 vi.mock('../../src/services/telegram-bot.service', () => ({
-  telegramBotService: { answerCallbackQuery: mocks.answerCallbackQuery, sendMessage: vi.fn() },
+  telegramBotService: {
+    answerCallbackQuery: mocks.answerCallbackQuery,
+    sendMessage: mocks.sendMessage,
+    sendMedia: mocks.sendMedia,
+  },
+}));
+
+vi.mock('../../src/services/telegram-bot-asset.service', () => ({
+  telegramBotAssetService: { getForDelivery: mocks.getAssetForDelivery },
 }));
 
 vi.mock('../../src/services/telegram-secret.service', () => ({
@@ -98,6 +109,8 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
     vi.clearAllMocks();
     mocks.decryptToken.mockReturnValue('decrypted-token');
     mocks.answerCallbackQuery.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ messageId: '101' });
+    mocks.sendMedia.mockResolvedValue({ messageId: '202' });
     mocks.transaction.mockImplementation(async (callback) => callback({
       botSubscriber: { updateMany: mocks.subscriberUpdateMany },
       botScenarioEnrollment: {
@@ -166,6 +179,59 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
       data: [expect.objectContaining({
         eventType: 'ENROLLMENT_STARTED',
         idempotencyKey: 'enrollment-a:started',
+      })],
+      skipDuplicates: true,
+    });
+  });
+
+  it('schedules a media node using only its private asset reference', async () => {
+    const mediaDefinition = {
+      ...validDefinition,
+      entrypoints: [{ id: 'start', type: 'start', targetNodeId: 'bonus' }],
+      nodes: [
+        {
+          id: 'bonus',
+          type: 'send_media',
+          mediaType: 'document',
+          assetId: 'asset-a',
+          caption: 'Бонус для {{first_name}}',
+          parseMode: 'plain',
+        },
+        { id: 'end', type: 'end' },
+      ],
+      edges: [{ id: 'to_end', fromNodeId: 'bonus', toNodeId: 'end' }],
+    };
+    mocks.telegramBotFindFirst.mockResolvedValue({ id: 'bot-a' });
+    mocks.subscriberFindFirst.mockResolvedValue(null);
+    mocks.subscriberCreate.mockResolvedValue({ id: 'subscriber-a' });
+    mocks.scenarioFindMany.mockResolvedValue([{
+      id: 'scenario-a',
+      publishedVersionId: 'version-a',
+      publishedVersion: { id: 'version-a', definition: mediaDefinition },
+    }]);
+    mocks.enrollmentFindFirst.mockResolvedValue(null);
+    mocks.enrollmentCreate.mockResolvedValue({ id: 'enrollment-a' });
+    mocks.deliveryCreateMany.mockResolvedValue({ count: 1 });
+    mocks.enrollmentUpdateMany.mockResolvedValue({ count: 1 });
+
+    await telegramRuntimeV2Service.processInboundUpdate(update);
+
+    expect(mocks.deliveryCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        userId: 'user-a',
+        botId: 'bot-a',
+        idempotencyKey: 'enrollment-a:bonus',
+        payload: {
+          kind: 'send_media',
+          chatId: '42',
+          mediaType: 'document',
+          assetId: 'asset-a',
+          caption: 'Бонус для Анна',
+          parseMode: 'plain',
+          buttons: [],
+          nextNodeId: 'end',
+          waitsForInteraction: false,
+        },
       })],
       skipDuplicates: true,
     });
@@ -380,5 +446,77 @@ describe('telegramRuntimeV2Service ownership isolation', () => {
       })],
       skipDuplicates: true,
     });
+  });
+
+  it('delivers media only from the enrollment owner and project', async () => {
+    const mediaDefinition = {
+      ...validDefinition,
+      entrypoints: [{ id: 'start', type: 'start', targetNodeId: 'bonus' }],
+      nodes: [
+        {
+          id: 'bonus',
+          type: 'send_media',
+          mediaType: 'document',
+          assetId: 'asset-a',
+          caption: 'Ваш бонус, {{first_name}}',
+          parseMode: 'plain',
+        },
+        { id: 'end', type: 'end' },
+      ],
+      edges: [{ id: 'to_end', fromNodeId: 'bonus', toNodeId: 'end' }],
+    };
+    mocks.enrollmentFindFirst.mockResolvedValue({
+      id: 'enrollment-a',
+      userId: 'user-a',
+      botId: 'bot-a',
+      subscriberId: 'subscriber-a',
+      scenarioId: 'scenario-a',
+      scenarioVersionId: 'version-a',
+      state: { variables: { first_name: 'Анна' } },
+      subscriber: { telegramChatId: '42' },
+      scenario: { projectId: 'project-a' },
+      scenarioVersion: { definition: mediaDefinition },
+    });
+    mocks.telegramBotFindFirst.mockResolvedValue({ encryptedToken: 'ciphertext' });
+    mocks.getAssetForDelivery.mockResolvedValue({
+      content: Buffer.from('%PDF-test'),
+      originalName: 'bonus.pdf',
+      mimeType: 'application/pdf',
+    });
+    mocks.deliveryUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.enrollmentUpdateMany.mockResolvedValue({ count: 1 });
+
+    const result = await telegramRuntimeV2Service.processDelivery({
+      id: 'delivery-a',
+      userId: 'user-a',
+      botId: 'bot-a',
+      subscriberId: 'subscriber-a',
+      enrollmentId: 'enrollment-a',
+      nodeId: 'bonus',
+      payload: {
+        kind: 'send_media',
+        chatId: '42',
+        mediaType: 'document',
+        assetId: 'asset-a',
+        caption: 'Ваш бонус, Анна',
+        parseMode: 'plain',
+        buttons: [],
+        nextNodeId: 'end',
+        waitsForInteraction: false,
+      },
+    });
+
+    expect(result).toEqual({ telegramMessageId: '202' });
+    expect(mocks.getAssetForDelivery).toHaveBeenCalledWith('user-a', 'project-a', 'asset-a', 'DOCUMENT');
+    expect(mocks.sendMedia).toHaveBeenCalledWith(expect.objectContaining({
+      token: 'decrypted-token',
+      chatId: '42',
+      mediaType: 'document',
+      fileName: 'bonus.pdf',
+    }));
+    expect(mocks.deliveryUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'delivery-a', userId: 'user-a', botId: 'bot-a' }),
+      data: expect.objectContaining({ status: 'SENT', telegramMessageId: '202' }),
+    }));
   });
 });

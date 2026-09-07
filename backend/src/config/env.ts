@@ -92,6 +92,7 @@ export const env = {
   TELEGRAM_RUNTIME_GLOBAL_RATE_PER_SECOND: Math.min(30, Math.max(1, getNumber('TELEGRAM_RUNTIME_GLOBAL_RATE_PER_SECOND', 25))),
   TELEGRAM_RUNTIME_BOT_RATE_PER_SECOND: Math.min(30, Math.max(1, getNumber('TELEGRAM_RUNTIME_BOT_RATE_PER_SECOND', 20))),
   TELEGRAM_RUNTIME_CHAT_RATE_PER_SECOND: Math.min(1, Math.max(0.1, getNumber('TELEGRAM_RUNTIME_CHAT_RATE_PER_SECOND', 1))),
+  TELEGRAM_ASSET_MAX_MB: Math.min(50, Math.max(1, Math.floor(getNumber('TELEGRAM_ASSET_MAX_MB', 20)))),
 
   // B2C SEO research: Yandex Wordstat -> Google Sheets
   YANDEX_SEARCH_API_KEY: get('YANDEX_SEARCH_API_KEY', ''),

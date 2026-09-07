@@ -72,6 +72,26 @@ describe('Chatbot ScenarioDefinitionV1 contract', () => {
     expect(report.definition?.schemaVersion).toBe('1.0');
   });
 
+  it('accepts a private media asset reference without embedding file contents', () => {
+    const scenario = structuredClone(validScenario) as any;
+    scenario.nodes[0] = {
+      id: 'send_bonus',
+      type: 'send_media',
+      mediaType: 'document',
+      assetId: '0a8eb7ea-1b50-4eb9-b67b-1ce04bd0d0fd',
+      caption: 'Бонус для {{first_name}}',
+      parseMode: 'plain',
+    };
+
+    const report = validateChatbotScenarioDefinition(scenario);
+
+    expect(report.valid).toBe(true);
+    expect(report.definition?.nodes[0]).toMatchObject({
+      type: 'send_media',
+      assetId: '0a8eb7ea-1b50-4eb9-b67b-1ce04bd0d0fd',
+    });
+  });
+
   it('rejects unknown executable actions at the schema boundary', () => {
     const scenario = structuredClone(validScenario) as any;
     scenario.nodes[0].type = 'run_javascript';
