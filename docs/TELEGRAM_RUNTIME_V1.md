@@ -1,6 +1,6 @@
 # Telegram Runtime v1
 
-Статус: production schema/API развёрнуты, canary runtime активен для одного тестового бота
+Статус: Runtime A2 и Scenario API A3 развёрнуты, canary runtime активен для одного тестового бота
 Дата: 2026-09-07
 
 ## Что реализовано
@@ -114,4 +114,10 @@ TELEGRAM_ASSET_MAX_MB=20
 - полный backend suite: 533 passed, 1 skipped, 1 unrelated pre-existing failure in `provider-boundary.test.ts` из-за `semeyno-ai-relay.controller.ts`.
 - после Scenario API A3: Prisma validate и backend build passed; 89 Telegram
   tests passed; полный backend suite — 550 passed, 1 skipped и то же единственное
-  unrelated падение `provider-boundary.test.ts`; production rollout A3 не выполнялся.
+  unrelated падение `provider-boundary.test.ts`;
+- rollout A3: backup проверен, production на `7ad8ae4`, 42/42 migration up to
+  date, health `200`, protected Scenario API без JWT возвращает `401`;
+- production HTTP-canary прошёл create/autosave/publish/pause/new version/
+  republish/rollback/archive, подтвердил immutable published definitions и не
+  отправлял сообщения; очереди после проверки пусты, allowlist по-прежнему один
+  bot ID без wildcard.

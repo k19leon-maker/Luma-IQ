@@ -1,8 +1,8 @@
 # Telegram-конструктор: handoff Runtime A2 и Scenario API A3
 
 Дата: 2026-09-07
-Статус: Runtime A2 развёрнут ограниченным canary; Scenario API A3 готов локально
-Production: commit `017fad6`, worker запущен только для `@lumaiq_dev_bot`
+Статус: Runtime A2 и Scenario API A3 развёрнуты; runtime canary ограничен одним ботом
+Production: commit `7ad8ae4`, worker запущен только для `@lumaiq_dev_bot`
 
 ## Граница результата
 
@@ -106,6 +106,18 @@ Production: commit `017fad6`, worker запущен только для `@lumaiq
   и delivery в production не создано, backend health возвращает `200`;
 - временный файл с token, canary-скрипты и тестовые media после проверки удалены;
   token сохранён только в зашифрованном поле production БД.
+- перед rollout A3 создан и проверен backup
+  `/app/backups/pre-telegram-a3-20260907-173608.dump`, SHA-256
+  `eaf6f94ff9f18d1426eceaa9cec24189a04c5502a4bf18665d97cbe0dcf22189`;
+- production обновлён до `7ad8ae4`, migration
+  `20260907153000_add_bot_scenario_version_updated_at` применена, 42/42 migration
+  up to date, backend build и health прошли;
+- HTTP-canary на `@lumaiq_dev_bot` прошёл create, autosave, publish, pause,
+  new version, republish, rollback и archive; две published definition остались
+  неизменными, тестовый сценарий архивирован, Telegram-сообщения не отправлялись;
+- после canary очереди inbound/delivery пусты, активных canary-сценариев нет,
+  error-логи не менялись после рестарта; внешний Scenario API без JWT вернул 401;
+- runtime allowlist после rollout содержит ровно один bot ID и не содержит `*`.
 
 Полный backend suite после A3: 550 passed, 1 skipped, 1 unrelated failure.
 Единственное падение полного suite:
@@ -119,16 +131,13 @@ Telegram-этапов и вынесена в общий P0 backlog.
 - wildcard-доступ runtime для всех пользовательских ботов;
 - подключение production-ботов реальных пользователей;
 - AI Builder и рабочее пространство сценария.
-- production migration и rollout Scenario API A3.
 
 ## Следующий безопасный шаг
 
-Пакеты A1 и A2 приняты, production canary ограниченного runtime завершён. Пакет
-A3 реализован и проверен локально; production пока остаётся на `017fad6`, новая
-additive migration не применялась. Следующий продуктовый шаг — пакет A5:
-рабочее пространство конструктора поверх готового Scenario API. Перед live
-проверкой A5 нужен отдельный контролируемый rollout A3, при этом allowlist
-сохраняется только для `@lumaiq_dev_bot`.
+Пакеты A1–A3 приняты и развёрнуты; production runtime остаётся ограничен
+`@lumaiq_dev_bot`. Следующий продуктовый шаг — пакет A5: рабочее пространство
+конструктора поверх готового Scenario API. AI Builder A4 можно подключать после
+ручного редактора либо вести параллельно, не меняя published version напрямую.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
