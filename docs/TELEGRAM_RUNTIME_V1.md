@@ -54,6 +54,7 @@ npm run start:telegram-worker
 
 ```env
 TELEGRAM_RUNTIME_V2_ENABLED=true
+TELEGRAM_RUNTIME_V2_ALLOWED_BOT_IDS=<internal-test-bot-uuid>
 TELEGRAM_RUNTIME_POLL_INTERVAL_MS=1000
 TELEGRAM_RUNTIME_BATCH_SIZE=20
 TELEGRAM_RUNTIME_LOCK_TIMEOUT_SECONDS=300
@@ -66,6 +67,10 @@ TELEGRAM_ASSET_MAX_MB=20
 2. иметь опубликованную версию сценария;
 3. запустить worker отдельно от HTTP API;
 4. провести E2E только на тестовом боте и админском Telegram-аккаунте.
+
+В production пустой `TELEGRAM_RUNTIME_V2_ALLOWED_BOT_IDS` означает, что worker
+не забирает ни одного job. Значение `*` включает все пользовательские боты и
+допустимо только после завершения canary-периода.
 
 ## Проверки
 

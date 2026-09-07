@@ -17,6 +17,16 @@ interface WorkerStats {
   failed: number;
 }
 
+function allowedBotIds(raw: string): string[] | null {
+  const values = [...new Set(raw.split(',').map((value) => value.trim()).filter(Boolean))];
+  return values.includes('*') ? null : values;
+}
+
+function botIdFilter(): { in: string[] } | undefined {
+  const allowed = allowedBotIds(env.TELEGRAM_RUNTIME_V2_ALLOWED_BOT_IDS);
+  return allowed === null ? undefined : { in: allowed };
+}
+
 function retryDelayMs(attempt: number, key: string): number {
   const base = Math.min(60 * 60 * 1000, 5_000 * (2 ** Math.max(0, attempt - 1)));
   const jitter = [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 1_000;
@@ -103,6 +113,7 @@ async function claimInbound(workerId: string) {
     const now = new Date();
     const candidate = await prisma.botInboundUpdate.findFirst({
       where: {
+        botId: botIdFilter(),
         status: 'PENDING',
         OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
       },
@@ -134,6 +145,7 @@ async function claimDelivery(workerId: string) {
     const now = new Date();
     const candidate = await prisma.botMessageDelivery.findFirst({
       where: {
+        botId: botIdFilter(),
         status: 'PENDING',
         scheduledAt: { lte: now },
         OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
@@ -336,7 +348,7 @@ async function recoverStaleJobs(): Promise<{
   const now = new Date();
   const [inbound, enrollments, deliveries] = await prisma.$transaction([
     prisma.botInboundUpdate.updateMany({
-      where: { status: 'PROCESSING', lockedAt: { lt: staleBefore } },
+      where: { botId: botIdFilter(), status: 'PROCESSING', lockedAt: { lt: staleBefore } },
       data: {
         status: 'PENDING',
         nextAttemptAt: now,
@@ -347,6 +359,7 @@ async function recoverStaleJobs(): Promise<{
     }),
     prisma.botScenarioEnrollment.updateMany({
       where: {
+        botId: botIdFilter(),
         status: { in: ['ACTIVE', 'WAITING'] },
         deliveries: {
           some: { status: 'PROCESSING', lockedAt: { lt: staleBefore } },
@@ -359,7 +372,7 @@ async function recoverStaleJobs(): Promise<{
       },
     }),
     prisma.botMessageDelivery.updateMany({
-      where: { status: 'PROCESSING', lockedAt: { lt: staleBefore } },
+      where: { botId: botIdFilter(), status: 'PROCESSING', lockedAt: { lt: staleBefore } },
       data: {
         status: 'DEAD',
         nextAttemptAt: null,
@@ -455,7 +468,11 @@ export const telegramRuntimeWorkerService = {
   async start(): Promise<boolean> {
     if (!env.TELEGRAM_RUNTIME_V2_ENABLED || timer) return false;
     const recovered = await recoverStaleJobs();
-    console.log('[TelegramRuntimeV2] worker started', { recovered });
+    const allowed = allowedBotIds(env.TELEGRAM_RUNTIME_V2_ALLOWED_BOT_IDS);
+    console.log('[TelegramRuntimeV2] worker started', {
+      recovered,
+      botScope: allowed === null ? 'all' : allowed.length,
+    });
     timer = setInterval(() => {
       void this.processOnce().catch((error) => {
         console.error('[TelegramRuntimeV2] polling failed', { message: safeTelegramErrorMessage(error) });
@@ -476,4 +493,5 @@ export const telegramRuntimeWorkerInternals = {
   deliveryMayRetry,
   rateLimitIntervalMs,
   latestRateLimitSlot,
+  allowedBotIds,
 };

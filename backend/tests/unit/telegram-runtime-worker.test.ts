@@ -41,4 +41,10 @@ describe('Telegram runtime worker retry policy', () => {
       ],
     ).toISOString()).toBe('2026-09-05T08:00:01.000Z');
   });
+
+  it('uses an explicit bot allowlist and requires * for unrestricted runtime', () => {
+    expect(telegramRuntimeWorkerInternals.allowedBotIds('')).toEqual([]);
+    expect(telegramRuntimeWorkerInternals.allowedBotIds(' bot-a,bot-b,bot-a ')).toEqual(['bot-a', 'bot-b']);
+    expect(telegramRuntimeWorkerInternals.allowedBotIds('bot-a,*')).toBeNull();
+  });
 });
