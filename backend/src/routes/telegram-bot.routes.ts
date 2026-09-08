@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { telegramBotController } from '../controllers/telegram-bot.controller';
 import { telegramBotAssetController } from '../controllers/telegram-bot-asset.controller';
 import { telegramScenarioController } from '../controllers/telegram-scenario.controller';
+import { telegramAudienceController } from '../controllers/telegram-audience.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { TELEGRAM_ASSET_MAX_BYTES } from '../services/telegram-bot-asset.service';
 
@@ -52,6 +53,10 @@ router.get('/:botId/assets/:assetId', requireAuth, assetLimiter, telegramBotAsse
 router.delete('/:botId/assets/:assetId', requireAuth, assetLimiter, telegramBotAssetController.remove);
 router.get('/:botId/test-recipient', requireAuth, telegramScenarioController.testRecipientStatus);
 router.post('/:botId/test-recipient-verifications', requireAuth, scenarioTestLimiter, telegramScenarioController.createTestRecipientVerification);
+router.get('/:botId/audience/subscribers', requireAuth, telegramAudienceController.list);
+router.get('/:botId/audience/subscribers.csv', requireAuth, telegramAudienceController.exportCsv);
+router.get('/:botId/audience/subscribers/:subscriberId', requireAuth, telegramAudienceController.get);
+router.get('/:botId/audience/analytics', requireAuth, telegramAudienceController.analytics);
 router.get('/:botId/scenarios', requireAuth, telegramScenarioController.list);
 router.post('/:botId/scenarios', requireAuth, scenarioMutationLimiter, telegramScenarioController.create);
 router.get('/:botId/scenarios/:scenarioId', requireAuth, telegramScenarioController.get);

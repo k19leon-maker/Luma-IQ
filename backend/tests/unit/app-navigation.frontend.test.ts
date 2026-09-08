@@ -28,6 +28,7 @@ describe('application navigation structure', () => {
     expect(chatbots?.children?.map((item) => [item.id, item.path])).toEqual([
       ['chatbot-list', '/chatbots'],
       ['chatbot-scenarios', '/chatbot-scenarios'],
+      ['chatbot-audience', '/chatbot-audience'],
       ['chatbot-chains', '/chatbot-chains'],
     ]);
     expect(resolveNavigation('/app/chatbots')).toMatchObject({
@@ -38,6 +39,11 @@ describe('application navigation structure', () => {
     expect(resolveNavigation('/app/chatbot-chains')).toMatchObject({
       globalSectionId: 'chatbots',
       subsectionId: 'chatbot-chains',
+      hasSubNavigation: true,
+    });
+    expect(resolveNavigation('/app/chatbot-audience')).toMatchObject({
+      globalSectionId: 'chatbots',
+      subsectionId: 'chatbot-audience',
       hasSubNavigation: true,
     });
   });

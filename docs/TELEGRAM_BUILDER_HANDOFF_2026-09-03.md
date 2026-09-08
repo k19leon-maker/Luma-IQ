@@ -162,10 +162,11 @@ server-side подтверждения личного Telegram ID владель
 
 ## Следующий безопасный шаг
 
-Пакеты A1–A5 развёрнуты; production runtime остаётся ограничен
+Пакеты A1–A5 развёрнуты; пакет A6 реализован и локально проверен, но ещё не
+развёрнут в production. Production runtime остаётся ограничен
 `@lumaiq_dev_bot`. Owner test recipient и изолированный Telegram test run
-пройдены. Следующий безопасный шаг — A6: подписчики и базовая аналитика для
-закрытой beta. Искусственный provider failure в production
+пройдены. Следующий безопасный шаг — контролируемый rollout A6 для закрытой
+beta с backup и smoke-проверкой owner-scoped API. Искусственный provider failure в production
 не инъецировался: release reserve покрыт автоматическими тестами, а успешный
 production run подтвердил reserve/capture и итоговый баланс.
 
@@ -186,3 +187,14 @@ production run подтвердил reserve/capture и итоговый бала
   runs/artifacts сохраняются серверной AI-инфраструктурой.
 - Secrets и Telegram bot token не передаются в prompt; добавлены проверки
   prompt injection и secret exclusion.
+
+## Подписчики и аналитика — обновление 2026-09-08
+
+- Добавлен owner-scoped API списка, карточки прохождения, 30-дневной аналитики
+  и CSV-экспорта для выбранного Telegram-бота.
+- Тестовые enrollment с `source=owner_test` исключены из рабочих показателей.
+- Карточка не возвращает Telegram user/chat ID, телефон или email.
+- Метрики разделяют успешную отправку Telegram и ошибки; read/open rate не
+  вычисляется, потому что Telegram Bot API не предоставляет receipt чтения.
+- CSV защищён от formula injection, ограничен 10 000 строками и оставляет
+  audit-событие. Добавлены проверки двух владельцев и guessed-resource access.

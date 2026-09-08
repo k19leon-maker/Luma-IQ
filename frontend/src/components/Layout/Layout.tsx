@@ -39,6 +39,7 @@ const pageTitles: Record<string, string> = {
   '/video-scripts':   'Сценарии видео',
   '/chatbots':        'Telegram-боты',
   '/chatbot-scenarios': 'Сценарии чатбота',
+  '/chatbot-audience': 'Подписчики и аналитика',
   '/chatbot-chains':  'Чат бот',
   '/threads':         'Тредс',
   '/tg-channel':      'ТГ-канал',

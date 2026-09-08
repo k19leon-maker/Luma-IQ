@@ -131,6 +131,7 @@ export const GLOBAL_NAVIGATION: readonly GlobalNavigationSection[] = [
     children: [
       item('chatbot-list', 'Мои боты', '/chatbots', [prefix('/chatbots')]),
       item('chatbot-scenarios', 'Сценарии', '/chatbot-scenarios'),
+      item('chatbot-audience', 'Подписчики и аналитика', '/chatbot-audience'),
       item('chatbot-chains', 'Цепочки (legacy)', '/chatbot-chains'),
     ],
   },
