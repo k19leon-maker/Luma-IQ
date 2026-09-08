@@ -27,6 +27,7 @@ describe('application navigation structure', () => {
     expect(chatbots?.path).toBe('/chatbots');
     expect(chatbots?.children?.map((item) => [item.id, item.path])).toEqual([
       ['chatbot-list', '/chatbots'],
+      ['chatbot-scenarios', '/chatbot-scenarios'],
       ['chatbot-chains', '/chatbot-chains'],
     ]);
     expect(resolveNavigation('/app/chatbots')).toMatchObject({

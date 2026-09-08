@@ -130,15 +130,41 @@ Telegram-этапов и вынесена в общий P0 backlog.
 
 - wildcard-доступ runtime для всех пользовательских ботов;
 - подключение production-ботов реальных пользователей;
-- AI Builder и рабочее пространство сценария.
+- миграция и удаление legacy-раздела `Цепочки`;
+- production rollout рабочего пространства и AI Builder.
+
+## Рабочее пространство A5
+
+Локально подготовлен frontend-маршрут `/app/chatbot-scenarios`: список
+сценариев выбранного бота и проекта, создание черновика, структурный редактор
+сообщений/задержек/кнопок/переходов, autosave через optimistic locking,
+публикация, пауза, rollback и server-side test recipient. Legacy-экран
+`Цепочки (legacy)` не изменён. До production rollout нужно пройти ручной E2E
+на активном тестовом боте и убедиться, что API origin доступен локальному
+frontend.
 
 ## Следующий безопасный шаг
 
 Пакеты A1–A3 приняты и развёрнуты; production runtime остаётся ограничен
-`@lumaiq_dev_bot`. Следующий продуктовый шаг — пакет A5: рабочее пространство
-конструктора поверх готового Scenario API. AI Builder A4 можно подключать после
-ручного редактора либо вести параллельно, не меняя published version напрямую.
+`@lumaiq_dev_bot`. Рабочее пространство A5 и AI Builder A4 подготовлены
+локально поверх готового Scenario API. Перед production rollout нужен
+авторизованный canary полного пути: generate → preview diff → apply draft →
+test run → publish, с проверкой AI-списания и release при provider failure.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
 единой Telegram-дорожной карте.
+## AI Builder — обновление 2026-09-08
+
+- Добавлены workflow `chatbot.builder`: `discover`, `generate`, `edit`,
+  `validate`, `copy`, `explain`.
+- Генерация использует server-owned контекст проекта и общий AI runtime/billing.
+- Результат AI никогда не сохраняется автоматически: сначала показывается
+  proposal и diff, затем пользователь явно применяет его к mutable draft.
+- Proposal проходит строгую schema- и graph-валидацию `ScenarioDefinitionV1`.
+- Published version не изменяется; для неё сначала требуется новая draft version.
+- История AI Builder изолирована от общего AI-диалога и хранит последние
+  сообщения отдельно для каждого сценария в текущем браузере. Полные workflow
+  runs/artifacts сохраняются серверной AI-инфраструктурой.
+- Secrets и Telegram bot token не передаются в prompt; добавлены проверки
+  prompt injection и secret exclusion.

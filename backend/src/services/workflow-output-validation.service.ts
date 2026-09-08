@@ -16,6 +16,10 @@ import {
 import type { ValidationResult } from './ai-validation.service';
 import type { UtpFoundation } from '../contracts/utp-foundation.contract';
 import {
+  chatbotBuilderAnalysisSchema,
+  chatbotBuilderProposalSchema,
+} from '../contracts/chatbot-builder-ai.contract';
+import {
   UTP_FOUNDATION_KEYS,
   type UtpAiResult,
   type UtpFoundationKey,
@@ -32,6 +36,11 @@ function parseJson(content: string): unknown {
 }
 
 function schemaFor(workflow: string, step: string): z.ZodTypeAny | null {
+  if (workflow === 'chatbot.builder' && step !== 'final') {
+    return ['generate', 'edit', 'copy'].includes(step)
+      ? chatbotBuilderProposalSchema
+      : chatbotBuilderAnalysisSchema;
+  }
   if (workflow === 'strategy.utp' && ['generate', 'improve', 'final'].includes(step)) {
     return utpAiResultSchema;
   }
@@ -224,12 +233,17 @@ export const workflowOutputValidationService = {
     inputs: Record<string, unknown> = {},
     utpFoundation?: UtpFoundation,
   ): ValidationResult {
+    const chatbotBuilderSchema = workflow === 'chatbot.builder'
+      ? (['generate', 'edit', 'copy'].includes(step === 'final' ? String(inputs.operation ?? '') : step)
+        ? chatbotBuilderProposalSchema
+        : chatbotBuilderAnalysisSchema)
+      : null;
     const caseSchema = workflow === 'cases'
       ? ((step === 'insights' || (step === 'final' && typeof inputs.title === 'string'))
         ? caseInsightsResultSchema
         : caseExtractionResultSchema)
       : null;
-    const domainSchema = caseSchema ?? schemaFor(workflow, step);
+    const domainSchema = chatbotBuilderSchema ?? caseSchema ?? schemaFor(workflow, step);
     const profileWorkflow = workflow === 'instagram.profile' && ['generate', 'improve'].includes(step);
     if (!domainSchema && !profileWorkflow) {
       return { ok: true, errors: [] };
@@ -264,6 +278,8 @@ export const workflowOutputValidationService = {
     } catch {
       const message = workflow === 'cases'
         ? 'Expected valid case JSON'
+        : workflow === 'chatbot.builder'
+          ? 'Expected valid chatbot builder JSON'
         : workflow === 'strategy.utp'
           ? 'Expected valid grounded UTP JSON'
         : workflow === 'tg-channel.description' || workflow === 'tg-channel'

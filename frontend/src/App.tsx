@@ -36,6 +36,7 @@ const Reels = lazy(() => import('./pages/Reels/Reels'));
 const Articles = lazy(() => import('./pages/Articles/Articles'));
 const VideoScripts = lazy(() => import('./pages/VideoScripts/VideoScripts'));
 const Chatbots = lazy(() => import('./pages/Chatbots/Chatbots'));
+const TelegramScenarioBuilder = lazy(() => import('./pages/TelegramScenarioBuilder/TelegramScenarioBuilder'));
 const ChatbotChains = lazy(() => import('./pages/ChatbotChains/ChatbotChains'));
 const Threads = lazy(() => import('./pages/Threads/Threads'));
 const TgChannel = lazy(() => import('./pages/TgChannel/TgChannel'));
@@ -161,6 +162,7 @@ export default function App() {
           <Route path="articles" element={page(<Articles />)} />
           <Route path="video-scripts" element={page(<VideoScripts />)} />
           <Route path="chatbots" element={page(<Chatbots />)} />
+          <Route path="chatbot-scenarios" element={page(<TelegramScenarioBuilder />)} />
           <Route path="chatbot-chains" element={page(<ChatbotChains />)} />
           <Route path="threads" element={page(<Threads />)} />
           <Route path="tg-channel" element={page(<TgChannel />)} />
@@ -199,6 +201,7 @@ export default function App() {
         <Route path="/reels" element={<Navigate to={appPath('/reels')} replace />} />
         <Route path="/video-scripts" element={<Navigate to={appPath('/video-scripts')} replace />} />
         <Route path="/chatbots" element={<Navigate to={appPath('/chatbots')} replace />} />
+        <Route path="/chatbot-scenarios" element={<Navigate to={appPath('/chatbot-scenarios')} replace />} />
         <Route path="/chatbot-chains" element={<Navigate to={appPath('/chatbot-chains')} replace />} />
         <Route path="/threads" element={<Navigate to={appPath('/threads')} replace />} />
         <Route path="/tg-channel" element={<Navigate to={appPath('/tg-channel')} replace />} />

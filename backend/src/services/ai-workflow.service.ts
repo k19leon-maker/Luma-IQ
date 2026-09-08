@@ -535,6 +535,9 @@ export const aiWorkflowService = {
           if (input.workflow === 'strategy.utp' && !validation.ok) {
             throw new Error(`UTP workflow validation failed: ${validation.errors.join('; ')}`);
           }
+          if (input.workflow === 'chatbot.builder' && !validation.ok) {
+            throw new Error(`Chatbot builder workflow validation failed: ${validation.errors.join('; ')}`);
+          }
 
           return {
             result: { response, validation, retryCount },

@@ -130,6 +130,7 @@ export const GLOBAL_NAVIGATION: readonly GlobalNavigationSection[] = [
     projectScoped: true,
     children: [
       item('chatbot-list', 'Мои боты', '/chatbots', [prefix('/chatbots')]),
+      item('chatbot-scenarios', 'Сценарии', '/chatbot-scenarios'),
       item('chatbot-chains', 'Цепочки (legacy)', '/chatbot-chains'),
     ],
   },

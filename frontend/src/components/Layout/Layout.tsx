@@ -38,6 +38,7 @@ const pageTitles: Record<string, string> = {
   '/articles':        'Статьи',
   '/video-scripts':   'Сценарии видео',
   '/chatbots':        'Telegram-боты',
+  '/chatbot-scenarios': 'Сценарии чатбота',
   '/chatbot-chains':  'Чат бот',
   '/threads':         'Тредс',
   '/tg-channel':      'ТГ-канал',
@@ -64,6 +65,7 @@ const aiWorkspacePaths = new Set([
   '/articles',
   '/video-scripts',
   '/chatbot-chains',
+  '/chatbot-scenarios',
   '/threads',
   '/tg-channel',
 ]);
@@ -74,6 +76,7 @@ const scrollableAiWorkspacePaths = new Set([
   '/articles',
   '/video-scripts',
   '/chatbot-chains',
+  '/chatbot-scenarios',
   '/threads',
   '/tg-channel',
 ]);
