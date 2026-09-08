@@ -10,6 +10,7 @@ import {
   TelegramRuntimeDataError,
   telegramRuntimeV2Service,
 } from './telegram-runtime-v2.service';
+import { telegramConferenceSheetsService } from './telegram-conference-sheets.service';
 
 interface WorkerStats {
   inboundProcessed: number;
@@ -412,7 +413,11 @@ export const telegramRuntimeWorkerService = {
         const update = await claimInbound(workerId);
         if (!update) break;
         try {
-          await telegramRuntimeV2Service.processInboundUpdate(update);
+          if (telegramConferenceSheetsService.handles(update.botId)) {
+            await telegramConferenceSheetsService.processInboundUpdate(update);
+          } else {
+            await telegramRuntimeV2Service.processInboundUpdate(update);
+          }
           await completeInbound(update);
           stats.inboundProcessed += 1;
         } catch (error) {

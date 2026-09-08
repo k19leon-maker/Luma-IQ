@@ -198,6 +198,16 @@ type TelegramButton =
   | { type: 'url'; label: string; url: string }
   | { type: 'callback'; label: string; callbackData: string };
 
+type TelegramReplyButton = {
+  label: string;
+  requestContact?: boolean;
+};
+
+export interface TelegramChatMember {
+  status: 'creator' | 'administrator' | 'member' | 'restricted' | 'left' | 'kicked' | string;
+  is_member?: boolean;
+}
+
 function inlineKeyboard(buttons?: TelegramButton[]) {
   return buttons?.length
     ? [buttons.map((button) => button.type === 'url'
@@ -276,16 +286,48 @@ export const telegramBotService = {
     parseMode?: 'HTML' | 'MarkdownV2';
     disableWebPreview?: boolean;
     buttons?: TelegramButton[];
+    buttonRows?: TelegramButton[][];
+    replyKeyboard?: TelegramReplyButton[][];
+    removeKeyboard?: boolean;
   }): Promise<{ messageId: string }> {
-    const keyboard = inlineKeyboard(input.buttons);
+    const keyboard = input.buttonRows?.length
+      ? input.buttonRows.map((row) => row.map((button) => button.type === 'url'
+        ? { text: button.label, url: button.url }
+        : { text: button.label, callback_data: button.callbackData }))
+      : inlineKeyboard(input.buttons);
+    const replyMarkup = keyboard
+      ? { inline_keyboard: keyboard }
+      : input.replyKeyboard?.length
+        ? {
+          keyboard: input.replyKeyboard.map((row) => row.map((button) => ({
+            text: button.label,
+            ...(button.requestContact ? { request_contact: true } : {}),
+          }))),
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        }
+        : input.removeKeyboard
+          ? { remove_keyboard: true }
+          : undefined;
     const result = await callTelegram<{ message_id: number }>(input.token, 'sendMessage', {
       chat_id: input.chatId,
       text: input.text,
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
       disable_web_page_preview: input.disableWebPreview ?? false,
-      ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     });
     return { messageId: String(result.message_id) };
+  },
+
+  async getChatMember(input: {
+    token: string;
+    chatId: string;
+    userId: string;
+  }): Promise<TelegramChatMember> {
+    return callTelegram<TelegramChatMember>(input.token, 'getChatMember', {
+      chat_id: input.chatId,
+      user_id: input.userId,
+    });
   },
 
   async sendMedia(input: {

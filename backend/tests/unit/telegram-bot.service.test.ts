@@ -189,6 +189,44 @@ describe('telegramBotService', () => {
     });
   });
 
+  it('requests the current Telegram user contact with a one-time reply keyboard', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(telegramResponse({ message_id: 779 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await telegramBotService.sendMessage({
+      token: '123456:abcdefghijklmnopqrstuvwxyz_ABCDE',
+      chatId: '987654321',
+      text: 'Поделитесь номером',
+      replyKeyboard: [[{ label: 'Поделиться номером', requestContact: true }]],
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      reply_markup: {
+        keyboard: [[{ text: 'Поделиться номером', request_contact: true }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    });
+  });
+
+  it('checks a Telegram channel membership', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(telegramResponse({ status: 'member' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const member = await telegramBotService.getChatMember({
+      token: '123456:abcdefghijklmnopqrstuvwxyz_ABCDE',
+      chatId: '@speaker_channel',
+      userId: '987654321',
+    });
+
+    expect(member).toEqual({ status: 'member' });
+    expect(fetchMock.mock.calls[0][0]).toContain('/getChatMember');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      chat_id: '@speaker_channel',
+      user_id: '987654321',
+    });
+  });
+
   it('preserves Telegram retry_after for rate-limit scheduling', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
       ok: false,
