@@ -130,9 +130,10 @@ Production: commit `4fb2a5c`, worker запущен только для `@lumaiq
   validation → apply draft → publish → pause → archive на `@lumaiq_dev_bot`;
 - действие `chatbot_scenario` списало ровно 30 AI-баллов: баланс изменился с
   2000 до 1970, generation `SUCCEEDED`, reserve 30 полностью captured, refund 0;
-- тестовый Telegram run безопасно пропущен: у canary-бота не был подтверждён
-  owner test recipient. Сценарий использовал только manual entrypoint, активных
-  enrollments не создал и после проверки был архивирован;
+- owner test recipient подтверждён через одноразовый deep link; production
+  test run прошёл на `@lumaiq_dev_bot`: delivery `SENT` с первой попытки,
+  enrollment `COMPLETED`; изолированный manual-only сценарий затем остановлен
+  и архивирован;
 - временный production canary script удалён после проверки.
 
 Полный backend suite после A3: 550 passed, 1 skipped, 1 unrelated failure.
@@ -155,16 +156,16 @@ Telegram-этапов и вынесена в общий P0 backlog.
 сценариев выбранного бота и проекта, создание черновика, структурный редактор
 сообщений/задержек/кнопок/переходов, autosave через optimistic locking,
 публикация, пауза, rollback и server-side test recipient. Legacy-экран
-`Цепочки (legacy)` не изменён. API lifecycle и AI Builder проверены production
-canary; Telegram test run остаётся проверить после подтверждения owner test
-recipient у `@lumaiq_dev_bot`.
+`Цепочки (legacy)` не изменён. API lifecycle, AI Builder и Telegram test run
+проверены production canary. Test recipient принимается только после
+server-side подтверждения личного Telegram ID владельца.
 
 ## Следующий безопасный шаг
 
 Пакеты A1–A5 развёрнуты; production runtime остаётся ограничен
-`@lumaiq_dev_bot`. Следующий безопасный шаг — подтвердить owner test recipient,
-пройти один изолированный Telegram test run, затем перейти к A6: подписчики и
-базовая аналитика для закрытой beta. Искусственный provider failure в production
+`@lumaiq_dev_bot`. Owner test recipient и изолированный Telegram test run
+пройдены. Следующий безопасный шаг — A6: подписчики и базовая аналитика для
+закрытой beta. Искусственный provider failure в production
 не инъецировался: release reserve покрыт автоматическими тестами, а успешный
 production run подтвердил reserve/capture и итоговый баланс.
 
