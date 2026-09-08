@@ -439,12 +439,29 @@ async function recordEvent(input: {
 }): Promise<void> {
   const stamp = formatMoscow();
   const registration = registrationId(input.cfg, input.parsed.actor);
+  const eventId = randomUUID();
   await Promise.all([
-    googleSheetsService.appendValues(`${SHEET.events}!A:${WIDTH.events}`, [[
-      randomUUID(), stamp, `@${input.bot.username}`, input.cfg.conferenceId, input.subscriberId,
-      registration, input.eventType, input.stepId, 'telegram_webhook', JSON.stringify(input.metadata ?? {}),
-      'PROCESSED', stamp,
-    ]], spreadsheetId()),
+    upsertSheetRow({
+      sheet: SHEET.events,
+      lastColumn: WIDTH.events,
+      maxRows: 50_000,
+      keyHeader: 'event_id',
+      keyValue: eventId,
+      data: {
+        event_id: eventId,
+        'Дата и время': stamp,
+        bot_username: `@${input.bot.username}`,
+        conference_id: input.cfg.conferenceId,
+        internal_user_id: input.subscriberId,
+        registration_id: registration,
+        'Тип события': input.eventType,
+        step_id: input.stepId,
+        'Источник': 'telegram_webhook',
+        'Данные JSON': JSON.stringify(input.metadata ?? {}),
+        'Статус обработки': 'PROCESSED',
+        'Создано': stamp,
+      },
+    }),
     prisma.botEvent.createMany({
       data: [{
         userId: input.update.userId,
