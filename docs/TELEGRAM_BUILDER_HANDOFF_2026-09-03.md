@@ -1,8 +1,9 @@
 # Telegram-конструктор: handoff Runtime A2 и Scenario API A3
 
-Дата: 2026-09-07
-Статус: Runtime A2 и Scenario API A3 развёрнуты; runtime canary ограничен одним ботом
-Production: commit `7ad8ae4`, worker запущен только для `@lumaiq_dev_bot`
+Дата: 2026-09-08
+Статус: Runtime A2, Scenario API A3, AI Builder A4 и workspace A5 развёрнуты;
+runtime canary ограничен одним ботом
+Production: commit `4fb2a5c`, worker запущен только для `@lumaiq_dev_bot`
 
 ## Граница результата
 
@@ -118,6 +119,21 @@ Production: commit `7ad8ae4`, worker запущен только для `@lumaiq
 - после canary очереди inbound/delivery пусты, активных canary-сценариев нет,
   error-логи не менялись после рестарта; внешний Scenario API без JWT вернул 401;
 - runtime allowlist после rollout содержит ровно один bot ID и не содержит `*`.
+- перед rollout A4/A5 создан и проверен backup
+  `/app/backups/lumaiq-pre-chatbot-ai-builder-20260908-112247.dump`, SHA-256
+  `c5a2c526a7e8cd909207d8dd33a81e83b704be78b6793c09f6ed8b2c7544ff30`;
+- production backend и frontend обновлены до `4fb2a5c`; 42/42 migrations up to
+  date, backend/deep health и `https://www.lumaiq.ru` возвращают `200`;
+- Vercel deployment `dpl_6nCoxkUPyhXrTUbqBK9GRia2bcgW` назначен alias
+  `https://www.lumaiq.ru`;
+- авторизованный production canary AI Builder прошёл quote → generate → strict
+  validation → apply draft → publish → pause → archive на `@lumaiq_dev_bot`;
+- действие `chatbot_scenario` списало ровно 30 AI-баллов: баланс изменился с
+  2000 до 1970, generation `SUCCEEDED`, reserve 30 полностью captured, refund 0;
+- тестовый Telegram run безопасно пропущен: у canary-бота не был подтверждён
+  owner test recipient. Сценарий использовал только manual entrypoint, активных
+  enrollments не создал и после проверки был архивирован;
+- временный production canary script удалён после проверки.
 
 Полный backend suite после A3: 550 passed, 1 skipped, 1 unrelated failure.
 Единственное падение полного suite:
@@ -131,25 +147,26 @@ Telegram-этапов и вынесена в общий P0 backlog.
 - wildcard-доступ runtime для всех пользовательских ботов;
 - подключение production-ботов реальных пользователей;
 - миграция и удаление legacy-раздела `Цепочки`;
-- production rollout рабочего пространства и AI Builder.
+- расширение runtime allowlist за пределы `@lumaiq_dev_bot`.
 
 ## Рабочее пространство A5
 
-Локально подготовлен frontend-маршрут `/app/chatbot-scenarios`: список
+В production доступен frontend-маршрут `/app/chatbot-scenarios`: список
 сценариев выбранного бота и проекта, создание черновика, структурный редактор
 сообщений/задержек/кнопок/переходов, autosave через optimistic locking,
 публикация, пауза, rollback и server-side test recipient. Legacy-экран
-`Цепочки (legacy)` не изменён. До production rollout нужно пройти ручной E2E
-на активном тестовом боте и убедиться, что API origin доступен локальному
-frontend.
+`Цепочки (legacy)` не изменён. API lifecycle и AI Builder проверены production
+canary; Telegram test run остаётся проверить после подтверждения owner test
+recipient у `@lumaiq_dev_bot`.
 
 ## Следующий безопасный шаг
 
-Пакеты A1–A3 приняты и развёрнуты; production runtime остаётся ограничен
-`@lumaiq_dev_bot`. Рабочее пространство A5 и AI Builder A4 подготовлены
-локально поверх готового Scenario API. Перед production rollout нужен
-авторизованный canary полного пути: generate → preview diff → apply draft →
-test run → publish, с проверкой AI-списания и release при provider failure.
+Пакеты A1–A5 развёрнуты; production runtime остаётся ограничен
+`@lumaiq_dev_bot`. Следующий безопасный шаг — подтвердить owner test recipient,
+пройти один изолированный Telegram test run, затем перейти к A6: подписчики и
+базовая аналитика для закрытой beta. Искусственный provider failure в production
+не инъецировался: release reserve покрыт автоматическими тестами, а успешный
+production run подтвердил reserve/capture и итоговый баланс.
 
 Системный `@lumaiq_ai_bot` не должен использовать `TelegramBot` или
 `BotSubscriber`: его identity и webhook создаются отдельным пакетом согласно
