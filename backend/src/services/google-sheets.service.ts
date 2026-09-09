@@ -119,6 +119,18 @@ export const googleSheetsService = {
     return (payload.values ?? []).map((row) => row.map((value) => String(value ?? '')));
   },
 
+  async batchGetValues(ranges: string[], spreadsheetId = env.SEO_SPREADSHEET_ID): Promise<string[][][]> {
+    if (!ranges.length) return [];
+    const params = new URLSearchParams();
+    for (const range of ranges) params.append('ranges', range);
+    const payload = await sheetsFetch<{
+      valueRanges?: Array<{ values?: unknown[][] }>;
+    }>(`/values:batchGet?${params.toString()}`, undefined, spreadsheetId);
+    return ranges.map((_range, index) => (
+      (payload.valueRanges?.[index]?.values ?? []).map((row) => row.map((value) => String(value ?? '')))
+    ));
+  },
+
   async batchUpdateValues(data: Array<{ range: string; values: Array<Array<string | number>> }>) {
     if (!data.length) return;
     await sheetsFetch('/values:batchUpdate', {

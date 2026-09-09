@@ -20,6 +20,12 @@ import {
 type SheetValue = string | number | boolean;
 type SheetRow = Record<string, SheetValue> & { __row: number };
 
+interface SheetLookup {
+  names: string[];
+  row: SheetRow | null;
+  nextRow: number;
+}
+
 interface ClaimedInboundUpdate {
   id: string;
   userId: string;
@@ -135,49 +141,35 @@ function spreadsheetId(): string {
   return env.TELEGRAM_CONFERENCE_SHEETS_SPREADSHEET_ID;
 }
 
-function columnLetter(index: number): string {
-  let value = index;
-  let result = '';
-  while (value > 0) {
-    value -= 1;
-    result = String.fromCharCode(65 + (value % 26)) + result;
-    value = Math.floor(value / 26);
-  }
-  return result;
-}
-
-async function readRows(sheet: string, range: string): Promise<Array<Record<string, string>>> {
-  const values = await googleSheetsService.getValues(`${sheet}!${range}`, spreadsheetId());
+function rowsFromValues(values: string[][]): Array<Record<string, string>> {
   const [headers = [], ...body] = values;
   return body.filter((row) => row.some((value) => value !== '')).map((row) => Object.fromEntries(
     headers.map((header, index) => [header, row[index] ?? '']),
   ));
 }
 
-async function headers(sheet: string, lastColumn: string): Promise<string[]> {
-  return (await googleSheetsService.getValues(`${sheet}!A1:${lastColumn}1`, spreadsheetId()))[0] ?? [];
-}
-
-async function findSheetRow(
+async function lookupSheetRow(
   sheet: string,
   lastColumn: string,
   maxRows: number,
   keyHeader: string,
   keyValue: string,
-): Promise<SheetRow | null> {
-  const names = await headers(sheet, lastColumn);
+): Promise<SheetLookup> {
+  const values = await googleSheetsService.getValues(`${sheet}!A1:${lastColumn}${maxRows}`, spreadsheetId());
+  const [names = [], ...body] = values;
   const keyIndex = names.indexOf(keyHeader);
   if (keyIndex < 0) throw new Error(`${sheet}: key column ${keyHeader} is missing`);
-  const keyColumn = columnLetter(keyIndex + 1);
-  const keys = await googleSheetsService.getValues(`${sheet}!${keyColumn}2:${keyColumn}${maxRows}`, spreadsheetId());
-  const match = keys.findIndex((row) => String(row[0] ?? '') === keyValue);
-  if (match < 0) return null;
-  const rowNumber = match + 2;
-  const values = (await googleSheetsService.getValues(`${sheet}!A${rowNumber}:${lastColumn}${rowNumber}`, spreadsheetId()))[0] ?? [];
-  return Object.assign(
-    { __row: rowNumber },
-    Object.fromEntries(names.map((name, index) => [name, values[index] ?? ''])),
-  ) as SheetRow;
+  const match = body.findIndex((row) => String(row[keyIndex] ?? '') === keyValue);
+  const firstGap = body.findIndex((row) => String(row[keyIndex] ?? '').trim() === '');
+  const nextRow = firstGap >= 0 ? firstGap + 2 : body.length + 2;
+  if (nextRow > maxRows) throw new Error(`${sheet}: row capacity ${maxRows} is exhausted`);
+  const row = match < 0
+    ? null
+    : Object.assign(
+      { __row: match + 2 },
+      Object.fromEntries(names.map((name, index) => [name, body[match]?.[index] ?? ''])),
+    ) as SheetRow;
+  return { names, row, nextRow };
 }
 
 async function upsertSheetRow(input: {
@@ -187,15 +179,12 @@ async function upsertSheetRow(input: {
   keyHeader: string;
   keyValue: string;
   data: Record<string, SheetValue>;
+  lookup?: SheetLookup;
 }): Promise<SheetRow> {
-  const names = await headers(input.sheet, input.lastColumn);
-  const existing = await findSheetRow(
-    input.sheet,
-    input.lastColumn,
-    input.maxRows,
-    input.keyHeader,
-    input.keyValue,
+  const lookup = input.lookup ?? await lookupSheetRow(
+    input.sheet, input.lastColumn, input.maxRows, input.keyHeader, input.keyValue,
   );
+  const { names, row: existing } = lookup;
   const merged = { ...(existing ?? {}), ...input.data };
   const values = names.map((name) => merged[name] ?? '');
   if (existing) {
@@ -206,16 +195,7 @@ async function upsertSheetRow(input: {
     );
     return { ...merged, __row: existing.__row } as SheetRow;
   }
-  const keyIndex = names.indexOf(input.keyHeader);
-  if (keyIndex < 0) throw new Error(`${input.sheet}: key column ${input.keyHeader} is missing`);
-  const keyColumn = columnLetter(keyIndex + 1);
-  const keyValues = await googleSheetsService.getValues(
-    `${input.sheet}!${keyColumn}2:${keyColumn}${input.maxRows}`,
-    spreadsheetId(),
-  );
-  const firstGap = keyValues.findIndex((row) => String(row[0] ?? '').trim() === '');
-  const rowNumber = firstGap >= 0 ? firstGap + 2 : keyValues.length + 2;
-  if (rowNumber > input.maxRows) throw new Error(`${input.sheet}: row capacity ${input.maxRows} is exhausted`);
+  const rowNumber = lookup.nextRow;
   await googleSheetsService.updateValues(
     `${input.sheet}!A${rowNumber}:${input.lastColumn}${rowNumber}`,
     [values],
@@ -275,12 +255,15 @@ async function runtimeBot(input: ClaimedInboundUpdate): Promise<RuntimeBot> {
 }
 
 async function loadConfig(): Promise<ConferenceConfig> {
-  const [settingRows, conferences, speakerRows, stepRows] = await Promise.all([
-    googleSheetsService.getValues(`${SHEET.settings}!A2:B100`, spreadsheetId()),
-    readRows(SHEET.conferences, 'A1:N100'),
-    readRows(SHEET.speakers, 'A1:N100'),
-    readRows(SHEET.steps, 'A1:Q100'),
-  ]);
+  const [settingRows, conferenceValues, speakerValues, stepValues] = await googleSheetsService.batchGetValues([
+    `${SHEET.settings}!A2:B100`,
+    `${SHEET.conferences}!A1:N100`,
+    `${SHEET.speakers}!A1:N100`,
+    `${SHEET.steps}!A1:Q100`,
+  ], spreadsheetId());
+  const conferences = rowsFromValues(conferenceValues);
+  const speakerRows = rowsFromValues(speakerValues);
+  const stepRows = rowsFromValues(stepValues);
   const settings = Object.fromEntries(settingRows.filter((row) => row[0]).map((row) => [row[0], row[1] ?? '']));
   const conferenceId = settings.default_conference_id || conferences[0]?.conference_id;
   const conference = conferences.find((row) => row.conference_id === conferenceId);
@@ -352,7 +335,8 @@ async function syncSubscriberSheet(
   cfg: ConferenceConfig,
   extra?: { phone?: string; phoneSource?: string; tags?: string },
 ): Promise<SheetRow> {
-  const existing = await findSheetRow(SHEET.subscribers, WIDTH.subscribers, 10_000, 'telegram_user_id', String(parsed.actor.id));
+  const lookup = await lookupSheetRow(SHEET.subscribers, WIDTH.subscribers, 10_000, 'telegram_user_id', String(parsed.actor.id));
+  const existing = lookup.row;
   const stamp = formatMoscow();
   const currentTags = String(existing?.['Метки'] ?? '');
   const role = normalizeUsername(parsed.actor.username) === cfg.adminUsername ? 'ADMIN' : 'TESTER';
@@ -363,6 +347,7 @@ async function syncSubscriberSheet(
     maxRows: 10_000,
     keyHeader: 'telegram_user_id',
     keyValue: String(parsed.actor.id),
+    lookup,
     data: {
       internal_user_id: subscriber.id,
       telegram_user_id: String(parsed.actor.id),
@@ -395,9 +380,11 @@ async function syncRegistration(input: {
   subscriberId: string;
   cfg: ConferenceConfig;
   data?: Record<string, SheetValue>;
+  lookup?: SheetLookup;
 }): Promise<SheetRow> {
   const id = registrationId(input.cfg, input.parsed.actor);
-  const existing = await findSheetRow(SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', id);
+  const lookup = input.lookup ?? await lookupSheetRow(SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', id);
+  const existing = lookup.row;
   const stamp = formatMoscow();
   return upsertSheetRow({
     sheet: SHEET.registrations,
@@ -405,6 +392,7 @@ async function syncRegistration(input: {
     maxRows: 10_000,
     keyHeader: 'registration_id',
     keyValue: id,
+    lookup,
     data: {
       registration_id: id,
       conference_id: input.cfg.conferenceId,
@@ -573,7 +561,8 @@ async function syncSubscriptionResults(
   const stamp = formatMoscow();
   for (const result of results) {
     const checkId = `${registration}:${result.speaker.id}`;
-    const existing = await findSheetRow(SHEET.subscriptions, WIDTH.subscriptions, 50_000, 'check_id', checkId);
+    const lookup = await lookupSheetRow(SHEET.subscriptions, WIDTH.subscriptions, 50_000, 'check_id', checkId);
+    const existing = lookup.row;
     const attempt = Number(existing?.['Номер попытки'] ?? 0) + 1;
     await upsertSheetRow({
       sheet: SHEET.subscriptions,
@@ -581,6 +570,7 @@ async function syncSubscriptionResults(
       maxRows: 50_000,
       keyHeader: 'check_id',
       keyValue: checkId,
+      lookup,
       data: {
         check_id: checkId,
         registration_id: registration,
@@ -612,23 +602,20 @@ async function handleSubscriptionCheck(
   cfg: ConferenceConfig,
   subscriberId: string,
 ): Promise<void> {
-  if (parsed.callbackId) {
-    await telegramBotService.answerCallbackQuery({
-      token: bot.token,
-      callbackQueryId: parsed.callbackId,
-      text: 'Проверяю подписки…',
-    });
-  }
   const results = await Promise.all(cfg.speakers.map((speaker) => checkSpeaker(bot.token, String(parsed.actor.id), speaker)));
   await syncSubscriptionResults(parsed, subscriberId, cfg, results);
   const confirmed = results.filter((result) => result.status === 'SUBSCRIBED').length;
   const allSubscribed = results.length === cfg.requiredCount && confirmed === cfg.requiredCount;
   const statusByOrder = Object.fromEntries(results.map((result) => [`Спикер ${result.speaker.order}${result.speaker.order === 6 ? ' / Организатор' : ''}`, result.status]));
-  const current = await findSheetRow(SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', registrationId(cfg, parsed.actor));
+  const registrationLookup = await lookupSheetRow(
+    SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', registrationId(cfg, parsed.actor),
+  );
+  const current = registrationLookup.row;
   await syncRegistration({
     parsed,
     subscriberId,
     cfg,
+    lookup: registrationLookup,
     data: {
       ...statusByOrder,
       'Подтверждено подписок': confirmed,
@@ -688,7 +675,10 @@ async function handleContact(
 ): Promise<void> {
   const ownContact = parsed.contact?.user_id === parsed.actor.id;
   const phone = ownContact ? normalizePhone(parsed.contact?.phone_number) : '';
-  const registration = await findSheetRow(SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', registrationId(cfg, parsed.actor));
+  const registrationLookup = await lookupSheetRow(
+    SHEET.registrations, WIDTH.registrations, 10_000, 'registration_id', registrationId(cfg, parsed.actor),
+  );
+  const registration = registrationLookup.row;
   const subscriptionsConfirmed = sheetBoolean(registration?.['Все подписки подтверждены']);
   if (!ownContact || !phone) {
     await telegramBotService.sendMessage({
@@ -719,6 +709,7 @@ async function handleContact(
     parsed,
     subscriberId,
     cfg,
+    lookup: registrationLookup,
     data: {
       'Телефон': phone,
       'Телефон получен': true,
@@ -765,6 +756,19 @@ export const telegramConferenceSheetsService = {
         });
       }
       return;
+    }
+    if (parsed.callbackId) {
+      try {
+        await telegramBotService.answerCallbackQuery({
+          token: bot.token,
+          callbackQueryId: parsed.callbackId,
+          text: 'Проверяю подписки…',
+        });
+      } catch (error) {
+        // Telegram expires callback IDs quickly. A stale acknowledgement must not
+        // prevent the membership check and the actual chat response on retry.
+        if (!(error instanceof TelegramBotApiError) || error.code !== 'TELEGRAM_BAD_REQUEST') throw error;
+      }
     }
     const cfg = await loadConfig();
     const subscriber = await upsertDbSubscriber(update, parsed);
