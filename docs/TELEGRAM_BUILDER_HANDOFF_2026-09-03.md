@@ -162,11 +162,11 @@ server-side подтверждения личного Telegram ID владель
 
 ## Следующий безопасный шаг
 
-Пакеты A1–A5 развёрнуты; пакет A6 реализован и локально проверен, но ещё не
-развёрнут в production. Production runtime остаётся ограничен
+Пакеты A1–A6 развёрнуты и проверены в production. Production runtime остаётся ограничен
 `@lumaiq_dev_bot`. Owner test recipient и изолированный Telegram test run
-пройдены. Следующий безопасный шаг — контролируемый rollout A6 для закрытой
-beta с backup и smoke-проверкой owner-scoped API. Искусственный provider failure в production
+пройдены. Следующий безопасный шаг — пакет B1: отдельная Telegram identity для
+системного `@lumaiq_ai_bot`; пакет A7 с Google Sheets CRM остаётся необязательным.
+Искусственный provider failure в production
 не инъецировался: release reserve покрыт автоматическими тестами, а успешный
 production run подтвердил reserve/capture и итоговый баланс.
 
@@ -198,3 +198,13 @@ production run подтвердил reserve/capture и итоговый бала
   вычисляется, потому что Telegram Bot API не предоставляет receipt чтения.
 - CSV защищён от formula injection, ограничен 10 000 строками и оставляет
   audit-событие. Добавлены проверки двух владельцев и guessed-resource access.
+- Перед rollout создан и проверен backup
+  `/app/backups/lumaiq-pre-telegram-a6-20260910-104140.dump`, SHA-256
+  `cac0686387384a048514682c19e87b996de5a88286e563cccfeec3e82f4c0049`.
+- Production обновлён до commit `23936d4`; 42/42 migration актуальны,
+  `lumaiq-backend` и `lumaiq-telegram-worker` online.
+- Frontend deployment `dpl_9YuCuxFjhrWy877jBZQaoqiXKG4N` получил alias
+  `https://www.lumaiq.ru`.
+- Авторизованный read-only canary подтвердил `200` для списка, аналитики и
+  карточки подписчика; запрещённые Telegram ID, chat ID, phone и email в ответах
+  отсутствуют. Неавторизованный endpoint возвращает `401`.
