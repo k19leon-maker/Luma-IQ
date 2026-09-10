@@ -19,6 +19,7 @@ import {
 } from '../config/pricing-plans';
 import { AI_ACTION_LABELS, AI_ACTION_SECTIONS, aiPointsForGeneration, featureCodeToAiAction } from '../config/ai-actions';
 import { planCatalogService } from '../services/plan-catalog.service';
+import { revokeTelegramAccountsInTransaction } from '../services/telegram-account.service';
 
 const subscriptionPlanValues = ['FREE', 'START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION', 'ANNUAL'] as const;
 const commercialPlanValues = ['START', 'SYSTEM_FUNNEL', 'EVERGREEN_FUNNEL', 'PRO', 'EXPERT', 'SUPPORT', 'MARKETING_PARTNER', 'IMPLEMENTATION'] as const;
@@ -1505,39 +1506,47 @@ export const adminController = {
       }
 
       const now = new Date();
-      const user = await prisma.user.update({
-        where: { id: target.id },
-        data: parsed.data.archived
-          ? {
-              archivedAt: target.archivedAt ?? now,
-              archivedById: req.userId!,
-              archiveReason: parsed.data.reason?.trim() || null,
-            }
-          : {
-              archivedAt: null,
-              archivedById: null,
-              archiveReason: null,
-            },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          archivedAt: true,
-          archivedById: true,
-          archiveReason: true,
-        },
-      });
+      const user = await prisma.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+          where: { id: target.id },
+          data: parsed.data.archived
+            ? {
+                archivedAt: target.archivedAt ?? now,
+                archivedById: req.userId!,
+                archiveReason: parsed.data.reason?.trim() || null,
+              }
+            : {
+                archivedAt: null,
+                archivedById: null,
+                archiveReason: null,
+              },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            archivedAt: true,
+            archivedById: true,
+            archiveReason: true,
+          },
+        });
 
-      await prisma.userEvent.create({
-        data: {
-          userId: target.id,
-          actorId: req.userId!,
-          type: parsed.data.archived ? 'admin_user_archived' : 'admin_user_unarchived',
-          metadata: {
-            email: target.email,
-            reason: parsed.data.reason ?? null,
-          } as Prisma.InputJsonValue,
-        },
+        if (parsed.data.archived) {
+          await revokeTelegramAccountsInTransaction(tx, target.id, req.userId!, 'user_archived');
+        }
+
+        await tx.userEvent.create({
+          data: {
+            userId: target.id,
+            actorId: req.userId!,
+            type: parsed.data.archived ? 'admin_user_archived' : 'admin_user_unarchived',
+            metadata: {
+              email: target.email,
+              reason: parsed.data.reason ?? null,
+            } as Prisma.InputJsonValue,
+          },
+        });
+
+        return updatedUser;
       });
 
       res.json({ ok: true, user });

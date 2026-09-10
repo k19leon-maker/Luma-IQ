@@ -60,6 +60,7 @@ model User {
   consentLogs              ConsentLog[]
   activatedCheckoutIntents CheckoutIntent[]
   telegramBots             TelegramBot[]
+  telegramAccounts         TelegramAccount[]
   botScenarios             BotScenario[]
   botScenarioVersions      BotScenarioVersion[]
   botSubscribers           BotSubscriber[]
@@ -1095,6 +1096,35 @@ model TelegramBot {
   @@map("telegram_bots")
 }
 
+model TelegramAccount {
+  id                  String                @id @default(uuid())
+  userId              String?
+  telegramUserId      String                @unique
+  telegramChatId      String
+  username            String?
+  firstName           String?
+  lastName            String?
+  languageCode        String?
+  status              TelegramAccountStatus @default(PENDING)
+  linkTokenHash       String?               @unique
+  linkTokenExpiresAt  DateTime?
+  linkTokenConsumedAt DateTime?
+  firstSeenAt         DateTime              @default(now())
+  lastSeenAt          DateTime              @default(now())
+  linkedAt            DateTime?
+  revokedAt           DateTime?
+  blockedAt           DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, lastSeenAt])
+  @@index([linkTokenExpiresAt])
+  @@map("telegram_accounts")
+}
+
 model BotScenario {
   id                 String            @id @default(uuid())
   userId             String
@@ -1680,6 +1710,13 @@ enum TelegramBotStatus {
   DISCONNECTED
   ERROR
   ARCHIVED
+}
+
+enum TelegramAccountStatus {
+  PENDING
+  LINKED
+  BLOCKED
+  REVOKED
 }
 
 enum BotScenarioStatus {
