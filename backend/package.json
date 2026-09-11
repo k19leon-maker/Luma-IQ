@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "dev:telegram-worker": "ts-node-dev --respawn --transpile-only src/workers/telegram-runtime.worker.ts",
+    "dev:system-telegram-worker": "ts-node-dev --respawn --transpile-only src/workers/system-telegram.worker.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "start:telegram-worker": "node dist/workers/telegram-runtime.worker.js",
+    "start:system-telegram-worker": "node dist/workers/system-telegram.worker.js",
     "test": "vitest run",
     "smoke:production": "node scripts/production-smoke.cjs",
     "test:e2e:staging": "vitest run tests/e2e/staging-real.e2e.test.ts",

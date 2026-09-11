@@ -18,6 +18,7 @@ const Register = lazy(() => import('./pages/Register/Register'));
 const PlatformLanding = lazy(() => import('./pages/Platform/PlatformLanding'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback/AuthCallback'));
 const TelegramLogin = lazy(() => import('./pages/TelegramLogin/TelegramLogin'));
+const TelegramLink = lazy(() => import('./pages/TelegramLink/TelegramLink'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail/VerifyEmail'));
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
 const Pricing = lazy(() => import('./pages/Pricing/Pricing'));
@@ -128,6 +129,7 @@ export default function App() {
         <Route path="/register"               element={page(<Register />)} />
         <Route path="/auth/callback"          element={page(<AuthCallback />)} />
         <Route path="/auth/telegram"          element={page(<TelegramLogin />)} />
+        <Route path="/auth/telegram/link"     element={page(<TelegramLink />)} />
         <Route path="/auth/verify-email"      element={page(<VerifyEmail />)} />
 
         {/* ── Admin ────────────────────────────────────────────── */}

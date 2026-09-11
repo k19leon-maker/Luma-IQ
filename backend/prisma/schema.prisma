@@ -1117,8 +1117,9 @@ model TelegramAccount {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  loginTokens TelegramLoginToken[]
+  user          User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loginTokens   TelegramLoginToken[]
+  systemUpdates SystemTelegramUpdate[]
 
   @@index([userId, status])
   @@index([status, lastSeenAt])
@@ -1142,6 +1143,33 @@ model TelegramLoginToken {
   @@index([telegramAccountId, createdAt])
   @@index([expiresAt])
   @@map("telegram_login_tokens")
+}
+
+model SystemTelegramUpdate {
+  id                String                     @id @default(uuid())
+  telegramAccountId String?
+  telegramUpdateId  String                     @unique
+  kind              String
+  payload           Json
+  status            SystemTelegramUpdateStatus @default(PENDING)
+  attempts          Int                        @default(0)
+  maxAttempts       Int                        @default(5)
+  nextAttemptAt     DateTime?
+  lockedAt          DateTime?
+  lockedBy          String?
+  processedAt       DateTime?
+  failedAt          DateTime?
+  outcome           String?
+  lastErrorCode     String?
+  lastError         String?                    @db.Text
+  receivedAt        DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  telegramAccount TelegramAccount? @relation(fields: [telegramAccountId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt, receivedAt])
+  @@index([telegramAccountId, receivedAt])
+  @@map("system_telegram_updates")
 }
 
 model BotScenario {
@@ -1787,6 +1815,13 @@ enum BotInboundUpdateStatus {
   PROCESSING
   PROCESSED
   FAILED
+  DEAD
+}
+
+enum SystemTelegramUpdateStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
   DEAD
 }
 

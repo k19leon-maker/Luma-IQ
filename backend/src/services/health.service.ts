@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { emailService } from './email.service';
+import { systemTelegramAdminService } from './system-telegram-admin.service';
 
 type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -32,6 +33,8 @@ export const healthService = {
         status: env.isProd && env.REGISTRATION_ENABLED ? 'fail' : 'warn',
         details: { configured: false, required: env.REGISTRATION_ENABLED },
       };
+
+    checks.systemTelegram = await systemTelegramAdminService.health();
 
     try {
       const missingPricingAlerts = await prisma.aIUsageEvent.count({

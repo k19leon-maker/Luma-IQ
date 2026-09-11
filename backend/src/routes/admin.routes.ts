@@ -6,6 +6,7 @@ import { adminController } from '../controllers/admin.controller';
 import { aiConfigurationController } from '../controllers/ai-configuration.controller';
 import { aiEconomicsV2Controller } from '../controllers/ai-economics-v2.controller';
 import { telegramRuntimeAdminController } from '../controllers/telegram-runtime-admin.controller';
+import { systemTelegramAdminController } from '../controllers/system-telegram-admin.controller';
 
 const router = Router();
 
@@ -50,5 +51,6 @@ router.patch('/users/:id/archive', adminController.archiveUser);
 router.post('/users/:id/credits', adminController.addUserCredits);
 router.post('/users/:id/impersonate', adminController.impersonateUser);
 router.post('/telegram-runtime/jobs/:queue/:id/recover', telegramRuntimeAdminController.recoverJob);
+router.get('/system-telegram/runtime', systemTelegramAdminController.snapshot);
 
 export default router;
