@@ -17,6 +17,7 @@ import {
 } from '../utils/auth-cookies';
 import { legalConsentSchema, logConsent } from '../services/consent-log.service';
 import { prisma } from '../lib/prisma';
+import { telegramLoginService } from '../services/telegram-login.service';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -36,6 +37,10 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Введите пароль'),
   consents: legalConsentSchema.optional(),
 });
+
+const telegramSessionSchema = z.object({
+  token: z.string().min(32).max(128),
+}).strict();
 
 function handleError(res: Response, err: unknown): void {
   if (err instanceof Error) {
@@ -103,6 +108,27 @@ export const authController = {
         await logConsentSafely({ req, userId: result.user.id, email: result.user.email, consents, source: 'b2b_login' });
       }
       res.json(authPayload(result, res));
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+
+  async telegramSession(req: Request, res: Response): Promise<void> {
+    const parsed = telegramSessionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Некорректная ссылка входа' });
+      return;
+    }
+
+    try {
+      const previousRefreshToken = getRefreshCookie(req);
+      const result = await telegramLoginService.consumeBrowserLogin(parsed.data.token);
+      if (previousRefreshToken) {
+        await authService.logout(previousRefreshToken).catch(() => {});
+      }
+      clearAdminReturnCookie(res);
+      const payload = authPayload(result, res);
+      res.json({ ...payload, redirect: result.redirect });
     } catch (err) {
       handleError(res, err);
     }

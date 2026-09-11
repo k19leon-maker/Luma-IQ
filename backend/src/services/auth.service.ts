@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { emailService } from './email.service';
@@ -33,7 +34,10 @@ function signAccess(userId: string): string {
 }
 
 function signRefresh(userId: string): string {
-  const options: SignOptions = { expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] };
+  const options: SignOptions = {
+    expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'],
+    jwtid: crypto.randomUUID(),
+  };
   return jwt.sign({ sub: userId }, env.JWT_REFRESH_SECRET, options);
 }
 
@@ -41,7 +45,25 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function toAuthUser(user: {
+async function issueTokensWithClient(
+  client: Pick<Prisma.TransactionClient, 'refreshToken'>,
+  userId: string,
+): Promise<TokenPair> {
+  const accessToken = signAccess(userId);
+  const refreshToken = signRefresh(userId);
+  const raw = env.JWT_REFRESH_EXPIRES_IN;
+  const days = raw.endsWith('d') ? parseInt(raw, 10) : 30;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + days);
+
+  await client.refreshToken.create({
+    data: { token: hashRefreshToken(refreshToken), userId, expiresAt },
+  });
+
+  return { accessToken, refreshToken };
+}
+
+export function toAuthUser(user: {
   id: string;
   email: string;
   name: string | null;
@@ -181,20 +203,11 @@ export const authService = {
   },
 
   async issueTokens(userId: string): Promise<TokenPair> {
-    const accessToken = signAccess(userId);
-    const refreshToken = signRefresh(userId);
+    return issueTokensWithClient(prisma, userId);
+  },
 
-    // Parse JWT_REFRESH_EXPIRES_IN (e.g. "30d", "7d") to derive DB expiry
-    const raw = env.JWT_REFRESH_EXPIRES_IN;
-    const days = raw.endsWith('d') ? parseInt(raw, 10) : 30;
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + days);
-
-    await prisma.refreshToken.create({
-      data: { token: hashRefreshToken(refreshToken), userId, expiresAt },
-    });
-
-    return { accessToken, refreshToken };
+  async issueTokensInTransaction(tx: Prisma.TransactionClient, userId: string): Promise<TokenPair> {
+    return issueTokensWithClient(tx, userId);
   },
 
   issueAccessToken(userId: string): string {

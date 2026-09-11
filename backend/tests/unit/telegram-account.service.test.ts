@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     update: vi.fn(),
     updateMany: vi.fn(),
   },
+  telegramLoginToken: { updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   userEvent: { create: vi.fn() },
   track: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('../../src/lib/prisma', () => ({
     userEvent: mocks.userEvent,
     $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback({
       telegramAccount: mocks.telegramAccount,
+      telegramLoginToken: mocks.telegramLoginToken,
       user: mocks.user,
       userEvent: mocks.userEvent,
     })),
@@ -76,6 +78,7 @@ describe('system Telegram account identity', () => {
     vi.clearAllMocks();
     mocks.userEvent.create.mockResolvedValue({ id: 'event-1' });
     mocks.track.mockResolvedValue(undefined);
+    mocks.telegramLoginToken.updateMany.mockResolvedValue({ count: 0 });
   });
 
   it('creates a pending identity without creating a Luma user and stores only a token hash', async () => {
@@ -232,6 +235,7 @@ describe('system Telegram account identity', () => {
     mocks.telegramAccount.updateMany.mockResolvedValue({ count: 1 });
     const tx = {
       telegramAccount: mocks.telegramAccount,
+      telegramLoginToken: mocks.telegramLoginToken,
       userEvent: mocks.userEvent,
     } as never;
 

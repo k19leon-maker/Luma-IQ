@@ -24,6 +24,14 @@ const refreshLimiter = rateLimit({
   message: { error: 'Слишком много refresh-запросов. Попробуйте позже.' },
 });
 
+const telegramSessionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток входа. Запросите новую ссылку в Telegram.' },
+});
+
 const router = Router();
 
 function requireGoogleLegalConsent(req: Request, res: Response, next: () => void) {
@@ -37,6 +45,21 @@ function requireGoogleLegalConsent(req: Request, res: Response, next: () => void
     sameSite: 'lax',
     maxAge: 10 * 60 * 1000,
   });
+  next();
+}
+
+function requireAllowedWebOrigin(req: Request, res: Response, next: () => void) {
+  const origin = req.get('origin');
+  const allowedOrigins = new Set([
+    ...env.FRONTEND_URL.split(',').map((value) => value.trim()),
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ]);
+
+  if ((!origin && env.NODE_ENV === 'production') || (origin && !allowedOrigins.has(origin))) {
+    res.status(403).json({ error: 'Недопустимый источник запроса' });
+    return;
+  }
   next();
 }
 
@@ -67,6 +90,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 // email/password
 router.post('/register', authLimiter, authController.register);
 router.post('/login', authLimiter, authController.login);
+router.post('/telegram/session', telegramSessionLimiter, requireAllowedWebOrigin, authController.telegramSession);
 router.post('/refresh', refreshLimiter, authController.refresh);
 router.post('/logout', refreshLimiter, authController.logout);
 router.post('/admin/impersonate/:id', requireAuth, requireAdmin, authLimiter, authController.impersonateUser);

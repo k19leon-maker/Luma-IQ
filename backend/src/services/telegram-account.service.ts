@@ -81,6 +81,15 @@ export async function revokeTelegramAccountsInTransaction(
     },
   });
 
+  await tx.telegramLoginToken.updateMany({
+    where: {
+      telegramAccount: { is: { userId } },
+      consumedAt: null,
+      revokedAt: null,
+    },
+    data: { revokedAt: now },
+  });
+
   if (result.count > 0) {
     await tx.userEvent.create({
       data: {
@@ -243,6 +252,15 @@ export const telegramAccountService = {
           throw new TelegramAccountError(409, 'TELEGRAM_LINK_ALREADY_CONSUMED', 'Код привязки уже использован');
         }
 
+        await tx.telegramLoginToken.updateMany({
+          where: {
+            telegramAccountId: account.id,
+            consumedAt: null,
+            revokedAt: null,
+          },
+          data: { revokedAt: now },
+        });
+
         await tx.userEvent.create({
           data: {
             userId,
@@ -297,6 +315,15 @@ export const telegramAccountService = {
         throw new TelegramAccountError(409, 'TELEGRAM_ACCOUNT_CHANGED', 'Связь Telegram уже изменена');
       }
 
+      await tx.telegramLoginToken.updateMany({
+        where: {
+          telegramAccountId: account.id,
+          consumedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      });
+
       await tx.userEvent.create({
         data: {
           userId,
@@ -349,6 +376,14 @@ export const telegramAccountService = {
           linkTokenExpiresAt: null,
           linkTokenConsumedAt: null,
         },
+      });
+      await tx.telegramLoginToken.updateMany({
+        where: {
+          telegramAccountId: account.id,
+          consumedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
       });
       await tx.userEvent.create({
         data: {

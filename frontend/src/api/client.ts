@@ -70,7 +70,7 @@ apiClient.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const requestUrl = typeof original?.url === 'string' ? original.url : '';
-    const isAuthRequest = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/oauth/session'].some((path) =>
+    const isAuthRequest = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/oauth/session', '/auth/telegram/session'].some((path) =>
       requestUrl.includes(path),
     );
 

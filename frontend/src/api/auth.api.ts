@@ -31,6 +31,13 @@ export interface AuthResponse {
   tokens: TokenPair;
 }
 
+export interface TelegramAuthResponse extends AuthResponse {
+  redirect: {
+    path: string;
+    projectId: string | null;
+  };
+}
+
 export const authApi = {
   register: (email: string, password: string, name: string | undefined, consents: LegalConsentState) =>
     apiClient.post<AuthResponse>('/auth/register', { email, password, name, consents: legalConsentPayload(consents) }).then((r) => r.data),
@@ -52,6 +59,9 @@ export const authApi = {
 
   oauthSession: () =>
     apiClient.get<AuthResponse>('/auth/oauth/session', { withCredentials: true }).then((r) => r.data),
+
+  telegramSession: (token: string) =>
+    apiClient.post<TelegramAuthResponse>('/auth/telegram/session', { token }).then((r) => r.data),
 
   verifyEmail: (token: string) =>
     apiClient.get<{ message: string }>(`/auth/verify-email?token=${token}`).then((r) => r.data),

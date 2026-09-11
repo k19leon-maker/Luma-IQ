@@ -1,6 +1,6 @@
 export const DEFAULT_AFTER_AUTH = '/app/ai-dialog';
 
-const AUTH_PATHS = new Set(['/auth', '/login', '/app/auth', '/app/login', '/register']);
+const AUTH_PATHS = new Set(['/auth', '/login', '/app/auth', '/app/login', '/register', '/auth/telegram']);
 
 export function getSafeAfterAuthPath(nextPath: string | null) {
   if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//')) {
